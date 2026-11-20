@@ -10,6 +10,15 @@ Native Georgian (ქართული) in Garmin watch notifications, from a fo
 
 Unofficial; not affiliated with or endorsed by Garmin.
 
+## Install with an AI agent
+
+To have an AI agent install it for you, without this project's app, give it this prompt:
+
+```text
+Follow https://github.com/lubaretsi/georgian-for-garmin/blob/main/docs/install-with-an-agent.md
+to add Georgian to my Garmin watch's notifications.
+```
+
 ## License
 
 [MIT](LICENSE)
