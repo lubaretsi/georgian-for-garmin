@@ -1,7 +1,8 @@
-# Builds the macOS release with scripts/build-macos-release.sh and the Windows release with
-# scripts/build-windows-release.ps1. A pushed v* tag also creates a draft GitHub release with all
-# the files; a manual run only builds them (see the run's artifacts) and can skip macOS.
-# Nothing is signed beyond the macOS linker's ad-hoc signature, and nothing is notarized.
+# Builds the release for macOS (scripts/build-macos-release.sh), Windows
+# (scripts/build-windows-release.ps1) and Linux (scripts/build-linux-release.sh). A pushed v* tag
+# also creates a draft GitHub release with all the files; a manual run only builds them (see the
+# run's artifacts) and can skip macOS. Nothing is signed beyond the macOS linker's ad-hoc
+# signature, and nothing is notarized.
 name: Release
 
 on:
@@ -112,9 +113,48 @@ jobs:
           path: target/windows-release/dist/
           if-no-files-found: error
 
+  # Ubuntu 22.04 sets the app's oldest glibc (2.35); the CLI is static and runs anywhere.
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Nix only builds the fonts and supplies the Tauri CLI; Rust is rustup's, the rest Ubuntu's.
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Install the app's build libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libwebkit2gtk-4.1-dev librsvg2-dev \
+            xdg-utils file
+
+      - name: Build
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: scripts/build-linux-release.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-${{ matrix.arch }}-release
+          path: target/linux-release/dist/
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: [macos, windows]
+    needs: [macos, windows, linux]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -125,20 +165,19 @@ jobs:
           pattern: "*-release"
           path: artifacts
 
-      # Both builds embed the same fonts, so they ship the same manifest; it's published once,
-      # with one SHA256SUMS for every file.
+      # Every build embeds the same fonts, so they all ship the same manifest; it's published
+      # once, with one SHA256SUMS for every file.
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          for build in macos windows; do
-            (cd "artifacts/$build-release" && sha256sum --check --strict SHA256SUMS)
-          done
-          cmp artifacts/macos-release/manifest.json artifacts/windows-release/manifest.json
           mkdir dist
-          cp artifacts/macos-release/* dist/
-          cp artifacts/windows-release/* dist/
+          for build in macos windows linux-x86_64 linux-aarch64; do
+            (cd "artifacts/$build-release" && sha256sum --check --strict SHA256SUMS)
+            cmp artifacts/macos-release/manifest.json "artifacts/$build-release/manifest.json"
+            cp "artifacts/$build-release"/* dist/
+          done
           rm dist/SHA256SUMS
           (cd dist && sha256sum -- * >SHA256SUMS && cat SHA256SUMS)
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
