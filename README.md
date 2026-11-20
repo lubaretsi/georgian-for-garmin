@@ -1,3 +1,5 @@
+<img src="crates/app/icons/icon.png" alt="Georgian for Garmin logo" width="96" align="right">
+
 # Georgian for Garmin
 
 ქართული შრიფტი Garmin-ის საათებისთვის.
