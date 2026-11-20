@@ -932,7 +932,8 @@ fn a_conflict_on_any_size_stops_before_writing() {
         assert_eq!(err.code, ErrorCode::Conflict);
         assert_eq!(
             err.message,
-            "A different file is already staged as GARMIN/ExtData/006-D9035-04.tmp; nothing was written."
+            "A different file is already staged as GARMIN/ExtData/006-D9035-04.tmp; nothing was \
+             written. Unplug the watch and restart it so it loads that file, then try again."
         );
         assert!(fake.writes().is_empty());
         assert_eq!(staged(&fake, last), [(0x0100_0050, existing)]);
@@ -1040,7 +1041,8 @@ fn a_conflict_in_the_second_pack_blocks_every_pack() {
     assert_eq!(err.code, ErrorCode::Conflict);
     assert_eq!(
         err.message,
-        "A different file is already staged as GARMIN/ExtData/006-D8947-02.tmp; nothing was written."
+        "A different file is already staged as GARMIN/ExtData/006-D8947-02.tmp; nothing was \
+         written. Unplug the watch and restart it so it loads that file, then try again."
     );
     assert!(fake.writes().is_empty());
     for part in &ALL_AND_THAI[..5] {

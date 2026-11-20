@@ -952,7 +952,8 @@ pub fn stage(
         return Err(Error::new(
             ErrorCode::Conflict,
             format!(
-                "A different file is already staged as {}; nothing was written.",
+                "A different file is already staged as {}; nothing was written. Unplug the watch \
+                 and restart it so it loads that file, then try again.",
                 conflicts.join(", ")
             ),
         ));
