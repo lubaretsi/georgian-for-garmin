@@ -1,0 +1,7 @@
+# The Rust that release builds use through rustup (scripts/build-macos-release.sh). It must equal
+# nixpkgs' rustc in flake.lock, which `nix develop` and CI's checks use; scripts/check-rust-toolchain.sh
+# compares them. The Nix dev shell puts its own cargo first on PATH, so it ignores this file.
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

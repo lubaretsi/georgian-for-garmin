@@ -1,0 +1,54 @@
+# Font build and Rust checks. Linux only: macOS runners cost 10x the minutes, and the macOS build
+# runs in release.yml.
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ github.token }}
+
+      # Builds the fonts on Linux and checks all four Georgian fonts against their pinned SHA-256s.
+      - name: nix flake check
+        run: nix flake check --print-build-logs
+
+      - name: Rust toolchain matches nixpkgs
+        run: scripts/check-rust-toolchain.sh
+
+      - name: Build the dev shell
+        run: nix develop --command true
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: cargo fmt
+        run: nix develop --command cargo fmt --all --check
+
+      - name: cargo clippy
+        run: nix develop --command cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: cargo clippy (app demo)
+        run: >-
+          nix develop --command cargo clippy --locked -p georgian-for-garmin-app --all-targets
+          --features demo -- -D warnings
+
+      - name: cargo test
+        run: nix develop --command cargo test --locked --workspace

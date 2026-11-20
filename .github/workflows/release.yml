@@ -1,0 +1,63 @@
+# Builds the macOS release with scripts/build-macos-release.sh. A pushed v* tag also creates a
+# draft GitHub release with the files; a manual run only builds them (see the run's artifacts).
+# Nothing is signed beyond the linker's ad-hoc signature, and nothing is notarized.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Nix only builds the fonts and supplies the Tauri CLI; Rust and the SDK are Apple's and rustup's.
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Build
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: scripts/build-macos-release.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-release
+          path: target/macos-release/dist/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push'
+    needs: macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-release
+          path: dist
+
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd dist && sha256sum --check --strict SHA256SUMS)
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "Georgian for Garmin ${TAG#v}" --generate-notes
