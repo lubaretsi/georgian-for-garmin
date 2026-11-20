@@ -3,7 +3,9 @@
 Instructions for an AI agent installing Georgian on a user's Garmin watch without the Georgian
 for Garmin app. The procedure copies font files to the watch over USB: every size of one font
 pack that the watch lists. The watch imports them after it's unplugged and restarted. It doesn't
-modify firmware.
+modify firmware. [How it works](how-it-works.md) explains the background. If the user can run
+this project's [command-line tool](command-line.md), `georgian-for-garmin install` does all of
+the steps below.
 
 **Verified:** Venu 2, firmware 19.05, from macOS. With all four Armenian sizes installed
 (21, 24, 27 and 31 px), Georgian renders in the notification pop-up, the notification list and an
