@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   folder. `install` and `restore-stock` stage the Georgian or original font and verify it by
   reading it back; then unplug the watch and restart it. Needs no libmtp or libusb.
 - `--json` output, `--input` JSON and `--help --json` tool definitions for scripts and agents.
+- The installer recovers a watch left unresponsive by an earlier failed transfer, and
+  `GEORGIAN_FOR_GARMIN_TRACE=1` prints an MTP trace to stderr.
 - Desktop app for macOS in Georgian and English (Georgian by default; the choice is remembered).
   It finds the watch, shows its model and software version, installs the Georgian font or
   restores the original with one click, and explains how to unplug and restart the watch.
