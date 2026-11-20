@@ -5,6 +5,7 @@ import pytest
 from registry_data import PART_IDS, REGISTRY
 
 from garmin_fonts.build import build
+from garmin_fonts.georgian import Outlines
 
 # Set by `nix develop` and the flake check to the pinned inputs.
 INPUTS = {
@@ -32,3 +33,16 @@ def assets(inputs, tmp_path_factory):
     out = tmp_path_factory.mktemp("assets") / "fonts"
     manifest = build(out=out, **inputs)
     return out, manifest
+
+
+@pytest.fixture(scope="session")
+def outlines(inputs):
+    """Noto Sans Georgian at a weight, loaded once per weight: outlines(400)."""
+    loaded = {}
+
+    def at(weight):
+        if weight not in loaded:
+            loaded[weight] = Outlines(inputs["noto"], weight)
+        return loaded[weight]
+
+    return at

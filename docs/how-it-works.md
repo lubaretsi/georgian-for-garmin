@@ -42,13 +42,28 @@ A header gives the line height and baseline, a table maps Unicode ranges to glyp
 footer names the part and its version. The builder (`builder/`):
 
 1. downloads Garmin's original file and checks its SHA-256;
-2. draws each Georgian letter from Noto Sans Georgian at the font's own size, line height and
-   baseline;
-3. adds the ranges U+10D0–U+10F0 (Mkhedruli) and U+1C90–U+1CB0 (Mtavruli) and rebuilds the tables;
-4. checks that every original letter, the missing-letter box and the footer are unchanged.
+2. measures the font's own Armenian letters and picks the Noto Sans Georgian size whose
+   Mkhedruli x-height matches theirs (below);
+3. draws each Georgian letter at that size on the font's line height and baseline, at the
+   weight of its letters;
+4. adds the ranges U+10D0–U+10F0 (Mkhedruli) and U+1C90–U+1CB0 (Mtavruli) and rebuilds the tables;
+5. checks that every original letter, the missing-letter box and the footer are unchanged.
 
-The build is reproducible: `nix build .#fonts` gives the same bytes on any machine, and the
-27 px font is byte-identical to the one first tested on a watch.
+The build is reproducible: `nix build .#fonts` gives the same bytes on any machine.
+
+### Letter size
+
+A font's "27 px" is about the height of its Armenian capitals, not a font size. Georgian drawn
+at 27 px came out about a quarter smaller than the text around it, so the builder measures the
+2-bit bitmaps instead: the median height of ա ո ս ռ ւ (Armenian x-height), with antialiased
+edge rows counted by their coverage. It draws Georgian at the size whose ა თ ი ო come closest;
+in the 27 px font that is 34 px, with an x-height of 19 px like the Armenian (previously 15).
+Noto's Georgian descenders are deeper than the Armenian ones the font's rows were made for,
+so where they don't fit (14 of the 20 parts) the builder shortens only the part of each letter
+below the baseline, to 82–97% of its designed length; the baseline doesn't move. The numbers
+for every part are in [the font registry](../fonts/README.md#size).
+
+![Garmin's Armenian letters and the Georgian added to the same 27 px font, from their 2-bit bitmaps](georgian-glyphs-27px.png)
 
 ## The hidden folder
 

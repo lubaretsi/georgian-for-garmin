@@ -86,7 +86,7 @@
       "properties": {
         "part": { "$ref": "#/$defs/part_number" },
         "size_px": {
-          "description": "Nominal pixel size; Georgian glyphs are rendered at this size.",
+          "description": "Nominal pixel size, about the height of the part's capitals. Georgian is sized by measuring the stock glyphs, not by this value.",
           "type": "integer",
           "minimum": 1,
           "maximum": 255

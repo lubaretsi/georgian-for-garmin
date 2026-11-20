@@ -16,13 +16,16 @@
       registry = builtins.fromJSON (builtins.readFile ./fonts/registry.json);
       stockParts = lib.concatMap (pack: pack.parts) registry.packs;
 
-      src = lib.fileset.toSource {
+      builderFiles = lib.fileset.unions [
+        ./builder
+        ./fonts/registry.json
+        ./fonts/registry.schema.json
+      ];
+      src = lib.fileset.toSource { root = ./.; fileset = builderFiles; };
+      # The builder tests also check the per-part size table in fonts/README.md.
+      testSrc = lib.fileset.toSource {
         root = ./.;
-        fileset = lib.fileset.unions [
-          ./builder
-          ./fonts/registry.json
-          ./fonts/registry.schema.json
-        ];
+        fileset = lib.fileset.unions [ builderFiles ./fonts/README.md ];
       };
 
       fontInputs = pkgs: {
@@ -60,7 +63,7 @@
             PYTHONDONTWRITEBYTECODE = 1;
           })
           ''
-            cd ${src}/builder
+            cd ${testSrc}/builder
             pytest -q
             touch "$out"
           '';
