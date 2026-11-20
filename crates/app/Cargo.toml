@@ -1,0 +1,25 @@
+[package]
+name = "georgian-for-garmin-app"
+description = "Desktop app that installs a Georgian-extended font on a Garmin watch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+# Swaps the USB watch for an in-memory one so the UI can be tried without hardware.
+# Debug builds only: a release build with it fails to compile.
+demo = []
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+georgian-for-garmin-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+
+[dev-dependencies]
+schemars.workspace = true

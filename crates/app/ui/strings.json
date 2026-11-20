@@ -1,0 +1,106 @@
+{
+  "ka": {
+    "languageName": "ქართ",
+    "demo": "დემო: ნამდვილი საათის გარეშე",
+
+    "waitingTitle": "შეაერთეთ საათი",
+    "waitingBody": "შეაერთეთ საათი კომპიუტერთან USB კაბელით.",
+    "looking": "საათს ვეძებთ…",
+
+    "softwareVersion": "ვერსია {version}",
+    "install": "ქართულის დაყენება",
+    "restore": "ქარხნული შრიფტის დაბრუნება",
+    "unsupportedWatch": "ამ საათზე ქართული შრიფტი ვერ დაყენდება.",
+    "stagedNow": {
+      "georgian": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "stock": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "other": "საათზე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას. გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ."
+    },
+
+    "workingInstall": "ქართულ შრიფტს საათზე ვწერთ…",
+    "workingRestore": "ქარხნულ შრიფტს საათზე ვწერთ…",
+    "keepConnected": "საათს ნუ გამოაერთებთ.",
+
+    "stagedTitle": "ახლა გადატვირთეთ საათი",
+    "unplugRestart": "გამოაერთეთ საათი და გადატვირთეთ: ზედა ღილაკს ხანგრძლივად დააჭირეთ, აირჩიეთ Power Off, მერე ისევ ჩართეთ.",
+    "afterRestart": {
+      "georgian": "გადატვირთვის შემდეგ შეტყობინებებში ქართული ასოები გამოჩნდება.",
+      "stock": "გადატვირთვის შემდეგ საათზე ქარხნული შრიფტი დაბრუნდება."
+    },
+    "testLabel": "შესამოწმებლად ეს ტექსტი საკუთარ თავს გაუგზავნეთ:",
+    "testLine": "ქართული ᲥᲐᲠᲗᲣᲚᲘ",
+    "done": "კარგი",
+
+    "errorTitle": "ვერ მოხერხდა",
+    "details": "დეტალები",
+    "tryAgain": "სცადეთ თავიდან",
+
+    "errors": {
+      "invalid_input": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ.",
+      "no_device": "შეაერთეთ საათი კომპიუტერთან USB კაბელით.",
+      "multiple_devices": "მიერთებულია ერთზე მეტი Garmin-ის საათი. დატოვეთ მხოლოდ ერთი.",
+      "device_busy": "დახურეთ Garmin Express და სცადეთ თავიდან.",
+      "unsupported_platform": "ამ კომპიუტერზე პროგრამა ჯერ ვერ იმუშავებს.",
+      "unsupported_device": "ამ საათზე ქართული შრიფტი ვერ დაყენდება.",
+      "font_unavailable": "პროგრამას შრიფტი აკლია. ჩამოტვირთეთ პროგრამა თავიდან.",
+      "garmin_folder_not_found": "საათის ფაილები ვერ წავიკითხეთ. გამოაერთეთ, ისევ შეაერთეთ და სცადეთ თავიდან.",
+      "extdata_not_found": "საათზე შრიფტების საქაღალდე ვერ ვიპოვეთ. გადატვირთეთ საათი, ისევ შეაერთეთ და სცადეთ თავიდან.",
+      "conflict": "საათზე უკვე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას, ამიტომ არაფერი შეგვიცვლია. გამოაერთეთ საათი და გადატვირთეთ, რომ ის ფაილი ჩაიტვირთოს, მერე ისევ შეაერთეთ.",
+      "verification_failed": "შრიფტი სწორად ვერ ჩაიწერა, ამიტომ საათიდან წავშალეთ. სცადეთ თავიდან.",
+      "device_error": "საათთან კავშირი გაწყდა. შეამოწმეთ კაბელი და სცადეთ თავიდან.",
+      "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ."
+    }
+  },
+  "en": {
+    "languageName": "EN",
+    "demo": "Demo: no real watch",
+
+    "waitingTitle": "Connect your watch",
+    "waitingBody": "Connect your watch with its USB cable.",
+    "looking": "Looking for your watch…",
+
+    "softwareVersion": "Software {version}",
+    "install": "Install Georgian",
+    "restore": "Restore original font",
+    "unsupportedWatch": "This watch can’t use the Georgian font.",
+    "stagedNow": {
+      "georgian": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
+      "stock": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
+      "other": "A different font file is waiting on this watch. Unplug the watch and restart it, then connect it again."
+    },
+
+    "workingInstall": "Copying the Georgian font to your watch…",
+    "workingRestore": "Copying the original font to your watch…",
+    "keepConnected": "Keep the watch connected.",
+
+    "stagedTitle": "Now restart your watch",
+    "unplugRestart": "Unplug the watch, then restart it (hold the top button, Power Off, then turn it on).",
+    "afterRestart": {
+      "georgian": "Georgian notifications will show after the restart.",
+      "stock": "The original font will be back after the restart."
+    },
+    "testLabel": "To check, send yourself this text:",
+    "testLine": "ქართული ᲥᲐᲠᲗᲣᲚᲘ",
+    "done": "Done",
+
+    "errorTitle": "That didn’t work",
+    "details": "Details",
+    "tryAgain": "Try again",
+
+    "errors": {
+      "invalid_input": "Something went wrong inside the app. Please report it.",
+      "no_device": "Connect your watch with its USB cable.",
+      "multiple_devices": "More than one Garmin watch is connected. Unplug all but one.",
+      "device_busy": "Quit Garmin Express, then try again.",
+      "unsupported_platform": "This computer’s system isn’t supported yet.",
+      "unsupported_device": "This watch can’t use the Georgian font.",
+      "font_unavailable": "This copy of the app is missing its font. Download the app again.",
+      "garmin_folder_not_found": "The watch’s files couldn’t be read. Unplug it, connect it again and try again.",
+      "extdata_not_found": "The watch’s font folder couldn’t be found. Restart the watch, connect it again and try again.",
+      "conflict": "A different font file is already waiting on the watch, so nothing was changed. Unplug the watch and restart it so it loads that file, then connect it again.",
+      "verification_failed": "The font didn’t copy correctly, so it was removed from the watch. Try again.",
+      "device_error": "The connection to the watch was interrupted. Check the cable and try again.",
+      "internal": "Something went wrong inside the app. Please report it."
+    }
+  }
+}

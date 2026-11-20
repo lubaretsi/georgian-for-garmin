@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <nav id="languages" class="languages" hidden></nav>
+    <div class="mark" aria-hidden="true">ქ</div>
+    <p id="demo" class="badge" data-t="demo" hidden></p>
+
+    <main id="waiting" class="view">
+      <h1 data-t="waitingTitle"></h1>
+      <p data-t="waitingBody"></p>
+      <div id="waiting-problem" hidden>
+        <p id="waiting-hint" class="hint"></p>
+        <button id="waiting-retry" class="secondary" data-t="tryAgain"></button>
+      </div>
+      <p class="quiet"><span class="spinner small"></span><span data-t="looking"></span></p>
+    </main>
+
+    <main id="ready" class="view" hidden>
+      <h1 id="ready-model"></h1>
+      <p id="ready-version" class="quiet"></p>
+      <p id="ready-note" class="note" hidden></p>
+      <div id="ready-actions" class="actions">
+        <button id="install" class="primary" data-t="install"></button>
+        <button id="restore" class="secondary" data-t="restore"></button>
+      </div>
+    </main>
+
+    <main id="working" class="view" hidden>
+      <div class="spinner"></div>
+      <h1 id="working-title"></h1>
+      <p class="quiet" data-t="keepConnected"></p>
+    </main>
+
+    <main id="staged" class="view" hidden>
+      <h1 data-t="stagedTitle"></h1>
+      <p data-t="unplugRestart"></p>
+      <p id="staged-after"></p>
+      <div id="staged-test" class="test">
+        <p class="quiet" data-t="testLabel"></p>
+        <p class="test-line" data-t="testLine" lang="ka"></p>
+      </div>
+      <div class="actions">
+        <button id="done" class="secondary" data-t="done"></button>
+      </div>
+    </main>
+
+    <main id="error" class="view" hidden>
+      <h1 data-t="errorTitle"></h1>
+      <p id="error-message"></p>
+      <details>
+        <summary data-t="details"></summary>
+        <code id="error-details"></code>
+      </details>
+      <div class="actions">
+        <button id="retry" class="primary" data-t="tryAgain"></button>
+      </div>
+    </main>
+  </body>
+</html>
