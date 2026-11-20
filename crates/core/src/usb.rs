@@ -77,6 +77,11 @@ const BUSY_HINT: &str = "Another program is using the watch's USB connection, us
 const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually Garmin Express. \
      Quit Garmin Express (including its background helper) and try again.";
 
+/// The line of `packaging/linux/70-georgian-for-garmin.rules`, so the error's one-line fix writes
+/// the same rule as the shipped file (a test keeps them identical).
+const UDEV_RULE: &str = "SUBSYSTEM==\"usb\", ENV{DEVTYPE}==\"usb_device\", ATTR{idVendor}==\"091e\", \
+     TAG+=\"uaccess\", GROUP=\"plugdev\", MODE=\"0660\"";
+
 fn device_error(context: &str, e: nusb::Error) -> Error {
     match e.kind() {
         ErrorKind::Busy => Error::new(ErrorCode::DeviceBusy, BUSY_HINT),
@@ -86,10 +91,10 @@ fn device_error(context: &str, e: nusb::Error) -> Error {
             if cfg!(target_os = "linux") {
                 format!(
                     "{context}: permission denied ({e}). Let your user open Garmin devices, then \
-                     reconnect the watch:\n  echo 'SUBSYSTEM==\"usb\", ENV{{DEVTYPE}}==\"usb_device\", \
-                     ATTR{{idVendor}}==\"091e\", TAG+=\"uaccess\"' | sudo tee \
+                     reconnect the watch:\n  echo '{UDEV_RULE}' | sudo tee \
                      /etc/udev/rules.d/70-georgian-for-garmin.rules && sudo udevadm control --reload\n\
-                     For SSH sessions, use 70-georgian-for-garmin.rules from the download instead."
+                     That is the rule shipped as 70-georgian-for-garmin.rules. Over SSH, also run \
+                     `sudo usermod -aG plugdev \"$USER\"` and log in again."
                 )
             } else {
                 format!(
@@ -450,5 +455,19 @@ impl Mtp for UsbMtp {
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
         self.0.delete_object(handle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn permission_fix_writes_the_shipped_udev_rule() {
+        let file = include_str!("../../../packaging/linux/70-georgian-for-garmin.rules");
+        let rules: Vec<&str> = file
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .collect();
+        assert_eq!(rules, [super::UDEV_RULE]);
     }
 }
