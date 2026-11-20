@@ -17,6 +17,8 @@ pub enum ErrorCode {
     MultipleDevices,
     /// Another program (usually Garmin Express) holds the watch.
     DeviceBusy,
+    /// This user may not open the watch's USB device (on Linux: no udev rule).
+    PermissionDenied,
     /// The watch lists none of this build's font packs or not a requested size, or lacks a
     /// needed MTP operation.
     UnsupportedDevice,
@@ -43,6 +45,7 @@ impl ErrorCode {
             ErrorCode::NoDevice => "no_device",
             ErrorCode::MultipleDevices => "multiple_devices",
             ErrorCode::DeviceBusy => "device_busy",
+            ErrorCode::PermissionDenied => "permission_denied",
             ErrorCode::UnsupportedDevice => "unsupported_device",
             ErrorCode::FontUnavailable => "font_unavailable",
             ErrorCode::GarminFolderNotFound => "garmin_folder_not_found",

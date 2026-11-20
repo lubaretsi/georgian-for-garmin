@@ -82,11 +82,14 @@ fn device_error(context: &str, e: nusb::Error) -> Error {
         ErrorKind::Busy => Error::new(ErrorCode::DeviceBusy, BUSY_HINT),
         ErrorKind::Disconnected => Error::new(ErrorCode::NoDevice, "The watch disconnected."),
         ErrorKind::PermissionDenied => Error::new(
-            ErrorCode::DeviceError,
+            ErrorCode::PermissionDenied,
             if cfg!(target_os = "linux") {
                 format!(
-                    "{context}: permission denied ({e}). Install the udev rule from \
-                     packaging/linux/70-georgian-for-garmin.rules, then reconnect the watch."
+                    "{context}: permission denied ({e}). Let your user open Garmin devices, then \
+                     reconnect the watch:\n  echo 'SUBSYSTEM==\"usb\", ENV{{DEVTYPE}}==\"usb_device\", \
+                     ATTR{{idVendor}}==\"091e\", TAG+=\"uaccess\"' | sudo tee \
+                     /etc/udev/rules.d/70-georgian-for-garmin.rules && sudo udevadm control --reload\n\
+                     For SSH sessions, use 70-georgian-for-garmin.rules from the download instead."
                 )
             } else {
                 format!(

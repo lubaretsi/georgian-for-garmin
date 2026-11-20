@@ -87,7 +87,8 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | Code | Meaning | What to do |
 |---|---|---|
 | `no_device` | No Garmin watch in USB file-transfer mode | Connect it with a data cable; try another port or cable. |
-| `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express, then try again. |
+| `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
+| `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
 | `unsupported_device` | The watch lists none of the bundled font packs, or not the requested size | Share `inspect --report` in an issue. |
 | `conflict` | A different file is already waiting on the watch; nothing was written | Unplug and restart the watch so it loads that file, then run again. |
