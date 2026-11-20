@@ -32,7 +32,9 @@ def build(registry, stock_dir, noto, license_file, out):
     for pack in packs:
         font_registry.check_pack(pack, stock)
     built = [
-        (pack["id"], part, with_georgian(stock[part["part"]], noto, part["size_px"]))
+        (pack["id"], part, *with_georgian(
+            stock[part["part"]], noto, part["size_px"], font_registry.weight(pack, part)
+        ))
         for pack in packs
         for part in pack["parts"]
     ]
@@ -42,13 +44,15 @@ def build(registry, stock_dir, noto, license_file, out):
         (out / sub).mkdir()
     (out / "LICENSES" / "OFL.txt").write_bytes(license_text)
     fonts = []
-    for pack_id, part, georgian in built:
+    for pack_id, part, georgian, clipped in built:
         number = part["part"]
         entry = {
             "part": number,
             "pack": pack_id,
             "size_px": part["size_px"],
             "default": number == DEFAULT_PART,
+            # Faint Georgian pixels dropped outside the row: {"U+10DA": 1}.
+            "clipped": {f"U+{cp:04X}": pixels for cp, pixels in clipped.items()},
         }
         for kind, data in (("stock", stock[number]), ("georgian", georgian)):
             path = f"{kind}/{number}.fnt"

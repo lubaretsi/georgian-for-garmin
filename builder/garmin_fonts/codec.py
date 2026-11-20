@@ -14,6 +14,10 @@ FOOTER_SIZE = 21
 OFFSET_MASK = 0xFFFFFF
 # Modern Mkhedruli and Mtavruli.
 GEORGIAN = (*range(0x10D0, 0x10F1), *range(0x1C90, 0x1CB1))
+# At most this many pixels of a Georgian glyph may fall outside the template's row, each at the
+# faintest 2-bit level; they are dropped. Garmin's 13 px Armenian rows have three pixels below
+# the baseline, one short of the faint tip of Noto Sans Georgian's ლ.
+MAX_CLIPPED_PIXELS = 2
 
 
 def identity(footer):
@@ -107,11 +111,14 @@ def encode(header, footer, cmap):
     ))
 
 
-def with_georgian(data, font_path, pixel_size):
-    """Return `data` with GEORGIAN glyphs rendered from `font_path`; existing glyphs are kept.
+def with_georgian(data, font_path, pixel_size, weight):
+    """Return (`data` with GEORGIAN glyphs rendered from `font_path`, clipped pixels).
 
-    Glyphs are drawn with Pillow at `pixel_size` on the template's own row height and
-    baseline, using the font's default instance.
+    Existing glyphs are kept. Glyphs are drawn with Pillow at `pixel_size` on the template's own
+    row height and baseline, from the variable font's instance at `weight` on its `wght` axis
+    (400 Regular, 700 Bold); its other axes stay at their defaults. Ink outside the row is
+    dropped only when it is at most MAX_CLIPPED_PIXELS faintest (level 1) pixels; the second
+    value maps each code point that lost pixels to how many. Any other overflow raises.
     """
     from fontTools.ttLib import TTFont
     from PIL import Image, ImageDraw, ImageFont
@@ -119,25 +126,41 @@ def with_georgian(data, font_path, pixel_size):
     header, footer, cmap = decode(data)
     with TTFont(font_path) as ttf:
         missing = set(GEORGIAN) - ttf.getBestCmap().keys()
+        axes = [(a.axisTag, a.minValue, a.defaultValue, a.maxValue) for a in ttf["fvar"].axes] \
+            if "fvar" in ttf else []
     if missing:
         raise ValueError(f"font lacks Georgian code points: {sorted(missing)}")
+    if not any(tag == "wght" and low <= weight <= high for tag, low, _, high in axes):
+        raise ValueError(f"font has no weight {weight} on its wght axis")
     font = ImageFont.truetype(font_path, pixel_size)
+    font.set_variation_by_axes([weight if tag == "wght" else default for tag, _, default, _ in axes])
     height, baseline = header[7:9]
+    clipped = {}
     for cp in GEORGIAN:
         char = chr(cp)
         left, top, right, bottom = font.getbbox(char, anchor="ls")
         x = max(0, -left)
         width = max(1, ceil(font.getlength(char)) + x, right + x)
-        if not (0 <= baseline + top < baseline + bottom <= height and width <= 255):
+        if width > 255:
             raise ValueError(f"Georgian glyph U+{cp:04X} does not fit the template")
-        image = Image.new("L", (width, height))
-        ImageDraw.Draw(image).text((x, baseline), char, font=font, anchor="ls", fill=255)
+        # Rows the outline reaches beyond the template's, drawn so their ink can be checked.
+        above, below = max(0, -(baseline + top)), max(0, baseline + bottom - height)
+        image = Image.new("L", (width, above + height + below))
+        ImageDraw.Draw(image).text((x, above + baseline), char, font=font, anchor="ls", fill=255)
+        levels = image.point(lambda pixel: (pixel + 42) // 85).tobytes()
+        inside = levels[above * width:(above + height) * width]
+        outside = levels[:above * width] + levels[(above + height) * width:]
+        lost = [level for level in outside if level]
+        if len(lost) > MAX_CLIPPED_PIXELS or any(level > 1 for level in lost):
+            raise ValueError(f"Georgian glyph U+{cp:04X} does not fit the template")
+        if lost:
+            clipped[cp] = len(lost)
         stride = (width + 3) // 4
         packed = bytearray(stride * height)
-        for i, pixel in enumerate(image.tobytes()):
+        for i, level in enumerate(inside):
             y, col = divmod(i, width)
-            packed[y * stride + col // 4] |= ((pixel + 42) // 85) << (2 * (col % 4))
+            packed[y * stride + col // 4] |= level << (2 * (col % 4))
         if not any(packed):
             raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
         cmap[cp] = (width, bytes(packed))
-    return encode(header, footer, cmap)
+    return encode(header, footer, cmap), clipped

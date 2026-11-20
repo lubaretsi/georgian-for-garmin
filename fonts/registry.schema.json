@@ -50,7 +50,7 @@
     "pack": {
       "description": "One stock font family in all the sizes Garmin publishes it in.",
       "type": "object",
-      "required": ["id", "name", "parts", "tested"],
+      "required": ["id", "name", "weight", "parts", "tested"],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -61,6 +61,10 @@
         "name": {
           "description": "Garmin's product name for the pack, as its update catalog shows it.",
           "$ref": "#/$defs/text"
+        },
+        "weight": {
+          "description": "The weight the pack's stock glyphs are drawn at; Georgian is drawn at it too.",
+          "$ref": "#/$defs/weight"
         },
         "parts": {
           "type": "array",
@@ -97,8 +101,18 @@
           "type": "string",
           "pattern": "^https://download\\.garmin\\.com/[^\\s]+\\.fnt$"
         },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "weight": {
+          "description": "The weight this part's stock glyphs are drawn at, where it differs from the pack's.",
+          "$ref": "#/$defs/weight"
+        }
       }
+    },
+    "weight": {
+      "description": "A Noto Sans Georgian weight, as a value on its wght axis: 400 Regular, 700 Bold.",
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 900
     },
     "tested": {
       "type": "object",

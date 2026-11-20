@@ -67,6 +67,11 @@ def _repeated(values):
     return [value for value, count in Counter(values).items() if count > 1]
 
 
+def weight(pack, part):
+    """The weight Georgian is drawn at for `part` of `pack`: the part's own, else the pack's."""
+    return part.get("weight", pack["weight"])
+
+
 def check_file(path, expected_sha256):
     """Return the bytes at `path` after checking them against the registry's SHA-256."""
     data = Path(path).read_bytes()
@@ -81,7 +86,8 @@ def check_pack(pack, stock):
 
     Each file must have the listed SHA-256 and carry the listed part number and version in its
     footer. Sizes are checked where the header allows: a part's line height must exceed its
-    size and stay within twice it, and line heights must grow with size across the pack.
+    size and stay within twice it, and line heights must not shrink as size grows across the pack
+    (Garmin's 19 and 21 px NotoSans Regular parts share a 28 px line).
     """
     problems = []
     metrics = []
@@ -116,10 +122,10 @@ def check_pack(pack, stock):
         metrics.append((size, height, number))
     metrics.sort()
     for (size, height, number), (next_size, next_height, next_number) in zip(metrics, metrics[1:]):
-        if height >= next_height:
+        if height > next_height:
             problems.append(
                 f"{number} at {size} px has line height {height} px, but {next_number} at "
-                f"{next_size} px has {next_height} px; larger sizes need taller lines"
+                f"{next_size} px has {next_height} px; larger sizes need lines at least as tall"
             )
     if problems:
         raise RegistryError("\n".join(f"pack {pack['id']}: {problem}" for problem in problems))

@@ -45,19 +45,19 @@ def set_tested(field, value):
 MALFORMED = {
     "duplicate part in a pack": (
         lambda e: append_part(e, size_px=99),
-        "part 006-D9035-01 is listed more than once",
+        "part 006-D9035-00 is listed more than once",
     ),
     "duplicate part across packs": (
         lambda e: add_pack(e, id="other", parts=[part(e)], tested=[]),
-        "part 006-D9035-01 is listed more than once",
+        "part 006-D9035-00 is listed more than once",
     ),
     "duplicate pack id": (
         lambda e: add_pack(e, parts=[part(e) | {"part": "006-D9999-01"}], tested=[]),
         f"pack id {PACK_ID} is listed more than once",
     ),
     "duplicate size in a pack": (
-        set_part("size_px", 21, index=1),
-        f"pack {PACK_ID}: size 21 px is listed more than once",
+        set_part("size_px", 19, index=1),
+        f"pack {PACK_ID}: size 19 px is listed more than once",
     ),
     "uppercase hash": (
         set_part("sha256", part(ENTRIES)["sha256"].upper()),
@@ -77,6 +77,19 @@ MALFORMED = {
         "packs/0/parts/0: 'version' is a required property",
     ),
     "unknown field": (set_part("sizepx", 21), r"packs/0/parts/0: Additional properties"),
+    "missing pack weight": (
+        lambda e: pack(e).pop("weight"),
+        "packs/0: 'weight' is a required property",
+    ),
+    "pack weight under the axis": (
+        lambda e: pack(e).__setitem__("weight", 50),
+        "packs/0/weight: 50 is less than the minimum of 100",
+    ),
+    "part weight over the axis": (
+        set_part("weight", 1000),
+        "packs/0/parts/0/weight: 1000 is greater than the maximum of 900",
+    ),
+    "weight as a name": (set_part("weight", "Bold"), "packs/0/parts/0/weight: 'Bold' is not"),
     "malformed pack id": (lambda e: pack(e).__setitem__("id", "Armenian"), "packs/0/id: "),
     "no packs": (lambda e: e.__setitem__("packs", []), "packs: .* should be non-empty"),
     "tested part not in the pack": (
@@ -120,28 +133,28 @@ def sha256(data):
 
 
 def swap_sizes(entries):
-    a, b = part(entries, 2), part(entries, 3)
+    a, b = part(entries, 3), part(entries, 4)
     a["size_px"], b["size_px"] = b["size_px"], a["size_px"]
 
 
 def mislabel_file(entries, stock):
     # The 27 px file listed (with its own hash) as the 24 px part.
     stock["006-D9035-02"] = stock["006-D9035-03"]
-    part(entries, 1)["sha256"] = sha256(stock["006-D9035-03"])
+    part(entries, 2)["sha256"] = sha256(stock["006-D9035-03"])
 
 
 def corrupt_file(entries, stock):
     stock["006-D9035-01"] = stock["006-D9035-01"][:-1]
-    part(entries)["sha256"] = sha256(stock["006-D9035-01"])
+    part(entries, 1)["sha256"] = sha256(stock["006-D9035-01"])
 
 
 STOCK_MISMATCH = {
     "size above the line height": (
-        lambda e, s: set_part("size_px", 40, index=2)(e),
+        lambda e, s: set_part("size_px", 40, index=3)(e),
         "006-D9035-03: size 40 px does not match the stock font's 35 px line height",
     ),
     "size under half the line height": (
-        lambda e, s: set_part("size_px", 17, index=2)(e),
+        lambda e, s: set_part("size_px", 17, index=3)(e),
         "006-D9035-03: size 17 px does not match the stock font's 35 px line height",
     ),
     "sizes swapped within the pack": (
@@ -149,12 +162,12 @@ STOCK_MISMATCH = {
         "006-D9035-04 at 27 px has line height 41 px, but 006-D9035-03 at 31 px has 35 px",
     ),
     "wrong version": (
-        lambda e, s: set_part("version", "2.20")(e),
+        lambda e, s: set_part("version", "2.20", index=1)(e),
         "006-D9035-01: the stock file's footer has version 2.10, but the registry lists 2.20",
     ),
     "file of another part": (mislabel_file, "006-D9035-02: the stock file's footer names part 006-D9035-03"),
     "hash of another file": (
-        lambda e, s: set_part("sha256", part(e, 1)["sha256"])(e),
+        lambda e, s: set_part("sha256", part(e, 2)["sha256"], index=1)(e),
         "006-D9035-01: stock file has SHA-256 575b",
     ),
     "unreadable file": (corrupt_file, "006-D9035-01: stock file: "),

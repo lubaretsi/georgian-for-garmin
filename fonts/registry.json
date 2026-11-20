@@ -14,7 +14,15 @@
     {
       "id": "armenian-noto-sans-regular",
       "name": "Armenian Font, NotoSans Regular",
+      "weight": 400,
       "parts": [
+        {
+          "part": "006-D9035-00",
+          "size_px": 19,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D9035-00/2.10/full/rel/dce935c5-0290-4034-8c80-cd7209f02a7c/006-D9035-00.fnt",
+          "sha256": "1fc5221a0c3d33b599696cde7e33d224eae04f8c3b669acd30e827c0ec6c11c1"
+        },
         {
           "part": "006-D9035-01",
           "size_px": 21,
@@ -52,6 +60,132 @@
           "parts": ["006-D9035-01", "006-D9035-02", "006-D9035-03", "006-D9035-04"]
         }
       ]
+    },
+    {
+      "id": "armenian-noto-sans-armenian-regular",
+      "name": "Armenian Font, NotoSans Armenian Regular",
+      "weight": 400,
+      "parts": [
+        {
+          "part": "006-D9035-10",
+          "size_px": 11,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-10/2.00/full/rel/626f23c5-0e70-4c41-9291-76d56a7e9cef/006-D9035-10.fnt",
+          "sha256": "d084c29e76081a64beb5ddfcd2fbc47eeb2e0894daf164c157db0c19aec5ad85"
+        },
+        {
+          "part": "006-D9035-18",
+          "size_px": 12,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-18/2.00/full/rel/6e080f19-8abd-4499-a2f5-8278dd9bdfa3/006-D9035-18.fnt",
+          "sha256": "bb3acc1741e36e3967c2de3adf8bb1cf31f452345842dd55992818417e2354eb"
+        },
+        {
+          "part": "006-D9035-19",
+          "size_px": 15,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-19/2.00/full/rel/80391c0b-a56c-4d72-9ede-0865e9d2c4e4/006-D9035-19.fnt",
+          "sha256": "ed6385a0c94ecbd2e786cc846d3d663995265a1cb5fd429f4e1ecab52ae19bb7"
+        },
+        {
+          "part": "006-D9035-20",
+          "size_px": 17,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-20/2.00/full/rel/14b81a94-8556-4269-853b-f625545e18cd/006-D9035-20.fnt",
+          "sha256": "e7ed238b982951c51fdb409bb8dcb7f691d4058af394760d1b04eb98568c13ef"
+        },
+        {
+          "part": "006-D9035-11",
+          "size_px": 25,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-11/2.00/full/rel/cee74cd9-60db-4b06-9912-9acd42c800fb/006-D9035-11.fnt",
+          "sha256": "13baa23f54103c05ff67ec6f1bd41e242f65ca09fda215f4eef89e788a3b4f99"
+        },
+        {
+          "part": "006-D9035-12",
+          "size_px": 28,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-12/2.00/full/rel/c0741c92-d2d1-4e11-a435-7e35db936bfd/006-D9035-12.fnt",
+          "sha256": "2805b1273b64c48102f2fb5ca41b39a0dde934afdadea326d9a545529b6d3090"
+        },
+        {
+          "part": "006-D9035-13",
+          "size_px": 32,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-13/2.00/full/rel/65fb711c-73ce-4dd7-8c07-28d9a27a3070/006-D9035-13.fnt",
+          "sha256": "fc73a5193292ef9d1b28d0376aa9f437f87ff39621ff7e67fd4533706f54a98f"
+        },
+        {
+          "part": "006-D9035-14",
+          "size_px": 37,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-14/2.00/full/rel/abefcc6b-ae70-49bd-952c-6804db8aab83/006-D9035-14.fnt",
+          "sha256": "726d5931f434557a6ac3fdda3b2962c17796aaef4ff7dd8b0358dcc8cf0e5bd9"
+        }
+      ],
+      "tested": []
+    },
+    {
+      "id": "armenian-noto-sans-armenian-bold",
+      "name": "Armenian Font, NotoSans Armenian Bold",
+      "weight": 700,
+      "parts": [
+        {
+          "part": "006-D9035-05",
+          "size_px": 13,
+          "weight": 400,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-05/2.00/full/rel/53ce0c90-9b0d-4193-b4b7-e240a9dde8a5/006-D9035-05.fnt",
+          "sha256": "523a17971a6b1fad4a1eb6dc75199037671dcfe91db01ccda88d44f0c6507dca"
+        },
+        {
+          "part": "006-D9035-17",
+          "size_px": 15,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-17/2.00/full/rel/9ab41de6-34bb-49a0-9195-160033b6b1a6/006-D9035-17.fnt",
+          "sha256": "8265e0387d10bfc15ebba8aed73b567204567353a008059d62f0d3ade4f7ee91"
+        },
+        {
+          "part": "006-D9035-06",
+          "size_px": 18,
+          "weight": 400,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-06/2.00/full/rel/fe7e8336-de44-4724-afcc-2451d9206b7a/006-D9035-06.fnt",
+          "sha256": "43f247264a9706cddc414daa816bc8111a2699705200291154955919542ab3e9"
+        },
+        {
+          "part": "006-D9035-07",
+          "size_px": 20,
+          "weight": 400,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-07/2.00/full/rel/82d746ad-6eca-421c-96f0-eb947d222b0c/006-D9035-07.fnt",
+          "sha256": "6f2b1d767bf241fc781e32ddfa363d37e08248f9c0dc06cc972827c602b987c5"
+        },
+        {
+          "part": "006-D9035-21",
+          "size_px": 21,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-21/2.00/full/rel/b6ebe100-e825-4973-a8e6-9d1115b73aab/006-D9035-21.fnt",
+          "sha256": "fdac380e8357f3a198d5fde452ac15eddb830ac3c324479b7c7b15a022178631"
+        },
+        {
+          "part": "006-D9035-08",
+          "size_px": 24,
+          "weight": 400,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-08/2.00/full/rel/99fb3951-b3a6-4f8e-86ea-4acebedcd94b/006-D9035-08.fnt",
+          "sha256": "c15705ea2b7661d3c443e84e58a50bf1f35094b913e204d399dea37700781617"
+        },
+        {
+          "part": "006-D9035-09",
+          "size_px": 25,
+          "weight": 400,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D9035-09/2.00/full/rel/92d8515c-9c9c-4d69-853d-18d4436cf636/006-D9035-09.fnt",
+          "sha256": "aeb6ad4c7b5a5cb8854aef49a26b3563b7a30b41ec3df8f55e36fcd409cc37be"
+        }
+      ],
+      "tested": []
     }
   ]
 }

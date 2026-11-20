@@ -3,6 +3,7 @@ from struct import pack_into, unpack_from
 import pytest
 from registry_data import PART_IDS
 
+from garmin_fonts import codec
 from garmin_fonts.codec import GEORGIAN, HEADER, decode, encode, identity, with_georgian
 
 
@@ -116,7 +117,7 @@ def test_with_georgian_rejects_font_without_georgian(stock, inputs, tmp_path):
     path = tmp_path / "partial.ttf"
     font.save(path)
     with pytest.raises(ValueError, match="lacks Georgian code points: \\[4320\\]"):
-        with_georgian(stock["006-D9035-03"], path, 27)
+        with_georgian(stock["006-D9035-03"], path, 27, 400)
 
 
 def test_with_georgian_rejects_template_too_short(stock, inputs):
@@ -125,4 +126,53 @@ def test_with_georgian_rejects_template_too_short(stock, inputs):
     short[7:9] = 4, 3  # row height, baseline
     template = encode(short, footer, {None: (4, bytes(4))})
     with pytest.raises(ValueError, match="does not fit the template"):
-        with_georgian(template, inputs["noto"], 27)
+        with_georgian(template, inputs["noto"], 27, 400)
+
+
+def test_with_georgian_rejects_weight_off_the_axis(stock, inputs):
+    with pytest.raises(ValueError, match="no weight 950 on its wght axis"):
+        with_georgian(stock["006-D9035-03"], inputs["noto"], 27, 950)
+
+
+def template_like(data, height_change=0):
+    """A template with `data`'s metrics, its row `height_change` pixels taller, and no glyphs."""
+    header, footer, _ = decode(data)
+    header = list(header)
+    header[7] += height_change
+    return encode(header, footer, {None: (4, bytes(header[7]))})
+
+
+def test_faint_overflow_is_clipped_and_reported(stock, inputs):
+    # 13 px, three rows below the baseline: ლ's tip leaves one level-1 pixel a row lower.
+    data, clipped = with_georgian(template_like(stock["006-D9035-05"]), inputs["noto"], 13, 400)
+    assert clipped == {0x10DA: 1}
+    assert any(decode(data)[2][0x10DA][1])
+
+
+def test_overflow_beyond_the_limit_is_rejected(stock, inputs, monkeypatch):
+    # One row fewer below the baseline: დ, ღ and ლ lose full-strength pixels.
+    with pytest.raises(ValueError, match="does not fit the template"):
+        with_georgian(template_like(stock["006-D9035-05"], -1), inputs["noto"], 13, 400)
+    monkeypatch.setattr(codec, "MAX_CLIPPED_PIXELS", 0)
+    with pytest.raises(ValueError, match="U\\+10DA does not fit the template"):
+        with_georgian(template_like(stock["006-D9035-05"]), inputs["noto"], 13, 400)
+
+
+def ink(tile):
+    """Sum of a tile's 2-bit pixel levels."""
+    _, bitmap = tile
+    return sum((byte >> shift) & 3 for byte in bitmap for shift in (0, 2, 4, 6))
+
+
+@pytest.mark.parametrize("part, size", [("006-D9035-17", 15), ("006-D9035-03", 27)])
+def test_bold_draws_heavier_georgian_and_keeps_stock(stock, inputs, part, size):
+    _, _, stock_cmap = decode(stock[part])
+    regular, bold = (
+        decode(with_georgian(stock[part], inputs["noto"], size, weight)[0])[2]
+        for weight in (400, 700)
+    )
+    for cmap in (regular, bold):
+        assert all(cmap[cp] == tile for cp, tile in stock_cmap.items())
+    heavier = [cp for cp in GEORGIAN if ink(bold[cp]) > ink(regular[cp])]
+    assert len(heavier) == len(GEORGIAN), [f"U+{cp:04X}" for cp in GEORGIAN if cp not in heavier]
+    assert sum(ink(bold[cp]) for cp in GEORGIAN) > 1.2 * sum(ink(regular[cp]) for cp in GEORGIAN)
