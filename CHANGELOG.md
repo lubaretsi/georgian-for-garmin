@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reproducible font build (`nix build .#fonts`): Garmin's 21, 24, 27 and 31 px Armenian fonts with
   Georgian Mkhedruli and Mtavruli added, the original fonts for restoring, and a manifest of hashes.
   The 27 px font is byte-identical to the one verified on a Venu 2 with firmware 19.05.
+- Font registry (`fonts/registry.json`): the Garmin font packs that get Georgian, their download
+  URLs and hashes, and the watch models each was tested on. Adding a pack is a registry entry;
+  see `fonts/README.md`.
 - `georgian-for-garmin` command-line installer for macOS. `inspect` shows the watch
   model, software version, supported font sizes and what's staged in the hidden `GARMIN/ExtData`
   folder. `install` and `restore-stock` stage the Georgian or original font and verify it by
