@@ -8,8 +8,6 @@ Native Georgian (ქართული) in Garmin watch notifications, from a fo
 
 *A Gmail notification on a Venu 2 (firmware 19.05).*
 
-**Status:** early development. Nothing is released yet.
-
 Unofficial; not affiliated with or endorsed by Garmin.
 
 ## License

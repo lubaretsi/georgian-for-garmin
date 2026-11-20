@@ -1,6 +1,6 @@
 # Georgian for Garmin
 
-Public project for native Georgian in Garmin watch notifications. Early skeleton; no code yet.
+Native Georgian in Garmin watch notifications.
 
 ## Conventions
 
