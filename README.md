@@ -3,8 +3,8 @@
 ქართული შრიფტი Garmin-ის საათებისთვის.
 
 Garmin watches show Georgian text in notifications as boxes. This project adds Georgian letters to
-a font the watch already uses, so notifications from your phone show `ქართული` and `ᲥᲐᲠᲗᲣᲚᲘ`
-instead of `□□□□□□□`.
+a font the watch already uses, so notifications from your phone show `მხედრული` and `ᲛᲗᲐᲕᲠᲣᲚᲘ`
+instead of `□□□□□□□□`.
 
 <img src="docs/venu-2-georgian-notification.jpg" alt="Garmin Venu 2 showing a Gmail notification in Georgian" width="360">
 
@@ -44,7 +44,7 @@ You need a Mac with macOS 11 or later and your watch's USB data cable.
 3. Quit Garmin Express if it's running, and connect the watch.
 4. Click **Install Georgian** (**ქართულის დაყენება**).
 5. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-6. Check it: send yourself `ქართული ᲥᲐᲠᲗᲣᲚᲘ`.
+6. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
 
 To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
 
