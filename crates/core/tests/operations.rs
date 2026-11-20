@@ -346,6 +346,7 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
     Pack {
         id: id.into(),
         name: format!("{id} pack"),
+        weight: 400,
         fonts: parts
             .iter()
             .map(|&(part, size_px)| Font {
@@ -359,23 +360,30 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
     }
 }
 
-/// The test registry: Armenian (verified on a Venu 2 at 19.05, 27 px), then Thai (untested).
-fn fonts() -> FontSet {
+/// A `tested` entry for a Venu 2 (`006-B3703-00`).
+fn venu2_tested(software: &str, parts: &[&str]) -> Tested {
+    Tested {
+        model: "Venu 2".into(),
+        model_part: "006-B3703-00".into(),
+        software: software.into(),
+        parts: parts.iter().map(|&p| p.into()).collect(),
+    }
+}
+
+/// A test registry: Armenian, then Thai, with these `tested` lists.
+fn fonts_tested(armenian: Vec<Tested>, thai: Vec<Tested>) -> FontSet {
     FontSet {
         packs: vec![
-            pack(
-                "armenian",
-                &ARMENIAN,
-                vec![Tested {
-                    model: "Venu 2".into(),
-                    model_part: "006-B3703-00".into(),
-                    software: "19.05".into(),
-                    parts: vec![PART.into()],
-                }],
-            ),
-            pack("thai", &THAI, vec![]),
+            pack("armenian", &ARMENIAN, armenian),
+            pack("thai", &THAI, thai),
         ],
     }
+}
+
+/// The test registry: Armenian (all four parts verified on a Venu 2 at 19.05), then Thai
+/// (untested), which shares the 21 and 27 px sizes.
+fn fonts() -> FontSet {
+    fonts_tested(vec![venu2_tested("19.05", &ALL)], vec![])
 }
 
 fn error_code(result: Result<Value, Error>) -> ErrorCode {
@@ -386,10 +394,18 @@ fn staged(fake: &Fake, part: &str) -> Vec<(u32, Vec<u8>)> {
     fake.0.borrow().named(EXTDATA, &format!("{part}.tmp"))
 }
 
-fn statuses(out: &Value) -> Vec<(String, String)> {
-    out["parts"]
+/// Every staged part of a stage output, across its packs.
+fn staged_parts(out: &Value) -> Vec<&Value> {
+    out["packs"]
         .as_array()
         .unwrap()
+        .iter()
+        .flat_map(|p| p["parts"].as_array().unwrap())
+        .collect()
+}
+
+fn statuses(out: &Value) -> Vec<(String, String)> {
+    staged_parts(out)
         .iter()
         .map(|p| {
             (
@@ -537,7 +553,7 @@ fn two_extdata_folders_are_refused() {
     assert!(fake.writes().is_empty());
 }
 
-// Pack selection
+// Targets: every listed part of every pack
 
 fn selected(declared: &[&str]) -> Value {
     Fake::new(venu2(declared))
@@ -555,72 +571,129 @@ fn targets(out: &Value) -> Vec<&str> {
         .collect()
 }
 
+fn pack_ids(out: &Value) -> Vec<&str> {
+    out["packs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap())
+        .collect()
+}
+
+/// `(part, tested)` of every listed part, across packs.
+fn part_tested(out: &Value) -> Vec<(String, String)> {
+    out["packs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|p| p["parts"].as_array().unwrap())
+        .map(|p| {
+            (
+                p["part"].as_str().unwrap().to_owned(),
+                p["tested"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
 #[test]
-fn one_listed_pack_is_selected_with_every_size() {
+fn one_listed_pack_targets_every_listed_size() {
     let out = selected(&ALL);
-    assert_eq!(out["pack"]["id"], "armenian");
-    assert_eq!(out["pack"]["name"], "armenian pack");
-    assert_eq!(out["pack"]["parts"], json!(ALL));
-    assert_eq!(out["pack"]["sizes_px"], json!([21, 24, 27, 31]));
+    assert_eq!(
+        out["packs"],
+        json!([{"id": "armenian", "name": "armenian pack", "weight": 400, "parts": [
+            {"part": ALL[0], "size_px": 21, "tested": "tested"},
+            {"part": ALL[1], "size_px": 24, "tested": "tested"},
+            {"part": ALL[2], "size_px": 27, "tested": "tested"},
+            {"part": ALL[3], "size_px": 31, "tested": "tested"},
+        ]}])
+    );
     assert_eq!(targets(&out), ALL);
     assert_eq!(out["supported"], true);
 }
 
 #[test]
-fn of_two_listed_packs_the_first_in_the_registry_wins() {
-    // The watch lists Thai first; registry order decides.
+fn every_listed_part_of_every_pack_is_a_target() {
+    // The watch lists Thai first; packs come in registry order.
     let out = selected(&[THAI[0].0, THAI[1].0, ARMENIAN[1].0]);
-    assert_eq!(out["pack"]["id"], "armenian");
-    assert_eq!(out["pack"]["parts"], json!([ARMENIAN[1].0]));
-    assert_eq!(targets(&out), [ARMENIAN[1].0]);
-    let listed: Vec<&str> = out["fonts"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|f| f["listed"] == true)
-        .map(|f| f["part"].as_str().unwrap())
-        .collect();
-    assert_eq!(listed, [ARMENIAN[1].0, THAI[0].0, THAI[1].0]);
+    assert_eq!(pack_ids(&out), ["armenian", "thai"]);
+    assert_eq!(
+        out["packs"][0]["parts"],
+        json!([{"part": ARMENIAN[1].0, "size_px": 24, "tested": "tested"}])
+    );
+    assert_eq!(
+        out["packs"][1]["parts"],
+        json!([{"part": THAI[0].0, "size_px": 21, "tested": "untested"},
+               {"part": THAI[1].0, "size_px": 27, "tested": "untested"}])
+    );
+    assert_eq!(targets(&out), [ARMENIAN[1].0, THAI[0].0, THAI[1].0]);
+    assert_eq!(out["report"]["packs"], json!(["armenian", "thai"]));
 
     let out = selected(&[THAI[1].0]);
-    assert_eq!(out["pack"]["id"], "thai");
-    assert_eq!(out["pack"]["sizes_px"], json!([27]));
+    assert_eq!(pack_ids(&out), ["thai"]);
+    assert_eq!(targets(&out), [THAI[1].0]);
 }
 
 #[test]
-fn a_watch_listing_no_pack_has_none_selected() {
+fn a_watch_listing_no_pack_has_no_targets() {
     let out = selected(&["006-D1234-01"]);
-    assert!(out["pack"].is_null());
+    assert_eq!(out["packs"], json!([]));
     assert_eq!(out["supported"], false);
+    assert_eq!(
+        out["tested"],
+        json!({"status": "untested", "verified_software": []})
+    );
     assert!(targets(&out).is_empty());
-    assert_eq!(out["report"]["pack"], Value::Null);
+    assert_eq!(out["report"]["packs"], json!([]));
     assert_eq!(out["report"]["tested"], "untested");
 }
 
 #[test]
 fn a_partial_list_targets_only_the_listed_sizes() {
     let out = selected(&[ARMENIAN[0].0, ARMENIAN[2].0]);
-    assert_eq!(out["pack"]["parts"], json!([ARMENIAN[0].0, ARMENIAN[2].0]));
-    assert_eq!(out["pack"]["sizes_px"], json!([21, 27]));
+    assert_eq!(pack_ids(&out), ["armenian"]);
+    assert_eq!(
+        part_tested(&out),
+        pairs(&[(ARMENIAN[0].0, "tested"), (ARMENIAN[2].0, "tested")])
+    );
     assert_eq!(targets(&out), [ARMENIAN[0].0, ARMENIAN[2].0]);
 }
 
-// Tested status
+// Tested status: per part, and overall the worst of the targets'
 
-fn tested(model_part: &str, software: &str) -> Value {
-    Fake::new(venu2_with(device_xml_for(model_part, software, &ALL)))
-        .call("inspect", json!({}), &fonts())
+fn tested_with(fonts: &FontSet, model_part: &str, software: &str, declared: &[&str]) -> Value {
+    Fake::new(venu2_with(device_xml_for(model_part, software, declared)))
+        .call("inspect", json!({}), fonts)
         .unwrap()
 }
 
+fn tested(model_part: &str, software: &str) -> Value {
+    tested_with(&fonts(), model_part, software, &ALL)
+}
+
+const ALL_AND_THAI: [&str; 6] = [ALL[0], ALL[1], ALL[2], ALL[3], THAI[0].0, THAI[1].0];
+
 #[test]
-fn same_model_and_software_is_tested() {
+fn every_target_tested_on_this_software_is_tested() {
+    // The Venu 2 case: four parts of one pack, all verified at 19.05.
     let out = tested("006-B3703-00", "1905");
     assert_eq!(
-        out["pack"]["tested"],
-        json!({"status": "tested", "verified_parts": [PART], "verified_software": ["19.05"]})
+        out["tested"],
+        json!({"status": "tested", "verified_software": ["19.05"]})
     );
+    assert_eq!(part_tested(&out), pairs(&ALL.map(|p| (p, "tested"))));
     assert_eq!(out["report"]["tested"], "tested");
+
+    // Across two packs too, and an exact entry beats one for other software.
+    let fonts = fonts_tested(
+        vec![venu2_tested("18.00", &ALL), venu2_tested("19.05", &ALL)],
+        vec![venu2_tested("19.05", &[THAI[0].0, THAI[1].0])],
+    );
+    let out = tested_with(&fonts, "006-B3703-00", "1905", &ALL_AND_THAI);
+    assert_eq!(
+        out["tested"],
+        json!({"status": "tested", "verified_software": ["18.00", "19.05"]})
+    );
 }
 
 #[test]
@@ -628,9 +701,60 @@ fn same_model_on_other_software_is_tested_other_software() {
     let out = tested("006-B3703-00", "2026");
     assert_eq!(out["device"]["software_version"], "20.26");
     assert_eq!(
-        out["pack"]["tested"],
-        json!({"status": "tested_other_software", "verified_parts": [PART],
-               "verified_software": ["19.05"]})
+        out["tested"],
+        json!({"status": "tested_other_software", "verified_software": ["19.05"]})
+    );
+    assert_eq!(
+        part_tested(&out),
+        pairs(&ALL.map(|p| (p, "tested_other_software")))
+    );
+
+    // One pack verified on this software, the other only on another: the worse status wins.
+    let fonts = fonts_tested(
+        vec![venu2_tested("19.05", &ALL)],
+        vec![venu2_tested("18.00", &[THAI[0].0, THAI[1].0])],
+    );
+    let out = tested_with(&fonts, "006-B3703-00", "1905", &ALL_AND_THAI);
+    assert_eq!(
+        out["tested"],
+        json!({"status": "tested_other_software", "verified_software": ["18.00", "19.05"]})
+    );
+    assert_eq!(out["report"]["tested"], "tested_other_software");
+}
+
+#[test]
+fn some_targets_untested_make_the_watch_untested() {
+    // Armenian verified, Thai not.
+    let out = tested_with(&fonts(), "006-B3703-00", "1905", &ALL_AND_THAI);
+    assert_eq!(
+        out["tested"],
+        json!({"status": "untested", "verified_software": ["19.05"]})
+    );
+    assert_eq!(
+        part_tested(&out),
+        pairs(&[
+            (ALL[0], "tested"),
+            (ALL[1], "tested"),
+            (ALL[2], "tested"),
+            (ALL[3], "tested"),
+            (THAI[0].0, "untested"),
+            (THAI[1].0, "untested"),
+        ])
+    );
+    assert_eq!(out["report"]["tested"], "untested");
+
+    // An entry for this model and software covers only the parts it names.
+    let fonts = fonts_tested(vec![venu2_tested("19.05", &[PART])], vec![]);
+    let out = tested_with(&fonts, "006-B3703-00", "1905", &ALL);
+    assert_eq!(out["tested"]["status"], "untested");
+    assert_eq!(
+        part_tested(&out),
+        pairs(&[
+            (ALL[0], "untested"),
+            (ALL[1], "untested"),
+            (PART, "tested"),
+            (ALL[3], "untested"),
+        ])
     );
 }
 
@@ -638,9 +762,10 @@ fn same_model_on_other_software_is_tested_other_software() {
 fn another_model_is_untested() {
     let out = tested("006-B4260-00", "1905");
     assert_eq!(
-        out["pack"]["tested"],
-        json!({"status": "untested", "verified_parts": [], "verified_software": []})
+        out["tested"],
+        json!({"status": "untested", "verified_software": []})
     );
+    assert_eq!(part_tested(&out), pairs(&ALL.map(|p| (p, "untested"))));
     assert_eq!(out["report"]["tested"], "untested");
     assert_eq!(out["supported"], true);
 }
@@ -680,7 +805,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
     assert_eq!(report["model"], "Venu 2");
     assert_eq!(report["model_part"], "006-B3703-00");
     assert_eq!(report["software_version"], "19.05");
-    assert_eq!(report["pack"], "armenian");
+    assert_eq!(report["packs"], json!(["armenian"]));
     assert_eq!(report["tested"], "tested");
     assert_eq!(
         report["extdata_files"],
@@ -700,7 +825,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
         "- Model part number: 006-B3703-00",
         "- Software version: 19.05",
         &format!("- Georgian for Garmin: {}", env!("CARGO_PKG_VERSION")),
-        "- Font pack: armenian (tested on this model and software)",
+        "- Font packs: armenian (tested on this model and software)",
         "| 006-D9035-03 | 2.10 | 006-D9035-03.tmp |",
         "| 006-D8945-20 | 3.05 | 006-D8945-20.tmp |",
         "| 006-D7777-01 | (none) | x\\|y.tmp |",
@@ -725,14 +850,16 @@ fn install_stages_every_listed_size_and_verifies() {
     let out = fake.call("install", json!({}), &fonts()).unwrap();
     assert_eq!(out["status"], "staged_verified");
     assert_eq!(out["variant"], "georgian");
-    assert_eq!(out["pack"], "armenian");
+    assert_eq!(pack_ids(&out), ["armenian"]);
+    assert_eq!(out["packs"][0]["name"], "armenian pack");
+    assert_eq!(out["packs"][0]["weight"], 400);
     assert_eq!(statuses(&out), pairs(&ALL.map(|p| (p, "staged_verified"))));
     let mut expected_writes = Vec::new();
     for (i, (part, size)) in ARMENIAN.iter().enumerate() {
         let files = staged(&fake, part);
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].1, georgian(part));
-        let reported = &out["parts"][i];
+        let reported = staged_parts(&out)[i];
         assert_eq!(reported["size_px"], *size);
         assert_eq!(reported["path"], format!("GARMIN/ExtData/{part}.tmp"));
         assert_eq!(reported["handle"], format!("{:#010x}", files[0].0));
@@ -772,7 +899,7 @@ fn install_skips_sizes_already_staged() {
             (ALL[3], "staged_verified"),
         ])
     );
-    assert_eq!(out["parts"][2]["handle"], "0x01000050");
+    assert_eq!(staged_parts(&out)[2]["handle"], "0x01000050");
     assert!(!fake.writes().iter().any(|w| w.contains(STAGED)));
     assert_eq!(fake.writes().len(), 6);
 }
@@ -783,10 +910,10 @@ fn install_of_identical_file_writes_nothing() {
     s.file(0x0100_0050, EXTDATA, STAGED, &georgian(PART));
     let fake = Fake::new(s);
     let out = fake
-        .call("install", json!({"sizes_px": [27]}), &fonts())
+        .call("install", json!({"parts": [PART]}), &fonts())
         .unwrap();
     assert_eq!(out["status"], "already_staged");
-    assert_eq!(out["parts"][0]["handle"], "0x01000050");
+    assert_eq!(staged_parts(&out)[0]["handle"], "0x01000050");
     assert!(fake.writes().is_empty());
 }
 
@@ -867,27 +994,137 @@ fn failure_on_a_later_part_rolls_back_this_runs_files_only() {
     }
 }
 
+// Several packs
+
 #[test]
-fn sizes_px_restricts_the_parts() {
-    let fake = Fake::new(venu2(&ALL));
-    let out = fake
-        .call("install", json!({"sizes_px": [31, 24]}), &fonts())
-        .unwrap();
+fn install_stages_every_listed_part_of_every_pack() {
+    let fake = Fake::new(venu2(&ALL_AND_THAI));
+    let out = fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    assert_eq!(pack_ids(&out), ["armenian", "thai"]);
     assert_eq!(
         statuses(&out),
-        pairs(&[(ALL[1], "staged_verified"), (ALL[3], "staged_verified")])
+        pairs(&ALL_AND_THAI.map(|p| (p, "staged_verified")))
     );
-    assert_eq!(fake.writes().len(), 4);
+    for part in ALL_AND_THAI {
+        let files = staged(&fake, part);
+        assert_eq!(files.len(), 1, "{part}");
+        assert_eq!(files[0].1, georgian(part), "{part}");
+    }
+    assert_eq!(fake.writes().len(), 12);
+    let after = fake.call("inspect", json!({}), &fonts()).unwrap();
+    assert!(
+        after["fonts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["staged"] == "georgian")
+    );
+
+    // Running it again changes nothing.
+    let again = fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(again["status"], "already_staged");
+    assert_eq!(
+        statuses(&again),
+        pairs(&ALL_AND_THAI.map(|p| (p, "already_staged")))
+    );
+    assert_eq!(fake.writes().len(), 12);
 }
 
 #[test]
-fn a_size_the_watch_does_not_list_is_unsupported() {
+fn a_conflict_in_the_second_pack_blocks_every_pack() {
+    let mut s = venu2(&ALL_AND_THAI);
+    s.file(0x0100_0050, EXTDATA, "006-D8947-02.tmp", &stock(THAI[1].0));
+    let fake = Fake::new(s);
+    let err = fake.call("install", json!({}), &fonts()).unwrap_err();
+    assert_eq!(err.code, ErrorCode::Conflict);
+    assert_eq!(
+        err.message,
+        "A different file is already staged as GARMIN/ExtData/006-D8947-02.tmp; nothing was written."
+    );
+    assert!(fake.writes().is_empty());
+    for part in &ALL_AND_THAI[..5] {
+        assert!(staged(&fake, part).is_empty(), "{part}");
+    }
+}
+
+#[test]
+fn a_failure_in_the_second_pack_rolls_back_the_first_packs_files() {
+    let mut s = venu2(&ALL_AND_THAI);
+    // Staged by an earlier run.
+    s.file(0x0100_0050, EXTDATA, "006-D9035-04.tmp", &georgian(ALL[3]));
+    // The first Thai part is the fourth file sent.
+    s.fail_send_object_at = Some(4);
+    let fake = Fake::new(s);
+    let err = fake.call("install", json!({}), &fonts()).unwrap_err();
+    assert_eq!(err.code, ErrorCode::DeviceError);
+    assert_eq!(
+        err.message,
+        "SendObject timed out waiting for the reply. A new object was created as \
+         GARMIN/ExtData/006-D8947-01.tmp (0x01000103) and has been deleted. Rolled back the files \
+         this run had staged: GARMIN/ExtData/006-D9035-01.tmp (0x01000100) deleted; \
+         GARMIN/ExtData/006-D9035-02.tmp (0x01000101) deleted; GARMIN/ExtData/006-D9035-03.tmp \
+         (0x01000102) deleted. Files staged before this run were left in place."
+    );
+    assert_eq!(
+        fake.writes()[8..],
+        [
+            "delete_object 0x1000103",
+            "delete_object 0x1000100",
+            "delete_object 0x1000101",
+            "delete_object 0x1000102"
+        ]
+    );
+    assert_eq!(
+        fake.writes().len(),
+        12,
+        "the second Thai part was never written"
+    );
+    assert_eq!(
+        staged(&fake, ALL[3]),
+        [(0x0100_0050, georgian(ALL[3]))],
+        "the earlier run's file stays"
+    );
+    for part in [ALL[0], ALL[1], ALL[2], THAI[0].0, THAI[1].0] {
+        assert!(staged(&fake, part).is_empty(), "{part}");
+    }
+}
+
+#[test]
+fn parts_restricts_the_targets_across_packs() {
+    // Two 21 px parts from different packs, and the 31 px one.
+    let fake = Fake::new(venu2(&ALL_AND_THAI));
+    let out = fake
+        .call(
+            "install",
+            json!({"parts": [THAI[0].0, ALL[3], ALL[0]]}),
+            &fonts(),
+        )
+        .unwrap();
+    assert_eq!(pack_ids(&out), ["armenian", "thai"]);
+    assert_eq!(
+        statuses(&out),
+        pairs(&[
+            (ALL[0], "staged_verified"),
+            (ALL[3], "staged_verified"),
+            (THAI[0].0, "staged_verified"),
+        ])
+    );
+    assert_eq!(fake.writes().len(), 6);
+}
+
+#[test]
+fn a_part_the_watch_does_not_list_is_unsupported() {
     let fake = Fake::new(venu2(&[PART]));
     let err = fake
-        .call("install", json!({"sizes_px": [24, 27]}), &fonts())
+        .call("install", json!({"parts": [ALL[1], PART]}), &fonts())
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::UnsupportedDevice);
-    assert!(err.message.contains("24 px"), "{}", err.message);
+    assert_eq!(
+        err.message,
+        "Venu 2 (006-B3703-00) doesn't list part 006-D9035-02; of this build's parts it lists \
+         006-D9035-03. Nothing was written."
+    );
     assert!(fake.writes().is_empty());
 }
 
@@ -1059,7 +1296,7 @@ fn watch_without_mtp_writes_is_unsupported() {
     let fake = Fake::new(s);
     let out = fake.call("inspect", json!({}), &fonts()).unwrap();
     assert_eq!(out["supported"], false);
-    assert_eq!(out["pack"]["id"], "armenian");
+    assert_eq!(pack_ids(&out), ["armenian"]);
     assert!(targets(&out).is_empty());
     let err = fake.call("install", json!({}), &fonts()).unwrap_err();
     assert_eq!(err.code, ErrorCode::UnsupportedDevice);
@@ -1071,15 +1308,16 @@ fn watch_without_mtp_writes_is_unsupported() {
 fn invalid_input_never_touches_the_watch() {
     let fake = Fake::new(venu2(&ALL));
     for (name, input) in [
-        ("install", json!({"sizes_px": []})),
-        ("install", json!({"sizes_px": [27, 27]})),
-        ("install", json!({"sizes_px": ["27"]})),
-        ("install", json!({"sizes_px": 27})),
-        ("install", json!({"sizes_px": [-1]})),
-        ("install", json!({"size_px": 27})),
-        ("install", json!({"sizes_px": [27], "force": true})),
-        ("restore_stock", json!([27])),
-        ("inspect", json!({"sizes_px": [27]})),
+        ("install", json!({"parts": []})),
+        ("install", json!({"parts": [PART, PART]})),
+        ("install", json!({"parts": [27]})),
+        ("install", json!({"parts": PART})),
+        ("install", json!({"parts": ["006-d9035-03"]})),
+        ("install", json!({"parts": ["006-D9035-03.tmp"]})),
+        ("install", json!({"sizes_px": [27]})),
+        ("install", json!({"parts": [PART], "force": true})),
+        ("restore_stock", json!([PART])),
+        ("inspect", json!({"parts": [PART]})),
         ("format_watch", json!({})),
     ] {
         let err = fake.call(name, input.clone(), &fonts()).unwrap_err();
@@ -1090,13 +1328,17 @@ fn invalid_input_never_touches_the_watch() {
 }
 
 #[test]
-fn size_missing_from_this_build_is_unavailable() {
+fn part_missing_from_this_build_is_unavailable() {
     let fake = Fake::new(venu2(&ALL));
     let err = fake
-        .call("install", json!({"sizes_px": [27, 26]}), &fonts())
+        .call(
+            "install",
+            json!({"parts": [PART, "006-D1234-01"]}),
+            &fonts(),
+        )
         .unwrap_err();
     assert_eq!((err.code, err.exit_code()), (ErrorCode::FontUnavailable, 1));
-    assert_eq!(err.message, "This build has no 26 px font.");
+    assert_eq!(err.message, "This build has no font part 006-D1234-01.");
     assert_eq!(fake.0.borrow().connects, 0);
 }
 
@@ -1111,9 +1353,16 @@ fn tool_definitions_follow_the_schemas() {
         .collect();
     assert_eq!(names, ["inspect", "install", "restore_stock"]);
     let install = &tools["tools"][1];
-    let sizes = &install["inputSchema"]["properties"]["sizes_px"];
-    assert_eq!(sizes["uniqueItems"], true);
-    assert_eq!(sizes["minItems"], 1);
+    let parts = &install["inputSchema"]["properties"]["parts"];
+    assert_eq!(parts["uniqueItems"], true);
+    assert_eq!(parts["minItems"], 1);
+    assert_eq!(
+        parts["items"]["pattern"],
+        "^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$"
+    );
+    let output = &install["outputSchema"];
+    assert!(output["properties"]["packs"].is_object(), "{output}");
+    assert!(output["properties"].get("pack").is_none());
     assert_eq!(install["inputSchema"]["additionalProperties"], false);
     assert!(install["inputSchema"]["required"].is_null());
     assert_eq!(tools["tools"][0]["annotations"]["readOnlyHint"], true);

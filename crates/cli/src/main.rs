@@ -14,9 +14,9 @@ const EXAMPLES: &str = "\
 Examples:
   georgian-for-garmin inspect
   georgian-for-garmin inspect --report     # the watch's font list, to paste into an issue
-  georgian-for-garmin install              # every size of the watch's pack
-  georgian-for-garmin install --sizes-px 24,27 --json
-  echo '{\"sizes_px\": [27]}' | georgian-for-garmin restore-stock --input -
+  georgian-for-garmin install              # every listed part of every pack
+  georgian-for-garmin install --parts 006-D9035-02,006-D9035-03 --json
+  echo '{\"parts\": [\"006-D9035-03\"]}' | georgian-for-garmin restore-stock --input -
   georgian-for-garmin --help --json        # MCP tool definitions
 
 After install or restore-stock, disconnect the USB cable and restart the watch.
@@ -37,11 +37,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Show the watch model, its font pack, whether it was tested, and what is staged (read-only)
+    /// Show the watch model, its font packs, whether they were tested, and what is staged (read-only)
     Inspect(InspectArgs),
-    /// Stage the Georgian font in every size of the watch's pack and verify it
+    /// Stage the Georgian font in every part of the bundled packs the watch lists and verify it
     Install(StageArgs),
-    /// Stage Garmin's original font in every size of the watch's pack and verify it
+    /// Stage Garmin's original font in every part of the bundled packs the watch lists and verify it
     RestoreStock(StageArgs),
 }
 
@@ -75,9 +75,10 @@ struct InspectArgs {
 
 #[derive(Args)]
 struct StageArgs {
-    /// Only these pixel sizes, comma-separated [default: every size of the pack the watch lists]
-    #[arg(long, value_name = "PX,...", value_delimiter = ',', num_args = 1..)]
-    sizes_px: Vec<u16>,
+    /// Only these part numbers, comma-separated, e.g. 006-D9035-03 [default: every part of the
+    /// bundled packs that the watch lists; `inspect` shows them]
+    #[arg(long, value_name = "PART,...", value_delimiter = ',', num_args = 1..)]
+    parts: Vec<String>,
 
     #[command(flatten)]
     input: InputArgs,
@@ -119,8 +120,8 @@ fn request(command: &Command) -> Result<Value, Error> {
         Command::Inspect(args) => build_input(&args.input, Map::new()),
         Command::Install(args) | Command::RestoreStock(args) => {
             let mut flags = Map::new();
-            if !args.sizes_px.is_empty() {
-                flags.insert("sizes_px".into(), json!(args.sizes_px));
+            if !args.parts.is_empty() {
+                flags.insert("parts".into(), json!(args.parts));
             }
             build_input(&args.input, flags)
         }
@@ -138,27 +139,29 @@ fn items(value: &Value) -> &[Value] {
 fn print_human(operation: &str, out: &Value) {
     if operation != "inspect" {
         println!(
-            "{} font, pack {}:",
+            "{} font:",
             if out["variant"] == "georgian" {
                 "Georgian"
             } else {
                 "Original"
-            },
-            text(&out["pack"])
+            }
         );
-        for part in items(&out["parts"]) {
-            println!(
-                "  {:>2} px  {}  {}  ({} bytes, SHA-256 {})",
-                part["size_px"],
-                text(&part["path"]),
-                if part["status"] == "already_staged" {
-                    "already staged"
-                } else {
-                    "staged and verified"
-                },
-                part["bytes"],
-                text(&part["sha256"])
-            );
+        for pack in items(&out["packs"]) {
+            println!("  {} ({})", text(&pack["name"]), text(&pack["id"]));
+            for part in items(&pack["parts"]) {
+                println!(
+                    "    {:>2} px  {}  {}  ({} bytes, SHA-256 {})",
+                    part["size_px"],
+                    text(&part["path"]),
+                    if part["status"] == "already_staged" {
+                        "already staged"
+                    } else {
+                        "staged and verified"
+                    },
+                    part["bytes"],
+                    text(&part["sha256"])
+                );
+            }
         }
         println!("{}", text(&out["next_step"]));
         return;
@@ -170,25 +173,41 @@ fn print_human(operation: &str, out: &Value) {
         text(&device["part_number"]),
         text(&device["software_version"])
     );
-    match out["pack"].as_object() {
-        None => println!("Font pack: none; this watch lists none of the packs in this build."),
-        Some(pack) => {
-            let tested = &pack["tested"];
-            let parts: Vec<&str> = items(&tested["verified_parts"]).iter().map(text).collect();
-            let software: Vec<&str> = items(&tested["verified_software"])
-                .iter()
-                .map(text)
-                .collect();
-            println!("Font pack: {} ({})", text(&pack["name"]), text(&pack["id"]));
-            match text(&tested["status"]) {
-                "tested" => println!("Tested on this model and software ({}).", parts.join(", ")),
-                "tested_other_software" => println!(
-                    "Tested on this model with software {} ({}), not on this version.",
-                    software.join(", "),
-                    parts.join(", ")
-                ),
-                _ => println!("Not tested on this model yet."),
-            }
+    let packs = items(&out["packs"]);
+    if packs.is_empty() {
+        println!("Font packs: none; this watch lists none of the packs in this build.");
+    } else {
+        println!("Font packs the watch lists (install writes each listed part):");
+    }
+    for pack in packs {
+        println!(
+            "  {} ({}, weight {})",
+            text(&pack["name"]),
+            text(&pack["id"]),
+            pack["weight"]
+        );
+        for part in items(&pack["parts"]) {
+            println!(
+                "    {:>2} px  {}  {}",
+                part["size_px"],
+                text(&part["part"]),
+                text(&part["tested"]).replace('_', " ")
+            );
+        }
+    }
+    let tested = &out["tested"];
+    if !packs.is_empty() {
+        match text(&tested["status"]) {
+            "tested" => println!("Every part was tested on this model and software."),
+            "tested_other_software" => println!(
+                "Every part was tested on this model, but not all on this software (tested on {}).",
+                items(&tested["verified_software"])
+                    .iter()
+                    .map(text)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            _ => println!("Not every part was tested on this model yet."),
         }
     }
     match out["extdata"].as_object() {
@@ -215,7 +234,7 @@ fn print_human(operation: &str, out: &Value) {
     println!("Fonts in this build:");
     for font in items(&out["fonts"]) {
         println!(
-            "  {:>2} px  {}  {:<26}  {:<13}  staged: {}",
+            "  {:>2} px  {}  {:<35}  {:<10}  staged: {}",
             font["size_px"],
             text(&font["part"]),
             text(&font["pack"]),
@@ -232,7 +251,7 @@ fn print_human(operation: &str, out: &Value) {
     if out["supported"] != true {
         println!("Nothing in this build can be installed on this watch.");
     }
-    if out["pack"]["tested"]["status"] != "tested" {
+    if out["tested"]["status"] != "tested" {
         println!(
             "To help add this watch, share its font list: georgian-for-garmin inspect --report"
         );

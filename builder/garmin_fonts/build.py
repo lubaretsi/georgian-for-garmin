@@ -66,6 +66,7 @@ def build(registry, stock_dir, noto, license_file, out):
             {
                 "id": pack["id"],
                 "name": pack["name"],
+                "weight": pack["weight"],
                 "parts": [part["part"] for part in pack["parts"]],
                 "tested": pack["tested"],
             }

@@ -77,10 +77,16 @@ const BUSY_HINT: &str = "Another program is using the watch's USB connection, us
 const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually Garmin Express. \
      Quit Garmin Express (including its background helper) and try again.";
 
-/// The line of `packaging/linux/70-georgian-for-garmin.rules`, so the error's one-line fix writes
-/// the same rule as the shipped file (a test keeps them identical).
-const UDEV_RULE: &str = "SUBSYSTEM==\"usb\", ENV{DEVTYPE}==\"usb_device\", ATTR{idVendor}==\"091e\", \
-     TAG+=\"uaccess\", GROUP=\"plugdev\", MODE=\"0660\"";
+/// The shipped udev rules file; the permission error's one-line fix writes its rule line.
+const UDEV_RULES_FILE: &str = include_str!("../../../packaging/linux/70-georgian-for-garmin.rules");
+
+/// The rule lines of [`UDEV_RULES_FILE`]: neither blank nor comments.
+fn udev_rules() -> impl Iterator<Item = &'static str> {
+    UDEV_RULES_FILE
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+}
 
 fn device_error(context: &str, e: nusb::Error) -> Error {
     match e.kind() {
@@ -91,10 +97,11 @@ fn device_error(context: &str, e: nusb::Error) -> Error {
             if cfg!(target_os = "linux") {
                 format!(
                     "{context}: permission denied ({e}). Let your user open Garmin devices, then \
-                     reconnect the watch:\n  echo '{UDEV_RULE}' | sudo tee \
+                     reconnect the watch:\n  echo '{}' | sudo tee \
                      /etc/udev/rules.d/70-georgian-for-garmin.rules && sudo udevadm control --reload\n\
                      That is the rule shipped as 70-georgian-for-garmin.rules. Over SSH, also run \
-                     `sudo usermod -aG plugdev \"$USER\"` and log in again."
+                     `sudo usermod -aG plugdev \"$USER\"` and log in again.",
+                    udev_rules().next().unwrap_or_default()
                 )
             } else {
                 format!(
@@ -461,13 +468,17 @@ impl Mtp for UsbMtp {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn permission_fix_writes_the_shipped_udev_rule() {
-        let file = include_str!("../../../packaging/linux/70-georgian-for-garmin.rules");
-        let rules: Vec<&str> = file
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty() && !l.starts_with('#'))
-            .collect();
-        assert_eq!(rules, [super::UDEV_RULE]);
+    fn the_shipped_udev_file_has_exactly_one_rule() {
+        let rules: Vec<&str> = super::udev_rules().collect();
+        assert_eq!(rules.len(), 1, "{rules:?}");
+        assert!(
+            rules[0].contains("ATTR{idVendor}==\"091e\""),
+            "{}",
+            rules[0]
+        );
+        assert!(
+            !rules[0].contains('\''),
+            "the fix quotes the rule in single quotes"
+        );
     }
 }

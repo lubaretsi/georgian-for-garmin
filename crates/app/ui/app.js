@@ -101,7 +101,8 @@ function showReady(report) {
   if (shared && shared.watch !== watchKey(report)) shared = null;
   readyReport = report;
   show("ready", () => {
-    const tested = report.pack && report.pack.tested;
+    // The overall status: `tested` only when every part install writes was verified here.
+    const tested = report.packs.length > 0 ? report.tested : null;
     $("ready-model").textContent = report.device.model;
     $("ready-version").textContent = fill(T.softwareVersion, {
       version: report.device.software_version,
@@ -152,10 +153,19 @@ function showWorking(command) {
 
 function showStaged(output) {
   show("staged", () => {
-    const sizes = output.parts.map((p) => p.size_px).join(", ");
-    $("staged-sizes").textContent = fill(
-      output.parts.length > 1 ? T.stagedSizes : T.stagedOneSize,
-      { sizes },
+    const count = output.packs.reduce((n, pack) => n + pack.parts.length, 0);
+    $("staged-sizes").textContent = fill(count > 1 ? T.stagedFiles : T.stagedOneFile, {
+      count,
+    });
+    $("staged-packs").replaceChildren(
+      ...output.packs.map((pack) => {
+        const item = document.createElement("li");
+        item.textContent = fill(T.stagedPack, {
+          pack: pack.name,
+          sizes: pack.parts.map((p) => p.size_px).join(", "),
+        });
+        return item;
+      }),
     );
     $("staged-after").textContent = T.afterRestart[output.variant];
     $("staged-test").hidden = output.variant !== "georgian";

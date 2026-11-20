@@ -1,16 +1,16 @@
 # Install Georgian with an AI agent
 
 Instructions for an AI agent installing Georgian on a user's Garmin watch without the Georgian
-for Garmin app. The procedure copies font files to the watch over USB: every size of one font
-pack that the watch lists. The watch imports them after it's unplugged and restarted. It doesn't
-modify firmware. [How it works](how-it-works.md) explains the background. If the user can run
-this project's [command-line tool](command-line.md), `georgian-for-garmin install` does all of
-the steps below.
+for Garmin app. The procedure copies font files to the watch over USB: every part of the
+manifest's packs that the watch lists, across all packs. The watch imports them after it's
+unplugged and restarted. It doesn't modify firmware. [How it works](how-it-works.md) explains the
+background. If the user can run this project's [command-line tool](command-line.md),
+`georgian-for-garmin install` does all of the steps below.
 
 **Verified:** Venu 2, firmware 19.05, from macOS. With all four Armenian sizes installed
 (21, 24, 27 and 31 px), Georgian renders in the notification pop-up, the notification list and an
 opened notification. Restoring Garmin's original 27 px font alone brings the boxes back in the
-pop-up. Other watches may work if their `GarminDevice.xml` lists a pack from the manifest (step 3).
+pop-up. Other watches may work if their `GarminDevice.xml` lists a part from the manifest (step 3).
 From Windows 11 the same files were copied and read back through Windows' built-in driver; the
 watch wasn't checked after a Windows-only install.
 
@@ -40,13 +40,15 @@ watch wasn't checked after a Windows-only install.
    handle in hex without leading zeros (`o1000009`), which also reaches unlisted objects. Create
    files with `CreateObjectWithPropertiesAndData` (parent = the `ExtData` ID), read them back
    through their default resource, and delete with `Delete`. Don't install another driver.
-3. **Pick the pack.** Read `GARMIN/GarminDevice.xml`. Take the `MassStorageMode/UpdateFile`
-   entries whose `Path` is `Garmin/ExtData` (compare case-insensitively). Pick the first pack in
-   the manifest's `packs` with a part among their `PartNumber`s; the targets are that pack's
-   parts the watch lists, each staged as `<part>.tmp`. If no pack matches, stop: tell the user the
-   watch isn't supported yet and offer to share its report (below). Tell the user the model,
-   software version (`Model/Description`, `Model/SoftwareVersion`; `1905` is `19.05`) and
-   whether the pack's `tested` list has this `Model/PartNumber` and software version.
+3. **Pick the targets.** Read `GARMIN/GarminDevice.xml`. Take the `MassStorageMode/UpdateFile`
+   entries whose `Path` is `Garmin/ExtData` (compare case-insensitively). The targets are every
+   part of every pack in the manifest's `packs` that is among their `PartNumber`s, across all
+   packs, each staged as `<part>.tmp`. If none matches, stop: tell the user the watch isn't
+   supported yet and offer to share its report (below). Tell the user the model, software version
+   (`Model/Description`, `Model/SoftwareVersion`; `1905` is `19.05`), the targets, and whether
+   it's tested: a part is tested when its pack's `tested` list has an entry with this
+   `Model/PartNumber` and software version that names the part, and the watch is tested only
+   when every target is.
 4. **Find `ExtData`.** When it's empty, the watch omits it from folder listings, and creating it
    fails. Try in order and stop at the first match:
    1. children of the `GARMIN` folder;
@@ -66,7 +68,7 @@ watch wasn't checked after a Windows-only install.
    (`LIBMTP_Get_File_To_File`) and compare SHA-256 with the manifest.
 7. **Import.** Have the user unplug the watch, wait for it to settle, then power it off and on.
    The `.tmp` files disappear when the watch takes them.
-8. **Check.** Have the user send a phone notification containing `ქართული ᲥᲐᲠᲗᲣᲚᲘ`. Both words
+8. **Check.** Have the user send a phone notification containing `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`. Both words
    should show letters, not boxes.
 
 ## Undo
@@ -77,7 +79,7 @@ a watch, so tell the user that.
 
 ## Untested and unsupported watches
 
-If the pack's `tested` list doesn't have this model and software version, or no pack matches,
+If any target isn't tested on this model and software version, or no part matches,
 ask the user to share the watch's font list in a
 [watch report issue](https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.md):
 model, `Model/PartNumber`, software version, and each `Garmin/ExtData` `UpdateFile`'s part

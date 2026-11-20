@@ -45,21 +45,23 @@ tested with a Venu 2 on Ubuntu 24.04 (arm64). Two setup steps:
 
 | Command | What it does |
 |---|---|
-| `inspect` | Shows the model, software version, font pack, whether this model and software were tested, and which font files are waiting on the watch. Read-only. |
+| `inspect` | Shows the model, software version, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
 | `inspect --report` | Prints the watch's font list as Markdown for a GitHub issue: model, part number, software and font files. No serial number or unit ID. |
-| `install` | Copies the Georgian font in every size of the watch's font pack, then reads each file back. |
-| `restore-stock` | The same with Garmin's original font. |
+| `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
+| `restore-stock` | The same with Garmin's original fonts. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
 
 Options:
 
-- `--sizes-px 24,27`: only these sizes (`install`, `restore-stock`).
+- `--parts 006-D9035-02,006-D9035-03`: only these part numbers (`install`, `restore-stock`).
+  `inspect` lists the watch's parts. Part numbers, not pixel sizes, because packs share sizes
+  (15, 21, 24 and 25 px each come in two packs).
 - `--json`: print one JSON value on stdout; errors go to stderr as
   `{"error": {"code": "…", "message": "…"}}`.
 - `--input FILE` or `--input -`: take the input as a JSON object keyed like the command's input
-  schema, e.g. `{"sizes_px": [27]}`. Flags given too override it.
+  schema, e.g. `{"parts": ["006-D9035-03"]}`. Flags given too override it.
 - `--help --json`: print every command's definition, with JSON Schemas for its input and output,
   as MCP tools.
 
@@ -70,15 +72,21 @@ Running `install` again after it succeeded changes nothing and reports `already_
 `inspect --json` returns:
 
 - `device`: `model`, `part_number`, `software_version`;
-- `supported`, and `pack`: the selected font pack, its sizes, and `tested` (`status` is `tested`,
-  `tested_other_software` or `untested`, with the verified parts and software versions);
+- `supported`: the watch lists a bundled part and accepts the needed MTP writes;
+- `tested`: `status` for the whole install and `verified_software`, the software versions this
+  model was verified on with any of its parts. `status` is `tested` when every target part is,
+  `tested_other_software` when every part was verified on this model but some only on other
+  software, and `untested` when any part (or every part) wasn't verified on this model;
+- `packs`: every bundled pack the watch lists, in registry order, with `id`, `name`, `weight` and
+  `parts`: the parts the watch lists, each with `size_px` and its own `tested` status;
 - `fonts`: one entry per part, with `size_px`, whether the watch lists it, and `staged` (what's
   waiting in the folder: `none`, `georgian`, `stock`, `other`, or `unknown` without the folder);
 - `extdata`: the hidden folder's handle, how it was found, and the files in it with their SHA-256;
 - `report`: the same data as `--report`.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
-`already_staged`), the pack, and each part with its path on the watch, size in bytes and SHA-256.
+`already_staged`) and `packs`: each pack written to, with its parts' paths on the watch, sizes in
+bytes, SHA-256s and statuses.
 
 ## Exit codes and errors
 
@@ -90,13 +98,13 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
-| `unsupported_device` | The watch lists none of the bundled font packs, or not the requested size | Share `inspect --report` in an issue. |
+| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part | Share `inspect --report` in an issue. |
 | `conflict` | A different file is already waiting on the watch; nothing was written | Unplug and restart the watch so it loads that file, then run again. |
 | `verification_failed` | A copied file read back differently; it was deleted | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |
-| `font_unavailable` | This build doesn't include the requested size | Download the release again. |
+| `font_unavailable` | This build doesn't include a requested part | Check the part number, or download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
 

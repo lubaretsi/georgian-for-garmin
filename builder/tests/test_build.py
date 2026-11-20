@@ -112,8 +112,8 @@ def manifest_view(entries):
         for part in pack["parts"]
     ]
     packs = [
-        {"id": pack["id"], "name": pack["name"], "parts": [p["part"] for p in pack["parts"]],
-         "tested": pack["tested"]}
+        {"id": pack["id"], "name": pack["name"], "weight": pack["weight"],
+         "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]
     return fonts, packs

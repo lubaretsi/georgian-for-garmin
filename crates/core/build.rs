@@ -34,6 +34,7 @@ struct Entry {
 struct PackEntry {
     id: String,
     name: String,
+    weight: u16,
     parts: Vec<String>,
     tested: Vec<TestedEntry>,
 }
@@ -121,8 +122,8 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
         let mut sizes = BTreeSet::new();
         writeln!(
             code,
-            "    BundledPack {{ id: {:?}, name: {:?}, fonts: &[",
-            pack.id, pack.name
+            "    BundledPack {{ id: {:?}, name: {:?}, weight: {}, fonts: &[",
+            pack.id, pack.name, pack.weight
         )
         .unwrap();
         for part in &pack.parts {

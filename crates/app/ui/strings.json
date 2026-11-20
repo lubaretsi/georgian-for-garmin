@@ -16,7 +16,7 @@
       "tested_other_software": "ამ მოდელზე შემოწმებულია, ოღონდ ვერსია {versions}-ზე",
       "untested": "ამ საათზე ჯერ არ შეგვიმოწმებია"
     },
-    "untestedBody": "ეს მოდელი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტის დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
+    "untestedBody": "ამ მოდელსა და ვერსიაზე ყველა შრიფტი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტების დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
     "shareDone": "სია დაკოპირდა და ბრაუზერში GitHub-ის გვერდი გაიხსნა. გადახედეთ და გამოაქვეყნეთ.",
@@ -33,15 +33,16 @@
     "keepConnected": "საათს ნუ გამოაერთებთ.",
 
     "stagedTitle": "ახლა გადატვირთეთ საათი",
-    "stagedSizes": "საათზე ჩაიწერა ყველა ზომა: {sizes} px.",
-    "stagedOneSize": "საათზე ჩაიწერა {sizes} px ზომა.",
+    "stagedFiles": "საათზე ჩაიწერა შრიფტის {count} ფაილი:",
+    "stagedOneFile": "საათზე ჩაიწერა შრიფტის ერთი ფაილი:",
+    "stagedPack": "{pack}: {sizes} px",
     "unplugRestart": "გამოაერთეთ საათი და გადატვირთეთ: ზედა ღილაკს ხანგრძლივად დააჭირეთ, აირჩიეთ Power Off, მერე ისევ ჩართეთ.",
     "afterRestart": {
       "georgian": "გადატვირთვის შემდეგ შეტყობინებებში ქართული ასოები გამოჩნდება.",
       "stock": "გადატვირთვის შემდეგ საათზე ქარხნული შრიფტი დაბრუნდება."
     },
     "testLabel": "შესამოწმებლად ეს ტექსტი საკუთარ თავს გაუგზავნეთ:",
-    "testLine": "ქართული ᲥᲐᲠᲗᲣᲚᲘ",
+    "testLine": "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ",
     "done": "კარგი",
 
     "errorTitle": "ვერ მოხერხდა",
@@ -81,7 +82,7 @@
       "tested_other_software": "Tested on this model, with software {versions}",
       "untested": "Not tested on this watch yet"
     },
-    "untestedBody": "This model hasn't been tried yet: Georgian may still show as boxes, and restoring the original font hasn't been checked on it either.",
+    "untestedBody": "Not every font has been tried on this model and software yet: Georgian may still show as boxes, and restoring the original fonts hasn't been checked on this model either.",
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",
     "shareDone": "Copied. A GitHub page opened in your browser; check it and post it.",
@@ -98,15 +99,16 @@
     "keepConnected": "Keep the watch connected.",
 
     "stagedTitle": "Now restart your watch",
-    "stagedSizes": "Every size is on the watch: {sizes} px.",
-    "stagedOneSize": "The {sizes} px size is on the watch.",
+    "stagedFiles": "{count} font files are on the watch:",
+    "stagedOneFile": "One font file is on the watch:",
+    "stagedPack": "{pack}: {sizes} px",
     "unplugRestart": "Unplug the watch, then restart it (hold the top button, Power Off, then turn it on).",
     "afterRestart": {
       "georgian": "Georgian notifications will show after the restart.",
       "stock": "The original font will be back after the restart."
     },
     "testLabel": "To check, send yourself this text:",
-    "testLine": "ქართული ᲥᲐᲠᲗᲣᲚᲘ",
+    "testLine": "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ",
     "done": "Done",
 
     "errorTitle": "That didn’t work",

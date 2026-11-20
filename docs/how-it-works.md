@@ -25,9 +25,15 @@ flowchart LR
 - **How a font gets onto the watch.** Garmin's updater copies a new font to
   `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`.
   This project uses the same path; it doesn't modify firmware or any other file.
-- **Which font the watch picks.** The first font pack in [the registry](../fonts/README.md) that
-  the watch lists. Georgian goes into every size of that pack, because other screens may use other
-  sizes (the Venu 2's notification pop-up uses 27 px).
+- **Which fonts get Georgian.** Every font part in [the registry](../fonts/README.md) that the
+  watch lists, across all packs: Garmin ships its Armenian font as several products (NotoSans
+  Regular, NotoSans Armenian Regular and Bold) in many sizes, and a watch may use parts of more
+  than one. Each screen picks its own font and size (the Venu 2's notification pop-up uses
+  27 px), so Georgian goes into every one the watch lists. Fonts the watch doesn't list are left
+  alone.
+- **Whether it was tested.** Each part counts as tested on a watch when its pack's `tested` list
+  in the registry names that part for the watch's model part number and software version. The
+  watch as a whole counts as tested only when every part it gets is.
 
 ## The font
 
@@ -59,10 +65,12 @@ same storage. If none matches, nothing is written.
 
 ## Copying files safely
 
-- Every target is checked before anything is written. A file already waiting with the same bytes
-  is skipped; one with different bytes stops the whole install, and nothing changes.
+- Every target, in every pack, is checked before anything is written. A file already waiting
+  with the same bytes is skipped; one with different bytes stops the whole install, and nothing
+  changes.
 - Each file is read back after copying and compared byte for byte.
-- If any size fails, the files that run copied are deleted again; files from earlier runs stay.
+- If any part fails, the files that run copied, in any pack, are deleted again; files from
+  earlier runs stay.
 - The Venu 2 expects the 12-byte header of each data transfer on its own, separately from the
   data, as libmtp sends it. Sending both in one USB transfer freezes its MTP connection. The
   installer detects this from the watch's replies, and recovers a watch left frozen by an earlier

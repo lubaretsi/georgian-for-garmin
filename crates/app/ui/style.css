@@ -186,6 +186,13 @@ button:focus-visible {
   font-size: 13px;
 }
 
+.packs {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+
 .tested {
   margin: 6px 0 0;
   padding: 3px 12px;

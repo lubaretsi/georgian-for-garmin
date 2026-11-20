@@ -47,22 +47,50 @@ fn help_json_prints_mcp_tools() {
 }
 
 #[test]
+fn help_json_describes_parts_and_packs() {
+    let out = run(&["install", "--help", "--json"], "");
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let install = &tools["tools"][0];
+    let parts = &install["inputSchema"]["properties"]["parts"];
+    assert_eq!(parts["items"]["type"], "string", "{parts}");
+    assert!(
+        install["inputSchema"]["properties"]
+            .get("sizes_px")
+            .is_none()
+    );
+    assert!(install["outputSchema"]["properties"]["packs"].is_object());
+
+    let out = run(&["inspect", "--help", "--json"], "");
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let properties = &tools["tools"][0]["outputSchema"]["properties"];
+    assert!(properties["packs"].is_object() && properties["tested"].is_object());
+    assert!(properties.get("pack").is_none());
+}
+
+#[test]
 fn invalid_input_exits_2_with_json_error() {
     for (args, stdin) in [
-        (&["install", "--sizes-px", "27,27", "--json"][..], ""),
-        (&["install", "--sizes-px", "big", "--json"][..], ""),
+        (
+            &["install", "--parts", "006-D9035-03,006-D9035-03", "--json"][..],
+            "",
+        ),
+        (&["install", "--parts", "big", "--json"][..], ""),
+        (&["install", "--parts", "006-d9035-03", "--json"][..], ""),
         (
             &["install", "--input", "-", "--json"][..],
-            r#"{"sizes_px": []}"#,
+            r#"{"parts": []}"#,
         ),
         (
             &["install", "--input", "-", "--json"][..],
-            r#"{"size_px": 27}"#,
+            r#"{"sizes_px": [27]}"#,
         ),
-        (&["restore-stock", "--input", "-", "--json"][..], "[27]"),
+        (
+            &["restore-stock", "--input", "-", "--json"][..],
+            r#"["006-D9035-03"]"#,
+        ),
         (&["install", "--input", "-", "--json"][..], "{not json"),
-        (&["install", "--sizepx", "27", "--json"][..], ""),
-        (&["inspect", "--sizes-px", "27", "--json"][..], ""),
+        (&["install", "--sizes-px", "27", "--json"][..], ""),
+        (&["inspect", "--parts", "006-D9035-03", "--json"][..], ""),
         (&["--json"][..], ""),
     ] {
         let error = json_error(&run(args, stdin));
@@ -76,21 +104,42 @@ fn invalid_input_exits_2_with_json_error() {
 }
 
 #[test]
-fn a_size_missing_from_the_build_fails_before_usb() {
-    let out = run(&["install", "--sizes-px", "27,26", "--json"], "");
+fn a_part_missing_from_the_build_fails_before_usb() {
+    let out = run(
+        &["install", "--parts", "006-D9035-03,006-D1234-01", "--json"],
+        "",
+    );
     assert_eq!(out.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&out.stderr).unwrap();
     assert_eq!(error["error"]["code"], "font_unavailable");
+    assert!(
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("006-D1234-01")
+    );
 }
 
 #[test]
 fn flags_override_input_before_validation() {
     // The flag's invalid value wins over the valid --input value.
     let error = json_error(&run(
-        &["install", "--input", "-", "--sizes-px", "30,30", "--json"],
-        r#"{"sizes_px": [27]}"#,
+        &[
+            "install",
+            "--input",
+            "-",
+            "--parts",
+            "006-D9999-30,006-D9999-30",
+            "--json",
+        ],
+        r#"{"parts": ["006-D9035-03"]}"#,
     ));
-    assert!(error["error"]["message"].as_str().unwrap().contains("30"));
+    assert!(
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("006-D9999-30")
+    );
 }
 
 #[test]

@@ -29,4 +29,4 @@ Version is Major.Minor with a two-digit minor: Major 2, Minor 10 is 2.10. -->
 ## Result
 
 <!-- If you installed Georgian: after unplugging and restarting the watch, did a notification
-with ქართული ᲥᲐᲠᲗᲣᲚᲘ show letters instead of boxes? -->
+with მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ show letters instead of boxes? -->

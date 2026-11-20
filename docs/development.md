@@ -54,9 +54,9 @@ cargo tauri dev                                            # against a real watc
 cargo tauri build --debug --features demo --bundles app    # a simulated watch, no hardware
 ```
 
-The demo build walks through a tested Venu 2, an untested model, a conflict and the share
-button. Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same
-keys; the tests check that.
+The demo build walks through a tested Venu 2, an untested model listing parts from two packs, a
+conflict and the share button. Every string is in `ui/strings.json`, with `ka` and `en` tables
+that must have the same keys; the tests check that.
 
 ## Release
 

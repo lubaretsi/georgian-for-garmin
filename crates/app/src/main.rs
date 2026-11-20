@@ -94,13 +94,13 @@ async fn inspect(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("inspect", json!({})).await
 }
 
-/// Stages the Georgian font in every size of the watch's pack.
+/// Stages the Georgian font in every part of the bundled packs that the watch lists.
 #[tauri::command]
 async fn install(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("install", json!({})).await
 }
 
-/// Stages Garmin's original font in every size of the watch's pack.
+/// Stages Garmin's original font in every part of the bundled packs that the watch lists.
 #[tauri::command]
 async fn restore_stock(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("restore_stock", json!({})).await
@@ -363,7 +363,9 @@ mod tests {
         results.remove("_report");
         assert!(results.contains("Failed"), "{results:?}");
         used.extend(results.iter().map(|k| format!("share{k}")));
-        assert!(used.contains("untestedBody") && used.contains("stagedSizes"));
+        for key in ["untestedBody", "stagedFiles", "stagedOneFile", "stagedPack"] {
+            assert!(used.contains(key), "{key} not found in the UI");
+        }
         for (language, table) in strings() {
             let missing: Vec<_> = used.iter().filter(|k| table.get(*k).is_none()).collect();
             assert!(missing.is_empty(), "{language} lacks {missing:?}");

@@ -22,6 +22,7 @@ struct BundledTested {
 struct BundledPack {
     id: &'static str,
     name: &'static str,
+    weight: u16,
     fonts: &'static [BundledFont],
     tested: &'static [BundledTested],
 }
@@ -62,14 +63,17 @@ pub struct Tested {
 pub struct Pack {
     pub id: String,
     pub name: String,
+    /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too (a part
+    /// may override it in the registry).
+    pub weight: u16,
     /// Every size, in manifest order.
     pub fonts: Vec<Font>,
     pub tested: Vec<Tested>,
 }
 
-/// The pack a watch gets and the sizes of it the watch lists.
+/// A pack the watch lists and the parts of it the watch lists.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Selection<'a> {
+pub struct Listed<'a> {
     pub pack: &'a Pack,
     /// The pack's fonts the watch lists under `Garmin/ExtData`, in pack order; never empty.
     pub fonts: Vec<&'a Font>,
@@ -77,7 +81,7 @@ pub struct Selection<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontSet {
-    /// In registry order, which decides between packs a watch lists.
+    /// In registry order.
     pub packs: Vec<Pack>,
 }
 
@@ -90,6 +94,7 @@ impl FontSet {
                 .map(|p| Pack {
                     id: p.id.to_owned(),
                     name: p.name.to_owned(),
+                    weight: p.weight,
                     fonts: p
                         .fonts
                         .iter()
@@ -122,21 +127,24 @@ impl FontSet {
             .flat_map(|p| p.fonts.iter().map(move |f| (p, f)))
     }
 
-    /// Whether any pack has a font of `size_px`.
-    pub fn has_size(&self, size_px: u16) -> bool {
-        self.fonts().any(|(_, f)| f.size_px == size_px)
+    /// Whether any pack has part `part`.
+    pub fn has_part(&self, part: &str) -> bool {
+        self.fonts().any(|(_, f)| f.part == part)
     }
 
-    /// The first pack, in registry order, with a part the watch lists under `Garmin/ExtData`,
-    /// and the fonts of that pack the watch lists.
-    pub fn select(&self, device: &GarminDevice) -> Option<Selection<'_>> {
-        self.packs.iter().find_map(|pack| {
-            let fonts: Vec<&Font> = pack
-                .fonts
-                .iter()
-                .filter(|f| device.declares_extdata_part(&f.part))
-                .collect();
-            (!fonts.is_empty()).then_some(Selection { pack, fonts })
-        })
+    /// Every pack, in registry order, with a part the watch lists under `Garmin/ExtData`, and
+    /// the fonts of it the watch lists: what `install` and `restore_stock` write.
+    pub fn listed(&self, device: &GarminDevice) -> Vec<Listed<'_>> {
+        self.packs
+            .iter()
+            .filter_map(|pack| {
+                let fonts: Vec<&Font> = pack
+                    .fonts
+                    .iter()
+                    .filter(|f| device.declares_extdata_part(&f.part))
+                    .collect();
+                (!fonts.is_empty()).then_some(Listed { pack, fonts })
+            })
+            .collect()
     }
 }

@@ -2,11 +2,13 @@
 //!
 //! It follows a short script so every screen shows up: the first two connections find no
 //! watch, the next two find it held by Garmin Express, and from then on one of two watches is
-//! attached, each listing every size of the first bundled pack:
+//! attached:
 //!
-//! 1. a Venu 2 on software 19.05, the tested model, with nothing staged;
-//! 2. an untested model (its name and part number are made up for the demo) with a different
-//!    file already staged for one size, so installing on it ends in a `conflict`.
+//! 1. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
+//!    staged: `tested`;
+//! 2. an untested model (its name and part number are made up for the demo) listing every part
+//!    of the first two bundled packs, with a different file already staged for the last one, so
+//!    installing on it ends in a `conflict`.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
 //! importing (removing) every staged `.tmp` file, and the other watch is attached. So the
@@ -80,6 +82,27 @@ fn device_xml(description: &str, part: &str, software: &str, parts: &[String]) -
     .into_bytes()
 }
 
+/// The parts a demo watch lists: on a model the registry verified, the parts verified on it;
+/// otherwise every part of the first two bundled packs.
+fn listed_parts(fonts: &FontSet, model_part: &str) -> Vec<String> {
+    let verified: Vec<String> = fonts
+        .packs
+        .iter()
+        .flat_map(|p| &p.tested)
+        .filter(|t| t.model_part == model_part)
+        .flat_map(|t| t.parts.iter().cloned())
+        .collect();
+    if !verified.is_empty() {
+        return verified;
+    }
+    fonts
+        .packs
+        .iter()
+        .take(2)
+        .flat_map(|p| p.fonts.iter().map(|f| f.part.clone()))
+        .collect()
+}
+
 fn object(parent: u32, name: &str, fmt: u16, data: Vec<u8>) -> (ObjectInfo, Vec<u8>) {
     let info = ObjectInfo {
         storage_id: STORAGE,
@@ -102,14 +125,10 @@ fn invalid_handle(operation: u16) -> MtpError {
 impl Demo {
     pub fn new(transfer: Duration) -> Self {
         let fonts = FontSet::bundled();
-        let parts: Vec<String> = fonts.packs[0]
-            .fonts
-            .iter()
-            .map(|f| f.part.clone())
-            .collect();
         let watches = WATCHES
             .iter()
             .map(|&(description, part, software, leftover)| {
+                let parts = listed_parts(&fonts, part);
                 let mut objects = Objects::new();
                 // Objects in the storage root have parent 0.
                 objects.insert(GARMIN, object(0, "GARMIN", format::ASSOCIATION, vec![]));
@@ -127,7 +146,7 @@ impl Demo {
                     object(GARMIN, "ExtData", format::ASSOCIATION, vec![]),
                 );
                 if leftover {
-                    let name = format!("{}.tmp", parts[parts.len().min(2) - 1]);
+                    let name = format!("{}.tmp", parts[parts.len() - 1]);
                     objects.insert(
                         LEFTOVER,
                         object(EXTDATA, &name, format::UNDEFINED, b"older font".to_vec()),
@@ -180,7 +199,7 @@ impl Demo {
 
 #[cfg(feature = "demo")]
 static WATCH: std::sync::LazyLock<Demo> =
-    std::sync::LazyLock::new(|| Demo::new(Duration::from_millis(600)));
+    std::sync::LazyLock::new(|| Demo::new(Duration::from_millis(300)));
 
 /// The app's demo watch. Transfers take a moment so the progress state is visible.
 #[cfg(feature = "demo")]
@@ -309,7 +328,6 @@ mod tests {
     #[test]
     fn follows_the_script_through_every_screen() {
         let demo = Demo::new(Duration::ZERO);
-        let sizes = FontSet::bundled().packs[0].fonts.len();
         for _ in 0..ABSENT {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
@@ -317,16 +335,22 @@ mod tests {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::DeviceBusy));
         }
 
-        // The tested Venu 2: every size installs.
+        // The tested Venu 2: every listed part of its one pack installs.
         let ready = call(&demo, "inspect").unwrap();
+        let sizes = staged(&ready).len();
+        assert_eq!(sizes, 4, "the registry verified four parts on the Venu 2");
         assert_eq!(ready["device"]["model"], "Venu 2");
         assert_eq!(ready["device"]["software_version"], "19.05");
         assert_eq!(ready["supported"], true);
-        assert_eq!(ready["pack"]["tested"]["status"], "tested");
+        assert_eq!(ready["tested"]["status"], "tested");
+        assert_eq!(ready["packs"].as_array().unwrap().len(), 1);
         assert_eq!(staged(&ready), vec!["none"; sizes]);
         let installed = call(&demo, "install").unwrap();
         assert_eq!(installed["status"], "staged_verified");
-        assert_eq!(installed["parts"].as_array().unwrap().len(), sizes);
+        assert_eq!(
+            installed["packs"][0]["parts"].as_array().unwrap().len(),
+            sizes
+        );
         assert_eq!(
             staged(&call(&demo, "inspect").unwrap()),
             vec!["georgian"; sizes]
@@ -334,10 +358,12 @@ mod tests {
         assert_eq!(call(&demo, "install").unwrap()["status"], "already_staged");
         demo.swap();
 
-        // The untested watch: a leftover file makes installing a conflict.
+        // The untested watch lists two packs; a leftover file makes installing a conflict.
         let other = call(&demo, "inspect").unwrap();
-        assert_eq!(other["pack"]["tested"]["status"], "untested");
-        assert!(staged(&other).contains(&"other"));
+        let other_sizes = staged(&other).len();
+        assert_eq!(other["tested"]["status"], "untested");
+        assert_eq!(other["packs"].as_array().unwrap().len(), 2);
+        assert_eq!(staged(&other).last(), Some(&"other"));
         assert!(
             !other["report"]["text"]
                 .as_str()
@@ -354,7 +380,15 @@ mod tests {
         );
         demo.swap();
 
-        // So did the untested watch; now it installs.
-        assert_eq!(call(&demo, "install").unwrap()["status"], "staged_verified");
+        // So did the untested watch; now every part of both packs installs.
+        let installed = call(&demo, "install").unwrap();
+        assert_eq!(installed["status"], "staged_verified");
+        let parts: usize = installed["packs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["parts"].as_array().unwrap().len())
+            .sum();
+        assert_eq!(parts, other_sizes);
     }
 }

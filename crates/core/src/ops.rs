@@ -1,8 +1,8 @@
 //! Operations: one declaration each (JSON Schema in and out, behavior hints), validated on
 //! every call. CLI, app and any future adapter call [`call`].
 //!
-//! A watch gets the first pack, in registry order, that it lists under `Garmin/ExtData`, and
-//! `install`/`restore_stock` write every size of that pack the watch lists.
+//! A watch gets Georgian in every part of this build's packs that it lists under
+//! `Garmin/ExtData`, across all packs: `install`/`restore_stock` write each of them.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
-use crate::fonts::{Font, FontSet, Pack, Selection};
+use crate::fonts::{Font, FontSet, Listed, Pack};
 use crate::garmin_device::{self, GarminDevice};
 use crate::mtp::{CreateError, Mtp};
 use crate::ptp::{self, ObjectInfo, op};
@@ -27,15 +27,16 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[serde(deny_unknown_fields)]
 pub struct InspectInput {}
 
-/// Which sizes of the selected pack to stage.
+/// Which parts to stage.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StageInput {
-    /// Pixel sizes to stage, e.g. `[27]`. Default: every size of the selected pack that the
-    /// watch lists. A size the watch doesn't list is refused with `unsupported_device`.
+    /// Part numbers to stage, e.g. `["006-D9035-03"]`. Default: every part of this build's packs
+    /// that the watch lists. A part this build doesn't carry is refused with `font_unavailable`,
+    /// one the watch doesn't list with `unsupported_device`.
     #[serde(default)]
-    #[schemars(length(min = 1))]
-    pub sizes_px: Option<BTreeSet<u16>>,
+    #[schemars(length(min = 1), inner(pattern(r"^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$")))]
+    pub parts: Option<BTreeSet<String>>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -48,15 +49,19 @@ pub struct DeviceReport {
     pub software_version: String,
 }
 
-/// Whether a pack's Georgian build was seen working on this watch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+/// Whether Georgian was seen working on this watch, for one part or for every part `install`
+/// writes. Ordered from best to worst; the overall status is the worst of the parts'.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TestStatus {
-    /// Verified on this model part number and software version.
+    /// Part: its pack's `tested` list has an entry for this model part number and software
+    /// version that names the part. Overall: every target part is `tested`.
     Tested,
-    /// Verified on this model part number, but only on other software versions.
+    /// Part: such entries exist for this model part number, but only on other software versions.
+    /// Overall: every target part is `tested` or `tested_other_software`, at least one the latter.
     TestedOtherSoftware,
-    /// Not verified on this model.
+    /// Part: no entry for this model part number names it. Overall: at least one target part is
+    /// `untested`, or the watch lists no part of this build's packs.
     Untested,
 }
 
@@ -70,27 +75,35 @@ impl TestStatus {
     }
 }
 
+/// Whether every part `install` writes was verified on this watch.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct TestReport {
+    /// The worst of the target parts' statuses; `untested` if there are none.
     pub status: TestStatus,
-    /// The pack's parts seen rendering Georgian on this model: on this software version when
-    /// `tested`, on any version when `tested_other_software`; empty when `untested`.
-    pub verified_parts: Vec<String>,
-    /// Software versions this model was verified on with this pack, e.g. `["19.05"]`.
+    /// Software versions this model was verified on with any of the target parts, e.g.
+    /// `["19.05"]`.
     pub verified_software: Vec<String>,
 }
 
-/// The pack this build installs on the watch.
+/// A part of a pack that the watch lists.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ListedPart {
+    pub part: String,
+    pub size_px: u16,
+    /// Whether this part was verified on this model and software.
+    pub tested: TestStatus,
+}
+
+/// A pack with a part the watch lists.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct PackReport {
     pub id: String,
     /// Garmin's product name, e.g. "Armenian Font, NotoSans Regular".
     pub name: String,
-    /// The pack's parts the watch lists: what `install` and `restore_stock` write.
-    pub parts: Vec<String>,
-    /// Their pixel sizes, in the same order.
-    pub sizes_px: Vec<u16>,
-    pub tested: TestReport,
+    /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too.
+    pub weight: u16,
+    /// The pack's parts the watch lists, in pack order: what `install` and `restore_stock` write.
+    pub parts: Vec<ListedPart>,
 }
 
 /// What `GARMIN/ExtData/<part>.tmp` holds now.
@@ -117,8 +130,8 @@ pub struct FontReport {
     pub size_px: u16,
     /// The watch lists this part under `Garmin/ExtData`.
     pub listed: bool,
-    /// `install` and `restore_stock` write this part: the watch lists it, it's in the selected
-    /// pack, and the watch supports the MTP writes needed.
+    /// `install` and `restore_stock` write this part: the watch lists it and supports the MTP
+    /// writes needed.
     pub target: bool,
     pub staged: Staged,
 }
@@ -164,8 +177,9 @@ pub struct WatchReport {
     pub model: String,
     pub model_part: String,
     pub software_version: String,
-    /// Id of the selected pack, or null if the watch lists none of this build's packs.
-    pub pack: Option<String>,
+    /// Ids of the packs with a part the watch lists, in registry order; empty if it lists none.
+    pub packs: Vec<String>,
+    /// The overall status, as in `inspect`'s `tested`.
     pub tested: TestStatus,
     /// Every `Garmin/ExtData` update file the watch lists, in its order.
     pub extdata_files: Vec<ReportedFile>,
@@ -178,11 +192,13 @@ pub struct WatchReport {
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InspectOutput {
     pub device: DeviceReport,
-    /// A pack was selected and the watch supports the MTP writes needed.
+    /// The watch lists a part of this build's packs and supports the MTP writes needed.
     pub supported: bool,
-    /// The pack `install` uses: the first, in registry order, with a part the watch lists
-    /// under `Garmin/ExtData`. Null if it lists none.
-    pub pack: Option<PackReport>,
+    /// Whether every part `install` writes was verified on this model and software.
+    pub tested: TestReport,
+    /// Every pack, in registry order, with a part the watch lists under `Garmin/ExtData`. Empty
+    /// if it lists none.
+    pub packs: Vec<PackReport>,
     /// Every font part this build carries.
     pub fonts: Vec<FontReport>,
     /// The staging folder, or null if it could not be found.
@@ -229,15 +245,25 @@ pub struct StagedPart {
     pub sha256: String,
 }
 
+/// The parts of one pack that a call staged.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct StagedPack {
+    pub id: String,
+    /// Garmin's product name, e.g. "Armenian Font, NotoSans Regular".
+    pub name: String,
+    /// The weight its stock glyphs are drawn at, e.g. 400.
+    pub weight: u16,
+    /// Each part, in pack order.
+    pub parts: Vec<StagedPart>,
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct StageOutput {
     /// `already_staged` when every part already was; otherwise `staged_verified`.
     pub status: StageStatus,
     pub variant: Variant,
-    /// Id of the selected pack.
-    pub pack: String,
-    /// Each part, in pack order.
-    pub parts: Vec<StagedPart>,
+    /// Each pack with a part staged, in registry order.
+    pub packs: Vec<StagedPack>,
     /// What the user does next.
     pub next_step: String,
 }
@@ -290,11 +316,12 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
-        description: "Read the connected watch's model and software version, the font pack this build \
-                      installs on it (the first, in registry order, with a part the watch lists under \
-                      Garmin/ExtData) and whether it was tested on this model and software, what is \
-                      staged in the hidden GARMIN/ExtData folder, and a shareable report of the watch's \
-                      font list without its unit ID or serial number. Read-only.",
+        description: "Read the connected watch's model and software version, the font packs this \
+                      build installs on it (every pack, in registry order, with a part the watch lists \
+                      under Garmin/ExtData) with each listed part and whether it was tested on this \
+                      model and software, the overall tested status, what is staged in the hidden \
+                      GARMIN/ExtData folder, and a shareable report of the watch's font list without \
+                      its unit ID or serial number. Read-only.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -305,12 +332,12 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "install",
         title: "Install Georgian font",
-        description: "Stage the Georgian build of every size of the selected pack that the watch lists \
-                      (or only sizes_px) as GARMIN/ExtData/<part>.tmp, each verified by reading it back. \
-                      Every target is checked first: an identical staged file is skipped, a different \
-                      one fails the whole call with conflict before anything is written. If a part \
-                      fails, the files this call created are deleted. Disconnect USB and restart the \
-                      watch to load them.",
+        description: "Stage the Georgian build of every part of this build's packs that the watch \
+                      lists, across all packs (or only parts), as GARMIN/ExtData/<part>.tmp, each \
+                      verified by reading it back. Every target is checked first: an identical staged \
+                      file is skipped, a different one fails the whole call with conflict before \
+                      anything is written. If a part fails, the files this call created are deleted. \
+                      Disconnect USB and restart the watch to load them.",
         read_only: false,
         destructive: false,
         idempotent: true,
@@ -321,10 +348,10 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "restore_stock",
         title: "Restore stock font",
-        description: "Stage Garmin's original font for every size of the selected pack that the watch \
-                      lists (or only sizes_px) as GARMIN/ExtData/<part>.tmp, with the same checks, \
-                      readback and rollback as install. Disconnect USB and restart the watch to load \
-                      them.",
+        description: "Stage Garmin's original font for every part of this build's packs that the \
+                      watch lists, across all packs (or only parts), as GARMIN/ExtData/<part>.tmp, \
+                      with the same checks, readback and rollback as install. Disconnect USB and \
+                      restart the watch to load them.",
         read_only: false,
         destructive: false,
         idempotent: true,
@@ -367,19 +394,19 @@ pub fn call(
             to_value(inspect(&mut *connect()?, fonts)?)
         }
         _ => {
-            let StageInput { sizes_px } = parse(input)?;
+            let StageInput { parts } = parse(input)?;
             let variant = if name == "install" {
                 Variant::Georgian
             } else {
                 Variant::Stock
             };
-            if let Some(px) = sizes_px.iter().flatten().find(|&&px| !fonts.has_size(px)) {
+            if let Some(part) = parts.iter().flatten().find(|p| !fonts.has_part(p)) {
                 return Err(Error::new(
                     ErrorCode::FontUnavailable,
-                    format!("This build has no {px} px font."),
+                    format!("This build has no font part {part}."),
                 ));
             }
-            to_value(stage(&mut *connect()?, fonts, variant, sizes_px.as_ref())?)
+            to_value(stage(&mut *connect()?, fonts, variant, parts.as_ref())?)
         }
     }?;
     check(&op.output_schema(), &output).map_err(|m| {
@@ -477,49 +504,70 @@ fn staged_path(font: &Font) -> String {
     format!("GARMIN/ExtData/{}", font.staged_name())
 }
 
-/// Whether `pack` was verified on this watch, and on which parts and software versions.
-fn test_report(pack: &Pack, device: &GarminDevice) -> TestReport {
-    let same_model: Vec<_> = pack
-        .tested
+/// Whether `part` of `pack` was verified on this watch.
+fn part_tested(pack: &Pack, part: &str, device: &GarminDevice) -> TestStatus {
+    pack.tested
         .iter()
-        .filter(|t| t.model_part.eq_ignore_ascii_case(&device.part_number))
-        .collect();
-    let exact: Vec<_> = same_model
-        .iter()
-        .copied()
-        .filter(|t| t.software == device.software_version)
-        .collect();
-    let (status, verified) = if !exact.is_empty() {
-        (TestStatus::Tested, exact)
-    } else if !same_model.is_empty() {
-        (TestStatus::TestedOtherSoftware, same_model.clone())
-    } else {
-        (TestStatus::Untested, Vec::new())
-    };
-    TestReport {
-        status,
-        verified_parts: pack
-            .fonts
-            .iter()
-            .filter(|f| verified.iter().any(|t| t.parts.contains(&f.part)))
-            .map(|f| f.part.clone())
-            .collect(),
-        verified_software: same_model
-            .iter()
-            .map(|t| t.software.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect(),
-    }
+        .filter(|t| {
+            t.model_part.eq_ignore_ascii_case(&device.part_number)
+                && t.parts.iter().any(|p| p == part)
+        })
+        .map(|t| {
+            if t.software == device.software_version {
+                TestStatus::Tested
+            } else {
+                TestStatus::TestedOtherSoftware
+            }
+        })
+        .min()
+        .unwrap_or(TestStatus::Untested)
 }
 
-fn pack_report(selection: &Selection<'_>, device: &GarminDevice) -> PackReport {
-    PackReport {
-        id: selection.pack.id.clone(),
-        name: selection.pack.name.clone(),
-        parts: selection.fonts.iter().map(|f| f.part.clone()).collect(),
-        sizes_px: selection.fonts.iter().map(|f| f.size_px).collect(),
-        tested: test_report(selection.pack, device),
+/// Every listed pack with its listed parts and their tested status.
+fn pack_reports(listed: &[Listed<'_>], device: &GarminDevice) -> Vec<PackReport> {
+    listed
+        .iter()
+        .map(|l| PackReport {
+            id: l.pack.id.clone(),
+            name: l.pack.name.clone(),
+            weight: l.pack.weight,
+            parts: l
+                .fonts
+                .iter()
+                .map(|f| ListedPart {
+                    part: f.part.clone(),
+                    size_px: f.size_px,
+                    tested: part_tested(l.pack, &f.part, device),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// Whether every listed part was verified on this watch: the worst part's status, `untested`
+/// without parts, and the software versions this model was verified on with any of them.
+fn test_report(listed: &[Listed<'_>], packs: &[PackReport], device: &GarminDevice) -> TestReport {
+    let status = packs
+        .iter()
+        .flat_map(|p| &p.parts)
+        .map(|p| p.tested)
+        .max()
+        .unwrap_or(TestStatus::Untested);
+    let verified_software = listed
+        .iter()
+        .flat_map(|l| {
+            l.pack.tested.iter().filter(|t| {
+                t.model_part.eq_ignore_ascii_case(&device.part_number)
+                    && l.fonts.iter().any(|f| t.parts.contains(&f.part))
+            })
+        })
+        .map(|t| t.software.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    TestReport {
+        status,
+        verified_software,
     }
 }
 
@@ -536,8 +584,7 @@ fn md(value: &str) -> String {
 
 /// The shareable report. Built only from the fields named here, so the unit ID, serial number
 /// and every other `Id` element in `GarminDevice.xml` stay out of it.
-fn watch_report(device: &GarminDevice, pack: Option<&PackReport>) -> WatchReport {
-    let tested = pack.map_or(TestStatus::Untested, |p| p.tested.status);
+fn watch_report(device: &GarminDevice, packs: &[PackReport], tested: TestStatus) -> WatchReport {
     let extdata_files: Vec<ReportedFile> = device
         .extdata_files()
         .map(|f| ReportedFile {
@@ -555,16 +602,18 @@ fn watch_report(device: &GarminDevice, pack: Option<&PackReport>) -> WatchReport
     let mut text = String::from(
         "<!-- Shared from Georgian for Garmin. It lists no unit ID or serial number. -->\n\n## Watch\n\n",
     );
-    let pack_line = match pack {
-        Some(p) => format!("{} ({})", md(&p.id), tested.words()),
-        None => "none of this build's packs".into(),
+    let packs: Vec<String> = packs.iter().map(|p| p.id.clone()).collect();
+    let pack_line = if packs.is_empty() {
+        "none of this build's packs".into()
+    } else {
+        format!("{} ({})", md(&packs.join(", ")), tested.words())
     };
     for (label, value) in [
         ("Model", md(&device.description)),
         ("Model part number", md(&device.part_number)),
         ("Software version", md(&device.software_version)),
         ("Georgian for Garmin", md(APP_VERSION)),
-        ("Font pack", pack_line),
+        ("Font packs", pack_line),
     ] {
         writeln!(text, "- {label}: {value}").unwrap();
     }
@@ -586,14 +635,14 @@ fn watch_report(device: &GarminDevice, pack: Option<&PackReport>) -> WatchReport
     }
     text.push_str(
         "\n## Result\n\n<!-- If you installed Georgian: after unplugging and restarting the watch, did \
-         a notification with ქართული ᲥᲐᲠᲗᲣᲚᲘ show letters instead of boxes? -->\n",
+         a notification with მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ show letters instead of boxes? -->\n",
     );
     WatchReport {
         app_version: APP_VERSION.into(),
         model: device.description.clone(),
         model_part: device.part_number.clone(),
         software_version: device.software_version.clone(),
-        pack: pack.map(|p| p.id.clone()),
+        packs,
         tested,
         extdata_files,
         title,
@@ -605,7 +654,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     let writable = missing_write_operations(dev)?.is_empty();
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
-    let selection = fonts.select(&device);
+    let listed = fonts.listed(&device);
     let mut reports = Vec::new();
     for (pack, font) in fonts.fonts() {
         let staged = match layout.extdata.as_ref().map(|ext| staged_in(ext, font)) {
@@ -636,7 +685,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             part: font.part.clone(),
             size_px: font.size_px,
             listed,
-            target: writable && listed && selection.as_ref().is_some_and(|s| s.pack.id == pack.id),
+            target: writable && listed,
             staged,
         });
     }
@@ -662,11 +711,13 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             })
         }
     };
-    let pack = selection.as_ref().map(|s| pack_report(s, &device));
-    let report = watch_report(&device, pack.as_ref());
+    let packs = pack_reports(&listed, &device);
+    let tested = test_report(&listed, &packs, &device);
+    let report = watch_report(&device, &packs, tested.status);
     Ok(InspectOutput {
-        supported: writable && pack.is_some(),
-        pack,
+        supported: writable && !packs.is_empty(),
+        tested,
+        packs,
         fonts: reports,
         extdata,
         report,
@@ -822,12 +873,13 @@ fn roll_back(dev: &mut dyn Mtp, created: &[(u32, String)], cause: Error) -> Erro
     )
 }
 
-/// Stages `variant` of every size of the selected pack the watch lists, or of `sizes_px`.
+/// Stages `variant` of every part of this build's packs that the watch lists, across all packs,
+/// or of `parts`.
 pub fn stage(
     dev: &mut dyn Mtp,
     fonts: &FontSet,
     variant: Variant,
-    sizes_px: Option<&BTreeSet<u16>>,
+    parts: Option<&BTreeSet<String>>,
 ) -> Result<StageOutput, Error> {
     let missing = missing_write_operations(dev)?;
     if !missing.is_empty() {
@@ -842,37 +894,37 @@ pub fn stage(
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
     let watch = format!("{} ({})", device.description, device.part_number);
-    let selection = fonts.select(&device).ok_or_else(|| {
-        Error::new(
+    let listed = fonts.listed(&device);
+    if listed.is_empty() {
+        return Err(Error::new(
             ErrorCode::UnsupportedDevice,
             format!(
                 "{watch} lists none of this build's font packs under {}; nothing was written.",
                 garmin_device::EXTDATA_PATH
             ),
-        )
-    })?;
-    let targets: Vec<&Font> = match sizes_px {
-        None => selection.fonts.clone(),
-        Some(sizes) => {
-            let listed: Vec<u16> = selection.fonts.iter().map(|f| f.size_px).collect();
-            if let Some(px) = sizes.iter().find(|px| !listed.contains(px)) {
-                return Err(Error::new(
-                    ErrorCode::UnsupportedDevice,
-                    format!(
-                        "{watch} doesn't list the {px} px part of {}; it lists {listed:?} px. \
-                         Nothing was written.",
-                        selection.pack.name
-                    ),
-                ));
-            }
-            selection
-                .fonts
-                .iter()
-                .copied()
-                .filter(|f| sizes.contains(&f.size_px))
-                .collect()
+        ));
+    }
+    let mut targets: Vec<(&Pack, &Font)> = listed
+        .iter()
+        .flat_map(|l| l.fonts.iter().map(move |&f| (l.pack, f)))
+        .collect();
+    if let Some(parts) = parts {
+        if let Some(part) = parts
+            .iter()
+            .find(|&p| !targets.iter().any(|(_, f)| &f.part == p))
+        {
+            let names: Vec<&str> = targets.iter().map(|(_, f)| f.part.as_str()).collect();
+            return Err(Error::new(
+                ErrorCode::UnsupportedDevice,
+                format!(
+                    "{watch} doesn't list part {part}; of this build's parts it lists {}. \
+                     Nothing was written.",
+                    names.join(", ")
+                ),
+            ));
         }
-    };
+        targets.retain(|(_, f)| parts.contains(&f.part));
+    }
     let ext = layout.extdata.as_ref().ok_or_else(|| {
         Error::new(
             ErrorCode::ExtdataNotFound,
@@ -883,7 +935,7 @@ pub fn stage(
     // Check every target before writing anything.
     let mut already = Vec::with_capacity(targets.len());
     let mut conflicts = Vec::new();
-    for font in &targets {
+    for (_, font) in &targets {
         let bytes = variant.bytes(font);
         match staged_in(ext, font).as_slice() {
             [] => already.push(None),
@@ -907,8 +959,8 @@ pub fn stage(
     }
 
     let mut created: Vec<(u32, String)> = Vec::new();
-    let mut parts = Vec::with_capacity(targets.len());
-    for (font, already) in targets.into_iter().zip(already) {
+    let mut packs: Vec<StagedPack> = Vec::new();
+    for ((pack, font), already) in targets.into_iter().zip(already) {
         let bytes = variant.bytes(font);
         let path = staged_path(font);
         let (status, handle) = match already {
@@ -921,15 +973,27 @@ pub fn stage(
                 Err(e) => return Err(roll_back(dev, &created, e)),
             },
         };
-        parts.push(StagedPart {
-            part: font.part.clone(),
-            size_px: font.size_px,
-            status,
-            path,
-            handle: hex_handle(handle),
-            bytes: bytes.len() as u64,
-            sha256: sha256_hex(bytes),
-        });
+        if packs.last().is_none_or(|p| p.id != pack.id) {
+            packs.push(StagedPack {
+                id: pack.id.clone(),
+                name: pack.name.clone(),
+                weight: pack.weight,
+                parts: Vec::new(),
+            });
+        }
+        packs
+            .last_mut()
+            .expect("pushed above")
+            .parts
+            .push(StagedPart {
+                part: font.part.clone(),
+                size_px: font.size_px,
+                status,
+                path,
+                handle: hex_handle(handle),
+                bytes: bytes.len() as u64,
+                sha256: sha256_hex(bytes),
+            });
     }
     let status = if created.is_empty() {
         StageStatus::AlreadyStaged
@@ -939,8 +1003,7 @@ pub fn stage(
     Ok(StageOutput {
         status,
         variant,
-        pack: selection.pack.id.clone(),
-        parts,
+        packs,
         next_step:
             "Disconnect the USB cable, then restart the watch; it loads the fonts on restart."
                 .into(),
