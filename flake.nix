@@ -78,6 +78,18 @@
             cargo-tauri
             pkg-config
           ];
+          # Tauri's Linux backend (GTK and WebKitGTK), to build and test the app on Linux.
+          buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
+            atk
+            cairo
+            gdk-pixbuf
+            glib
+            gtk3
+            librsvg
+            libsoup_3
+            pango
+            webkitgtk_4_1
+          ]);
         });
       });
     };

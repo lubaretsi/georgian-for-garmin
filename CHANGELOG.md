@@ -30,3 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It finds the watch, shows its model, software version and whether it was tested, installs the
   Georgian font or restores the original with one click, and explains how to unplug and restart
   the watch. For untested watches, "Share my watch's font list" opens a prefilled GitHub issue.
+- macOS release downloads: one app and command-line tool for both Apple silicon and Intel Macs,
+  macOS 11 or later, with the fonts' manifest and SHA-256 checksums. Not notarized; ad-hoc
+  signed only, as Apple silicon requires. `scripts/build-macos-release.sh` builds the same release
+  locally.
