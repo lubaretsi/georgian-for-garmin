@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-20
+
 ### Added
 
 - Guide for having an AI agent install Georgian on a Garmin watch without the app.
@@ -56,3 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   udev rule. `scripts/build-windows-release.ps1` and `scripts/build-linux-release.sh` build the
   same files locally.
 - Releases carry one `SHA256SUMS` for every platform.
+
+[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v0.1.0
