@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: check-${{ github.ref }}
-  cancel-in-progress: true
+  # Every push to main gets a complete run; a newer push to a pull request replaces the older run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -52,3 +53,17 @@ jobs:
 
       - name: cargo test
         run: nix develop --command cargo test --locked --workspace
+
+      # The Windows backend is cfg(windows): type-check it for both Windows targets from Linux.
+      # Clippy doesn't link, so no Windows SDK is needed.
+      - name: cargo clippy (Windows targets)
+        run: |
+          fonts=$(nix build .#fonts --no-link --print-out-paths)
+          toolchain=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$toolchain" --profile minimal --component clippy \
+            --target x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+          for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
+            GEORGIAN_FOR_GARMIN_FONTS=$fonts cargo "+$toolchain" clippy --locked \
+              -p georgian-for-garmin-core -p georgian-for-garmin --all-targets --target "$target" \
+              -- -D warnings
+          done

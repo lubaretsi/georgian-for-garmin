@@ -3,8 +3,8 @@
 ქართული შრიფტი Garmin-ის საათებისთვის.
 
 Garmin watches show Georgian text in notifications as boxes. This project adds Georgian letters to
-a font the watch already uses, so messages, emails and calls from your phone show `ქართული` and
-`ᲥᲐᲠᲗᲣᲚᲘ` instead of `□□□□□□□`.
+a font the watch already uses, so notifications from your phone show `ქართული` and `ᲥᲐᲠᲗᲣᲚᲘ`
+instead of `□□□□□□□`.
 
 <img src="docs/venu-2-georgian-notification.jpg" alt="Garmin Venu 2 showing a Gmail notification in Georgian" width="360">
 
