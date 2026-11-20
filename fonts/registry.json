@@ -1,0 +1,57 @@
+{
+  "$schema": "./registry.schema.json",
+  "georgian_font": {
+    "name": "Noto Sans Georgian 2.005 variable font (Google Fonts v44)",
+    "url": "https://fonts.gstatic.com/s/notosansgeorgian/v44/PlIgFke5O6RzLfvNNVSitxkr76PRHBCiaf5GGPq86g.ttf",
+    "sha256": "fbc282fa1995b77383a66ea3131e2dfee5fc03233a279ce36edc84b2e801c80e",
+    "license": {
+      "name": "SIL Open Font License 1.1 (google/fonts at the commit that added Noto Sans Georgian 2.005)",
+      "url": "https://raw.githubusercontent.com/google/fonts/07eb586093156484de83c97a3a565f8b1e757af2/ofl/notosansgeorgian/OFL.txt",
+      "sha256": "8c02263c5d73d40544f9ed91e30c4e947407057a3cc430d7b786189aeceff6df"
+    }
+  },
+  "packs": [
+    {
+      "id": "armenian-noto-sans-regular",
+      "name": "Armenian Font, NotoSans Regular",
+      "parts": [
+        {
+          "part": "006-D9035-01",
+          "size_px": 21,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D9035-01/2.10/full/rel/67325442-1a85-4c5d-84b9-96a01cb825b7/006-D9035-01.fnt",
+          "sha256": "575b132a8f241c42604cfa9e7809ec8f3a51b0b6e32800c37ac24d404c707ddf"
+        },
+        {
+          "part": "006-D9035-02",
+          "size_px": 24,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D9035-02/2.10/full/rel/3c0cffa0-0a57-44b1-809d-fb28b09fd0cd/006-D9035-02.fnt",
+          "sha256": "c991505c121c7bf7fc803790c1c838b1288a33a9d2a3147f0c59168a938015eb"
+        },
+        {
+          "part": "006-D9035-03",
+          "size_px": 27,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D9035-03/2.10/full/rel/04d51b36-9d5f-4273-8195-b263a069931f/006-D9035-03.fnt",
+          "sha256": "bb61a1a45c90f7526444ce58356691c43314899e290b33232acbf5b0ed79ea1d"
+        },
+        {
+          "part": "006-D9035-04",
+          "size_px": 31,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D9035-04/2.10/full/rel/3ab8292f-8c9c-435e-9406-980de0320426/006-D9035-04.fnt",
+          "sha256": "5cc7fa6d5b7a538eed25581e65abc6e3fad09ccdeab026097b8aed643b336837"
+        }
+      ],
+      "tested": [
+        {
+          "model": "Venu 2",
+          "model_part": "006-B3703-00",
+          "software": "19.05",
+          "parts": ["006-D9035-03"]
+        }
+      ]
+    }
+  ]
+}

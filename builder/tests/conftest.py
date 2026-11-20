@@ -2,8 +2,9 @@ import os
 from pathlib import Path
 
 import pytest
+from registry_data import PART_IDS, REGISTRY
 
-from garmin_fonts.build import PARTS, build
+from garmin_fonts.build import build
 
 # Set by `nix develop` and the flake check to the pinned inputs.
 INPUTS = {
@@ -18,12 +19,12 @@ def inputs():
     missing = [var for var in INPUTS.values() if not os.environ.get(var)]
     if missing:
         pytest.fail(f"run inside `nix develop` (unset: {', '.join(missing)})")
-    return {key: Path(os.environ[var]) for key, var in INPUTS.items()}
+    return {"registry": REGISTRY} | {key: Path(os.environ[var]) for key, var in INPUTS.items()}
 
 
 @pytest.fixture(scope="session")
 def stock(inputs):
-    return {part: (inputs["stock_dir"] / f"{part}.fnt").read_bytes() for part, _ in PARTS}
+    return {part: (inputs["stock_dir"] / f"{part}.fnt").read_bytes() for part in PART_IDS}
 
 
 @pytest.fixture(scope="session")

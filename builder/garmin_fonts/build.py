@@ -4,45 +4,69 @@ import hashlib
 import json
 from pathlib import Path
 
+from . import registry as font_registry
 from .codec import with_georgian
 
-# Garmin's Armenian Noto Sans Regular 2.10 packs: (part number, nominal pixel size).
-PARTS = (
-    ("006-D9035-01", 21),
-    ("006-D9035-02", 24),
-    ("006-D9035-03", 27),
-    ("006-D9035-04", 31),
-)
-# The size verified on hardware (Venu 2, firmware 19.05).
+# The size the installer stages by default: verified on hardware (Venu 2, firmware 19.05).
 DEFAULT_PART = "006-D9035-03"
 
 
-def build(stock_dir, noto, license_file, out):
+def build(registry, stock_dir, noto, license_file, out):
     """Write the asset directory to `out`, which must not exist yet; return the manifest.
 
-    `stock_dir` holds `<part>.fnt` for every part in PARTS; `noto` is the Noto Sans
-    Georgian TTF and `license_file` its OFL text.
+    `registry` is the font registry JSON (its schema beside it); `stock_dir` holds `<part>.fnt`
+    for every part it lists; `noto` is the Noto Sans Georgian TTF and `license_file` its OFL
+    text, both matching the registry's `georgian_font` hashes. Every file is checked before
+    anything is written.
     """
     stock_dir, out = Path(stock_dir), Path(out)
-    license_text = Path(license_file).read_bytes()
-    built = []
-    for part, size_px in PARTS:
-        stock = (stock_dir / f"{part}.fnt").read_bytes()
-        built.append((part, size_px, stock, with_georgian(stock, noto, size_px)))
+    entries = font_registry.load(registry)
+    packs, source = entries["packs"], entries["georgian_font"]
+    font_registry.check_file(noto, source["sha256"])
+    license_text = font_registry.check_file(license_file, source["license"]["sha256"])
+    stock = {
+        part["part"]: (stock_dir / f"{part['part']}.fnt").read_bytes()
+        for pack in packs
+        for part in pack["parts"]
+    }
+    for pack in packs:
+        font_registry.check_pack(pack, stock)
+    built = [
+        (pack["id"], part, with_georgian(stock[part["part"]], noto, part["size_px"]))
+        for pack in packs
+        for part in pack["parts"]
+    ]
 
     out.mkdir(parents=True, exist_ok=False)
     for sub in ("stock", "georgian", "LICENSES"):
         (out / sub).mkdir()
     (out / "LICENSES" / "OFL.txt").write_bytes(license_text)
     fonts = []
-    for part, size_px, stock, georgian in built:
-        entry = {"part": part, "size_px": size_px, "default": part == DEFAULT_PART}
-        for kind, data in (("stock", stock), ("georgian", georgian)):
-            path = f"{kind}/{part}.fnt"
+    for pack_id, part, georgian in built:
+        number = part["part"]
+        entry = {
+            "part": number,
+            "pack": pack_id,
+            "size_px": part["size_px"],
+            "default": number == DEFAULT_PART,
+        }
+        for kind, data in (("stock", stock[number]), ("georgian", georgian)):
+            path = f"{kind}/{number}.fnt"
             (out / path).write_bytes(data)
             entry[kind] = path
             entry[f"{kind}_sha256"] = hashlib.sha256(data).hexdigest()
         fonts.append(entry)
-    manifest = {"fonts": fonts}
+    manifest = {
+        "fonts": fonts,
+        "packs": [
+            {
+                "id": pack["id"],
+                "name": pack["name"],
+                "parts": [part["part"] for part in pack["parts"]],
+                "tested": pack["tested"],
+            }
+            for pack in packs
+        ],
+    }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest

@@ -1,16 +1,19 @@
 from struct import pack_into, unpack_from
 
 import pytest
+from registry_data import PART_IDS
 
-from garmin_fonts.build import PARTS
-from garmin_fonts.codec import GEORGIAN, HEADER, decode, encode, with_georgian
-
-PART_IDS = [part for part, _ in PARTS]
+from garmin_fonts.codec import GEORGIAN, HEADER, decode, encode, identity, with_georgian
 
 
 @pytest.mark.parametrize("part", PART_IDS)
 def test_stock_round_trips_byte_identically(stock, part):
     assert encode(*decode(stock[part])) == stock[part]
+
+
+def test_footer_names_part_and_version(stock):
+    _, footer, _ = decode(stock["006-D9035-03"])
+    assert identity(footer) == ("006-D9035-03", "2.10")
 
 
 @pytest.mark.parametrize("part", PART_IDS)

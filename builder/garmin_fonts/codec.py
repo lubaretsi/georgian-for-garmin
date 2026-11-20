@@ -16,6 +16,12 @@ OFFSET_MASK = 0xFFFFFF
 GEORGIAN = (*range(0x10D0, 0x10F1), *range(0x1C90, 0x1CB1))
 
 
+def identity(footer):
+    """Return the (part number, release version) a decoded footer names: ("006-D9035-03", "2.10")."""
+    version = unpack_from("<H", footer, 6)[0]
+    return footer[8:-1].decode("ascii", "replace"), "%d.%02d" % divmod(version, 100)
+
+
 def decode(data):
     """Return (header, footer, cmap), with the missing-glyph tile at cmap[None].
 
