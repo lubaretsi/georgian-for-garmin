@@ -19,12 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   URLs and hashes, and the watch models each was tested on. Adding a pack is a registry entry;
   see `fonts/README.md`.
 - `georgian-for-garmin` command-line installer for macOS. `install` and `restore-stock` stage the
-  Georgian or original font in every size of the font pack the watch lists, verify each by reading
-  it back, and leave nothing behind if one fails; then unplug the watch and restart it.
-  `--sizes-px` limits the sizes. Needs no libmtp or libusb.
-- `inspect` shows the watch model, software version, its font pack, whether that model and
-  software were tested, and what's staged in the hidden `GARMIN/ExtData` folder. `inspect --report`
-  prints the watch's font list for a GitHub issue, without its serial number.
+  Georgian or original font in every Garmin Armenian font part the watch lists, across all packs,
+  verify each by reading it back, and leave nothing behind if one fails; then unplug the watch and
+  restart it. `--parts` limits it to given part numbers. Needs no libmtp or libusb.
+- `inspect` shows the watch model, software version, each font pack it uses with its parts and
+  whether each part was tested on this model and software, and what's staged in the hidden
+  `GARMIN/ExtData` folder. `inspect --report` prints the watch's font list for a GitHub issue,
+  without its serial number. The check text is `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
 - `--json` output, `--input` JSON and `--help --json` tool definitions for scripts and agents.
 - The installer recovers a watch left unresponsive by an earlier failed transfer, and
   `GEORGIAN_FOR_GARMIN_TRACE=1` prints an MTP trace to stderr.

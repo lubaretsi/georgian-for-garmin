@@ -82,12 +82,11 @@ would make it stand out.
 
 ## Pack order
 
-A watch gets the first pack, in registry order, that has a part the watch lists. Its other packs
-keep their stock fonts. The order:
+A watch gets Georgian in every part, of every pack, that it lists. Registry order only sets the
+order of packs in `inspect` and install output, and the order files are written in:
 
-1. `armenian-noto-sans-regular` stays first; it is the pack tested on hardware (Venu 2).
-2. `armenian-noto-sans-armenian-regular`: Regular faces are the likelier ones to carry message
-   text, where Georgian matters most.
+1. `armenian-noto-sans-regular`, the pack tested on hardware (Venu 2).
+2. `armenian-noto-sans-armenian-regular`.
 3. `armenian-noto-sans-armenian-bold`.
 
 ## Georgian source

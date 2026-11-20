@@ -27,9 +27,9 @@ original font can be copied back the same way; on the Venu 2 that restored the b
 |---|---|---|
 | Venu 2 | 19.05 | Tested: Georgian in pop-ups, the notification list and opened notifications |
 
-The app reads the font list of the connected watch and adds Georgian to the first Garmin Armenian
-font pack it uses (NotoSans Regular, NotoSans Armenian Regular or NotoSans Armenian Bold), in
-every size it lists. Other models and software versions are untested until someone confirms
+The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
+font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian
+Bold. Other models and software versions are untested until someone confirms
 them. If yours isn't listed, use **Share my watch's font list** in the app (or
 `georgian-for-garmin inspect --report`) to open an issue, and say whether Georgian appeared.
 
@@ -57,7 +57,7 @@ The same installer runs from a terminal; download
 
 ```sh
 georgian-for-garmin inspect          # watch model, font pack, tested status, staged files
-georgian-for-garmin install          # stage Georgian in every size of the watch's font pack
+georgian-for-garmin install          # stage Georgian in every Armenian font the watch lists
 georgian-for-garmin restore-stock    # stage Garmin's original font
 ```
 
