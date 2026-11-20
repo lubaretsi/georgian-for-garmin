@@ -10,6 +10,7 @@ pub mod mtp;
 pub mod ops;
 mod parts;
 pub mod ptp;
+pub mod trace;
 #[cfg(not(windows))]
 pub mod usb;
 

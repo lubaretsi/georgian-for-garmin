@@ -126,6 +126,8 @@ pub struct StagedFile {
     /// MTP object handle, hexadecimal.
     pub handle: String,
     pub bytes: u32,
+    /// SHA-256 of the file as read back from the watch.
+    pub sha256: String,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -442,24 +444,32 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             staged,
         });
     }
-    Ok(InspectOutput {
-        supported: reports.iter().any(|f| f.supported),
-        fonts: reports,
-        extdata: layout.extdata.map(|ext| ExtDataReport {
-            handle: hex_handle(ext.handle),
-            storage_id: hex_handle(layout.storage),
-            listed_under_garmin: ext.listed_under_garmin,
-            found_by: ext.found_by,
-            files: ext
-                .files
-                .into_iter()
-                .map(|o| StagedFile {
+    let extdata = match layout.extdata {
+        None => None,
+        Some(ext) => {
+            let mut files = Vec::new();
+            for o in ext.files {
+                let sha256 = sha256_hex(&dev.get_object(o.handle)?);
+                files.push(StagedFile {
                     name: o.info.filename,
                     handle: hex_handle(o.handle),
                     bytes: o.info.compressed_size,
-                })
-                .collect(),
-        }),
+                    sha256,
+                });
+            }
+            Some(ExtDataReport {
+                handle: hex_handle(ext.handle),
+                storage_id: hex_handle(layout.storage),
+                listed_under_garmin: ext.listed_under_garmin,
+                found_by: ext.found_by,
+                files,
+            })
+        }
+    };
+    Ok(InspectOutput {
+        supported: reports.iter().any(|f| f.supported),
+        fonts: reports,
+        extdata,
         device: DeviceReport {
             model: device.description,
             part_number: device.part_number,
@@ -468,16 +478,57 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     })
 }
 
-/// Deletes a just-created object after a failed transfer and folds the outcome into `cause`.
+/// Deletes the object this run created after a failed transfer and says so in `cause`.
 fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
     let message = match dev.delete_object(handle) {
-        Ok(()) => format!("{}; the incomplete {path} was deleted.", cause.message),
+        Ok(()) => format!(
+            "{}. A new object was created as {path} ({}) and has been deleted.",
+            cause.message,
+            hex_handle(handle)
+        ),
         Err(e) => format!(
-            "{}; deleting the incomplete {path} also failed ({e}).",
-            cause.message
+            "{}. A new object was created as {path} ({}) and could not be deleted ({e}); \
+             it may hold incomplete data.",
+            cause.message,
+            hex_handle(handle)
         ),
     };
     Error::new(cause.code, message)
+}
+
+/// After `SendObjectInfo` failed: the watch may still have created the object. ExtData held
+/// nothing under `name` before, so an object there now is this run's and is deleted.
+fn discard_unconfirmed(
+    dev: &mut dyn Mtp,
+    storage: u32,
+    parent: u32,
+    name: &str,
+    path: &str,
+    cause: Error,
+) -> Error {
+    let mut created = Vec::new();
+    let listing = dev.object_handles(storage, parent).and_then(|handles| {
+        for handle in handles {
+            if dev.object_info(handle)?.filename.eq_ignore_ascii_case(name) {
+                created.push(handle);
+            }
+        }
+        Ok(())
+    });
+    if let Err(e) = listing {
+        let message = format!(
+            "{}. Whether the watch created {path} is unknown: listing ExtData failed ({e}).",
+            cause.message
+        );
+        return Error::new(cause.code, message);
+    }
+    if created.is_empty() {
+        let message = format!("{}. No object was created.", cause.message);
+        return Error::new(cause.code, message);
+    }
+    created
+        .into_iter()
+        .fold(cause, |cause, handle| discard(dev, handle, path, cause))
 }
 
 pub fn stage(dev: &mut dyn Mtp, font: &Font, variant: Variant) -> Result<StageOutput, Error> {
@@ -562,7 +613,20 @@ pub fn stage(dev: &mut dyn Mtp, font: &Font, variant: Variant) -> Result<StageOu
         filename: name.clone(),
         ..ObjectInfo::default()
     };
-    let new = dev.send_object_info(layout.storage, ext.handle, &info)?;
+    let new = match dev.send_object_info(layout.storage, ext.handle, &info) {
+        Ok(new) => new,
+        Err(e) => {
+            let cause = Error::from(e);
+            return Err(discard_unconfirmed(
+                dev,
+                layout.storage,
+                ext.handle,
+                &name,
+                &path,
+                cause,
+            ));
+        }
+    };
     if new.parent != ext.handle || new.storage != layout.storage {
         let cause = Error::new(
             ErrorCode::DeviceError,

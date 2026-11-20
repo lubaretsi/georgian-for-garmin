@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use georgian_for_garmin_core::fonts::{Font, FontSet};
-use georgian_for_garmin_core::mtp::{Mtp, MtpError, NewObject};
+use georgian_for_garmin_core::mtp::{Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
@@ -41,8 +41,12 @@ struct State {
     operations: Vec<u16>,
     next_handle: u32,
     awaiting_data: Option<u32>,
-    /// `SendObject` stores half the data, then the link fails.
+    /// `SendObject` stores half the data, then times out.
     fail_send_object: bool,
+    /// `SendObjectInfo` times out; `Some(true)` if the watch created the object anyway.
+    send_object_info_timeout: Option<bool>,
+    /// `DeleteObject` times out.
+    fail_delete: bool,
     /// The device stores different bytes than it received.
     corrupt_storage: bool,
     writes: Vec<String>,
@@ -148,6 +152,14 @@ fn invalid_handle(operation: u16) -> MtpError {
     }
 }
 
+fn timed_out(operation: u16) -> MtpError {
+    MtpError::Transport {
+        operation,
+        phase: Phase::Reply,
+        error: TransportError::TimedOut,
+    }
+}
+
 impl Mtp for Fake {
     fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
         Ok(DeviceInfo {
@@ -210,12 +222,22 @@ impl Mtp for Fake {
             ..info.clone()
         };
         s.objects.insert(handle, (info, Vec::new()));
-        s.awaiting_data = Some(handle);
-        Ok(NewObject {
-            storage,
-            parent,
-            handle,
-        })
+        match s.send_object_info_timeout {
+            Some(created) => {
+                if !created {
+                    s.objects.remove(&handle);
+                }
+                Err(timed_out(op::SEND_OBJECT_INFO))
+            }
+            None => {
+                s.awaiting_data = Some(handle);
+                Ok(NewObject {
+                    storage,
+                    parent,
+                    handle,
+                })
+            }
+        }
     }
 
     fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError> {
@@ -233,7 +255,7 @@ impl Mtp for Fake {
         }
         s.objects.get_mut(&handle).unwrap().1 = stored;
         if s.fail_send_object {
-            return Err(MtpError::Transport("device disconnected".into()));
+            return Err(timed_out(op::SEND_OBJECT));
         }
         Ok(())
     }
@@ -241,6 +263,9 @@ impl Mtp for Fake {
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
         let mut s = self.0.borrow_mut();
         s.writes.push(format!("delete_object {handle:#x}"));
+        if s.fail_delete {
+            return Err(timed_out(op::DELETE_OBJECT));
+        }
         s.objects
             .remove(&handle)
             .map(drop)
@@ -293,7 +318,9 @@ fn finds_hidden_extdata_through_a_staged_font() {
     assert_eq!(out["extdata"]["listed_under_garmin"], false);
     assert_eq!(
         out["extdata"]["files"],
-        json!([{"name": "006-D8945-20.tmp", "handle": "0x01000050", "bytes": 3}])
+        json!([{"name": "006-D8945-20.tmp", "handle": "0x01000050", "bytes": 3,
+                // SHA-256 of b"cjk"
+                "sha256": "a875bed89364302fb6f5a5a783899015d4e285f54a9a9660a97654d33c0f428f"}])
     );
 }
 
@@ -460,7 +487,13 @@ fn readback_mismatch_deletes_the_new_file() {
     let fake = Fake::new(s);
     let err = fake.call("install", json!({}), &fonts()).unwrap_err();
     assert_eq!(err.code, ErrorCode::VerificationFailed);
-    assert!(err.message.contains("was deleted"), "{}", err.message);
+    assert!(
+        err.message.ends_with(
+            "A new object was created as GARMIN/ExtData/006-D9035-03.tmp (0x01000100) and has been deleted."
+        ),
+        "{}",
+        err.message
+    );
     assert!(fake.0.borrow().named(EXTDATA, STAGED).is_empty());
     assert_eq!(fake.writes().last().unwrap(), "delete_object 0x1000100");
 }
@@ -472,10 +505,10 @@ fn transfer_failure_deletes_the_partial_file() {
     let fake = Fake::new(s);
     let err = fake.call("install", json!({}), &fonts()).unwrap_err();
     assert_eq!(err.code, ErrorCode::DeviceError);
-    assert!(
-        err.message.contains("device disconnected") && err.message.contains("was deleted"),
-        "{}",
-        err.message
+    assert_eq!(
+        err.message,
+        "SendObject timed out waiting for the reply. A new object was created as \
+         GARMIN/ExtData/006-D9035-03.tmp (0x01000100) and has been deleted."
     );
     assert!(fake.0.borrow().named(EXTDATA, STAGED).is_empty());
     assert_eq!(
@@ -485,6 +518,51 @@ fn transfer_failure_deletes_the_partial_file() {
             "send_object",
             "delete_object 0x1000100"
         ]
+    );
+}
+
+#[test]
+fn failed_send_object_info_reports_and_removes_what_the_watch_created() {
+    for (created, ending, writes) in [
+        (
+            true,
+            "A new object was created as GARMIN/ExtData/006-D9035-03.tmp (0x01000100) and has been deleted.",
+            &[
+                "send_object_info 0x1000009 006-D9035-03.tmp",
+                "delete_object 0x1000100",
+            ][..],
+        ),
+        (
+            false,
+            "No object was created.",
+            &["send_object_info 0x1000009 006-D9035-03.tmp"][..],
+        ),
+    ] {
+        let mut s = venu2(&[PART]);
+        s.send_object_info_timeout = Some(created);
+        let fake = Fake::new(s);
+        let err = fake.call("restore_stock", json!({}), &fonts()).unwrap_err();
+        assert_eq!(
+            err.message,
+            format!("SendObjectInfo timed out waiting for the reply. {ending}")
+        );
+        assert_eq!(fake.writes(), writes);
+        assert!(fake.0.borrow().named(EXTDATA, STAGED).is_empty());
+    }
+}
+
+#[test]
+fn undeletable_partial_file_is_reported() {
+    let mut s = venu2(&[PART]);
+    s.fail_send_object = true;
+    s.fail_delete = true;
+    let fake = Fake::new(s);
+    let err = fake.call("restore_stock", json!({}), &fonts()).unwrap_err();
+    assert_eq!(
+        err.message,
+        "SendObject timed out waiting for the reply. A new object was created as \
+         GARMIN/ExtData/006-D9035-03.tmp (0x01000100) and could not be deleted \
+         (DeleteObject timed out waiting for the reply); it may hold incomplete data."
     );
 }
 

@@ -19,7 +19,8 @@ Examples:
   georgian-for-garmin --help --json        # MCP tool definitions
 
 After install or restore-stock, disconnect the USB cable and restart the watch.
-Quit Garmin Express first; it holds the watch's USB connection.";
+Quit Garmin Express first; it holds the watch's USB connection.
+Set GEORGIAN_FOR_GARMIN_TRACE=1 to print each MTP container and USB transfer to stderr.";
 
 /// Install a Georgian-extended font on a Garmin watch over USB.
 #[derive(Parser)]
