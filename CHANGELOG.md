@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Guide for having an AI agent install Georgian on a Garmin watch without the app.
-- Reproducible font build (`nix build .#fonts`): Garmin's 21, 24, 27 and 31 px Armenian fonts with
-  Georgian Mkhedruli and Mtavruli added, the original fonts for restoring, and a manifest of hashes.
-  The 27 px font is byte-identical to the one verified on a Venu 2 with firmware 19.05.
+- Reproducible font build (`nix build .#fonts`): Georgian Mkhedruli and Mtavruli added to every
+  Armenian font Garmin publishes, 20 files: NotoSans Regular (19–31 px), NotoSans Armenian Regular
+  (11–37 px) and NotoSans Armenian Bold (13–25 px), each drawn at the weight of the font it joins.
+  Ships with the original fonts for restoring and a manifest of hashes. The 21–31 px NotoSans
+  Regular fonts are tested on a Venu 2 with firmware 19.05; the others aren't tested on a watch.
 - Font registry (`fonts/registry.json`): the Garmin font packs that get Georgian, their download
   URLs and hashes, and the watch models each was tested on. Adding a pack is a registry entry;
   see `fonts/README.md`.

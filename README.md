@@ -27,10 +27,11 @@ original font can be copied back the same way; on the Venu 2 that restored the b
 |---|---|---|
 | Venu 2 | 19.05 | Tested: Georgian in pop-ups, the notification list and opened notifications |
 
-The app reads the font list of the connected watch, so it works with any model and software
-version that lists the same font files. Those are untested until someone confirms them. If yours
-isn't listed, use **Share my watch's font list** in the app (or `georgian-for-garmin inspect
---report`) to open an issue, and say whether Georgian appeared.
+The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
+font it uses: NotoSans Regular, or NotoSans Armenian Regular or Bold, in any size. Other models
+and software versions that use them are untested until someone confirms them. If yours isn't
+listed, use **Share my watch's font list** in the app (or `georgian-for-garmin inspect --report`)
+to open an issue, and say whether Georgian appeared.
 
 ## Install
 
