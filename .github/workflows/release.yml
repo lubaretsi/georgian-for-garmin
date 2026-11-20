@@ -1,12 +1,18 @@
-# Builds the macOS release with scripts/build-macos-release.sh. A pushed v* tag also creates a
-# draft GitHub release with the files; a manual run only builds them (see the run's artifacts).
-# Nothing is signed beyond the linker's ad-hoc signature, and nothing is notarized.
+# Builds the macOS release with scripts/build-macos-release.sh and the Windows release with
+# scripts/build-windows-release.ps1. A pushed v* tag also creates a draft GitHub release with all
+# the files; a manual run only builds them (see the run's artifacts) and can skip macOS.
+# Nothing is signed beyond the macOS linker's ad-hoc signature, and nothing is notarized.
 name: Release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      macos:
+        description: Build for macOS (macOS runners cost 10x the minutes)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -17,6 +23,7 @@ concurrency:
 
 jobs:
   macos:
+    if: github.event_name == 'push' || inputs.macos
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -40,9 +47,74 @@ jobs:
           path: target/macos-release/dist/
           if-no-files-found: error
 
+  # Nix doesn't run on Windows, so the Windows build gets its fonts from here.
+  fonts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ github.token }}
+
+      # The Windows build takes Rust from rust-toolchain.toml and pins its own Tauri CLI; both must
+      # match what nixpkgs gives the macOS build.
+      - name: Toolchains match nixpkgs
+        run: |
+          scripts/check-rust-toolchain.sh
+          nixpkgs=$(nix eval --raw --inputs-from . nixpkgs#cargo-tauri.version)
+          windows=$(sed -n "s/^\$TauriCliVersion = '\(.*\)'.*/\1/p" scripts/build-windows-release.ps1)
+          if [[ $nixpkgs != "$windows" ]]; then
+            echo "::error::build-windows-release.ps1 pins Tauri CLI '$windows'; nixpkgs has $nixpkgs"
+            exit 1
+          fi
+
+      # The builder's tests pin every Georgian font's SHA-256.
+      - name: Build the fonts and check them against the pinned hashes
+        run: |
+          nix build --no-link --print-build-logs .#fonts .#checks.x86_64-linux.builder
+          echo "FONTS=$(nix build --no-link --print-out-paths .#fonts)" >>"$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fonts
+          path: ${{ env.FONTS }}
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    needs: fonts
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fonts
+          path: ${{ runner.temp }}/fonts
+
+      - name: Build
+        shell: pwsh
+        env:
+          GEORGIAN_FOR_GARMIN_FONTS: ${{ runner.temp }}/fonts
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: scripts/build-windows-release.ps1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release
+          path: target/windows-release/dist/
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: macos
+    needs: [macos, windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -50,14 +122,24 @@ jobs:
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: macos-release
-          path: dist
+          pattern: "*-release"
+          path: artifacts
 
+      # Both builds embed the same fonts, so they ship the same manifest; it's published once,
+      # with one SHA256SUMS for every file.
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          (cd dist && sha256sum --check --strict SHA256SUMS)
+          for build in macos windows; do
+            (cd "artifacts/$build-release" && sha256sum --check --strict SHA256SUMS)
+          done
+          cmp artifacts/macos-release/manifest.json artifacts/windows-release/manifest.json
+          mkdir dist
+          cp artifacts/macos-release/* dist/
+          cp artifacts/windows-release/* dist/
+          rm dist/SHA256SUMS
+          (cd dist && sha256sum -- * >SHA256SUMS && cat SHA256SUMS)
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
             --title "Georgian for Garmin ${TAG#v}" --generate-notes

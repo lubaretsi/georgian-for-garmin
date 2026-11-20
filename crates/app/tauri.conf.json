@@ -27,6 +27,7 @@
     "targets": ["app"],
     "category": "Utility",
     "shortDescription": "Georgian notifications on Garmin watches",
+    "publisher": "George Lubaretsi",
     "copyright": "MIT License",
     "icon": [
       "icons/32x32.png",
@@ -39,6 +40,11 @@
     "macOS": {
       "minimumSystemVersion": "11.0",
       "signingIdentity": "-"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
     }
   }
 }

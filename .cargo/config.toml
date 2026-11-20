@@ -1,0 +1,5 @@
+# Windows (MSVC) binaries link the C runtime statically, so they run without the Visual C++
+# Redistributable. The app's build script (tauri-build) then links the Universal CRT, a part of
+# Windows 10 and later, dynamically again; the CLI links it statically.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
