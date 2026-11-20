@@ -10,8 +10,16 @@ pub const EXTDATA_PATH: &str = "Garmin/ExtData";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateFile {
     pub part_number: String,
+    /// `Version/Major` and `Version/Minor`, e.g. `2.10`; `None` if the entry has no version.
+    pub version: Option<String>,
     pub path: String,
     pub file_name: String,
+}
+
+impl UpdateFile {
+    pub fn is_extdata(&self) -> bool {
+        self.path.eq_ignore_ascii_case(EXTDATA_PATH)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,11 +32,14 @@ pub struct GarminDevice {
 }
 
 impl GarminDevice {
+    /// The update files the watch accepts under `Garmin/ExtData`: its font packs.
+    pub fn extdata_files(&self) -> impl Iterator<Item = &UpdateFile> {
+        self.update_files.iter().filter(|f| f.is_extdata())
+    }
+
     /// Whether the watch declares `part` as an update file under `Garmin/ExtData`.
     pub fn declares_extdata_part(&self, part: &str) -> bool {
-        self.update_files
-            .iter()
-            .any(|f| f.part_number == part && f.path.eq_ignore_ascii_case(EXTDATA_PATH))
+        self.extdata_files().any(|f| f.part_number == part)
     }
 }
 
@@ -52,6 +63,17 @@ fn format_version(raw: &str) -> String {
     }
 }
 
+/// `<Version><Major>2</Major><Minor>10</Minor></Version>` as `2.10`, Garmin's two-digit minor.
+fn update_version(file: Node<'_, '_>) -> Option<String> {
+    let version = child(file, "Version")?;
+    let (major, minor) = (text(version, "Major"), text(version, "Minor"));
+    match (major.parse::<u32>(), minor.parse::<u32>()) {
+        (Ok(major), Ok(minor)) => Some(format!("{major}.{minor:02}")),
+        _ if major.is_empty() && minor.is_empty() => None,
+        _ => Some(format!("{major}.{minor}")),
+    }
+}
+
 pub fn parse(bytes: &[u8]) -> Result<GarminDevice, Error> {
     let invalid = |m: String| {
         Error::new(
@@ -72,6 +94,7 @@ pub fn parse(bytes: &[u8]) -> Result<GarminDevice, Error> {
         })
         .map(|f| UpdateFile {
             part_number: text(f, "PartNumber"),
+            version: update_version(f),
             path: text(f, "Path"),
             file_name: text(f, "FileName"),
         })
@@ -109,6 +132,13 @@ mod tests {
         assert!(d.declares_extdata_part("006-D9035-03"));
         assert!(!d.declares_extdata_part("006-D8422-03"));
         assert!(!d.declares_extdata_part("006-D9035-01"));
+        let versions: Vec<_> = d
+            .update_files
+            .iter()
+            .map(|f| f.version.as_deref())
+            .collect();
+        assert_eq!(versions, [None, Some("2.10")]);
+        assert_eq!(d.extdata_files().count(), 1);
         assert!(parse(b"<Device/>").is_err());
     }
 }

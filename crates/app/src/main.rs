@@ -4,6 +4,7 @@
 //! blocking thread, and a mutex keeps the watch to one operation at a time, so the frontend's
 //! `inspect` polling never overlaps an install. Commands return core output unchanged, and
 //! errors as `{code, message}`; the frontend turns codes into words (`ui/strings.json`).
+//! `share_report` copies the watch report and opens a prefilled GitHub issue (`share`).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -15,6 +16,7 @@ compile_error!(
 #[cfg(any(test, feature = "demo"))]
 mod demo;
 mod settings;
+mod share;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -25,6 +27,8 @@ use georgian_for_garmin_core::{Error, ErrorCode, ops};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_opener::OpenerExt;
 
 /// An operation failure as the frontend receives it.
 #[derive(Debug, Serialize)]
@@ -63,7 +67,13 @@ impl Watch {
     fn call(&self, operation: &str, input: Value) -> Result<Value, Failure> {
         let _busy = self.busy.lock().unwrap_or_else(PoisonError::into_inner);
         let mut connect = self.connect;
-        Ok(ops::call(operation, input, &self.fonts, &mut connect)?)
+        let result = ops::call(operation, input, &self.fonts, &mut connect);
+        // The demo moves on to its next watch after every install or restore.
+        #[cfg(feature = "demo")]
+        if operation != "inspect" {
+            demo::unplug();
+        }
+        Ok(result?)
     }
 
     /// Runs `operation` on a blocking thread so USB work never stalls the window.
@@ -84,16 +94,45 @@ async fn inspect(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("inspect", json!({})).await
 }
 
-/// Stages the Georgian font at the default size.
+/// Stages the Georgian font in every size of the watch's pack.
 #[tauri::command]
 async fn install(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("install", json!({})).await
 }
 
-/// Stages Garmin's original font at the default size.
+/// Stages Garmin's original font in every size of the watch's pack.
 #[tauri::command]
 async fn restore_stock(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("restore_stock", json!({})).await
+}
+
+#[derive(Debug, Serialize)]
+struct Shared {
+    /// The whole report is in the issue; otherwise the issue asks for a paste.
+    complete: bool,
+}
+
+/// Copies `text` (the watch report from `inspect`) and opens a new GitHub issue prefilled
+/// with `title` and, if it fits in the URL, `text`. The demo build touches neither the
+/// clipboard nor the browser.
+#[tauri::command]
+fn share_report(app: AppHandle, title: String, text: String) -> Result<Shared, Failure> {
+    let (url, complete) = share::issue_url(&title, &text);
+    let failed = |what: &str, e: &dyn std::fmt::Display| {
+        Failure::from(Error::new(
+            ErrorCode::Internal,
+            format!("could not {what}: {e}"),
+        ))
+    };
+    if !cfg!(feature = "demo") {
+        app.clipboard()
+            .write_text(text)
+            .map_err(|e| failed("copy the report", &e))?;
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| failed("open the browser", &e))?;
+    }
+    Ok(Shared { complete })
 }
 
 /// Whether this build talks to the in-memory demo watch.
@@ -146,11 +185,14 @@ const CONNECT: fn() -> Result<Box<dyn Mtp>, Error> = georgian_for_garmin_core::c
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Watch::new(CONNECT)))
         .invoke_handler(tauri::generate_handler![
             inspect,
             install,
             restore_stock,
+            share_report,
             demo_mode,
             saved_language,
             save_language
@@ -262,6 +304,69 @@ mod tests {
             let errors = table["errors"].as_object().expect("an errors table");
             let missing: Vec<_> = codes.iter().filter(|c| !errors.contains_key(*c)).collect();
             assert!(missing.is_empty(), "{language} lacks errors {missing:?}");
+        }
+    }
+
+    #[test]
+    fn every_core_status_the_ui_shows_has_words() {
+        let tables = [
+            ("tested", schemars::schema_for!(ops::TestStatus).to_value()),
+            (
+                "afterRestart",
+                schemars::schema_for!(ops::Variant).to_value(),
+            ),
+        ];
+        for (key, schema) in tables {
+            let mut values = BTreeSet::new();
+            constants(&schema, &mut values);
+            assert!(!values.is_empty(), "unexpected schema: {schema}");
+            for (language, table) in strings() {
+                let words = table[key].as_object().expect("a table");
+                let missing: Vec<_> = values.iter().filter(|v| !words.contains_key(*v)).collect();
+                assert!(missing.is_empty(), "{language}.{key} lacks {missing:?}");
+            }
+        }
+        for (language, table) in strings() {
+            for staged in ["georgian", "stock", "other"] {
+                assert!(
+                    table["stagedNow"].get(staged).is_some(),
+                    "{language}.stagedNow.{staged}"
+                );
+            }
+        }
+    }
+
+    /// Identifiers that follow `prefix` in `source`, e.g. `T.` → `install`.
+    fn after<'a>(source: &'a str, prefix: &str, out: &mut BTreeSet<&'a str>) {
+        for rest in source.split(prefix).skip(1) {
+            let end = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .unwrap_or(rest.len());
+            if end > 0 {
+                out.insert(&rest[..end]);
+            }
+        }
+    }
+
+    #[test]
+    fn every_string_the_ui_uses_exists() {
+        let html = include_str!("../ui/index.html");
+        let js = include_str!("../ui/app.js");
+        let mut used: BTreeSet<String> = BTreeSet::new();
+        let mut found = BTreeSet::new();
+        after(html, "data-t=\"", &mut found);
+        after(js, "T.", &mut found);
+        used.extend(found.iter().map(|k| k.to_string()));
+        // Share results are string literals looked up as `T[shared.result]`.
+        let mut results = BTreeSet::new();
+        after(js, "\"share", &mut results);
+        results.remove("_report");
+        assert!(results.contains("Failed"), "{results:?}");
+        used.extend(results.iter().map(|k| format!("share{k}")));
+        assert!(used.contains("untestedBody") && used.contains("stagedSizes"));
+        for (language, table) in strings() {
+            let missing: Vec<_> = used.iter().filter(|k| table.get(*k).is_none()).collect();
+            assert!(missing.is_empty(), "{language} lacks {missing:?}");
         }
     }
 

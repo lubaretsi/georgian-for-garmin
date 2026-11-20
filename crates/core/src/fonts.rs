@@ -1,24 +1,38 @@
-//! Font packs: Garmin's stock originals and the Georgian-extended builds.
+//! Font packs: Garmin's stock originals and the Georgian-extended builds, grouped by pack as the
+//! asset manifest lists them (registry order).
 
 use std::borrow::Cow;
 
-pub use crate::parts::PARTS;
+use crate::garmin_device::GarminDevice;
 
 struct BundledFont {
     part: &'static str,
     size_px: u16,
-    default: bool,
     stock: &'static [u8],
     georgian: &'static [u8],
 }
 
-static BUNDLED: &[BundledFont] = include!(concat!(env!("OUT_DIR"), "/bundled_fonts.rs"));
+struct BundledTested {
+    model: &'static str,
+    model_part: &'static str,
+    software: &'static str,
+    parts: &'static [&'static str],
+}
 
+struct BundledPack {
+    id: &'static str,
+    name: &'static str,
+    fonts: &'static [BundledFont],
+    tested: &'static [BundledTested],
+}
+
+static BUNDLED: &[BundledPack] = include!(concat!(env!("OUT_DIR"), "/bundled_fonts.rs"));
+
+/// One size of a pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Font {
     pub part: String,
     pub size_px: u16,
-    pub default: bool,
     pub stock: Cow<'static, [u8]>,
     pub georgian: Cow<'static, [u8]>,
 }
@@ -30,29 +44,99 @@ impl Font {
     }
 }
 
+/// A watch on which a pack's Georgian build was seen rendering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tested {
+    /// `Model/Description`, e.g. "Venu 2".
+    pub model: String,
+    /// `Model/PartNumber`, e.g. "006-B3703-00".
+    pub model_part: String,
+    /// `Model/SoftwareVersion` with two decimals, e.g. "19.05".
+    pub software: String,
+    /// The pack's parts seen rendering Georgian.
+    pub parts: Vec<String>,
+}
+
+/// One Garmin font product in all its sizes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pack {
+    pub id: String,
+    pub name: String,
+    /// Every size, in manifest order.
+    pub fonts: Vec<Font>,
+    pub tested: Vec<Tested>,
+}
+
+/// The pack a watch gets and the sizes of it the watch lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Selection<'a> {
+    pub pack: &'a Pack,
+    /// The pack's fonts the watch lists under `Garmin/ExtData`, in pack order; never empty.
+    pub fonts: Vec<&'a Font>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontSet {
-    pub fonts: Vec<Font>,
+    /// In registry order, which decides between packs a watch lists.
+    pub packs: Vec<Pack>,
 }
 
 impl FontSet {
     /// The fonts embedded at build time from `GEORGIAN_FOR_GARMIN_FONTS`.
     pub fn bundled() -> FontSet {
         FontSet {
-            fonts: BUNDLED
+            packs: BUNDLED
                 .iter()
-                .map(|f| Font {
-                    part: f.part.to_owned(),
-                    size_px: f.size_px,
-                    default: f.default,
-                    stock: Cow::Borrowed(f.stock),
-                    georgian: Cow::Borrowed(f.georgian),
+                .map(|p| Pack {
+                    id: p.id.to_owned(),
+                    name: p.name.to_owned(),
+                    fonts: p
+                        .fonts
+                        .iter()
+                        .map(|f| Font {
+                            part: f.part.to_owned(),
+                            size_px: f.size_px,
+                            stock: Cow::Borrowed(f.stock),
+                            georgian: Cow::Borrowed(f.georgian),
+                        })
+                        .collect(),
+                    tested: p
+                        .tested
+                        .iter()
+                        .map(|t| Tested {
+                            model: t.model.to_owned(),
+                            model_part: t.model_part.to_owned(),
+                            software: t.software.to_owned(),
+                            parts: t.parts.iter().map(|&p| p.to_owned()).collect(),
+                        })
+                        .collect(),
                 })
                 .collect(),
         }
     }
 
-    pub fn by_size(&self, size_px: u16) -> Option<&Font> {
-        self.fonts.iter().find(|f| f.size_px == size_px)
+    /// Every font of every pack, with its pack.
+    pub fn fonts(&self) -> impl Iterator<Item = (&Pack, &Font)> {
+        self.packs
+            .iter()
+            .flat_map(|p| p.fonts.iter().map(move |f| (p, f)))
+    }
+
+    /// Whether any pack has a font of `size_px`.
+    pub fn has_size(&self, size_px: u16) -> bool {
+        self.fonts().any(|(_, f)| f.size_px == size_px)
+    }
+
+    /// The first pack, in registry order, with a part the watch lists under `Garmin/ExtData`,
+    /// and the fonts of that pack the watch lists.
+    pub fn select(&self, device: &GarminDevice) -> Option<Selection<'_>> {
+        self.packs.iter().find_map(|pack| {
+            let fonts: Vec<&Font> = pack
+                .fonts
+                .iter()
+                .filter(|f| device.declares_extdata_part(&f.part))
+                .collect();
+            (!fonts.is_empty()).then_some(Selection { pack, fonts })
+        })
     }
 }

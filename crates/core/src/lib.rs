@@ -8,7 +8,6 @@ pub mod fonts;
 pub mod garmin_device;
 pub mod mtp;
 pub mod ops;
-mod parts;
 pub mod ptp;
 pub mod trace;
 #[cfg(not(windows))]

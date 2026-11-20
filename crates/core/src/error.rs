@@ -19,7 +19,8 @@ pub enum ErrorCode {
     DeviceBusy,
     /// This operating system has no transport backend yet.
     UnsupportedPlatform,
-    /// The watch does not declare the requested font part, or lacks a needed MTP operation.
+    /// The watch lists none of this build's font packs or not a requested size, or lacks a
+    /// needed MTP operation.
     UnsupportedDevice,
     /// This build does not bundle the requested font size.
     FontUnavailable,

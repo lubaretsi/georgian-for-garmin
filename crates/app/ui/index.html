@@ -24,10 +24,17 @@
     <main id="ready" class="view" hidden>
       <h1 id="ready-model"></h1>
       <p id="ready-version" class="quiet"></p>
+      <p id="ready-tested" class="tested" hidden></p>
+      <p id="ready-untested" class="quiet small" data-t="untestedBody" hidden></p>
       <p id="ready-note" class="note" hidden></p>
       <div id="ready-actions" class="actions">
         <button id="install" class="primary" data-t="install"></button>
         <button id="restore" class="secondary" data-t="restore"></button>
+      </div>
+      <div id="share" class="share" hidden>
+        <p id="share-why" class="quiet small" data-t="shareWhy"></p>
+        <button id="share-button" class="link" data-t="share"></button>
+        <p id="share-result" class="quiet small" role="status" hidden></p>
       </div>
     </main>
 
@@ -40,6 +47,7 @@
     <main id="staged" class="view" hidden>
       <h1 data-t="stagedTitle"></h1>
       <p data-t="unplugRestart"></p>
+      <p id="staged-sizes"></p>
       <p id="staged-after"></p>
       <div id="staged-test" class="test">
         <p class="quiet" data-t="testLabel"></p>

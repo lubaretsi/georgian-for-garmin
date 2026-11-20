@@ -49,14 +49,20 @@ fn help_json_prints_mcp_tools() {
 #[test]
 fn invalid_input_exits_2_with_json_error() {
     for (args, stdin) in [
-        (&["install", "--size-px", "26", "--json"][..], ""),
+        (&["install", "--sizes-px", "27,27", "--json"][..], ""),
+        (&["install", "--sizes-px", "big", "--json"][..], ""),
         (
             &["install", "--input", "-", "--json"][..],
-            r#"{"size_px": 99}"#,
+            r#"{"sizes_px": []}"#,
+        ),
+        (
+            &["install", "--input", "-", "--json"][..],
+            r#"{"size_px": 27}"#,
         ),
         (&["restore-stock", "--input", "-", "--json"][..], "[27]"),
         (&["install", "--input", "-", "--json"][..], "{not json"),
         (&["install", "--sizepx", "27", "--json"][..], ""),
+        (&["inspect", "--sizes-px", "27", "--json"][..], ""),
         (&["--json"][..], ""),
     ] {
         let error = json_error(&run(args, stdin));
@@ -70,11 +76,19 @@ fn invalid_input_exits_2_with_json_error() {
 }
 
 #[test]
+fn a_size_missing_from_the_build_fails_before_usb() {
+    let out = run(&["install", "--sizes-px", "27,26", "--json"], "");
+    assert_eq!(out.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&out.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "font_unavailable");
+}
+
+#[test]
 fn flags_override_input_before_validation() {
     // The flag's invalid value wins over the valid --input value.
     let error = json_error(&run(
-        &["install", "--input", "-", "--size-px", "30", "--json"],
-        r#"{"size_px": 27}"#,
+        &["install", "--input", "-", "--sizes-px", "30,30", "--json"],
+        r#"{"sizes_px": [27]}"#,
     ));
     assert!(error["error"]["message"].as_str().unwrap().contains("30"));
 }

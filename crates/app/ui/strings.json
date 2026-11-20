@@ -10,7 +10,18 @@
     "softwareVersion": "ვერსია {version}",
     "install": "ქართულის დაყენება",
     "restore": "ქარხნული შრიფტის დაბრუნება",
-    "unsupportedWatch": "ამ საათზე ქართული შრიფტი ვერ დაყენდება.",
+    "unsupportedWatch": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს.",
+    "tested": {
+      "tested": "ამ საათზე შემოწმებულია",
+      "tested_other_software": "ამ მოდელზე შემოწმებულია, ოღონდ ვერსია {versions}-ზე",
+      "untested": "ამ საათზე ჯერ არ შეგვიმოწმებია"
+    },
+    "untestedBody": "შეიძლება იმუშაოს. ქარხნულ შრიფტს კი ნებისმიერ დროს დააბრუნებთ.",
+    "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
+    "share": "ჩემი საათის შრიფტების სიის გაზიარება",
+    "shareDone": "სია დაკოპირდა და ბრაუზერში GitHub-ის გვერდი გაიხსნა. გადახედეთ და გამოაქვეყნეთ.",
+    "sharePaste": "სია დაკოპირდა. ჩასვით ის ბრაუზერში გახსნილ GitHub-ის გვერდზე და გამოაქვეყნეთ.",
+    "shareFailed": "სია ვერ გავაზიარეთ. სცადეთ თავიდან.",
     "stagedNow": {
       "georgian": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
       "stock": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
@@ -22,6 +33,8 @@
     "keepConnected": "საათს ნუ გამოაერთებთ.",
 
     "stagedTitle": "ახლა გადატვირთეთ საათი",
+    "stagedSizes": "საათზე ჩაიწერა ყველა ზომა: {sizes} px.",
+    "stagedOneSize": "საათზე ჩაიწერა {sizes} px ზომა.",
     "unplugRestart": "გამოაერთეთ საათი და გადატვირთეთ: ზედა ღილაკს ხანგრძლივად დააჭირეთ, აირჩიეთ Power Off, მერე ისევ ჩართეთ.",
     "afterRestart": {
       "georgian": "გადატვირთვის შემდეგ შეტყობინებებში ქართული ასოები გამოჩნდება.",
@@ -62,7 +75,18 @@
     "softwareVersion": "Software {version}",
     "install": "Install Georgian",
     "restore": "Restore original font",
-    "unsupportedWatch": "This watch can’t use the Georgian font.",
+    "unsupportedWatch": "There’s no font for this watch yet.",
+    "tested": {
+      "tested": "Tested on this watch",
+      "tested_other_software": "Tested on this model, with software {versions}",
+      "untested": "Not tested on this watch yet"
+    },
+    "untestedBody": "It may work, and you can bring back the original font anytime.",
+    "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
+    "share": "Share my watch’s font list",
+    "shareDone": "Copied. A GitHub page opened in your browser; check it and post it.",
+    "sharePaste": "Copied. Paste it into the GitHub page that opened in your browser, then post it.",
+    "shareFailed": "The list couldn’t be shared. Try again.",
     "stagedNow": {
       "georgian": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
       "stock": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
@@ -74,6 +98,8 @@
     "keepConnected": "Keep the watch connected.",
 
     "stagedTitle": "Now restart your watch",
+    "stagedSizes": "Every size is on the watch: {sizes} px.",
+    "stagedOneSize": "The {sizes} px size is on the watch.",
     "unplugRestart": "Unplug the watch, then restart it (hold the top button, Power Off, then turn it on).",
     "afterRestart": {
       "georgian": "Georgian notifications will show after the restart.",

@@ -55,13 +55,14 @@ pub struct Layout {
     pub extdata: Option<ExtData>,
 }
 
-/// Garmin standalone font packs (Armenian, CJK, Thai, emoji), as staged or downloaded.
+/// A Garmin standalone data file as staged or downloaded (`006-D<4 digits>-<2 digits>.tmp` or
+/// `.fnt`): font packs of any series, including ones this build doesn't carry. Only a hint for
+/// where `ExtData` is; every candidate parent is still checked by [`is_extdata`].
 fn is_font_package(name: &str) -> bool {
-    const SERIES: [&str; 6] = ["8168", "8448", "8944", "8945", "8947", "9035"];
     let n = name.as_bytes();
     n.len() == 16
         && n[..5].eq_ignore_ascii_case(b"006-d")
-        && SERIES.iter().any(|s| &n[5..9] == s.as_bytes())
+        && n[5..9].iter().all(u8::is_ascii_digit)
         && n[9] == b'-'
         && n[10].is_ascii_digit()
         && n[11].is_ascii_digit()
@@ -231,12 +232,18 @@ mod tests {
 
     #[test]
     fn font_package_names() {
-        for name in ["006-D9035-03.tmp", "006-d8945-20.TMP", "006-D8168-13.fnt"] {
+        for name in [
+            "006-D9035-03.tmp",
+            "006-d8945-20.TMP",
+            "006-D8168-13.fnt",
+            "006-D1234-03.tmp",
+        ] {
             assert!(is_font_package(name), "{name}");
         }
         for name in [
             "006-D9035-3.tmp",
-            "006-D1234-03.tmp",
+            "006-D12a4-03.tmp",
+            "006-B9035-03.tmp",
             "006-D9035-03.bin",
             "006-D9035-03.tmpx",
             "GarminDevice.xml",

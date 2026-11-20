@@ -20,6 +20,9 @@ georgian-for-garmin-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2"
+url = "2"
 
 [dev-dependencies]
 schemars.workspace = true

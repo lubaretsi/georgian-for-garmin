@@ -1,86 +1,41 @@
 //! Operations: one declaration each (JSON Schema in and out, behavior hints), validated on
 //! every call. CLI, app and any future adapter call [`call`].
+//!
+//! A watch gets the first pack, in registry order, that it lists under `Garmin/ExtData`, and
+//! `install`/`restore_stock` write every size of that pack the watch lists.
 
-use std::borrow::Cow;
+use std::collections::BTreeSet;
+use std::fmt::Write as _;
 
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema, schema_for};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use schemars::{JsonSchema, Schema, schema_for};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::error::{Error, ErrorCode};
-use crate::extdata::{self, FoundBy, Layout, Object};
-use crate::fonts::{Font, FontSet, PARTS};
+use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
+use crate::fonts::{Font, FontSet, Pack, Selection};
 use crate::garmin_device::{self, GarminDevice};
 use crate::mtp::Mtp;
 use crate::ptp::{self, ObjectInfo, op};
 
-/// A font pixel size with a Garmin part: 21, 24, 27 or 31.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SizePx(u16);
-
-impl SizePx {
-    pub const DEFAULT: SizePx = SizePx(27);
-
-    pub fn new(px: u16) -> Option<SizePx> {
-        PARTS
-            .iter()
-            .any(|&(size, _)| size == px)
-            .then_some(SizePx(px))
-    }
-
-    pub fn get(self) -> u16 {
-        self.0
-    }
-}
-
-impl Default for SizePx {
-    fn default() -> Self {
-        SizePx::DEFAULT
-    }
-}
-
-impl Serialize for SizePx {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_u16(self.0)
-    }
-}
-
-impl<'de> Deserialize<'de> for SizePx {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let px = u16::deserialize(d)?;
-        SizePx::new(px)
-            .ok_or_else(|| serde::de::Error::custom(format!("unsupported font size {px} px")))
-    }
-}
-
-impl JsonSchema for SizePx {
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn schema_name() -> Cow<'static, str> {
-        "SizePx".into()
-    }
-
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        let sizes: Vec<u16> = PARTS.iter().map(|&(size, _)| size).collect();
-        json_schema!({"type": "integer", "enum": sizes})
-    }
-}
+/// This program's version, as reported in the watch report.
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `inspect` takes no parameters.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectInput {}
 
-/// Which font size to stage.
+/// Which sizes of the selected pack to stage.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StageInput {
-    /// Font size in pixels. 27 is the size whose Georgian build was verified on a Venu 2.
+    /// Pixel sizes to stage, e.g. `[27]`. Default: every size of the selected pack that the
+    /// watch lists. A size the watch doesn't list is refused with `unsupported_device`.
     #[serde(default)]
-    pub size_px: SizePx,
+    #[schemars(length(min = 1))]
+    pub sizes_px: Option<BTreeSet<u16>>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -91,6 +46,51 @@ pub struct DeviceReport {
     pub part_number: String,
     /// Installed software version, e.g. "19.05".
     pub software_version: String,
+}
+
+/// Whether a pack's Georgian build was seen working on this watch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TestStatus {
+    /// Verified on this model part number and software version.
+    Tested,
+    /// Verified on this model part number, but only on other software versions.
+    TestedOtherSoftware,
+    /// Not verified on this model.
+    Untested,
+}
+
+impl TestStatus {
+    fn words(self) -> &'static str {
+        match self {
+            TestStatus::Tested => "tested on this model and software",
+            TestStatus::TestedOtherSoftware => "tested on this model with other software",
+            TestStatus::Untested => "untested on this model",
+        }
+    }
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TestReport {
+    pub status: TestStatus,
+    /// The pack's parts seen rendering Georgian on this model: on this software version when
+    /// `tested`, on any version when `tested_other_software`; empty when `untested`.
+    pub verified_parts: Vec<String>,
+    /// Software versions this model was verified on with this pack, e.g. `["19.05"]`.
+    pub verified_software: Vec<String>,
+}
+
+/// The pack this build installs on the watch.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct PackReport {
+    pub id: String,
+    /// Garmin's product name, e.g. "Armenian Font, NotoSans Regular".
+    pub name: String,
+    /// The pack's parts the watch lists: what `install` and `restore_stock` write.
+    pub parts: Vec<String>,
+    /// Their pixel sizes, in the same order.
+    pub sizes_px: Vec<u16>,
+    pub tested: TestReport,
 }
 
 /// What `GARMIN/ExtData/<part>.tmp` holds now.
@@ -111,12 +111,15 @@ pub enum Staged {
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct FontReport {
+    /// Id of the pack this font belongs to.
+    pub pack: String,
     pub part: String,
     pub size_px: u16,
-    /// The size `install` uses when none is given.
-    pub default: bool,
-    /// The watch declares this part under `Garmin/ExtData` and supports the MTP writes needed.
-    pub supported: bool,
+    /// The watch lists this part under `Garmin/ExtData`.
+    pub listed: bool,
+    /// `install` and `restore_stock` write this part: the watch lists it, it's in the selected
+    /// pack, and the watch supports the MTP writes needed.
+    pub target: bool,
     pub staged: Staged,
 }
 
@@ -143,15 +146,48 @@ pub struct ExtDataReport {
     pub files: Vec<StagedFile>,
 }
 
+/// A `Garmin/ExtData` update file from `GarminDevice.xml`.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ReportedFile {
+    pub part_number: String,
+    /// e.g. "2.10"; null if the watch gives none.
+    pub version: Option<String>,
+    pub file_name: String,
+}
+
+/// The watch's font list for sharing, e.g. in a GitHub issue so a new watch can be added. It
+/// never includes the unit ID, serial number or any other `Id` element.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct WatchReport {
+    /// This program's version.
+    pub app_version: String,
+    pub model: String,
+    pub model_part: String,
+    pub software_version: String,
+    /// Id of the selected pack, or null if the watch lists none of this build's packs.
+    pub pack: Option<String>,
+    pub tested: TestStatus,
+    /// Every `Garmin/ExtData` update file the watch lists, in its order.
+    pub extdata_files: Vec<ReportedFile>,
+    /// A title for the issue.
+    pub title: String,
+    /// The report as Markdown for the issue body.
+    pub text: String,
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InspectOutput {
     pub device: DeviceReport,
-    /// The watch supports at least one font part in this build.
+    /// A pack was selected and the watch supports the MTP writes needed.
     pub supported: bool,
+    /// The pack `install` uses: the first, in registry order, with a part the watch lists
+    /// under `Garmin/ExtData`. Null if it lists none.
+    pub pack: Option<PackReport>,
     /// Every font part this build carries.
     pub fonts: Vec<FontReport>,
     /// The staging folder, or null if it could not be found.
     pub extdata: Option<ExtDataReport>,
+    pub report: WatchReport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
@@ -171,18 +207,37 @@ pub enum Variant {
     Stock,
 }
 
+impl Variant {
+    fn bytes(self, font: &Font) -> &[u8] {
+        match self {
+            Variant::Georgian => &font.georgian,
+            Variant::Stock => &font.stock,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct StageOutput {
-    pub status: StageStatus,
-    pub variant: Variant,
+pub struct StagedPart {
     pub part: String,
     pub size_px: u16,
+    pub status: StageStatus,
     /// Path on the watch.
     pub path: String,
     /// MTP object handle of the staged file, hexadecimal.
     pub handle: String,
     pub bytes: u64,
     pub sha256: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct StageOutput {
+    /// `already_staged` when every part already was; otherwise `staged_verified`.
+    pub status: StageStatus,
+    pub variant: Variant,
+    /// Id of the selected pack.
+    pub pack: String,
+    /// Each part, in pack order.
+    pub parts: Vec<StagedPart>,
     /// What the user does next.
     pub next_step: String,
 }
@@ -235,8 +290,11 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
-        description: "Read the connected watch's model, software version, which font sizes it supports, \
-                      and what is staged in its hidden GARMIN/ExtData folder. Read-only.",
+        description: "Read the connected watch's model and software version, the font pack this build \
+                      installs on it (the first, in registry order, with a part the watch lists under \
+                      Garmin/ExtData) and whether it was tested on this model and software, what is \
+                      staged in the hidden GARMIN/ExtData folder, and a shareable report of the watch's \
+                      font list without its unit ID or serial number. Read-only.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -247,8 +305,12 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "install",
         title: "Install Georgian font",
-        description: "Stage the Georgian-extended font as GARMIN/ExtData/<part>.tmp on the connected watch \
-                      and verify it by reading it back. Disconnect USB and restart the watch to load it.",
+        description: "Stage the Georgian build of every size of the selected pack that the watch lists \
+                      (or only sizes_px) as GARMIN/ExtData/<part>.tmp, each verified by reading it back. \
+                      Every target is checked first: an identical staged file is skipped, a different \
+                      one fails the whole call with conflict before anything is written. If a part \
+                      fails, the files this call created are deleted. Disconnect USB and restart the \
+                      watch to load them.",
         read_only: false,
         destructive: false,
         idempotent: true,
@@ -259,8 +321,10 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "restore_stock",
         title: "Restore stock font",
-        description: "Stage Garmin's original font as GARMIN/ExtData/<part>.tmp on the connected watch and \
-                      verify it by reading it back. Disconnect USB and restart the watch to load it.",
+        description: "Stage Garmin's original font for every size of the selected pack that the watch \
+                      lists (or only sizes_px) as GARMIN/ExtData/<part>.tmp, with the same checks, \
+                      readback and rollback as install. Disconnect USB and restart the watch to load \
+                      them.",
         read_only: false,
         destructive: false,
         idempotent: true,
@@ -303,19 +367,19 @@ pub fn call(
             to_value(inspect(&mut *connect()?, fonts)?)
         }
         _ => {
-            let StageInput { size_px } = parse(input)?;
+            let StageInput { sizes_px } = parse(input)?;
             let variant = if name == "install" {
                 Variant::Georgian
             } else {
                 Variant::Stock
             };
-            let font = fonts.by_size(size_px.get()).ok_or_else(|| {
-                Error::new(
+            if let Some(px) = sizes_px.iter().flatten().find(|&&px| !fonts.has_size(px)) {
+                return Err(Error::new(
                     ErrorCode::FontUnavailable,
-                    format!("This build does not include the {} px font.", size_px.get()),
-                )
-            })?;
-            to_value(stage(&mut *connect()?, font, variant)?)
+                    format!("This build has no {px} px font."),
+                ));
+            }
+            to_value(stage(&mut *connect()?, fonts, variant, sizes_px.as_ref())?)
         }
     }?;
     check(&op.output_schema(), &output).map_err(|m| {
@@ -400,47 +464,179 @@ fn read_garmin_device(dev: &mut dyn Mtp, layout: &Layout) -> Result<GarminDevice
     garmin_device::parse(&dev.get_object(handle)?)
 }
 
-fn staged_files<'a>(layout: &'a Layout, font: &Font) -> Option<Vec<&'a Object>> {
+/// Objects in `ExtData` under `font`'s staged name.
+fn staged_in<'a>(ext: &'a ExtData, font: &Font) -> Vec<&'a Object> {
     let name = font.staged_name();
-    layout.extdata.as_ref().map(|ext| {
-        ext.files
+    ext.files
+        .iter()
+        .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
+        .collect()
+}
+
+fn staged_path(font: &Font) -> String {
+    format!("GARMIN/ExtData/{}", font.staged_name())
+}
+
+/// Whether `pack` was verified on this watch, and on which parts and software versions.
+fn test_report(pack: &Pack, device: &GarminDevice) -> TestReport {
+    let same_model: Vec<_> = pack
+        .tested
+        .iter()
+        .filter(|t| t.model_part.eq_ignore_ascii_case(&device.part_number))
+        .collect();
+    let exact: Vec<_> = same_model
+        .iter()
+        .copied()
+        .filter(|t| t.software == device.software_version)
+        .collect();
+    let (status, verified) = if !exact.is_empty() {
+        (TestStatus::Tested, exact)
+    } else if !same_model.is_empty() {
+        (TestStatus::TestedOtherSoftware, same_model.clone())
+    } else {
+        (TestStatus::Untested, Vec::new())
+    };
+    TestReport {
+        status,
+        verified_parts: pack
+            .fonts
             .iter()
-            .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
-            .collect()
-    })
+            .filter(|f| verified.iter().any(|t| t.parts.contains(&f.part)))
+            .map(|f| f.part.clone())
+            .collect(),
+        verified_software: same_model
+            .iter()
+            .map(|t| t.software.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+    }
+}
+
+fn pack_report(selection: &Selection<'_>, device: &GarminDevice) -> PackReport {
+    PackReport {
+        id: selection.pack.id.clone(),
+        name: selection.pack.name.clone(),
+        parts: selection.fonts.iter().map(|f| f.part.clone()).collect(),
+        sizes_px: selection.fonts.iter().map(|f| f.size_px).collect(),
+        tested: test_report(selection.pack, device),
+    }
+}
+
+/// A watch-provided value as one line of Markdown text.
+fn md(value: &str) -> String {
+    let line = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    let escaped = line.replace('\\', "\\\\").replace('|', "\\|");
+    if escaped.is_empty() {
+        "(none)".into()
+    } else {
+        escaped
+    }
+}
+
+/// The shareable report. Built only from the fields named here, so the unit ID, serial number
+/// and every other `Id` element in `GarminDevice.xml` stay out of it.
+fn watch_report(device: &GarminDevice, pack: Option<&PackReport>) -> WatchReport {
+    let tested = pack.map_or(TestStatus::Untested, |p| p.tested.status);
+    let extdata_files: Vec<ReportedFile> = device
+        .extdata_files()
+        .map(|f| ReportedFile {
+            part_number: f.part_number.clone(),
+            version: f.version.clone(),
+            file_name: f.file_name.clone(),
+        })
+        .collect();
+    let title = format!(
+        "Watch report: {} ({}), software {}",
+        md(&device.description),
+        md(&device.part_number),
+        md(&device.software_version)
+    );
+    let mut text = String::from(
+        "<!-- Shared from Georgian for Garmin. It lists no unit ID or serial number. -->\n\n## Watch\n\n",
+    );
+    let pack_line = match pack {
+        Some(p) => format!("{} ({})", md(&p.id), tested.words()),
+        None => "none of this build's packs".into(),
+    };
+    for (label, value) in [
+        ("Model", md(&device.description)),
+        ("Model part number", md(&device.part_number)),
+        ("Software version", md(&device.software_version)),
+        ("Georgian for Garmin", md(APP_VERSION)),
+        ("Font pack", pack_line),
+    ] {
+        writeln!(text, "- {label}: {value}").unwrap();
+    }
+    text.push_str("\n## Fonts the watch lists in Garmin/ExtData\n\n");
+    if extdata_files.is_empty() {
+        text.push_str("None.\n");
+    } else {
+        text.push_str("| Part number | Version | File name |\n| --- | --- | --- |\n");
+        for f in &extdata_files {
+            writeln!(
+                text,
+                "| {} | {} | {} |",
+                md(&f.part_number),
+                md(f.version.as_deref().unwrap_or("")),
+                md(&f.file_name)
+            )
+            .unwrap();
+        }
+    }
+    text.push_str(
+        "\n## Result\n\n<!-- If you installed Georgian: after unplugging and restarting the watch, did \
+         a notification with ქართული ᲥᲐᲠᲗᲣᲚᲘ show letters instead of boxes? -->\n",
+    );
+    WatchReport {
+        app_version: APP_VERSION.into(),
+        model: device.description.clone(),
+        model_part: device.part_number.clone(),
+        software_version: device.software_version.clone(),
+        pack: pack.map(|p| p.id.clone()),
+        tested,
+        extdata_files,
+        title,
+        text,
+    }
 }
 
 pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Error> {
     let writable = missing_write_operations(dev)?.is_empty();
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
+    let selection = fonts.select(&device);
     let mut reports = Vec::new();
-    for font in &fonts.fonts {
-        let staged = match staged_files(&layout, font).as_deref() {
+    for (pack, font) in fonts.fonts() {
+        let staged = match layout.extdata.as_ref().map(|ext| staged_in(ext, font)) {
             None => Staged::Unknown,
-            Some([]) => Staged::None,
-            Some([one]) => {
-                let size = one.info.compressed_size as usize;
-                if size != font.georgian.len() && size != font.stock.len() {
-                    Staged::Other
-                } else {
-                    let bytes = dev.get_object(one.handle)?;
-                    if bytes == *font.georgian {
-                        Staged::Georgian
-                    } else if bytes == *font.stock {
-                        Staged::Stock
-                    } else {
+            Some(found) => match found.as_slice() {
+                [] => Staged::None,
+                [one] => {
+                    let size = one.info.compressed_size as usize;
+                    if size != font.georgian.len() && size != font.stock.len() {
                         Staged::Other
+                    } else {
+                        let bytes = dev.get_object(one.handle)?;
+                        if bytes == *font.georgian {
+                            Staged::Georgian
+                        } else if bytes == *font.stock {
+                            Staged::Stock
+                        } else {
+                            Staged::Other
+                        }
                     }
                 }
-            }
-            Some(_) => Staged::Other,
+                _ => Staged::Other,
+            },
         };
+        let listed = device.declares_extdata_part(&font.part);
         reports.push(FontReport {
+            pack: pack.id.clone(),
             part: font.part.clone(),
             size_px: font.size_px,
-            default: font.default,
-            supported: writable && device.declares_extdata_part(&font.part),
+            listed,
+            target: writable && listed && selection.as_ref().is_some_and(|s| s.pack.id == pack.id),
             staged,
         });
     }
@@ -466,10 +662,14 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             })
         }
     };
+    let pack = selection.as_ref().map(|s| pack_report(s, &device));
+    let report = watch_report(&device, pack.as_ref());
     Ok(InspectOutput {
-        supported: reports.iter().any(|f| f.supported),
+        supported: writable && pack.is_some(),
+        pack,
         fonts: reports,
         extdata,
+        report,
         device: DeviceReport {
             model: device.description,
             part_number: device.part_number,
@@ -531,74 +731,17 @@ fn discard_unconfirmed(
         .fold(cause, |cause, handle| discard(dev, handle, path, cause))
 }
 
-pub fn stage(dev: &mut dyn Mtp, font: &Font, variant: Variant) -> Result<StageOutput, Error> {
-    let bytes: &[u8] = match variant {
-        Variant::Georgian => &font.georgian,
-        Variant::Stock => &font.stock,
-    };
-    let missing = missing_write_operations(dev)?;
-    if !missing.is_empty() {
-        return Err(Error::new(
-            ErrorCode::UnsupportedDevice,
-            format!(
-                "The watch does not support MTP {}; nothing was written.",
-                missing.join(", ")
-            ),
-        ));
-    }
-    let layout = extdata::discover(dev)?;
-    let device = read_garmin_device(dev, &layout)?;
-    if !device.declares_extdata_part(&font.part) {
-        return Err(Error::new(
-            ErrorCode::UnsupportedDevice,
-            format!(
-                "{} ({}) does not accept font part {} under {}; nothing was written.",
-                device.description,
-                device.part_number,
-                font.part,
-                garmin_device::EXTDATA_PATH
-            ),
-        ));
-    }
+/// Writes `bytes` as `font`'s staged file in `ExtData` and reads it back. On failure the new
+/// object is deleted and the error says how that went.
+fn write_verified(
+    dev: &mut dyn Mtp,
+    storage: u32,
+    ext: &ExtData,
+    font: &Font,
+    bytes: &[u8],
+) -> Result<u32, Error> {
     let name = font.staged_name();
-    let path = format!("GARMIN/ExtData/{name}");
-    let output = |status, handle| StageOutput {
-        status,
-        variant,
-        part: font.part.clone(),
-        size_px: font.size_px,
-        path: path.clone(),
-        handle: hex_handle(handle),
-        bytes: bytes.len() as u64,
-        sha256: sha256_hex(bytes),
-        next_step:
-            "Disconnect the USB cable, then restart the watch; it loads the font on restart.".into(),
-    };
-    let conflict = || {
-        Error::new(
-            ErrorCode::Conflict,
-            format!("A different file is already staged as {path}; nothing was written."),
-        )
-    };
-    match staged_files(&layout, font).as_deref() {
-        None => {
-            return Err(Error::new(
-                ErrorCode::ExtdataNotFound,
-                "Could not find the watch's GARMIN/ExtData folder; nothing was written.",
-            ));
-        }
-        Some([]) => {}
-        Some([one]) => {
-            if one.info.compressed_size as usize == bytes.len()
-                && dev.get_object(one.handle)? == bytes
-            {
-                return Ok(output(StageStatus::AlreadyStaged, one.handle));
-            }
-            return Err(conflict());
-        }
-        Some(_) => return Err(conflict()),
-    }
-    let ext = layout.extdata.as_ref().expect("checked above");
+    let path = staged_path(font);
     let size = u32::try_from(bytes.len()).map_err(|_| {
         Error::new(
             ErrorCode::Internal,
@@ -606,28 +749,23 @@ pub fn stage(dev: &mut dyn Mtp, font: &Font, variant: Variant) -> Result<StageOu
         )
     })?;
     let info = ObjectInfo {
-        storage_id: layout.storage,
+        storage_id: storage,
         format: ptp::format::UNDEFINED,
         compressed_size: size,
         parent: ext.handle,
         filename: name.clone(),
         ..ObjectInfo::default()
     };
-    let new = match dev.send_object_info(layout.storage, ext.handle, &info) {
+    let new = match dev.send_object_info(storage, ext.handle, &info) {
         Ok(new) => new,
         Err(e) => {
             let cause = Error::from(e);
             return Err(discard_unconfirmed(
-                dev,
-                layout.storage,
-                ext.handle,
-                &name,
-                &path,
-                cause,
+                dev, storage, ext.handle, &name, &path, cause,
             ));
         }
     };
-    if new.parent != ext.handle || new.storage != layout.storage {
+    if new.parent != ext.handle || new.storage != storage {
         let cause = Error::new(
             ErrorCode::DeviceError,
             format!(
@@ -653,6 +791,158 @@ pub fn stage(dev: &mut dyn Mtp, font: &Font, variant: Variant) -> Result<StageOu
             );
             Err(discard(dev, new.handle, &path, cause))
         }
-        Ok(_) => Ok(output(StageStatus::StagedVerified, new.handle)),
+        Ok(_) => Ok(new.handle),
     }
+}
+
+/// After a part failed: deletes every object this run created before it, and adds each
+/// result to `cause`. Files staged by earlier runs were never in `created`.
+fn roll_back(dev: &mut dyn Mtp, created: &[(u32, String)], cause: Error) -> Error {
+    if created.is_empty() {
+        return cause;
+    }
+    let results: Vec<String> = created
+        .iter()
+        .map(|(handle, path)| match dev.delete_object(*handle) {
+            Ok(()) => format!("{path} ({}) deleted", hex_handle(*handle)),
+            Err(e) => format!(
+                "{path} ({}) could not be deleted ({e})",
+                hex_handle(*handle)
+            ),
+        })
+        .collect();
+    Error::new(
+        cause.code,
+        format!(
+            "{} Rolled back the files this run had staged: {}. Files staged before this run were \
+             left in place.",
+            cause.message,
+            results.join("; ")
+        ),
+    )
+}
+
+/// Stages `variant` of every size of the selected pack the watch lists, or of `sizes_px`.
+pub fn stage(
+    dev: &mut dyn Mtp,
+    fonts: &FontSet,
+    variant: Variant,
+    sizes_px: Option<&BTreeSet<u16>>,
+) -> Result<StageOutput, Error> {
+    let missing = missing_write_operations(dev)?;
+    if !missing.is_empty() {
+        return Err(Error::new(
+            ErrorCode::UnsupportedDevice,
+            format!(
+                "The watch does not support MTP {}; nothing was written.",
+                missing.join(", ")
+            ),
+        ));
+    }
+    let layout = extdata::discover(dev)?;
+    let device = read_garmin_device(dev, &layout)?;
+    let watch = format!("{} ({})", device.description, device.part_number);
+    let selection = fonts.select(&device).ok_or_else(|| {
+        Error::new(
+            ErrorCode::UnsupportedDevice,
+            format!(
+                "{watch} lists none of this build's font packs under {}; nothing was written.",
+                garmin_device::EXTDATA_PATH
+            ),
+        )
+    })?;
+    let targets: Vec<&Font> = match sizes_px {
+        None => selection.fonts.clone(),
+        Some(sizes) => {
+            let listed: Vec<u16> = selection.fonts.iter().map(|f| f.size_px).collect();
+            if let Some(px) = sizes.iter().find(|px| !listed.contains(px)) {
+                return Err(Error::new(
+                    ErrorCode::UnsupportedDevice,
+                    format!(
+                        "{watch} doesn't list the {px} px part of {}; it lists {listed:?} px. \
+                         Nothing was written.",
+                        selection.pack.name
+                    ),
+                ));
+            }
+            selection
+                .fonts
+                .iter()
+                .copied()
+                .filter(|f| sizes.contains(&f.size_px))
+                .collect()
+        }
+    };
+    let ext = layout.extdata.as_ref().ok_or_else(|| {
+        Error::new(
+            ErrorCode::ExtdataNotFound,
+            "Could not find the watch's GARMIN/ExtData folder; nothing was written.",
+        )
+    })?;
+
+    // Check every target before writing anything.
+    let mut already = Vec::with_capacity(targets.len());
+    let mut conflicts = Vec::new();
+    for font in &targets {
+        let bytes = variant.bytes(font);
+        match staged_in(ext, font).as_slice() {
+            [] => already.push(None),
+            [one]
+                if one.info.compressed_size as usize == bytes.len()
+                    && dev.get_object(one.handle)? == bytes =>
+            {
+                already.push(Some(one.handle));
+            }
+            _ => conflicts.push(staged_path(font)),
+        }
+    }
+    if !conflicts.is_empty() {
+        return Err(Error::new(
+            ErrorCode::Conflict,
+            format!(
+                "A different file is already staged as {}; nothing was written.",
+                conflicts.join(", ")
+            ),
+        ));
+    }
+
+    let mut created: Vec<(u32, String)> = Vec::new();
+    let mut parts = Vec::with_capacity(targets.len());
+    for (font, already) in targets.into_iter().zip(already) {
+        let bytes = variant.bytes(font);
+        let path = staged_path(font);
+        let (status, handle) = match already {
+            Some(handle) => (StageStatus::AlreadyStaged, handle),
+            None => match write_verified(dev, layout.storage, ext, font, bytes) {
+                Ok(handle) => {
+                    created.push((handle, path.clone()));
+                    (StageStatus::StagedVerified, handle)
+                }
+                Err(e) => return Err(roll_back(dev, &created, e)),
+            },
+        };
+        parts.push(StagedPart {
+            part: font.part.clone(),
+            size_px: font.size_px,
+            status,
+            path,
+            handle: hex_handle(handle),
+            bytes: bytes.len() as u64,
+            sha256: sha256_hex(bytes),
+        });
+    }
+    let status = if created.is_empty() {
+        StageStatus::AlreadyStaged
+    } else {
+        StageStatus::StagedVerified
+    };
+    Ok(StageOutput {
+        status,
+        variant,
+        pack: selection.pack.id.clone(),
+        parts,
+        next_step:
+            "Disconnect the USB cable, then restart the watch; it loads the fonts on restart."
+                .into(),
+    })
 }

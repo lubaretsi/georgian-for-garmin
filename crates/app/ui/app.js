@@ -81,19 +81,66 @@ function showWaiting(error) {
   });
 }
 
+/** What the watch's target sizes hold now, as one note, or null when nothing needs saying. */
+function stagedNote(report) {
+  const staged = report.fonts.filter((f) => f.target).map((f) => f.staged);
+  const all = (state) => staged.length > 0 && staged.every((s) => s === state);
+  if (all("georgian")) return T.stagedNow.georgian;
+  if (all("stock")) return T.stagedNow.stock;
+  const mixed = staged.includes("georgian") && staged.includes("stock");
+  return staged.includes("other") || mixed ? T.stagedNow.other : null;
+}
+
+/** The watch on the ready screen, and what sharing its report last did (a strings key). */
+let readyReport = null;
+let shared = null;
+
+const watchKey = (report) => `${report.device.part_number} ${report.device.software_version}`;
+
 function showReady(report) {
+  if (shared && shared.watch !== watchKey(report)) shared = null;
+  readyReport = report;
   show("ready", () => {
-    const font = report.fonts.find((f) => f.default) || report.fonts[0];
-    const supported = Boolean(font && font.supported);
+    const tested = report.pack && report.pack.tested;
     $("ready-model").textContent = report.device.model;
     $("ready-version").textContent = fill(T.softwareVersion, {
       version: report.device.software_version,
     });
-    const note = supported ? T.stagedNow[font.staged] : T.unsupportedWatch;
+    $("ready-tested").hidden = !tested;
+    if (tested) {
+      $("ready-tested").className = `tested ${tested.status === "tested" ? "yes" : "no"}`;
+      $("ready-tested").textContent = fill(T.tested[tested.status], {
+        versions: tested.verified_software.join(", "),
+      });
+    }
+    $("ready-untested").hidden = !tested || tested.status === "tested";
+    const note = report.supported ? stagedNote(report) : T.unsupportedWatch;
     $("ready-note").hidden = !note;
     $("ready-note").textContent = note || "";
-    $("ready-actions").hidden = !supported;
+    $("ready-actions").hidden = !report.supported;
+    $("share").hidden = Boolean(tested && tested.status === "tested");
+    // Once shared, the result takes the explanation's place.
+    $("share-why").hidden = Boolean(shared);
+    $("share-result").hidden = !shared;
+    $("share-result").textContent = shared ? T[shared.result] : "";
   });
+}
+
+async function share() {
+  const report = readyReport;
+  if (!report) return;
+  let result;
+  try {
+    const done = await invoke("share_report", {
+      title: report.report.title,
+      text: report.report.text,
+    });
+    result = done.complete ? "shareDone" : "sharePaste";
+  } catch (e) {
+    result = "shareFailed";
+  }
+  shared = { watch: watchKey(report), result };
+  if (!$("ready").hidden) redraw();
 }
 
 function showWorking(command) {
@@ -105,6 +152,11 @@ function showWorking(command) {
 
 function showStaged(output) {
   show("staged", () => {
+    const sizes = output.parts.map((p) => p.size_px).join(", ");
+    $("staged-sizes").textContent = fill(
+      output.parts.length > 1 ? T.stagedSizes : T.stagedOneSize,
+      { sizes },
+    );
     $("staged-after").textContent = T.afterRestart[output.variant];
     $("staged-test").hidden = output.variant !== "georgian";
   });
@@ -154,12 +206,14 @@ async function stage(command) {
 }
 
 function backToStart() {
+  readyReport = null;
   showWaiting(null);
   startPolling();
 }
 
 $("install").addEventListener("click", () => stage("install"));
 $("restore").addEventListener("click", () => stage("restore_stock"));
+$("share-button").addEventListener("click", share);
 $("done").addEventListener("click", backToStart);
 $("retry").addEventListener("click", backToStart);
 $("waiting-retry").addEventListener("click", () => startPolling());
