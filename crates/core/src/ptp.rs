@@ -25,6 +25,7 @@ pub mod format {
 /// Response codes this client distinguishes.
 pub mod response {
     pub const OK: u16 = 0x2001;
+    pub const INVALID_OBJECT_HANDLE: u16 = 0x2009;
     pub const SESSION_ALREADY_OPEN: u16 = 0x201E;
 }
 

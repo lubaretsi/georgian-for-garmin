@@ -1,4 +1,5 @@
 //! The MTP operations the installer needs, and a PTP session that runs them over a USB link.
+//! Windows reaches the same operations through Windows Portable Devices ([`crate::wpd`]).
 
 use std::fmt;
 use std::time::Duration;
@@ -65,6 +66,12 @@ pub enum MtpError {
     },
     /// The device sent bytes that do not parse.
     Protocol(String),
+    /// A Windows Portable Devices call failed with `hresult`.
+    Wpd {
+        action: &'static str,
+        hresult: u32,
+        message: String,
+    },
 }
 
 impl fmt::Display for MtpError {
@@ -83,6 +90,16 @@ impl fmt::Display for MtpError {
                 error,
             } => write!(f, "{} {error} {phase}", ptp::operation_name(*operation)),
             MtpError::Protocol(m) => write!(f, "unexpected MTP data: {m}"),
+            MtpError::Wpd {
+                action,
+                hresult,
+                message,
+            } if message.is_empty() => write!(f, "{action} failed (HRESULT {hresult:#010x})"),
+            MtpError::Wpd {
+                action,
+                hresult,
+                message,
+            } => write!(f, "{action} failed: {message} (HRESULT {hresult:#010x})"),
         }
     }
 }
@@ -95,7 +112,7 @@ impl From<ProtocolError> for MtpError {
     }
 }
 
-/// Where `SendObjectInfo` placed the new object.
+/// Where the device placed a new object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NewObject {
     pub storage: u32,
@@ -103,10 +120,22 @@ pub struct NewObject {
     pub handle: u32,
 }
 
+/// A failed [`Mtp::create_object`], saying whether an object may be left behind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CreateError {
+    /// The device confirmed no new object, though it may have created one.
+    Unconfirmed(MtpError),
+    /// The device put the new object somewhere other than the requested storage and parent.
+    /// The USB backend sends no data to it.
+    Misplaced(NewObject),
+    /// The object `handle` was created, but its data failed.
+    Data { handle: u32, error: MtpError },
+}
+
 /// The MTP operations used by the installer, within an open session.
 ///
 /// A backend owns session setup and teardown. The USB backend implements this over
-/// [`Session`]; a Windows WPD backend can implement it with WPD's MTP pass-through commands.
+/// [`Session`]; on Windows, [`crate::wpd`] implements it with Windows Portable Devices.
 pub trait Mtp {
     fn device_info(&mut self) -> Result<DeviceInfo, MtpError>;
     fn storage_ids(&mut self) -> Result<Vec<u32>, MtpError>;
@@ -115,14 +144,14 @@ pub trait Mtp {
     fn object_handles(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError>;
     fn object_info(&mut self, handle: u32) -> Result<ObjectInfo, MtpError>;
     fn get_object(&mut self, handle: u32) -> Result<Vec<u8>, MtpError>;
-    fn send_object_info(
+    /// Creates the file `info` describes in `parent` on `storage`, with `data` as its contents.
+    fn create_object(
         &mut self,
         storage: u32,
         parent: u32,
         info: &ObjectInfo,
-    ) -> Result<NewObject, MtpError>;
-    /// Sends the data for the object announced by the preceding `send_object_info`.
-    fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError>;
+        data: &[u8],
+    ) -> Result<NewObject, CreateError>;
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError>;
 }
 
@@ -578,6 +607,32 @@ fn param(params: &[u32], index: usize, operation: u16) -> Result<u32, MtpError> 
     })
 }
 
+impl<L: Link> Session<L> {
+    /// Announces a new object; the device answers where it placed it.
+    pub fn send_object_info(
+        &mut self,
+        storage: u32,
+        parent: u32,
+        info: &ObjectInfo,
+    ) -> Result<NewObject, MtpError> {
+        let (params, _) = self.transaction(
+            op::SEND_OBJECT_INFO,
+            &[storage, parent],
+            Some(&info.encode()?),
+        )?;
+        Ok(NewObject {
+            storage: param(&params, 0, op::SEND_OBJECT_INFO)?,
+            parent: param(&params, 1, op::SEND_OBJECT_INFO)?,
+            handle: param(&params, 2, op::SEND_OBJECT_INFO)?,
+        })
+    }
+
+    /// Sends the data for the object announced by the preceding `send_object_info`.
+    pub fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError> {
+        self.transaction(op::SEND_OBJECT, &[], Some(data)).map(drop)
+    }
+}
+
 impl<L: Link> Mtp for Session<L> {
     fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
         if let Some(info) = &self.info {
@@ -615,26 +670,24 @@ impl<L: Link> Mtp for Session<L> {
         Ok(self.transaction(op::GET_OBJECT, &[handle], None)?.1)
     }
 
-    fn send_object_info(
+    fn create_object(
         &mut self,
         storage: u32,
         parent: u32,
         info: &ObjectInfo,
-    ) -> Result<NewObject, MtpError> {
-        let (params, _) = self.transaction(
-            op::SEND_OBJECT_INFO,
-            &[storage, parent],
-            Some(&info.encode()?),
-        )?;
-        Ok(NewObject {
-            storage: param(&params, 0, op::SEND_OBJECT_INFO)?,
-            parent: param(&params, 1, op::SEND_OBJECT_INFO)?,
-            handle: param(&params, 2, op::SEND_OBJECT_INFO)?,
-        })
-    }
-
-    fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError> {
-        self.transaction(op::SEND_OBJECT, &[], Some(data)).map(drop)
+        data: &[u8],
+    ) -> Result<NewObject, CreateError> {
+        let new = self
+            .send_object_info(storage, parent, info)
+            .map_err(CreateError::Unconfirmed)?;
+        if new.parent != parent || new.storage != storage {
+            return Err(CreateError::Misplaced(new));
+        }
+        self.send_object(data).map_err(|error| CreateError::Data {
+            handle: new.handle,
+            error,
+        })?;
+        Ok(new)
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {

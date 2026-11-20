@@ -18,7 +18,7 @@ use std::thread;
 use std::time::Duration;
 
 use georgian_for_garmin_core::fonts::FontSet;
-use georgian_for_garmin_core::mtp::{Mtp, MtpError, NewObject};
+use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
 
@@ -46,7 +46,6 @@ struct State {
     watches: Vec<Objects>,
     current: usize,
     next_handle: u32,
-    awaiting_data: Option<u32>,
     transfer: Duration,
 }
 
@@ -142,7 +141,6 @@ impl Demo {
             watches,
             current: 0,
             next_handle: 0x0100_0100,
-            awaiting_data: None,
             transfer,
         })))
     }
@@ -252,41 +250,30 @@ impl Mtp for Demo {
             .ok_or(invalid_handle(op::GET_OBJECT))
     }
 
-    fn send_object_info(
+    fn create_object(
         &mut self,
         storage: u32,
         parent: u32,
         info: &ObjectInfo,
-    ) -> Result<NewObject, MtpError> {
+        data: &[u8],
+    ) -> Result<NewObject, CreateError> {
+        let transfer = self.state().transfer;
+        thread::sleep(transfer);
         let mut s = self.state();
         let handle = s.next_handle;
         s.next_handle += 1;
         let info = ObjectInfo {
             storage_id: storage,
             parent,
+            compressed_size: data.len() as u32,
             ..info.clone()
         };
-        s.objects().insert(handle, (info, Vec::new()));
-        s.awaiting_data = Some(handle);
+        s.objects().insert(handle, (info, data.to_vec()));
         Ok(NewObject {
             storage,
             parent,
             handle,
         })
-    }
-
-    fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError> {
-        let transfer = self.state().transfer;
-        thread::sleep(transfer);
-        let mut s = self.state();
-        let handle = s.awaiting_data.take().ok_or(MtpError::Response {
-            operation: op::SEND_OBJECT,
-            code: 0x2015,
-        })?;
-        let object = s.objects().get_mut(&handle).expect("announced object");
-        object.0.compressed_size = data.len() as u32;
-        object.1 = data.to_vec();
-        Ok(())
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {

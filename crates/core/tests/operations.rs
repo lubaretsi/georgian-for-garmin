@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use georgian_for_garmin_core::fonts::{Font, FontSet, Pack, Tested};
-use georgian_for_garmin_core::mtp::{Mtp, MtpError, NewObject, Phase, TransportError};
+use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
@@ -64,6 +64,8 @@ struct State {
     fail_delete: bool,
     /// The device stores different bytes than it received.
     corrupt_storage: bool,
+    /// The watch puts new objects in this folder instead of the requested one.
+    misplace_into: Option<u32>,
     writes: Vec<String>,
     connects: usize,
 }
@@ -179,51 +181,8 @@ fn timed_out(operation: u16) -> MtpError {
     }
 }
 
-impl Mtp for Fake {
-    fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
-        Ok(DeviceInfo {
-            operations_supported: self.0.borrow().operations.clone(),
-            ..DeviceInfo::default()
-        })
-    }
-
-    fn storage_ids(&mut self) -> Result<Vec<u32>, MtpError> {
-        Ok(vec![STORAGE])
-    }
-
-    fn object_handles(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
-        let s = self.0.borrow();
-        Ok(s.objects
-            .iter()
-            .filter(|(h, (i, _))| {
-                !s.hidden.contains(h)
-                    && i.storage_id == storage
-                    && match parent {
-                        ALL_OBJECTS => true,
-                        ROOT => i.parent == 0,
-                        p => i.parent == p,
-                    }
-            })
-            .map(|(&h, _)| h)
-            .collect())
-    }
-
-    fn object_info(&mut self, handle: u32) -> Result<ObjectInfo, MtpError> {
-        let s = self.0.borrow();
-        s.objects
-            .get(&handle)
-            .map(|(i, _)| i.clone())
-            .ok_or(invalid_handle(op::GET_OBJECT_INFO))
-    }
-
-    fn get_object(&mut self, handle: u32) -> Result<Vec<u8>, MtpError> {
-        let s = self.0.borrow();
-        s.objects
-            .get(&handle)
-            .map(|(_, d)| d.clone())
-            .ok_or(invalid_handle(op::GET_OBJECT))
-    }
-
+/// The two MTP steps of creating an object, with the failures `State` scripts.
+impl Fake {
     fn send_object_info(
         &mut self,
         storage: u32,
@@ -279,6 +238,79 @@ impl Mtp for Fake {
             return Err(timed_out(op::SEND_OBJECT));
         }
         Ok(())
+    }
+}
+
+impl Mtp for Fake {
+    fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
+        Ok(DeviceInfo {
+            operations_supported: self.0.borrow().operations.clone(),
+            ..DeviceInfo::default()
+        })
+    }
+
+    fn storage_ids(&mut self) -> Result<Vec<u32>, MtpError> {
+        Ok(vec![STORAGE])
+    }
+
+    fn object_handles(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        let s = self.0.borrow();
+        Ok(s.objects
+            .iter()
+            .filter(|(h, (i, _))| {
+                !s.hidden.contains(h)
+                    && i.storage_id == storage
+                    && match parent {
+                        ALL_OBJECTS => true,
+                        ROOT => i.parent == 0,
+                        p => i.parent == p,
+                    }
+            })
+            .map(|(&h, _)| h)
+            .collect())
+    }
+
+    fn object_info(&mut self, handle: u32) -> Result<ObjectInfo, MtpError> {
+        let s = self.0.borrow();
+        s.objects
+            .get(&handle)
+            .map(|(i, _)| i.clone())
+            .ok_or(invalid_handle(op::GET_OBJECT_INFO))
+    }
+
+    fn get_object(&mut self, handle: u32) -> Result<Vec<u8>, MtpError> {
+        let s = self.0.borrow();
+        s.objects
+            .get(&handle)
+            .map(|(_, d)| d.clone())
+            .ok_or(invalid_handle(op::GET_OBJECT))
+    }
+
+    fn create_object(
+        &mut self,
+        storage: u32,
+        parent: u32,
+        info: &ObjectInfo,
+        data: &[u8],
+    ) -> Result<NewObject, CreateError> {
+        let new = self
+            .send_object_info(storage, parent, info)
+            .map_err(CreateError::Unconfirmed)?;
+        let misplace_into = self.0.borrow().misplace_into;
+        if let Some(other) = misplace_into {
+            let mut s = self.0.borrow_mut();
+            s.awaiting_data = None;
+            s.objects.get_mut(&new.handle).unwrap().0.parent = other;
+            return Err(CreateError::Misplaced(NewObject {
+                parent: other,
+                ..new
+            }));
+        }
+        self.send_object(data).map_err(|error| CreateError::Data {
+            handle: new.handle,
+            error,
+        })?;
+        Ok(new)
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
@@ -895,6 +927,28 @@ fn transfer_failure_deletes_the_partial_file() {
         [
             "send_object_info 0x1000009 006-D9035-03.tmp",
             "send_object",
+            "delete_object 0x1000100"
+        ]
+    );
+}
+
+#[test]
+fn an_object_placed_outside_extdata_gets_no_data_and_is_deleted() {
+    let mut s = venu2(&[PART]);
+    s.misplace_into = Some(GARMIN);
+    let fake = Fake::new(s);
+    let err = fake.call("install", json!({}), &fonts()).unwrap_err();
+    assert_eq!(err.code, ErrorCode::DeviceError);
+    assert_eq!(
+        err.message,
+        "The watch placed 006-D9035-03.tmp outside GARMIN/ExtData (parent 0x01000002). A new \
+         object was created as 006-D9035-03.tmp (0x01000100) and has been deleted."
+    );
+    assert!(fake.0.borrow().named(GARMIN, STAGED).is_empty());
+    assert_eq!(
+        fake.writes(),
+        [
+            "send_object_info 0x1000009 006-D9035-03.tmp",
             "delete_object 0x1000100"
         ]
     );

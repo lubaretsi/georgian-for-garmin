@@ -1,4 +1,5 @@
-//! Stages Georgian-extended Garmin fonts on a watch over USB MTP.
+//! Stages Georgian-extended Garmin fonts on a watch over USB MTP: directly over USB on macOS
+//! and Linux, through Windows' built-in MTP driver on Windows.
 //!
 //! [`ops::call`] runs an operation from JSON input; [`connect`] opens the attached watch.
 
@@ -12,8 +13,12 @@ pub mod ptp;
 pub mod trace;
 #[cfg(not(windows))]
 pub mod usb;
+pub mod wpd;
 
 pub use error::{Error, ErrorCode};
+
+/// USB vendor ID of Garmin devices.
+pub const GARMIN_VENDOR_ID: u16 = 0x091E;
 
 /// Opens an MTP session with the single attached Garmin watch.
 #[cfg(not(windows))]
@@ -24,8 +29,5 @@ pub fn connect() -> Result<Box<dyn mtp::Mtp>, Error> {
 /// Opens an MTP session with the single attached Garmin watch.
 #[cfg(windows)]
 pub fn connect() -> Result<Box<dyn mtp::Mtp>, Error> {
-    Err(Error::new(
-        ErrorCode::UnsupportedPlatform,
-        "Windows is not supported yet; it needs a Windows Portable Devices (WPD) backend.",
-    ))
+    Ok(Box::new(wpd::connect()?))
 }

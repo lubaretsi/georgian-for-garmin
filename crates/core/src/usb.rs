@@ -9,12 +9,14 @@ use nusb::transfer::{
 };
 use nusb::{Endpoint, ErrorKind, Interface, MaybeFuture};
 
+use crate::GARMIN_VENDOR_ID;
 use crate::error::{Error, ErrorCode};
-use crate::mtp::{DeviceStatus, Link, Mtp, MtpError, NewObject, Session, TransportError};
+use crate::mtp::{
+    CreateError, DeviceStatus, Link, Mtp, MtpError, NewObject, Session, TransportError,
+};
 use crate::ptp::{DeviceInfo, ObjectInfo};
 use crate::trace;
 
-pub const GARMIN_VENDOR_ID: u16 = 0x091E;
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long to wait for a timed-out transfer to come back after cancelling it.
 const CANCEL_TIMEOUT: Duration = Duration::from_secs(2);
@@ -419,17 +421,14 @@ impl Mtp for UsbMtp {
         self.0.get_object(handle)
     }
 
-    fn send_object_info(
+    fn create_object(
         &mut self,
         storage: u32,
         parent: u32,
         info: &ObjectInfo,
-    ) -> Result<NewObject, MtpError> {
-        self.0.send_object_info(storage, parent, info)
-    }
-
-    fn send_object(&mut self, data: &[u8]) -> Result<(), MtpError> {
-        self.0.send_object(data)
+        data: &[u8],
+    ) -> Result<NewObject, CreateError> {
+        self.0.create_object(storage, parent, info, data)
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {

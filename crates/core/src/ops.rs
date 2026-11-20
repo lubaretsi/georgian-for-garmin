@@ -16,7 +16,7 @@ use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
 use crate::fonts::{Font, FontSet, Pack, Selection};
 use crate::garmin_device::{self, GarminDevice};
-use crate::mtp::Mtp;
+use crate::mtp::{CreateError, Mtp};
 use crate::ptp::{self, ObjectInfo, op};
 
 /// This program's version, as reported in the watch report.
@@ -696,8 +696,8 @@ fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
     Error::new(cause.code, message)
 }
 
-/// After `SendObjectInfo` failed: the watch may still have created the object. ExtData held
-/// nothing under `name` before, so an object there now is this run's and is deleted.
+/// After creating an object failed unconfirmed: the watch may still have created it. ExtData
+/// held nothing under `name` before, so an object there now is this run's and is deleted.
 fn discard_unconfirmed(
     dev: &mut dyn Mtp,
     storage: u32,
@@ -756,28 +756,28 @@ fn write_verified(
         filename: name.clone(),
         ..ObjectInfo::default()
     };
-    let new = match dev.send_object_info(storage, ext.handle, &info) {
+    let new = match dev.create_object(storage, ext.handle, &info, bytes) {
         Ok(new) => new,
-        Err(e) => {
+        Err(CreateError::Unconfirmed(e)) => {
             let cause = Error::from(e);
             return Err(discard_unconfirmed(
                 dev, storage, ext.handle, &name, &path, cause,
             ));
         }
+        Err(CreateError::Misplaced(new)) => {
+            let cause = Error::new(
+                ErrorCode::DeviceError,
+                format!(
+                    "The watch placed {name} outside GARMIN/ExtData (parent {})",
+                    hex_handle(new.parent)
+                ),
+            );
+            return Err(discard(dev, new.handle, &name, cause));
+        }
+        Err(CreateError::Data { handle, error }) => {
+            return Err(discard(dev, handle, &path, error.into()));
+        }
     };
-    if new.parent != ext.handle || new.storage != storage {
-        let cause = Error::new(
-            ErrorCode::DeviceError,
-            format!(
-                "The watch placed {name} outside GARMIN/ExtData (parent {})",
-                hex_handle(new.parent)
-            ),
-        );
-        return Err(discard(dev, new.handle, &name, cause));
-    }
-    if let Err(e) = dev.send_object(bytes) {
-        return Err(discard(dev, new.handle, &path, e.into()));
-    }
     match dev.get_object(new.handle) {
         Err(e) => Err(discard(dev, new.handle, &path, e.into())),
         Ok(readback) if readback != bytes => {

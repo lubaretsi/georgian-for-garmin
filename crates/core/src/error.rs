@@ -15,10 +15,8 @@ pub enum ErrorCode {
     NoDevice,
     /// More than one Garmin MTP device is connected.
     MultipleDevices,
-    /// Another program (usually Garmin Express) holds the watch's USB interface.
+    /// Another program (usually Garmin Express) holds the watch.
     DeviceBusy,
-    /// This operating system has no transport backend yet.
-    UnsupportedPlatform,
     /// The watch lists none of this build's font packs or not a requested size, or lacks a
     /// needed MTP operation.
     UnsupportedDevice,
@@ -45,7 +43,6 @@ impl ErrorCode {
             ErrorCode::NoDevice => "no_device",
             ErrorCode::MultipleDevices => "multiple_devices",
             ErrorCode::DeviceBusy => "device_busy",
-            ErrorCode::UnsupportedPlatform => "unsupported_platform",
             ErrorCode::UnsupportedDevice => "unsupported_device",
             ErrorCode::FontUnavailable => "font_unavailable",
             ErrorCode::GarminFolderNotFound => "garmin_folder_not_found",
@@ -98,6 +95,10 @@ impl std::error::Error for Error {}
 
 impl From<MtpError> for Error {
     fn from(e: MtpError) -> Self {
-        Error::new(ErrorCode::DeviceError, e.to_string())
+        let code = match &e {
+            MtpError::Wpd { hresult, .. } => crate::wpd::error_code(*hresult),
+            _ => ErrorCode::DeviceError,
+        };
+        Error::new(code, e.to_string())
     }
 }

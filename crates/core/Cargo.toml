@@ -18,6 +18,9 @@ sha2.workspace = true
 [target.'cfg(not(windows))'.dependencies]
 nusb.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
 [build-dependencies]
 serde.workspace = true
 serde_json.workspace = true
