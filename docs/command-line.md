@@ -73,7 +73,6 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |
 | `font_unavailable` | This build doesn't include the requested size | Download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
-| `unsupported_platform` | This operating system isn't supported | |
 | `internal` | A bug | Please open an issue. |
 
 ## Troubleshooting

@@ -70,9 +70,10 @@ same storage. If none matches, nothing is written.
 
 ## Windows
 
-Windows' built-in MTP driver can open the hidden folder directly by its object ID (`o1000009` on
-the Venu 2), then write, read back and delete a file there. That was tested with a Venu 2 in a
-Windows 11 virtual machine, without installing or replacing any driver.
+On Windows the installer uses Windows' built-in MTP driver (Windows Portable Devices); nothing
+needs to be installed or replaced. The driver opens the hidden folder directly by its object ID
+(`o1000009` on the Venu 2). The command-line installer was tested this way with a Venu 2 from a
+Windows 11 on Arm virtual machine: it found the folder, copied all four sizes and read them back.
 
 ## What has been tested
 
@@ -81,3 +82,4 @@ Windows 11 virtual machine, without installing or replacing any driver.
 | All four sizes installed, Telegram and SMS notifications | Venu 2, 19.05 | Georgian in the pop-up, the notification list and opened notifications |
 | Original 27 px font restored | Venu 2, 19.05 | Boxes again in the pop-up |
 | Text sent from Android (Bluetooth trace) | Venu 2, 19.05 | Georgian bytes arrive unchanged |
+| `install` from Windows 11 on Arm (virtual machine) | Venu 2, 19.05 | All four files copied and read back through the built-in driver |

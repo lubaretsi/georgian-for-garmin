@@ -11,8 +11,8 @@ the steps below.
 (21, 24, 27 and 31 px), Georgian renders in the notification pop-up, the notification list and an
 opened notification. Restoring Garmin's original 27 px font alone brings the boxes back in the
 pop-up. Other watches may work if their `GarminDevice.xml` lists a pack from the manifest (step 3).
-Windows can reach the hidden folder with its built-in driver, but this procedure hasn't been run
-there.
+From Windows 11 the same files were copied and read back through Windows' built-in driver; the
+watch wasn't checked after a Windows-only install.
 
 ## Rules
 
@@ -36,6 +36,10 @@ there.
 2. **Connect.** Have the user quit Garmin Express (it holds the USB connection) and connect the
    watch by cable. It appears as an MTP device with USB vendor ID `0x091E`. On macOS and Linux,
    use [libmtp](https://github.com/libmtp/libmtp)'s C API (from Python via `ctypes`, for example).
+   On Windows, use the built-in Windows Portable Devices API: an object's ID is `o` plus its MTP
+   handle in hex without leading zeros (`o1000009`), which also reaches unlisted objects. Create
+   files with `CreateObjectWithPropertiesAndData` (parent = the `ExtData` ID), read them back
+   through their default resource, and delete with `Delete`. Don't install another driver.
 3. **Pick the pack.** Read `GARMIN/GarminDevice.xml`. Take the `MassStorageMode/UpdateFile`
    entries whose `Path` is `Garmin/ExtData` (compare case-insensitively). Pick the first pack in
    the manifest's `packs` with a part among their `PartNumber`s; the targets are that pack's

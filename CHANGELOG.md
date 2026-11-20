@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--json` output, `--input` JSON and `--help --json` tool definitions for scripts and agents.
 - The installer recovers a watch left unresponsive by an earlier failed transfer, and
   `GEORGIAN_FOR_GARMIN_TRACE=1` prints an MTP trace to stderr.
+- The installer core runs on Windows through Windows' built-in MTP driver (Windows Portable
+  Devices), with no driver to install or replace. Verified from Windows 11 on Arm with a Venu 2.
+- How it works, command-line and development guides in `docs/`.
 - Desktop app for macOS in Georgian and English (Georgian by default; the choice is remembered).
   It finds the watch, shows its model, software version and whether it was tested, installs the
   Georgian font or restores the original with one click, and explains how to unplug and restart
