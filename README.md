@@ -21,6 +21,11 @@ restart. Nothing else on the watch changes: no firmware update, and Armenian sti
 original font can be copied back the same way; on the Venu 2 that restored the boxes. Details:
 [How it works](docs/how-it-works.md).
 
+![Garmin's Armenian letters and the Georgian added to the same 27 px font, from their 2-bit bitmaps](docs/georgian-glyphs-27px.png)
+
+Georgian is drawn at the size of the font's own letters: in the 27 px font, Georgian lowercase is
+19 px tall, like the Armenian ([Size](fonts/README.md#size)).
+
 ## Supported watches
 
 | Watch | Software | Status |
