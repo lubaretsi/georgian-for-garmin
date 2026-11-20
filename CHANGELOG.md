@@ -16,13 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Font registry (`fonts/registry.json`): the Garmin font packs that get Georgian, their download
   URLs and hashes, and the watch models each was tested on. Adding a pack is a registry entry;
   see `fonts/README.md`.
-- `georgian-for-garmin` command-line installer for macOS. `inspect` shows the watch
-  model, software version, supported font sizes and what's staged in the hidden `GARMIN/ExtData`
-  folder. `install` and `restore-stock` stage the Georgian or original font and verify it by
-  reading it back; then unplug the watch and restart it. Needs no libmtp or libusb.
+- `georgian-for-garmin` command-line installer for macOS. `install` and `restore-stock` stage the
+  Georgian or original font in every size of the font pack the watch lists, verify each by reading
+  it back, and leave nothing behind if one fails; then unplug the watch and restart it.
+  `--sizes-px` limits the sizes. Needs no libmtp or libusb.
+- `inspect` shows the watch model, software version, its font pack, whether that model and
+  software were tested, and what's staged in the hidden `GARMIN/ExtData` folder. `inspect --report`
+  prints the watch's font list for a GitHub issue, without its serial number.
 - `--json` output, `--input` JSON and `--help --json` tool definitions for scripts and agents.
 - The installer recovers a watch left unresponsive by an earlier failed transfer, and
   `GEORGIAN_FOR_GARMIN_TRACE=1` prints an MTP trace to stderr.
 - Desktop app for macOS in Georgian and English (Georgian by default; the choice is remembered).
-  It finds the watch, shows its model and software version, installs the Georgian font or
-  restores the original with one click, and explains how to unplug and restart the watch.
+  It finds the watch, shows its model, software version and whether it was tested, installs the
+  Georgian font or restores the original with one click, and explains how to unplug and restart
+  the watch. For untested watches, "Share my watch's font list" opens a prefilled GitHub issue.
