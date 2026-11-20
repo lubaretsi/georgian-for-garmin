@@ -81,6 +81,7 @@
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell ((fontInputs pkgs) // {
+          GEORGIAN_FOR_GARMIN_FONTS = self.packages.${pkgs.stdenv.hostPlatform.system}.fonts;
           packages = with pkgs; [
             (python pkgs)
             cargo
