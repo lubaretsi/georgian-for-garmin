@@ -16,7 +16,7 @@
       "tested_other_software": "ამ მოდელზე შემოწმებულია, ოღონდ ვერსია {versions}-ზე",
       "untested": "ამ საათზე ჯერ არ შეგვიმოწმებია"
     },
-    "untestedBody": "შეიძლება იმუშაოს. ქარხნულ შრიფტს კი ნებისმიერ დროს დააბრუნებთ.",
+    "untestedBody": "ეს მოდელი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტის დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
     "shareDone": "სია დაკოპირდა და ბრაუზერში GitHub-ის გვერდი გაიხსნა. გადახედეთ და გამოაქვეყნეთ.",
@@ -80,7 +80,7 @@
       "tested_other_software": "Tested on this model, with software {versions}",
       "untested": "Not tested on this watch yet"
     },
-    "untestedBody": "It may work, and you can bring back the original font anytime.",
+    "untestedBody": "This model hasn't been tried yet: Georgian may still show as boxes, and restoring the original font hasn't been checked on it either.",
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",
     "shareDone": "Copied. A GitHub page opened in your browser; check it and post it.",

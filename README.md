@@ -17,8 +17,9 @@ Unofficial; not affiliated with or endorsed by Garmin.
 Garmin watches load optional fonts for other scripts, such as Armenian, from a hidden folder. This
 project takes Garmin's own Armenian font in each size, adds all 66 modern Georgian letters
 (Mkhedruli and Mtavruli) and copies it to the watch over USB. The watch loads it after a
-restart. Nothing else on the watch changes: no firmware update, and Armenian still works. You can
-put Garmin's original font back at any time. Details: [How it works](docs/how-it-works.md).
+restart. Nothing else on the watch changes: no firmware update, and Armenian still works. Garmin's
+original font can be copied back the same way; on the Venu 2 that restored the boxes. Details:
+[How it works](docs/how-it-works.md).
 
 ## Supported watches
 

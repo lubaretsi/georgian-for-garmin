@@ -71,8 +71,9 @@ watch wasn't checked after a Windows-only install.
 
 ## Undo
 
-Repeat steps 4–7 with Garmin's originals, `stock/<part>.fnt` from the same manifest. Verified on
-the Venu 2 at firmware 19.05 for the 27 px part; the other sizes restore the same way.
+Repeat steps 4–7 with Garmin's originals, `stock/<part>.fnt` from the same manifest. Verified only
+on the Venu 2 at firmware 19.05 for the 27 px part; other sizes and models haven't been restored on
+a watch, so tell the user that.
 
 ## Untested and unsupported watches
 
