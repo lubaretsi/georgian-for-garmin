@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
 Builds the Windows release: the command-line tool and the desktop app's installer, for x64 and
-Arm64, with Microsoft's toolchain and rustup's Rust, embedding the fonts from `nix build .#fonts`.
+Arm64 (or one of them, with -Arch), with Microsoft's toolchain and rustup's Rust, embedding the
+fonts from `nix build .#fonts`.
 
 .DESCRIPTION
 Nix doesn't run on Windows: build the fonts on Linux or macOS (`nix build .#fonts`) and pass
@@ -13,15 +14,18 @@ installs for the current user without administrator rights, and fetches Microsof
 runtime only if Windows lacks it. Binaries link the C runtime statically (.cargo/config.toml),
 so no Visual C++ Redistributable is needed.
 
-Needs: Visual Studio 2022 or its Build Tools with "MSVC C++ x64/x86 build tools", "MSVC C++
-ARM64 build tools" and a Windows SDK; rustup; internet access (Rust, the Tauri CLI, NSIS).
+Needs: Visual Studio 2022 or later, or its Build Tools, with a Windows SDK and the "MSVC C++
+x64/x86 build tools" (for -Arch x64) and "MSVC C++ ARM64 build tools" (for -Arch arm64); rustup;
+internet access (Rust, the Tauri CLI, NSIS).
 Runs in Windows PowerShell 5.1 and PowerShell 7. Writes to target\windows-release\; the files to
 publish end up in target\windows-release\dist\. If RELEASE_TAG is set (CI on a tag), it must be
 v<workspace version>.
 #>
 [CmdletBinding()]
 param(
-    [string]$Fonts = $env:GEORGIAN_FOR_GARMIN_FONTS
+    [string]$Fonts = $env:GEORGIAN_FOR_GARMIN_FONTS,
+    [ValidateSet('x64', 'arm64')]
+    [string[]]$Arch = @('x64', 'arm64')
 )
 
 Set-StrictMode -Version 3.0
@@ -34,11 +38,15 @@ $TauriCliSha256 = @{
     'x86_64-pc-windows-msvc'  = '0743e30a661a35d63339b24cf63828f97ba5389a1d7f13b368a542794dd0a3f3'
     'aarch64-pc-windows-msvc' = '926b95544a67e0e098d895d7223a7e4eb47c758c3652f030d0dc2a070f7c082a'
 }
-# Target triple, the name used in file names, and the PE machine dumpbin reports.
+# Target triple, the name used in file names, the PE machine dumpbin reports, and the Visual
+# Studio component with its compiler and linker.
 $Targets = @(
-    @{ Triple = 'x86_64-pc-windows-msvc'; Arch = 'x64'; Machine = '8664 machine (x64)' },
-    @{ Triple = 'aarch64-pc-windows-msvc'; Arch = 'arm64'; Machine = 'AA64 machine (ARM64)' }
-)
+    @{ Triple = 'x86_64-pc-windows-msvc'; Arch = 'x64'; Machine = '8664 machine (x64)'
+        Component = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64' },
+    @{ Triple = 'aarch64-pc-windows-msvc'; Arch = 'arm64'; Machine = 'AA64 machine (ARM64)'
+        Component = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64' }
+) | Where-Object { $Arch -contains $_.Arch }
+$Targets = @($Targets)
 
 function Step([string]$Message) { Write-Host "`n==> $Message" }
 
@@ -72,15 +80,17 @@ if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { $hostTriple = 'aarch64-pc-windows
 
 Step 'Finding Visual Studio'
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Visual Studio 2022 or its Build Tools are needed' }
-$vs = & $vswhere -latest -products * -property installationPath -requires `
-    Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.Tools.ARM64
-if (-not $vs) { throw 'Visual Studio needs the "MSVC C++ x64/x86 build tools" and "MSVC C++ ARM64 build tools" components' }
-$hostDir = if ($hostTriple -like 'aarch64*') { 'HostARM64\arm64' } else { 'Hostx64\x64' }
-$dumpbin = Get-ChildItem -Path (Join-Path $vs "VC\Tools\MSVC\*\bin\$hostDir\dumpbin.exe") |
-    Sort-Object FullName | Select-Object -Last 1
+if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Visual Studio 2022 or later, or its Build Tools, is needed' }
+$components = @($Targets | ForEach-Object { $_.Component })
+$vs = & $vswhere -latest -products * -property installationPath -requires @components
+if (-not $vs) { throw "Visual Studio needs these components: $($components -join ', ')" }
+# Any dumpbin reads every architecture's binaries; prefer the one native to this machine.
+$hostDir = if ($hostTriple -like 'aarch64*') { 'HostARM64' } else { 'Hostx64' }
+$dumpbin = Get-ChildItem -Path (Join-Path $vs 'VC\Tools\MSVC\*\bin\Host*\*\dumpbin.exe') |
+    Sort-Object { $_.FullName -notlike "*\$hostDir\*" }, FullName | Select-Object -First 1
 if (-not $dumpbin) { throw "no dumpbin.exe under $vs" }
-Write-Host "$vs"
+Write-Host "$vs; $($dumpbin.FullName)"
+Write-Host "$($env:NUMBER_OF_PROCESSORS) processors, $($env:PROCESSOR_ARCHITECTURE)"
 
 $toolchain = (Select-String -LiteralPath rust-toolchain.toml -Pattern '^channel = "(.*)"$').Matches[0].Groups[1].Value
 $triples = $Targets | ForEach-Object { $_.Triple }
