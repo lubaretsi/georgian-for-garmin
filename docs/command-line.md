@@ -4,9 +4,14 @@
 
 ## Install
 
-Download `georgian-for-garmin-<version>-macos-universal.tar.gz` from
-[Releases](https://github.com/lubaretsi/georgian-for-garmin/releases), unpack it, and clear the
-download flag macOS sets so the binary can run:
+Download the archive for your computer from
+[Releases](https://github.com/lubaretsi/georgian-for-garmin/releases). The fonts are built in; it
+needs no other libraries, no driver and no internet connection.
+
+### macOS
+
+Unpack `georgian-for-garmin-<version>-macos-universal.tar.gz` and clear the download flag macOS
+sets so the binary can run:
 
 ```sh
 tar xzf georgian-for-garmin-*-macos-universal.tar.gz
@@ -14,20 +19,33 @@ xattr -d com.apple.quarantine georgian-for-garmin
 ./georgian-for-garmin --version
 ```
 
-It runs on macOS 11 or later, Apple silicon and Intel. The fonts are built in; it needs no other
-libraries and no internet connection.
+It runs on macOS 11 or later, Apple silicon and Intel.
+
+### Windows
+
+Unzip `georgian-for-garmin-<version>-windows-x64.zip` (`-arm64` on Arm PCs) and run
+`georgian-for-garmin.exe` from its folder in PowerShell or Command Prompt. It uses Windows' own
+MTP support, so there's no driver to install. It isn't signed: if Windows blocks it, click
+**More info → Run anyway**, or clear the download flag with
+`Unblock-File .\georgian-for-garmin.exe` in PowerShell. Tested with a Venu 2 on Windows 11 on Arm,
+the x64 and Arm64 builds.
 
 ### Linux
 
-There's no Linux download yet; build it from source ([Development](development.md)). It was
-tested with a Venu 2 on Ubuntu 24.04 (arm64). Two setup steps:
+Unpack `georgian-for-garmin-<version>-linux-x86_64.tar.gz` (`-aarch64` on Arm). The binary is
+static and runs on any distribution; the folder also holds `70-georgian-for-garmin.rules`. It was
+tested with a Venu 2 on Ubuntu 24.04 (arm64). Two setup steps, for the command line, the
+AppImage and the `.deb` alike (the `.deb` does the first one for you):
 
-1. **Let your user open the watch.** Install the udev rule, then reconnect the watch:
+1. **Let your user open the watch.** Install the udev rule from the unpacked folder, then
+   reconnect the watch:
 
    ```sh
-   sudo install -m 644 packaging/linux/70-georgian-for-garmin.rules /etc/udev/rules.d/
+   sudo install -m 644 70-georgian-for-garmin.rules /etc/udev/rules.d/
    sudo udevadm control --reload
    ```
+
+   In a source checkout the rule is `packaging/linux/70-georgian-for-garmin.rules`.
 
    The user at the computer's screen needs nothing more. For SSH or other sessions without a
    screen, also run `sudo usermod -aG plugdev "$USER"` and log in again (on Fedora and Arch,

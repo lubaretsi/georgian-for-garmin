@@ -40,25 +40,41 @@ them. If yours isn't listed, use **Share my watch's font list** in the app (or
 
 ## Install
 
-You need a Mac with macOS 11 or later and your watch's USB data cable.
+You need your watch's USB data cable. Download the app for your computer from
+[Releases](https://github.com/lubaretsi/georgian-for-garmin/releases):
 
-1. Download `Georgian-for-Garmin-<version>-macos.zip` from
-   [Releases](https://github.com/lubaretsi/georgian-for-garmin/releases) and unzip it.
-2. Open **Georgian for Garmin**. The app isn't notarized by Apple, so macOS blocks it the first
-   time: open **System Settings → Privacy & Security** and click **Open Anyway**.
-3. Quit Garmin Express if it's running, and connect the watch.
-4. Click **Install Georgian** (**ქართულის დაყენება**).
-5. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-6. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
+| Computer | Download, then |
+|---|---|
+| Mac, macOS 11 or later | `Georgian-for-Garmin-<version>-macos.zip`: unzip it and open **Georgian for Garmin** |
+| Windows 10 or 11 | `Georgian-for-Garmin-<version>-windows-x64-setup.exe` (`-arm64-` on Arm PCs): run it |
+| Debian, Ubuntu | `Georgian-for-Garmin-<version>-linux-x86_64.deb` (`-aarch64` on Arm): `sudo apt install ./Georgian-for-Garmin-*.deb` |
+| Other Linux | `Georgian-for-Garmin-<version>-linux-x86_64.AppImage`: `chmod +x` it, run it, and [install the udev rule](docs/command-line.md#linux) |
+
+The app isn't signed, so the first time:
+
+- **macOS** blocks it: open **System Settings → Privacy & Security** and click **Open Anyway**.
+- **Windows** says "Windows protected your PC": click **More info → Run anyway**.
+
+Then:
+
+1. Quit Garmin Express if it's running, and connect the watch. On Linux,
+   [release it from GNOME or KDE](docs/command-line.md#linux) first.
+2. Click **Install Georgian** (**ქართულის დაყენება**).
+3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
+4. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
 
 To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
 
-The app is in Georgian, with an English switch in the top corner.
+The app is in Georgian, with an English switch in the top corner. The macOS app is tested with a
+watch. On Windows (11 on Arm) and Linux (Ubuntu 24.04) the command-line installer is tested with a
+watch; the Windows and Linux apps are tested only without one so far. The Linux app needs glibc
+2.34 or newer.
 
 ## Command line
 
-The same installer runs from a terminal; download
-`georgian-for-garmin-<version>-macos-universal.tar.gz` from Releases.
+The same installer runs from a terminal. Download `georgian-for-garmin-<version>-` plus
+`macos-universal.tar.gz`, `windows-x64.zip`, `windows-arm64.zip`, `linux-x86_64.tar.gz` or
+`linux-aarch64.tar.gz` from Releases. The Linux archives include the udev rule.
 
 ```sh
 georgian-for-garmin inspect          # watch model, font pack, tested status, staged files

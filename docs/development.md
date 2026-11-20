@@ -9,8 +9,8 @@
 | `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`), the watch's font list, the hidden-folder search, and MTP over USB |
 | `crates/cli` | The `georgian-for-garmin` command |
 | `crates/app` | The desktop app (Tauri 2; plain HTML, CSS and JavaScript in `ui/`, strings in `ui/strings.json`) |
-| `scripts/` | The macOS release build |
-| `.github/workflows/` | `check.yml` on every push and pull request; `release.yml` on version tags |
+| `scripts/` | The release builds (macOS, Windows, Linux) |
+| `.github/workflows/` | `check.yml` on every push and pull request; `release.yml` on version tags and manual runs |
 
 ## Set up
 
@@ -60,16 +60,26 @@ that must have the same keys; the tests check that.
 
 ## Release
 
-Releases are built on macOS with Apple's toolchain, outside `nix develop`, so the binaries don't
-depend on Nix. Nix only builds the fonts.
+Releases are built with each platform's own toolchain and rustup's Rust, outside `nix develop`, so
+the binaries don't depend on Nix. Nix only builds the fonts.
 
 ```sh
 scripts/build-macos-release.sh     # needs Xcode command-line tools, rustup and Nix
+scripts/build-linux-release.sh     # needs rustup, Nix, libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils file
 ```
 
-It writes a universal app and CLI (Apple silicon and Intel, macOS 11 or later) to
+The macOS build writes a universal app and CLI (Apple silicon and Intel, macOS 11 or later) to
 `target/macos-release/dist/`, with the fonts' manifest and `SHA256SUMS`. It checks the binaries'
-linked libraries, architectures, minimum macOS version, ad-hoc signatures and embedded fonts.
+linked libraries, architectures, minimum macOS version, ad-hoc signatures and embedded fonts. The
+Linux build writes the static CLI with the udev rule, a `.deb` that installs the rule, and an
+AppImage for the machine's architecture to `target/linux-release/dist/`.
+
+Nix doesn't run on Windows: build the fonts elsewhere with `nix build .#fonts`, copy the folder
+over, and run `scripts/build-windows-release.ps1 -Fonts <dir> [-Arch x64|arm64]`. It needs Visual
+Studio 2022 or later with the C++ x64 and ARM64 build tools, and rustup. It writes the CLI zips and
+per-user NSIS installers to `target\windows-release\dist\`.
 
 To publish, bump the workspace version, update `CHANGELOG.md`, and push a `v<version>` tag.
-`release.yml` builds the same files and creates a draft release.
+`release.yml` builds every platform, each architecture on its own runner, and creates a draft
+release with one `SHA256SUMS`. Tag builds always start from scratch; manual runs can skip macOS
+and use a Rust build cache.

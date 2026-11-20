@@ -20,10 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Font registry (`fonts/registry.json`): the Garmin font packs that get Georgian, their download
   URLs and hashes, and the watch models each was tested on. Adding a pack is a registry entry;
   see `fonts/README.md`.
-- `georgian-for-garmin` command-line installer for macOS. `install` and `restore-stock` stage the
+- `georgian-for-garmin` command-line installer. `install` and `restore-stock` stage the
   Georgian or original font in every Garmin Armenian font part the watch lists, across all packs,
   verify each by reading it back, and leave nothing behind if one fails; then unplug the watch and
-  restart it. `--parts` limits it to given part numbers. Needs no libmtp or libusb.
+  restart it. `--parts` limits it to given part numbers. Needs no libmtp or libusb. Runs on macOS,
+  Windows and Linux.
 - `inspect` shows the watch model, software version, each font pack it uses with its parts and
   whether each part was tested on this model and software, and what's staged in the hidden
   `GARMIN/ExtData` folder. `inspect --report` prints the watch's font list for a GitHub issue,
@@ -38,7 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Linux, a busy watch points to the GNOME or KDE file manager, and a new `permission_denied` error
   includes a one-line command that installs the rule.
 - How it works, command-line and development guides in `docs/`.
-- Desktop app for macOS in Georgian and English (Georgian by default; the choice is remembered).
+- Desktop app for macOS, Windows and Linux in Georgian and English (Georgian by default; the
+  choice is remembered).
   It finds the watch, shows its model, software version and whether it was tested, installs the
   Georgian font or restores the original with one click, and explains how to unplug and restart
   the watch. For untested watches, "Share my watch's font list" opens a prefilled GitHub issue.
@@ -46,3 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   macOS 11 or later, with the fonts' manifest and SHA-256 checksums. Not notarized; ad-hoc
   signed only, as Apple silicon requires. `scripts/build-macos-release.sh` builds the same release
   locally.
+- Windows downloads for x64 and Arm64 (Windows 10 and 11): a per-user installer for the app (no
+  administrator rights; gets Microsoft WebView2 only if it's missing) and the command-line tool as a
+  zip. Not signed: SmartScreen warns on first run.
+- Linux downloads for x86_64 and aarch64: the app as a `.deb`, which installs the udev rule, and as
+  an AppImage (both need glibc 2.34 or newer); the command-line tool as a static binary with the
+  udev rule. `scripts/build-windows-release.ps1` and `scripts/build-linux-release.sh` build the
+  same files locally.
+- Releases carry one `SHA256SUMS` for every platform.
