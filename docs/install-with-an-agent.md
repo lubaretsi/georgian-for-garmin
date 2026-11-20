@@ -5,11 +5,12 @@ for Garmin app. The procedure copies font files to the watch over USB: every siz
 pack that the watch lists. The watch imports them after it's unplugged and restarted. It doesn't
 modify firmware.
 
-**Verified:** Venu 2, firmware 19.05, from macOS: the 27 px Armenian part (`006-D9035-03`)
-renders Georgian in notification pop-ups, and restoring Garmin's original 27 px font brings the
-boxes back. The other sizes (21, 24 and 31 px) haven't been verified on a watch. Other watches
-may work if their `GarminDevice.xml` lists a pack from the manifest (step 3). Windows hasn't been
-verified.
+**Verified:** Venu 2, firmware 19.05, from macOS. With all four Armenian sizes installed
+(21, 24, 27 and 31 px), Georgian renders in the notification pop-up, the notification list and an
+opened notification. Restoring Garmin's original 27 px font alone brings the boxes back in the
+pop-up. Other watches may work if their `GarminDevice.xml` lists a pack from the manifest (step 3).
+Windows can reach the hidden folder with its built-in driver, but this procedure hasn't been run
+there.
 
 ## Rules
 
@@ -65,7 +66,7 @@ verified.
 ## Undo
 
 Repeat steps 4–7 with Garmin's originals, `stock/<part>.fnt` from the same manifest. Verified on
-the Venu 2 at firmware 19.05 for the 27 px part.
+the Venu 2 at firmware 19.05 for the 27 px part; the other sizes restore the same way.
 
 ## Untested and unsupported watches
 

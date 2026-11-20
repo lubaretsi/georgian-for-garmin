@@ -94,7 +94,10 @@ def test_every_registry_pack_is_built(inputs, tmp_path):
     # Split the one real pack in two to show the builder isn't tied to it.
     pack = ENTRIES["packs"][0]
     first = pack | {"id": "small", "parts": pack["parts"][:2], "tested": []}
-    second = pack | {"id": "large", "parts": pack["parts"][2:]}
+    large = pack["parts"][2:]
+    kept = {part["part"] for part in large}
+    tested = [entry | {"parts": [p for p in entry["parts"] if p in kept]} for entry in pack["tested"]]
+    second = pack | {"id": "large", "parts": large, "tested": tested}
     entries = ENTRIES | {"packs": [first, second]}
     registry = write_registry(tmp_path / "registry", entries)
     manifest = build(**(inputs | {"registry": registry}), out=tmp_path / "out")
