@@ -17,6 +17,30 @@ xattr -d com.apple.quarantine georgian-for-garmin
 It runs on macOS 11 or later, Apple silicon and Intel. The fonts are built in; it needs no other
 libraries and no internet connection.
 
+### Linux
+
+There's no Linux download yet; build it from source ([Development](development.md)). It was
+tested with a Venu 2 on Ubuntu 24.04 (arm64). Two setup steps:
+
+1. **Let your user open the watch.** Install the udev rule, then reconnect the watch:
+
+   ```sh
+   sudo install -m 644 packaging/linux/70-georgian-for-garmin.rules /etc/udev/rules.d/
+   sudo udevadm control --reload
+   ```
+
+   The user at the computer's screen needs nothing more. For SSH or other sessions without a
+   screen, also run `sudo usermod -aG plugdev "$USER"` and log in again (on Fedora and Arch,
+   create the group first: `sudo groupadd --system plugdev`).
+2. **Release the watch from the desktop.** GNOME and KDE open MTP devices as soon as they're
+   plugged in, and only one program can use one at a time:
+   - **GNOME:** eject the watch in the Files sidebar, or run `gio mount -l` and then
+     `gio mount -u <its mtp:// address>`.
+   - **KDE:** run `kquitapp6 kiod6` (`kquitapp5 kiod5` on Plasma 5). KDE claims the watch again the
+     next time it's plugged in.
+
+   These two cases weren't tested on a real desktop.
+
 ## Commands
 
 | Command | What it does |

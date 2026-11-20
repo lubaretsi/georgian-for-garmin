@@ -1,0 +1,16 @@
+# udev rule for Georgian for Garmin: lets a normal user open a Garmin watch's USB (MTP) interface.
+#
+# Install, then unplug and reconnect the watch:
+#   sudo install -m 644 70-georgian-for-garmin.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload
+#
+# Who gets access:
+# - The user logged in at the computer's own screen (a local seat session), through systemd's
+#   "uaccess" tag. This file must sort before 73-seat-late.rules, which applies the tag.
+# - Members of "plugdev", for SSH and other sessions without a seat:
+#     sudo usermod -aG plugdev "$USER"     # then log out and back in
+#   Where no plugdev group exists (Fedora, Arch), create it first: sudo groupadd --system plugdev
+#   Without that group, udev logs a warning and the uaccess part still works.
+#
+# 091e is Garmin's USB vendor ID; this covers every Garmin device, not only watches.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="091e", TAG+="uaccess", GROUP="plugdev", MODE="0660"

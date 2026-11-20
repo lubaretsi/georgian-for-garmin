@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GEORGIAN_FOR_GARMIN_TRACE=1` prints an MTP trace to stderr.
 - The installer core runs on Windows through Windows' built-in MTP driver (Windows Portable
   Devices), with no driver to install or replace. Verified from Windows 11 on Arm with a Venu 2.
+- Linux: the command-line installer works with a udev rule
+  (`packaging/linux/70-georgian-for-garmin.rules`); verified on Ubuntu 24.04 with a Venu 2. On
+  Linux, a busy watch points to the GNOME or KDE file manager and a permission error to the rule.
 - How it works, command-line and development guides in `docs/`.
 - Desktop app for macOS in Georgian and English (Georgian by default; the choice is remembered).
   It finds the watch, shows its model, software version and whether it was tested, installs the

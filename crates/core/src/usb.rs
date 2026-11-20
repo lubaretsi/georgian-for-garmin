@@ -68,17 +68,31 @@ fn find_mtp_endpoints(config: &ConfigurationDescriptor<'_>) -> Option<MtpEndpoin
     })
 }
 
+/// What usually holds the watch's USB connection on this system, and how to release it.
+#[cfg(target_os = "linux")]
+const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually the desktop's \
+     file manager. On GNOME, eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, \
+     run `kquitapp6 kiod6`. Then try again.";
+#[cfg(not(target_os = "linux"))]
+const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually Garmin Express. \
+     Quit Garmin Express (including its background helper) and try again.";
+
 fn device_error(context: &str, e: nusb::Error) -> Error {
     match e.kind() {
-        ErrorKind::Busy => Error::new(
-            ErrorCode::DeviceBusy,
-            "Another program is using the watch's USB connection, usually Garmin Express. \
-             Quit Garmin Express (including its background helper) and try again.",
-        ),
+        ErrorKind::Busy => Error::new(ErrorCode::DeviceBusy, BUSY_HINT),
         ErrorKind::Disconnected => Error::new(ErrorCode::NoDevice, "The watch disconnected."),
         ErrorKind::PermissionDenied => Error::new(
             ErrorCode::DeviceError,
-            format!("{context}: permission denied; this user may not access the USB device ({e})"),
+            if cfg!(target_os = "linux") {
+                format!(
+                    "{context}: permission denied ({e}). Install the udev rule from \
+                     packaging/linux/70-georgian-for-garmin.rules, then reconnect the watch."
+                )
+            } else {
+                format!(
+                    "{context}: permission denied; this user may not access the USB device ({e})"
+                )
+            },
         ),
         _ => Error::new(ErrorCode::DeviceError, format!("{context}: {e}")),
     }
