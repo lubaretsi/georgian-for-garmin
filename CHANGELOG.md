@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- tactix 7 with software 27.18 as a tested watch: Georgian renders in its notifications with
+  NotoSans Regular 19 px (`006-D9035-00`) and NotoSans Armenian Bold 13, 18, 20 and 25 px
+  (`006-D9035-05`, `-06`, `-07`, `-09`), so `inspect` reports it as tested.
+
 ### Fixed
 
 - The installer finds the hidden `GARMIN/ExtData` folder on watches where it lies past the 32
