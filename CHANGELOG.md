@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
+  every screen from download to the watch's restart.
+
 ## [0.2.2] - 2026-11-22
 
 ### Fixed

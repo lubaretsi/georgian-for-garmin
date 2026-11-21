@@ -68,6 +68,8 @@ The app isn't signed, so the first time:
 - **macOS** blocks it: open **System Settings → Privacy & Security** and click **Open Anyway**.
 - **Windows** says "Windows protected your PC": click **More info → Run anyway**.
 
+Step by step on Windows, in Georgian, with every screen: [Windows-ზე დაყენება](docs/install-windows.md).
+
 Then:
 
 1. Quit Garmin Express if it's running, and connect the watch. On Linux,
