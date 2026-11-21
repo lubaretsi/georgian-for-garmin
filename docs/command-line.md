@@ -10,11 +10,12 @@ needs no other libraries, no driver and no internet connection.
 
 ### macOS
 
-Unpack `georgian-for-garmin-<version>-macos-universal.tar.gz` and clear the download flag macOS
-sets so the binary can run:
+Unpack `georgian-for-garmin-macos-universal.tar.gz` and clear the download flag macOS sets so the
+binary can run:
 
 ```sh
-tar xzf georgian-for-garmin-*-macos-universal.tar.gz
+tar xzf georgian-for-garmin-macos-universal.tar.gz
+cd georgian-for-garmin-macos-universal
 xattr -d com.apple.quarantine georgian-for-garmin
 ./georgian-for-garmin --version
 ```
@@ -23,7 +24,7 @@ It runs on macOS 11 or later, Apple silicon and Intel.
 
 ### Windows
 
-Unzip `georgian-for-garmin-<version>-windows-x64.zip` (`-arm64` on Arm PCs) and run
+Unzip `georgian-for-garmin-windows-x64.zip` (`-arm64` on Arm PCs) and run
 `georgian-for-garmin.exe` from its folder in PowerShell or Command Prompt. It uses Windows' own
 MTP support, so there's no driver to install. It isn't signed: if Windows blocks it, click
 **More info → Run anyway**, or clear the download flag with
@@ -32,7 +33,7 @@ the x64 and Arm64 builds.
 
 ### Linux
 
-Unpack `georgian-for-garmin-<version>-linux-x86_64.tar.gz` (`-aarch64` on Arm). The binary is
+Unpack `georgian-for-garmin-linux-x86_64.tar.gz` (`-aarch64` on Arm). The binary is
 static and runs on any distribution; the folder also holds `70-georgian-for-garmin.rules`. It was
 tested with a Venu 2 on Ubuntu 24.04 (arm64). Two setup steps, for the command line, the
 AppImage and the `.deb` alike (the `.deb` does the first one for you):

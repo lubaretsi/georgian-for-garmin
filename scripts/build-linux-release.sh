@@ -141,9 +141,10 @@ EOF
 done
 
 step "Packaging"
-cli_name=georgian-for-garmin-$version-linux-$arch
-deb_name=Georgian-for-Garmin-$version-linux-$arch.deb
-appimage_name=Georgian-for-Garmin-$version-linux-$arch.AppImage
+# No version in the file names, so the README's releases/latest/download/<name> links keep working.
+cli_name=georgian-for-garmin-linux-$arch
+deb_name=Georgian-for-Garmin-linux-$arch.deb
+appimage_name=Georgian-for-Garmin-linux-$arch.AppImage
 mkdir "$work/stage/$cli_name"
 install -m 755 "$cli" "$work/stage/$cli_name/georgian-for-garmin"
 install -m 644 LICENSE "$work/stage/$cli_name/LICENSE"

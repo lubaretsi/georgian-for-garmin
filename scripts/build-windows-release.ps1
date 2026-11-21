@@ -210,8 +210,9 @@ Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 if (Test-Path -LiteralPath $dist) { Remove-Item -Recurse -Force -LiteralPath $dist }
 New-Item -ItemType Directory -Path $dist | Out-Null
 $published = @()
+# No version in the file names, so the README's releases/latest/download/<name> links keep working.
 foreach ($t in $Targets) {
-    $cliName = "georgian-for-garmin-$version-windows-$($t.Arch)"
+    $cliName = "georgian-for-garmin-windows-$($t.Arch)"
     $zipPath = Join-Path $dist "$cliName.zip"
     # Entries are named with forward slashes, so every unzip tool sees the folder.
     $archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
@@ -228,7 +229,7 @@ foreach ($t in $Targets) {
     } finally {
         $archive.Dispose()
     }
-    $setupName = "Georgian-for-Garmin-$version-windows-$($t.Arch)-setup.exe"
+    $setupName = "Georgian-for-Garmin-windows-$($t.Arch)-setup.exe"
     Copy-Item -LiteralPath $t.Installer -Destination (Join-Path $dist $setupName)
     $published += "$cliName.zip", $setupName
 }

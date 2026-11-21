@@ -133,8 +133,9 @@ done
 rm -f "$work/stage/slice"
 
 step "Packaging"
-zip_name=Georgian-for-Garmin-$version-macos.zip
-cli_name=georgian-for-garmin-$version-macos-universal
+# No version in the file names, so the README's releases/latest/download/<name> links keep working.
+zip_name=Georgian-for-Garmin-macos.zip
+cli_name=georgian-for-garmin-macos-universal
 ditto -c -k --sequesterRsrc --keepParent "$app" "$dist/$zip_name"
 mkdir "$work/stage/$cli_name"
 install -m 755 "$cli" "$work/stage/$cli_name/georgian-for-garmin"

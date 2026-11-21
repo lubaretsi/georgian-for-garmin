@@ -8,6 +8,16 @@ Garmin watches show Georgian text in notifications as boxes. This project adds G
 a font the watch already uses, so notifications from your phone show `მხედრული` and `ᲛᲗᲐᲕᲠᲣᲚᲘ`
 instead of `□□□□□□□□`.
 
+<p>
+  <a href="https://github.com/lubaretsi/georgian-for-garmin/releases/latest/download/Georgian-for-Garmin-macos.zip"><img src="https://img.shields.io/badge/macOS-Download-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS"></a>
+  <a href="https://github.com/lubaretsi/georgian-for-garmin/releases/latest/download/Georgian-for-Garmin-windows-x64-setup.exe"><img src="https://img.shields.io/badge/Windows-Download-0078D4?style=for-the-badge&logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDJoOS41djkuNUgyek0xMi41IDJIMjJ2OS41aC05LjV6TTIgMTIuNWg5LjVWMjJIMnpNMTIuNSAxMi41SDIyVjIyaC05LjV6Ii8%2BPC9zdmc%2B" alt="Download for Windows"></a>
+  <a href="https://github.com/lubaretsi/georgian-for-garmin/releases/latest/download/Georgian-for-Garmin-linux-x86_64.deb"><img src="https://img.shields.io/badge/Linux-Download_.deb-333333?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux (.deb)"></a>
+</p>
+
+The app isn't signed, so your computer warns the first time; [Install](#install) shows what to
+click. Windows on Arm, other Linux and the command-line tools:
+[all downloads](https://github.com/lubaretsi/georgian-for-garmin/releases/latest).
+
 <img src="docs/venu-2-georgian-notification.jpg" alt="Garmin Venu 2 showing a Gmail notification in Georgian" width="360">
 
 *A Gmail notification on a Venu 2 (firmware 19.05).*
@@ -48,10 +58,10 @@ You need your watch's USB data cable. Download the app for your computer from
 
 | Computer | Download, then |
 |---|---|
-| Mac, macOS 11 or later | `Georgian-for-Garmin-<version>-macos.zip`: unzip it and open **Georgian for Garmin** |
-| Windows 10 or 11 | `Georgian-for-Garmin-<version>-windows-x64-setup.exe` (`-arm64-` on Arm PCs): run it |
-| Debian, Ubuntu | `Georgian-for-Garmin-<version>-linux-x86_64.deb` (`-aarch64` on Arm): `sudo apt install ./Georgian-for-Garmin-*.deb` |
-| Other Linux | `Georgian-for-Garmin-<version>-linux-x86_64.AppImage`: `chmod +x` it, run it, and [install the udev rule](docs/command-line.md#linux) |
+| Mac, macOS 11 or later | `Georgian-for-Garmin-macos.zip`: unzip it and open **Georgian for Garmin** |
+| Windows 10 or 11 | `Georgian-for-Garmin-windows-x64-setup.exe` (`-arm64-` on Arm PCs): run it |
+| Debian, Ubuntu | `Georgian-for-Garmin-linux-x86_64.deb` (`-aarch64` on Arm): `sudo apt install ./Georgian-for-Garmin-linux-*.deb` |
+| Other Linux | `Georgian-for-Garmin-linux-x86_64.AppImage`: `chmod +x` it, run it, and [install the udev rule](docs/command-line.md#linux) |
 
 The app isn't signed, so the first time:
 
@@ -75,7 +85,7 @@ watch; the Windows and Linux apps are tested only without one so far. The Linux 
 
 ## Command line
 
-The same installer runs from a terminal. Download `georgian-for-garmin-<version>-` plus
+The same installer runs from a terminal. Download `georgian-for-garmin-` plus
 `macos-universal.tar.gz`, `windows-x64.zip`, `windows-arm64.zip`, `linux-x86_64.tar.gz` or
 `linux-aarch64.tar.gz` from Releases. The Linux archives include the udev rule.
 

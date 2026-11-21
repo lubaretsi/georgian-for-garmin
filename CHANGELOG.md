@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   NotoSans Regular 19 px (`006-D9035-00`) and NotoSans Armenian Bold 13, 18, 20 and 25 px
   (`006-D9035-05`, `-06`, `-07`, `-09`), so `inspect` reports it as tested.
 
+### Changed
+
+- Release files no longer carry the version in their names (`Georgian-for-Garmin-macos.zip`, not
+  `Georgian-for-Garmin-0.1.0-macos.zip`), so links to the latest release's files keep working.
+  The README starts with download buttons for macOS, Windows and Linux that use them.
+
 ### Fixed
 
 - The installer finds the hidden `GARMIN/ExtData` folder on watches where it lies past the 32
