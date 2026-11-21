@@ -190,11 +190,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Watch::new(CONNECT)))
         .setup(|app| {
-            if let Some(main) = app.get_webview_window("main")
-                && let Err(e) = window::fit_to_work_area(&main)
-            {
-                // The window still opens at its configured size.
-                eprintln!("could not fit the window to the screen: {e}");
+            match app.get_webview_window("main") {
+                Some(main) => window::open(&main),
+                None => eprintln!("the main window is missing"),
             }
             Ok(())
         })

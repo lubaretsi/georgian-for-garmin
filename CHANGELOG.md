@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On Windows, the app's window opens in front again when the installer's **Finish** starts it.
+  Since 0.2.1 it opened behind the browser the installer was downloaded with, showing only its
+  taskbar button. The window now starts hidden, is fitted to the screen, then shown and focused.
+
 ## [0.2.1] - 2026-11-22
 
 ### Fixed

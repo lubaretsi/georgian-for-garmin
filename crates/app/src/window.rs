@@ -1,14 +1,32 @@
-//! Keeps the fixed-size window inside the screen's work area.
+//! Opens the fixed-size window inside the screen's work area, in front.
 //!
 //! `tauri.conf.json` sizes the window for its tallest page. On a short work area (1024x768 at
 //! 125%, or 1920x1080 at 150% with the taskbar), that size runs under the taskbar, so at startup
 //! the window's height is cut to the work area and the window is centered in it; the page then
 //! scrolls (`ui/style.css`). The width, and the size on screens tall enough, stay as configured.
+//!
+//! The window starts hidden (`"visible": false`) and is shown only after fitting: resizing and
+//! moving an already visible window at startup left it behind the installer's caller (Chrome)
+//! on Windows.
 
 use tauri::{PhysicalPosition, PhysicalSize, Runtime, WebviewWindow};
 
+/// Fits `window` to the screen, then shows and focuses it. It is shown even when fitting fails.
+pub fn open<R: Runtime>(window: &WebviewWindow<R>) {
+    if let Err(e) = fit_to_work_area(window) {
+        // The window still opens at its configured size.
+        eprintln!("could not fit the window to the screen: {e}");
+    }
+    if let Err(e) = window.show() {
+        eprintln!("could not show the window: {e}");
+    }
+    if let Err(e) = window.set_focus() {
+        eprintln!("could not bring the window to the front: {e}");
+    }
+}
+
 /// Shrinks `window` to fit the work area of its monitor, if it doesn't already fit.
-pub fn fit_to_work_area<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
+fn fit_to_work_area<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
     let Some(monitor) = window.current_monitor()? else {
         return Ok(());
     };
