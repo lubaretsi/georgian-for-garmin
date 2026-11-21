@@ -463,6 +463,10 @@ impl Mtp for UsbMtp {
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
         self.0.delete_object(handle)
     }
+
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        self.0.garmin_object_ids(storage, parent)
+    }
 }
 
 #[cfg(test)]

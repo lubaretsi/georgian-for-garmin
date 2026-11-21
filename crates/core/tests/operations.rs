@@ -68,6 +68,10 @@ struct State {
     misplace_into: Option<u32>,
     writes: Vec<String>,
     connects: usize,
+    /// Handles Garmin's `GetObjectIds` reports beyond `parent`'s hidden children.
+    object_ids_extra: Vec<u32>,
+    /// Garmin's `GetObjectIds` answers with an error response.
+    object_ids_fail: bool,
 }
 
 impl State {
@@ -142,6 +146,21 @@ fn venu2_with(xml: Vec<u8>) -> State {
     s.folder(0x0100_0004, GARMIN, "TEXT");
     s.folder(EXTDATA, GARMIN, "ExtData");
     s.hidden.insert(EXTDATA);
+    s
+}
+
+/// First handle past the probe window: `(GARMIN & 0xFF000000) + 33`.
+const PAST_PROBE: u32 = 0x0100_0021;
+
+/// The tactix 7 layout: `ExtData` hidden one handle past the probe window, reported only by
+/// Garmin's `GetObjectIds`, which the watch lists among its operations.
+fn tactix7(declared: &[&str]) -> State {
+    let mut s = venu2(declared);
+    s.objects.remove(&EXTDATA);
+    s.hidden.clear();
+    s.folder(PAST_PROBE, GARMIN, "ExtData");
+    s.hidden.insert(PAST_PROBE);
+    s.operations.push(op::GARMIN_GET_OBJECT_IDS);
     s
 }
 
@@ -323,6 +342,31 @@ impl Mtp for Fake {
             .remove(&handle)
             .map(drop)
             .ok_or(invalid_handle(op::DELETE_OBJECT))
+    }
+
+    /// As the tactix 7 answers it: only the children standard listings leave out.
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        let s = self.0.borrow();
+        let refuse = |code| MtpError::Response {
+            operation: op::GARMIN_GET_OBJECT_IDS,
+            code,
+        };
+        if !s.operations.contains(&op::GARMIN_GET_OBJECT_IDS) {
+            return Err(refuse(0x2005));
+        }
+        if s.object_ids_fail {
+            return Err(refuse(0x2002));
+        }
+        Ok(s.hidden
+            .iter()
+            .copied()
+            .filter(|h| {
+                s.objects
+                    .get(h)
+                    .is_some_and(|(i, _)| i.storage_id == storage && i.parent == parent)
+            })
+            .chain(s.object_ids_extra.iter().copied())
+            .collect())
     }
 }
 
@@ -516,6 +560,107 @@ fn probe_rejects_wrong_name_type_parent_and_storage() {
     let out = fake.call("inspect", json!({}), &fonts()).unwrap();
     assert!(out["extdata"].is_null());
     assert_eq!(out["fonts"][0]["staged"], "unknown");
+    assert_eq!(
+        error_code(fake.call("install", json!({}), &fonts())),
+        ErrorCode::ExtdataNotFound
+    );
+    assert!(fake.writes().is_empty());
+}
+
+#[test]
+fn finds_extdata_past_the_probe_window_by_garmin_object_ids() {
+    let out = Fake::new(tactix7(&[PART]))
+        .call("inspect", json!({}), &fonts())
+        .unwrap();
+    assert_eq!(
+        out["extdata"],
+        json!({"handle": "0x01000021", "storage_id": "0x00020001", "listed_under_garmin": false,
+               "found_by": "garmin_object_ids", "files": []})
+    );
+    assert_eq!(out["fonts"][2]["staged"], "none");
+}
+
+#[test]
+fn installs_into_extdata_found_by_garmin_object_ids() {
+    let fake = Fake::new(tactix7(&ALL));
+    let out = fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    assert_eq!(statuses(&out), pairs(&ALL.map(|p| (p, "staged_verified"))));
+    for part in ALL {
+        let files = fake.0.borrow().named(PAST_PROBE, &format!("{part}.tmp"));
+        assert_eq!(files.len(), 1, "{part}");
+        assert_eq!(files[0].1, georgian(part));
+    }
+}
+
+#[test]
+fn garmin_object_ids_is_used_only_when_the_watch_lists_it() {
+    let mut s = tactix7(&[PART]);
+    s.operations.retain(|&o| o != op::GARMIN_GET_OBJECT_IDS);
+    let fake = Fake::new(s);
+    assert!(fake.call("inspect", json!({}), &fonts()).unwrap()["extdata"].is_null());
+    assert_eq!(
+        error_code(fake.call("install", json!({}), &fonts())),
+        ErrorCode::ExtdataNotFound
+    );
+    assert!(fake.writes().is_empty());
+}
+
+#[test]
+fn a_failing_garmin_object_ids_means_extdata_not_found() {
+    let mut s = tactix7(&[PART]);
+    s.object_ids_fail = true;
+    let fake = Fake::new(s);
+    assert!(fake.call("inspect", json!({}), &fonts()).unwrap()["extdata"].is_null());
+    assert_eq!(
+        error_code(fake.call("install", json!({}), &fonts())),
+        ErrorCode::ExtdataNotFound
+    );
+    assert!(fake.writes().is_empty());
+}
+
+#[test]
+fn garmin_object_ids_candidates_are_checked() {
+    let mut s = tactix7(&[PART]);
+    s.objects.remove(&PAST_PROBE);
+    s.hidden.clear();
+    // Wrong name, not a folder, another folder's child, another storage, and a missing handle.
+    s.folder(0x0100_0030, GARMIN, "extdata");
+    s.add(
+        0x0100_0031,
+        STORAGE,
+        GARMIN,
+        "ExtData",
+        format::UNDEFINED,
+        Vec::new(),
+    );
+    s.folder(0x0100_0032, 0x0100_0004, "ExtData");
+    s.add(
+        0x0100_0033,
+        OTHER_STORAGE,
+        GARMIN,
+        "ExtData",
+        format::ASSOCIATION,
+        Vec::new(),
+    );
+    s.hidden
+        .extend([0x0100_0030, 0x0100_0031, 0x0100_0032, 0x0100_0033]);
+    s.object_ids_extra = vec![0x0100_0032, 0x0100_0033, 0x0100_0099];
+    let fake = Fake::new(s);
+    assert!(fake.call("inspect", json!({}), &fonts()).unwrap()["extdata"].is_null());
+    assert_eq!(
+        error_code(fake.call("install", json!({}), &fonts())),
+        ErrorCode::ExtdataNotFound
+    );
+    assert!(fake.writes().is_empty());
+}
+
+#[test]
+fn two_extdata_folders_from_garmin_object_ids_are_refused() {
+    let mut s = tactix7(&[PART]);
+    s.folder(0x0100_0040, GARMIN, "ExtData");
+    s.hidden.insert(0x0100_0040);
+    let fake = Fake::new(s);
     assert_eq!(
         error_code(fake.call("install", json!({}), &fonts())),
         ErrorCode::ExtdataNotFound

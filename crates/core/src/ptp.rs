@@ -14,6 +14,10 @@ pub mod op {
     pub const DELETE_OBJECT: u16 = 0x100B;
     pub const SEND_OBJECT_INFO: u16 = 0x100C;
     pub const SEND_OBJECT: u16 = 0x100D;
+    /// Garmin's vendor `GetObjectIds`, parameters `(storage, parent)`: the handles of `parent`'s
+    /// children as a `u32` array, like `GetObjectHandles`, but including children the watch
+    /// leaves out of standard listings, such as an empty `GARMIN/ExtData`.
+    pub const GARMIN_GET_OBJECT_IDS: u16 = 0x9002;
 }
 
 /// Object format codes.
@@ -25,6 +29,7 @@ pub mod format {
 /// Response codes this client distinguishes.
 pub mod response {
     pub const OK: u16 = 0x2001;
+    pub const OPERATION_NOT_SUPPORTED: u16 = 0x2005;
     pub const INVALID_OBJECT_HANDLE: u16 = 0x2009;
     pub const SESSION_ALREADY_OPEN: u16 = 0x201E;
 }
@@ -53,6 +58,7 @@ pub fn operation_name(code: u16) -> &'static str {
         op::DELETE_OBJECT => "DeleteObject",
         op::SEND_OBJECT_INFO => "SendObjectInfo",
         op::SEND_OBJECT => "SendObject",
+        op::GARMIN_GET_OBJECT_IDS => "GarminGetObjectIds",
         _ => "operation",
     }
 }

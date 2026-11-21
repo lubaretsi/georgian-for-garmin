@@ -3,7 +3,9 @@
 //! The Venu 2 omits `ExtData` from `GetObjectHandles` scoped to `GARMIN`, and from storage-wide
 //! listings when it is empty, yet answers `GetObjectInfo` for its handle. Discovery therefore
 //! tries, in order: `GARMIN`'s listed children, the storage-wide listing, parents of staged
-//! font files, and finally a bounded probe of early handles in `GARMIN`'s handle range.
+//! font files, a bounded probe of early handles in `GARMIN`'s handle range, and finally, when
+//! the watch lists it, Garmin's vendor `GetObjectIds`, which reports the children listings
+//! leave out (the tactix 7's `ExtData` sits one handle past the probe window).
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -12,7 +14,7 @@ use serde::Serialize;
 
 use crate::error::{Error, ErrorCode};
 use crate::mtp::{Mtp, MtpError};
-use crate::ptp::{ALL_OBJECTS, ObjectInfo, ROOT};
+use crate::ptp::{ALL_OBJECTS, ObjectInfo, ROOT, op};
 
 pub const EXTDATA_NAME: &str = "ExtData";
 /// Handles probed after `(GARMIN & 0xFF000000)`. On the tested Venu 2, firmware-created folders
@@ -37,6 +39,8 @@ pub enum FoundBy {
     FontParent,
     /// Unlisted; found by the bounded handle probe.
     HandleProbe,
+    /// Unlisted; reported among `GARMIN`'s children by Garmin's vendor `GetObjectIds`.
+    GarminObjectIds,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +112,42 @@ fn find_garmin(dev: &mut dyn Mtp) -> Result<Object, Error> {
     }
 }
 
+/// The `ExtData` among `GARMIN`'s children as Garmin's vendor `GetObjectIds` reports them, if
+/// the watch lists the operation. Every candidate is checked by [`is_extdata`]; an error
+/// response means no answer, and two matches are refused.
+fn garmin_object_ids(dev: &mut dyn Mtp, garmin: u32, storage: u32) -> Result<Option<u32>, Error> {
+    if !dev
+        .device_info()?
+        .operations_supported
+        .contains(&op::GARMIN_GET_OBJECT_IDS)
+    {
+        return Ok(None);
+    }
+    let children = match dev.garmin_object_ids(storage, garmin) {
+        Ok(children) => children,
+        Err(MtpError::Response { .. }) => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    let mut found = BTreeSet::new();
+    for handle in children.into_iter().collect::<BTreeSet<_>>() {
+        if let Some(info) = optional_info(dev, handle)?
+            && is_extdata(&info, garmin, storage)
+        {
+            found.insert(handle);
+        }
+    }
+    if found.len() > 1 {
+        return Err(Error::new(
+            ErrorCode::ExtdataNotFound,
+            format!(
+                "The watch reports {} ExtData folders under GARMIN; refusing to choose one.",
+                found.len()
+            ),
+        ));
+    }
+    Ok(found.pop_first())
+}
+
 pub fn discover(dev: &mut dyn Mtp) -> Result<Layout, Error> {
     let garmin = find_garmin(dev)?;
     let storage = garmin.info.storage_id;
@@ -176,7 +216,11 @@ pub fn discover(dev: &mut dyn Mtp) -> Result<Layout, Error> {
                     break;
                 }
             }
-            hit
+            match hit {
+                Some(hit) => Some(hit),
+                None => garmin_object_ids(dev, garmin.handle, storage)?
+                    .map(|handle| (handle, FoundBy::GarminObjectIds)),
+            }
         }
     };
 

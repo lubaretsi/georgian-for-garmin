@@ -33,6 +33,7 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 | Watch | Software | Status |
 |---|---|---|
 | Venu 2 | 19.05 | Tested: Georgian in pop-ups, the notification list and opened notifications |
+| tactix 7 | 27.18 | Tested: Georgian in notifications |
 
 The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
 font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian

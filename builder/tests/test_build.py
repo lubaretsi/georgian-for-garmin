@@ -23,7 +23,8 @@ from garmin_fonts.georgian import (
 from garmin_fonts.registry import RegistryError, weight
 
 # Mkhedruli x-height matched to the Armenian, descenders shortened to fit (fonts/README.md, Size).
-# Not yet tested on a watch; the Venu 2 (firmware 19.05) rendered the earlier builds of -01 to
+# The tactix 7 (software 27.18) rendered these builds of -00, -05, -06, -07 and -09; the others
+# aren't tested on a watch yet. The Venu 2 (firmware 19.05) rendered the earlier builds of -01 to
 # -04, drawn at the nominal size.
 GEORGIAN_SHA256 = {
     "006-D9035-00": "87f3fca5f37b93dca75d6b78f593b16aa35949b67efe77a326d12545065b35f9",
