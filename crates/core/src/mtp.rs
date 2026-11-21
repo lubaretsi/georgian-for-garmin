@@ -153,6 +153,17 @@ pub trait Mtp {
         data: &[u8],
     ) -> Result<NewObject, CreateError>;
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError>;
+    /// Garmin's vendor `GetObjectIds` ([`op::GARMIN_GET_OBJECT_IDS`]): the children of `parent`
+    /// on `storage`, including ones the watch omits from `GetObjectHandles`. Callers check
+    /// that the device lists the operation; a backend that cannot send it answers as a device
+    /// that doesn't support it.
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        let _ = (storage, parent);
+        Err(MtpError::Response {
+            operation: op::GARMIN_GET_OBJECT_IDS,
+            code: response::OPERATION_NOT_SUPPORTED,
+        })
+    }
 }
 
 /// The still-image class `Get Device Status` answer.
@@ -658,6 +669,11 @@ impl<L: Link> Mtp for Session<L> {
 
     fn object_handles(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         let (_, data) = self.transaction(op::GET_OBJECT_HANDLES, &[storage, 0, parent], None)?;
+        Ok(ptp::Reader::new(&data).u32_array()?)
+    }
+
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        let (_, data) = self.transaction(op::GARMIN_GET_OBJECT_IDS, &[storage, parent], None)?;
         Ok(ptp::Reader::new(&data).u32_array()?)
     }
 

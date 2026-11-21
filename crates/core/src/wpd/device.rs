@@ -730,4 +730,9 @@ impl Mtp for WpdMtp {
         trace!("deleted {}", object_id(handle));
         Ok(())
     }
+
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        let data = self.mtp_read(op::GARMIN_GET_OBJECT_IDS, &[storage, parent])?;
+        Ok(ptp::Reader::new(&data).u32_array()?)
+    }
 }

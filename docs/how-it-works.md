@@ -73,7 +73,10 @@ watch to create it fails. The installer finds it without guessing:
 1. a folder named `ExtData` under `GARMIN`, if listed;
 2. otherwise the parent of a font file already waiting there;
 3. otherwise the first 32 object handles after the `GARMIN` folder's, read one by one (on the
-   Venu 2 it's `0x01000009`).
+   Venu 2 it's `0x01000009`);
+4. otherwise, if the watch lists Garmin's vendor operation `GetObjectIds` (`0x9002`), the
+   children it reports for `GARMIN`. Unlike `GetObjectHandles`, it includes the ones listings
+   leave out: on the tactix 7 it reports `ExtData` as `0x01000021`, one past the probe.
 
 A candidate counts only if it's named `ExtData`, is a folder, sits under `GARMIN` and is on the
 same storage. If none matches, nothing is written.

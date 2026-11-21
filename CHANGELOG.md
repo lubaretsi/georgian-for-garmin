@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The installer finds the hidden `GARMIN/ExtData` folder on watches where it lies past the 32
+  handles it probes, such as the tactix 7 with software 27.18, whose `ExtData` is `0x01000021`.
+  Before, `install` stopped with `extdata_not_found`. When the other searches fail and the watch
+  lists Garmin's vendor operation `GetObjectIds` (`0x9002`), the installer asks it for
+  `GARMIN`'s children, which include the ones listings leave out; `inspect --json` reports
+  `found_by: "garmin_object_ids"`.
+
 ## [0.1.0] - 2026-11-20
 
 ### Added
