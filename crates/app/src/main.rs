@@ -17,6 +17,7 @@ compile_error!(
 mod demo;
 mod settings;
 mod share;
+mod window;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -188,6 +189,15 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Watch::new(CONNECT)))
+        .setup(|app| {
+            if let Some(main) = app.get_webview_window("main")
+                && let Err(e) = window::fit_to_work_area(&main)
+            {
+                // The window still opens at its configured size.
+                eprintln!("could not fit the window to the screen: {e}");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             inspect,
             install,

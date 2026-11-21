@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The app's window fits short screens. It was always 680 px tall, so at 1024x768 with 125%
+  scaling, or on 1920x1080 laptops at 150%, its bottom, including the Done button, ran under the
+  Windows taskbar. It now opens no taller than the screen's free area, centered in it, and the
+  page scrolls when it doesn't fit; on taller screens it looks as before.
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

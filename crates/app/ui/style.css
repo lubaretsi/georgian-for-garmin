@@ -34,7 +34,6 @@
 html,
 body {
   margin: 0;
-  height: 100%;
   background: var(--bg);
   color: var(--fg);
   -webkit-user-select: none;
@@ -42,10 +41,17 @@ body {
   cursor: default;
 }
 
+html {
+  height: 100%;
+}
+
+/* At least the window's height, and taller when a page doesn't fit (the window is cut to short
+   screens, see src/window.rs): the page then scrolls instead of centering content out of reach. */
 body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 100%;
   padding: 20px 28px;
   text-align: center;
 }
