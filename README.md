@@ -68,7 +68,10 @@ The app isn't signed, so the first time:
 - **macOS** blocks it: open **System Settings → Privacy & Security** and click **Open Anyway**.
 - **Windows** says "Windows protected your PC": click **More info → Run anyway**.
 
-Step by step on Windows, in Georgian, with every screen: [Windows-ზე დაყენება](docs/install-windows.md).
+Step by step on Windows, in Georgian, with every screen: [Windows-ზე დაყენება](docs/install-windows.md),
+or the whole install in 46 seconds:
+
+https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
 
 Then:
 
