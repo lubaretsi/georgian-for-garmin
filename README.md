@@ -18,6 +18,11 @@ The app isn't signed, so your computer warns the first time; [Install](#install)
 click. Windows on Arm, other Linux and the command-line tools:
 [all downloads](https://github.com/lubaretsi/georgian-for-garmin/releases/latest).
 
+Installing on Windows, start to finish in 46 seconds
+([step by step in Georgian](docs/install-windows.md)):
+
+https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
+
 <img src="docs/venu-2-georgian-notification.jpg" alt="Garmin Venu 2 showing a Gmail notification in Georgian" width="360">
 
 *A Gmail notification on a Venu 2 (firmware 19.05).*
@@ -68,10 +73,7 @@ The app isn't signed, so the first time:
 - **macOS** blocks it: open **System Settings → Privacy & Security** and click **Open Anyway**.
 - **Windows** says "Windows protected your PC": click **More info → Run anyway**.
 
-Step by step on Windows, in Georgian, with every screen: [Windows-ზე დაყენება](docs/install-windows.md),
-or the whole install in 46 seconds:
-
-https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
+Step by step on Windows, in Georgian, with every screen: [Windows-ზე დაყენება](docs/install-windows.md).
 
 Then:
 
