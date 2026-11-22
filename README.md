@@ -92,6 +92,26 @@ one. On the fenix 6 and Instinct 3 family the watch had our font but didn't use 
 so no build installs there; the app still puts Garmin's fonts back
 ([How it works](docs/how-it-works.md#truetype-fonts)).
 
+## Help us test
+
+We test every release on our own watches before it reaches you, but so far we have only one. Each
+group below behaves differently, so one watch from each lets us test install and restore ourselves
+instead of asking you to. If you can donate a watch from a group marked **Needed**, or lend one in
+Tbilisi for a few days, email george@lubaretsi.com. Any condition is fine as long as it turns on
+and connects by USB. A lent watch comes back with Garmin's original fonts.
+
+| Group | Example models | Why we need it | Status |
+|---|---|---|---|
+| Armenian bitmap fonts | Venu 2 / 2 Plus, fenix 7 / epix (Gen 2), tactix 7, MARQ (Gen 2) | Our main test watch | Have (Venu 2) |
+| Noto TrueType fonts | Forerunner 165 / 165 Music, Venu 3 / 3S | Test install and restore before each release | Needed |
+| Newer Noto TrueType fonts | fenix 8, Venu 4, MARQ (Gen 3) | Same fonts as the Forerunner 165, but nobody has seen Georgian on them yet | Needed |
+| Hebrew and Arabic fonts only | fenix 6 Pro / 6S Pro / 6X Pro, Instinct 3 AMOLED | Find out why they show question marks | Needed |
+| No fonts to extend | Forerunner 245 / 245 Music | Look for any font the watch uses | Needed |
+| Chinese, Japanese and Korean bitmap fonts | Venu (1st gen) | Build Georgian into these fonts | Needed |
+
+ქართულად: თუ გაქვთ საათი ჯგუფიდან, რომელსაც აწერია **Needed**, და შეგიძლიათ გვაჩუქოთ ან თბილისში
+რამდენიმე დღით გვათხოვოთ, მოგვწერეთ: george@lubaretsi.com.
+
 ## Install
 
 You need your watch's USB data cable. Download the app for your computer from
