@@ -24,12 +24,23 @@ unit ID or serial number; `fixtures_hold_no_identifiers` checks the same. A pros
 watch that mounts as a drive needs `--connection usb_drive`. Issue #13 has no report (the
 Forerunner 255's font list was never shared).
 
+One fixture is composed by hand, because its report isn't in a report format, and names its
+sources in `composed_from`: `issue-5-comment-7078836039.json` is the Forerunner 165's restore
+failure in [#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039)
+(app 0.3.0-beta.2, `unsupported_device`, the four TrueType parts declared 0.01, nothing written)
+on the declared list of the same watch's report
+[#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19), with those four parts set to
+0.01, an empty ExtData listing and no hidden listing (beta.2 didn't read it).
+`the_0_01_state_restores_and_then_installs` checks it: install asks to restore first and writes
+nothing, restore writes Garmin's originals, and after the restart install succeeds.
+
 | Fixture | Watch, software | App | Source |
 |---|---|---|---|
 | `issue-2.json` | Venu 3 (006-B4260-00), 17.05 | 0.1.0 | [#2](https://github.com/lubaretsi/georgian-for-garmin/issues/2) |
 | `issue-3.json` | fenix 6X Pro (006-B3291-00), 28.02 | 0.2.0 | [#3](https://github.com/lubaretsi/georgian-for-garmin/issues/3) |
 | `issue-4.json` | Venu 2 Plus (006-B3851-00), 19.05 | 0.2.0 | [#4](https://github.com/lubaretsi/georgian-for-garmin/issues/4) |
 | `issue-5.json` | Forerunner 165 (006-B4432-00), 29.52 | 0.2.1 | [#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5) |
+| `issue-5-comment-7078836039.json` | Forerunner 165, 29.52, declaring 0.01; composed from the comment and #19's declared list | 0.3.0-beta.2 | [#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), [#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19) |
 | `issue-6.json` | fenix 6S Pro (006-B3288-00), 28.02 | 0.2.1 | [#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6) |
 | `issue-6-comment-7078671921.json` | fenix 6S Pro, 28.02, before installing | 0.3.0-beta.2 | [#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078671921) |
 | `issue-6-comment-7078767795.json` | fenix 6S Pro, 28.02, after installing | 0.3.0-beta.2 | [#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078767795) |
@@ -49,6 +60,8 @@ Forerunner 255's font list was never shared).
 | `issue-20.json` | fenix 6S Pro (006-B3288-00), 28.02 | 0.3.0-beta.2 | [#20](https://github.com/lubaretsi/georgian-for-garmin/issues/20) |
 | `issue-22.json` | Forerunner 165 (006-B4432-00), 29.52 | 0.2.2 | [#22](https://github.com/lubaretsi/georgian-for-garmin/issues/22) |
 | `issue-23.json` | Instinct 3 AMOLED 45mm (006-B4586-00), 16.12 | 0.2.2 | [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23) |
+| `issue-24.json` | fenix 6X Pro (006-B3291-00), 28.02, right after installing (declared 2.10) | 0.3.0-beta.2 | [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24) |
+| `issue-25.json` | fenix 6X Pro, 28.02, after the restart (declared 0.00) | 0.3.0-beta.2 | [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25) |
 
 ## What the fake watch does, and what showed it
 
@@ -58,7 +71,7 @@ Forerunner 255's font list was never shared).
 | An imported font becomes a hidden read-only object, `<part>.fnt` for a bitmap part, that only Garmin's `GetObjectIds` (0x9002) lists. | The Venu 2 ([Reporting](../../../../docs/reporting.md#hidden-files)); `006-D8168-00.fnt ro` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)) |
 | Watches with TrueType fonts keep their `.bin` files out of the normal listing: the report declares them, `extdata:` is empty. | Forerunner 165 (#18, #19), fenix 6S Pro (#20) |
 | A new `<part>.bin` written next to the hidden import is taken up at the restart and replaces it; the import itself is never deleted. | Forerunner 165: installed by 0.3.0-beta.2 with only the `.bin` write, Georgian showed (#19, #5) |
-| After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)), 0.01 on the Forerunner 165 ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), restore error) |
+| After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)) and the fenix 6X Pro (2.10 right after installing, [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24); 0.00 after the restart, [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)), 0.01 on the Forerunner 165 ([#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), restore error) |
 | Those hidden `.bin` files read back as this program's earlier builds. | `006-D0952-07/-08.bin ro georgian_beta` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)) |
 | Some watches mount only as a USB drive and declare no ExtData fonts. | Forerunner 245 (#16) |
 

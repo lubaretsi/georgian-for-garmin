@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status with the issue's link.
 - A new error, `restore_first`: install refuses a TrueType file it can't read when the watch
   declares it below 1.00 (see Changed).
-- Every watch report posted in the issues so far (23) is replayed in the tests against a fake
+- Every watch report posted in the issues so far (26) is replayed in the tests against a fake
   watch built from it (`crates/core/tests/reports/`, made by `scripts/report_fixture.py`): install
   and restore must never write over a file that isn't Garmin's or ours, never delete a hidden
   object, and leave Garmin's originals wherever restore writes.

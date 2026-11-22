@@ -404,7 +404,7 @@
     {
       "model": "fenix 6X Pro",
       "model_part": "006-B3291-00",
-      "issues": [6, 3],
+      "issues": [6, 3, 24, 25],
       "unsupported": {"software": ["28.02"], "reason": "font_unused"}
     },
     {

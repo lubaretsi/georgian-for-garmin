@@ -723,14 +723,15 @@ fn every_posted_report_replays_safely() {
     );
 }
 
-/// The fixtures hold only allowlisted fields: no unit ID or serial number.
+/// The fixtures hold only allowlisted fields: no unit ID or serial number. A fixture composed by
+/// hand (a report that isn't in a report format) names its sources in `composed_from`.
 #[test]
 fn fixtures_hold_no_identifiers() {
     fn scan(value: &Value, key: &str, source: &str) {
         match value {
             Value::Object(map) => map.iter().for_each(|(k, v)| scan(v, k, source)),
             Value::Array(items) => items.iter().for_each(|v| scan(v, key, source)),
-            Value::String(s) if key != "sha256" && key != "source" => {
+            Value::String(s) if !matches!(key, "sha256" | "source" | "composed_from") => {
                 let digits = s
                     .split(|c: char| !c.is_ascii_digit())
                     .map(str::len)
@@ -759,11 +760,74 @@ fn fixtures_hold_no_identifiers() {
             .unwrap()
             .keys()
             .map(String::as_str)
+            .filter(|&k| k != "composed_from")
             .collect();
         found.sort_unstable();
         let mut expected = keys.to_vec();
         expected.sort_unstable();
         assert_eq!(found, expected, "{source}");
+        for url in fixture["composed_from"].as_array().into_iter().flatten() {
+            assert!(
+                url.as_str()
+                    .unwrap()
+                    .starts_with("https://github.com/lubaretsi/georgian-for-garmin/issues/"),
+                "{source}: {url}"
+            );
+        }
         scan(&fixture, "", &source);
     }
+}
+
+/// #5's Forerunner 165 after 0.3.0-beta.2's trailer-less install: the four TrueType parts
+/// declared 0.01, no file the watch lets be read. Install refuses with `restore_first` and
+/// writes nothing; restore writes Garmin's originals (they may go back over a file without
+/// Garmin's version); after the restart the watch declares 2.00 again and install succeeds.
+#[test]
+fn the_0_01_state_restores_and_then_installs() {
+    let (_, fixture) = fixtures()
+        .into_iter()
+        .find(|(p, _)| p.ends_with("issue-5-comment-7078836039.json"))
+        .expect("the #5 restore failure fixture");
+    let (watch, fonts) = Watch::from_fixture(&fixture);
+    let parts = [
+        "006-D9971-09",
+        "006-D9971-08",
+        "006-D1053-98",
+        "006-D1053-99",
+    ];
+
+    let err = watch.call("install", &fonts).unwrap_err();
+    assert_eq!(err.code, ErrorCode::RestoreFirst, "{}", err.message);
+    assert!(
+        watch.0.borrow().written.is_empty(),
+        "install wrote something"
+    );
+
+    let restored = watch.call("restore_stock", &fonts).unwrap();
+    let staged: Vec<&str> = restored["packs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|p| p["parts"].as_array().unwrap())
+        .map(|p| {
+            assert_eq!(p["status"], "staged_verified");
+            p["part"].as_str().unwrap()
+        })
+        .collect();
+    assert_eq!(staged, parts);
+    for handle in watch.0.borrow().written.clone() {
+        let s = watch.0.borrow();
+        let o = &s.objects[&handle];
+        assert_eq!(o.data, *font_for(&fonts, &o.info.filename).unwrap().stock);
+    }
+
+    watch.restart(&fonts);
+    let declared = watch.0.borrow().declared.clone();
+    for part in parts {
+        let version = declared.iter().find(|d| d.1 == part).unwrap().2.clone();
+        assert_eq!(version.as_deref(), Some("2.00"), "{part}");
+    }
+    let installed = watch.call("install", &fonts).unwrap();
+    assert_eq!(installed["status"], "staged_verified");
+    assert!(watch.0.borrow().violations.is_empty());
 }
