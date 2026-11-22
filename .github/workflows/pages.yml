@@ -28,6 +28,8 @@ jobs:
       contents: read
       pages: write
       id-token: write
+      # deploy-pages looks up the uploaded artifact through the Actions API.
+      actions: read
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
