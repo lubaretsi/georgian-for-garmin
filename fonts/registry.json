@@ -241,7 +241,14 @@
           "sha256": "cceb455deff08eb65bd0fef07c0d817d4a399fd563979373e59c6d1c7032f6cb"
         }
       ],
-      "tested": []
+      "tested": [
+        {
+          "model": "Forerunner 165",
+          "model_part": "006-B4432-00",
+          "software": "29.52",
+          "parts": ["006-D9971-09", "006-D9971-08"]
+        }
+      ]
     },
     {
       "id": "hebrew-noto-sans-hebrew-truetype",

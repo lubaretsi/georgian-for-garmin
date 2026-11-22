@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Forerunner 165 (29.52) as a tested watch, the first with TrueType fonts: Georgian in pop-ups,
+  the notification list and opened notifications with an iPhone (#5, #19). The beta's test mark
+  showed the watch draws Georgian from the Armenian font `006-D9971-09`.
 - **Check on the watch** after installing: a QR code for a new phone test page that sends a
   `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test` notification, one-tap questions (what the watch showed, where,
   which phone), and **Share on GitHub**, which opens a new watch report issue form with every
