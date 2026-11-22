@@ -36,6 +36,8 @@ scripts/build-macos-release.sh  # outside nix develop
   pre-write checks and its fake-watch tests together.
 - User-facing strings exist in both `ka` and `en`. Safe path: add to `crates/app/ui/strings.json`
   in both tables; the app tests enforce it.
+- Native rendering only: never suggest other apps, widgets, images or transliteration, anywhere.
+  Safe path: an unsupported watch gets its reason and issue link, nothing else.
 
 ## More detail
 

@@ -1,0 +1,76 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810",
+  "app_version": "0.3.1-beta.1",
+  "connection": "mtp",
+  "model": "fenix 6S Pro",
+  "model_part": "006-B3288-00",
+  "software": "28.02",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-05.bin",
+      "part": "006-D0952-05",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-06.bin",
+      "part": "006-D0952-06",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-07.bin",
+      "part": "006-D0952-07",
+      "version": "0.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-08.bin",
+      "part": "006-D0952-08",
+      "version": "0.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-00.tmp",
+      "part": "006-D8168-00",
+      "version": "2.10"
+    }
+  ],
+  "extdata": [],
+  "hidden": {
+    "status": "listed",
+    "files": [
+      {
+        "name": "006-D0952-05.bin",
+        "bytes": 353700,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D0952-06.bin",
+        "bytes": 355180,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D0952-07.bin",
+        "bytes": 50956,
+        "read_only": true,
+        "file": "georgian_beta"
+      },
+      {
+        "name": "006-D0952-08.bin",
+        "bytes": 50708,
+        "read_only": true,
+        "file": "georgian_beta"
+      },
+      {
+        "name": "006-D8168-00.fnt",
+        "bytes": 990709,
+        "read_only": true,
+        "file": null
+      }
+    ]
+  }
+}

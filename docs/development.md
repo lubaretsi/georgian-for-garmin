@@ -4,7 +4,7 @@
 
 | Path | What it is |
 |---|---|
-| `fonts/registry.json` | Garmin font packs that get Georgian: parts, download URLs, SHA-256s, tested watches ([how to add one](../fonts/README.md)) |
+| `fonts/registry.json` | Garmin font packs that get Georgian: parts, download URLs, SHA-256s, tested watches, and the support list of every known watch model ([how to add one](../fonts/README.md)) |
 | `builder/` | Python font builder: decodes Garmin's font format, adds Georgian, writes the asset folder |
 | `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`), the watch's font list, the hidden-folder search, and MTP over USB |
 | `crates/cli` | The `georgian-for-garmin` command |
@@ -54,9 +54,15 @@ cargo tauri dev                                            # against a real watc
 cargo tauri build --debug --features demo --bundles app    # a simulated watch, no hardware
 ```
 
-The demo build walks through a tested Venu 2, an untested model listing parts from two packs, a
-conflict and the share button. Every string is in `ui/strings.json`, with `ka` and `en` tables
-that must have the same keys; the tests check that.
+The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
+expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
+Restore, and an unsupported Venu), and a Forerunner 245 mounted as a USB
+drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first.
+Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
+tests check that.
+
+`tests/replay.rs` in `crates/core` replays every watch report posted in the issues against a fake
+watch; add a new report with `scripts/report_fixture.py` ([fixtures](../crates/core/tests/reports/README.md)).
 
 ## Release
 

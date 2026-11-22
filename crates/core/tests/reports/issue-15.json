@@ -1,0 +1,342 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/15",
+  "app_version": "0.2.2",
+  "connection": "mtp",
+  "model": "fenix 7 Pro Sapphire Solar",
+  "model_part": "006-B4375-00",
+  "software": "26.09",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-05.bin",
+      "part": "006-D0952-05",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-06.bin",
+      "part": "006-D0952-06",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-07.bin",
+      "part": "006-D0952-07",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D0952-08.bin",
+      "part": "006-D0952-08",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-00.bin",
+      "part": "006-D9971-00",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-01.bin",
+      "part": "006-D9971-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-02.bin",
+      "part": "006-D9971-02",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-03.bin",
+      "part": "006-D9971-03",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-06.tmp",
+      "part": "006-D8448-06",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-01.tmp",
+      "part": "006-D8944-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-01.tmp",
+      "part": "006-D8945-01",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-01.tmp",
+      "part": "006-D8947-01",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-01.tmp",
+      "part": "006-D8946-01",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-07.tmp",
+      "part": "006-D8448-07",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-02.tmp",
+      "part": "006-D8944-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-02.tmp",
+      "part": "006-D8945-02",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-02.tmp",
+      "part": "006-D8947-02",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-02.tmp",
+      "part": "006-D8946-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-05.tmp",
+      "part": "006-D9035-05",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-08.tmp",
+      "part": "006-D8448-08",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-03.tmp",
+      "part": "006-D8944-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-03.tmp",
+      "part": "006-D8945-03",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-03.tmp",
+      "part": "006-D8947-03",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-03.tmp",
+      "part": "006-D8946-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-06.tmp",
+      "part": "006-D9035-06",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-11.tmp",
+      "part": "006-D8448-11",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-06.tmp",
+      "part": "006-D8944-06",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-06.tmp",
+      "part": "006-D8945-06",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-06.tmp",
+      "part": "006-D8947-06",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-06.tmp",
+      "part": "006-D8946-06",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-00.tmp",
+      "part": "006-D9035-00",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-22.tmp",
+      "part": "006-D8448-22",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-17.tmp",
+      "part": "006-D8944-17",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-17.tmp",
+      "part": "006-D8945-17",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-17.tmp",
+      "part": "006-D8947-17",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-17.tmp",
+      "part": "006-D8946-17",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-07.tmp",
+      "part": "006-D9035-07",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-13.tmp",
+      "part": "006-D8448-13",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-08.tmp",
+      "part": "006-D8944-08",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-08.tmp",
+      "part": "006-D8945-08",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-08.tmp",
+      "part": "006-D8947-08",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-08.tmp",
+      "part": "006-D8946-08",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-08.tmp",
+      "part": "006-D9035-08",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-15.tmp",
+      "part": "006-D8448-15",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-10.tmp",
+      "part": "006-D8944-10",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-10.tmp",
+      "part": "006-D8945-10",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-10.tmp",
+      "part": "006-D8947-10",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-10.tmp",
+      "part": "006-D8946-10",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-16.tmp",
+      "part": "006-D8448-16",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-11.tmp",
+      "part": "006-D8944-11",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-11.tmp",
+      "part": "006-D8945-11",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-11.tmp",
+      "part": "006-D8947-11",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-11.tmp",
+      "part": "006-D8946-11",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-09.tmp",
+      "part": "006-D8168-09",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-20.tmp",
+      "part": "006-D8168-20",
+      "version": "2.10"
+    }
+  ],
+  "extdata": null,
+  "hidden": null
+}

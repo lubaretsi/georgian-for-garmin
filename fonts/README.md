@@ -1,10 +1,12 @@
 # Font registry
 
 `registry.json` lists every Garmin stock font pack that gets Georgian, the font the Georgian
-glyphs come from, and the watches each pack was verified on. `registry.schema.json` defines its
-format. `nix build .#fonts` downloads every part listed here by its SHA-256, adds Georgian to it
-and writes `pack` and `packs` into the asset manifest. `nix flake check` validates the registry
-against the schema, checks each stock file against its entry and rebuilds every font.
+glyphs come from, the watches each pack was verified on, and the support list: every watch model
+the project knows of. `registry.schema.json` defines its format. `nix build .#fonts` downloads
+every part listed here by its SHA-256, adds Georgian to it and writes `pack`, `packs` and
+`watches` into the asset manifest. `nix flake check` validates the registry against the schema,
+checks each stock file against its entry, rebuilds every font and checks the README's watch table
+against the support list.
 
 A pack has a `kind`:
 
@@ -14,24 +16,52 @@ A pack has a `kind`:
   `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
   [TrueType packs](#truetype-packs)).
 
+## Support list
+
+`watches` is the one place a watch model's status comes from. Each model appears once:
+
+| Field          | Value                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `model`        | Its name for people, as the README table shows it, e.g. `Venu 2`; one part number Garmin sells under two names gets both, e.g. `fenix 7 Pro Solar, Pro Sapphire Solar` |
+| `model_part`   | `Model/PartNumber` from the watch's `GARMIN/GarminDevice.xml`, e.g. `006-B3703-00`; unique |
+| `issues`       | Its GitHub issue numbers, the main one first: the one its owners follow, where duplicates are closed into |
+| `unsupported`  | Only for a model known not to work: `software`, the versions it was reported on, and `reason`, the id of an entry in `reasons` |
+
+`reasons` holds each reason once, by `id`, as `en` and `ka` sentences for the app (the fenix 6
+and Instinct 3 models share `font_unused`). Every reason must be used.
+
+The list holds only what can't be derived. A connected watch's status is worked out from the
+list, the packs' `tested` entries and `install` settings and the fonts the watch lists
+([How it works](../docs/how-it-works.md#the-watchs-font-folder)): `tested`, `expected`,
+`unsupported` or `unknown`. So a new model with fonts this build knows needs no entry to install;
+add one when it gets an issue, so the app links it. Add `unsupported` when a model is shown not to
+work, and a version to its `software` when a report from a new version says the same; the app asks
+an unsupported watch for a report only on a version that isn't listed.
+
+The README's watch table is generated from this list: after changing it, run
+`python -m garmin_fonts.support` from `builder/` in `nix develop`. The builder tests fail when the
+table and the list differ, and the registry checks reject a model listed twice, a tested model
+missing from the list or listed as unsupported, an unsupported model without an issue, and a
+reason that is missing, repeated or unused.
+
 ## Add a tested model
 
 Add a model once someone has installed a pack's Georgian build on that watch, unplugged and
 restarted it, and confirmed Georgian in a real notification, with a photo or a clear report in a
 GitHub issue. The owner of a watch rarely knows which font size a view uses, so the entry covers
 the model and software version. List every part of the pack the app installed on it (the parts
-the watch lists) and link the issue in the README's supported-watches table. Append to the
-pack's `tested` list:
+the watch lists). The model must be in the [support list](#support-list), with the issue. Append
+to the pack's `tested` list:
 
 | Field        | Value                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------- |
-| `model`      | `Model/Description` from the watch's `GARMIN/GarminDevice.xml`, e.g. `Venu 2`          |
 | `model_part` | `Model/PartNumber`, e.g. `006-B3703-00`                                                |
 | `software`   | `Model/SoftwareVersion` with two decimals: `1905` is `19.05`                            |
 | `parts`      | The parts of this pack installed on that watch, e.g. `["006-D9035-03"]`                 |
 
 `georgian-for-garmin inspect` shows the model, part number and software version too. The same
-model on a different software version is a separate entry.
+model on a different software version is a separate entry. Then regenerate the README's watch
+table.
 
 ## Add a pack
 
@@ -170,18 +200,22 @@ Every Garmin `.bin` ends with 16 bytes after the masked font: raw (unmasked) `0x
 version as a little-endian u16 (`200` is 2.00, `210` is 2.10), the part number in ASCII and a
 NUL; the table data before it is padded with masked zero bytes (`0x76`) to a 4-byte boundary.
 Stock `006-D0952-08` ends `89 d2 00 "006-D0952-08" 00`. Watches read the version there; a file
-without it is listed in `GarminDevice.xml` as version 0.01. Each build pads the same way and
-keeps the stock trailer byte for byte, and the builder checks every stock trailer against the
-registry's part and version. Builds up to 0.3.0-beta.2 left it out; the installer treats a
-part listed at 0.01 as one of those and replaces it.
+without it is listed in `GarminDevice.xml` below 1.00 (0.01 on the Forerunner 165, #5; 0.00 on
+the fenix 6S Pro, #6). Each build pads the same way and keeps the stock trailer byte for byte,
+and the builder checks every stock trailer against the registry's part and version. Builds up to
+0.3.0-beta.2 left it out. Install and restore identify a file by its content; only where they
+can't read it does the declared version decide, and then only restore accepts a version below
+1.00 ([How it works](../docs/how-it-works.md#truetype-fonts)).
 
 ### Which builds install a pack
 
-A pack's `install` decides: `true` (the default) in every build, `false` in none, `"beta"` only in
-pre-release builds. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `"beta"`: its Georgian
-showed question marks on a fenix 6S Pro (#6) with the trailer-less beta.2 build, and beta.3
-retests it with the trailer. Every build still restores a pack it doesn't install, and
-recognizes its Georgian builds, so a beta tester can put Garmin's originals back.
+A pack's `install` decides: `true` (the default) or `false`, restore-only. Pre-release builds
+install exactly what stable builds do: a beta never installs a font family no watch has
+confirmed. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `false`: on a fenix 6S Pro our font
+reached the watch (the hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), its
+Georgian Unicode range bit was set, and the watch still drew question marks (#6). Every build
+still restores a pack it doesn't install, and recognizes its Georgian builds, so a beta tester
+can put Garmin's originals back.
 
 ### Earlier builds
 
@@ -209,8 +243,8 @@ chance that the font the firmware searches has Georgian.
 | ------------------------------------------------ | ------------------------------------------------------ | --------------------------------------------------- |
 | Venu 3, Venu 3S (17.05)                          | `006-D9971-09`, `006-D1053-96/-98`, CJK, Thai          | `006-D9971-09`, `006-D1053-98`                      |
 | Forerunner 165, 165 Music (29.52)                | `006-D9971-08/-09`, `006-D1053-96..99`, CJK, Thai      | `006-D9971-08/-09`, `006-D1053-98/-99`              |
-| fenix 6 Pro Solar, 6S Pro, 6X Pro (28.02)        | `006-D0952-05..08`                                     | `006-D0952-07/-08`                                  |
-| Instinct 3 AMOLED 50mm (15.19)                   | `006-D0952-05..08`, `006-D9971-00..03`                 | `006-D0952-07/-08`                                  |
+| fenix 6 Pro Solar, 6S Pro, 6X Pro (28.02)        | `006-D0952-05..08`                                     | none; `006-D0952-07/-08` restore only               |
+| Instinct 3 AMOLED 50mm (15.19), 45mm (16.12)     | `006-D0952-05..08`, `006-D9971-00..03`                 | none; `006-D0952-07/-08` restore only               |
 | fenix 7 Pro Solar (26.09), also bitmap Armenian  | `006-D0952-05..08`, `006-D9971-00..03`                 | its bitmap Armenian parts only                      |
 
 - **Noto Sans Armenian** (`armenian-noto-sans-armenian-truetype`: `006-D9971-09` Regular,
@@ -223,7 +257,7 @@ chance that the font the firmware searches has Georgian.
 - **Swiss 721 Hebrew** (`hebrew-swiss-721-truetype`: `006-D0952-08` Roman, `-07` Bold): the
   only small fonts the fenix 6 and Instinct 3 list that are neither Arabic nor CJK; 38 KB, with
   Latin letters to size Georgian by. A Bitstream font; the project owner allows shipping
-  Garmin's fonts modified.
+  Garmin's fonts modified. Restore-only: the fenix 6S Pro didn't use it for Georgian (#6).
 
 Not used: the Arabic fonts (`006-D0952-05/-06` Sakkal Majalla, `006-D1053-96/-97` Noto Naskh
 Arabic) depend on shaping tables a modification could disturb, are 250 to 355 KB, and every
@@ -263,7 +297,12 @@ Tables the build updates for the new glyphs: `cmap` (each Unicode subtable of fo
 Swiss 721 Hebrew's Mac Roman subtable can't hold Georgian), `glyf`, `loca`, `hmtx`, `post`
 glyph names (`uniXXXX`), `maxp` and `hhea` totals, the `head` bounding box, OS/2's Georgian
 Unicode range bit, and in Swiss 721 Hebrew `hdmx` (linear widths), `LTSH` and `VDMX`. No
-timestamp changes, so the same inputs give the same bytes.
+timestamp changes, so the same inputs give the same bytes. The builder tests compare every build
+with its stock original: the same table list, header and trailer, every other table byte for
+byte, every stock glyph's outline, metrics and cmap entry unchanged. fontTools writes the table
+data in its own order, so in the Noto Sans Armenian and Swiss 721 Hebrew builds the tables'
+data sits in a different order than in Garmin's file (the table list itself is unchanged); the
+tests record that as an expected difference, and the hashes pinned for the builds include it.
 
 ## Pack order
 

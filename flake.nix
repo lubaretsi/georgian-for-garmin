@@ -26,10 +26,11 @@
         ./fonts/registry.schema.json
       ];
       src = lib.fileset.toSource { root = ./.; fileset = builderFiles; };
-      # The builder tests also check the per-part size table in fonts/README.md.
+      # The builder tests also check the per-part size table in fonts/README.md and the watch
+      # table in README.md.
       testSrc = lib.fileset.toSource {
         root = ./.;
-        fileset = lib.fileset.unions [ builderFiles ./fonts/README.md ];
+        fileset = lib.fileset.unions [ builderFiles ./fonts/README.md ./README.md ];
       };
 
       fontInputs = pkgs: {

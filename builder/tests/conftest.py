@@ -49,6 +49,13 @@ def marked_assets(inputs, tmp_path_factory):
     return out, manifest
 
 
+@pytest.fixture(params=["assets", "marked_assets"])
+def each_build(request):
+    """Each asset directory and its manifest: the stable build, then the beta build with test
+    marks."""
+    return request.getfixturevalue(request.param)
+
+
 @pytest.fixture(scope="session")
 def outlines(inputs):
     """Noto Sans Georgian at a weight, loaded once per weight: outlines(400)."""

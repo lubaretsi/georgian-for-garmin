@@ -108,6 +108,66 @@ MALFORMED = {
     ),
 }
 
+# Support list: the first unsupported model, for the schema's error paths.
+UNSUPPORTED = next(i for i, w in enumerate(ENTRIES["watches"]) if "unsupported" in w)
+
+
+def watch(entries, index=0):
+    return entries["watches"][index]
+
+
+MALFORMED |= {
+    "no support list": (lambda e: e.pop("watches"), "'watches' is a required property"),
+    "duplicate model in the support list": (
+        lambda e: e["watches"].append(dict(watch(e))),
+        "watches: 006-B3703-00 is listed more than once",
+    ),
+    "tested model not in the support list": (
+        set_tested("model_part", "006-B9999-00"),
+        "tested on 006-B9999-00, which is not in watches",
+    ),
+    "tested model listed as unsupported": (
+        set_tested("model_part", ENTRIES["watches"][UNSUPPORTED]["model_part"]),
+        "which watches lists as unsupported",
+    ),
+    "unsupported model without an issue": (
+        lambda e: watch(e, UNSUPPORTED).__setitem__("issues", []),
+        "is unsupported but names no issue to follow",
+    ),
+    "unsupported model without software": (
+        lambda e: watch(e, UNSUPPORTED)["unsupported"].__setitem__("software", []),
+        f"watches/{UNSUPPORTED}/unsupported/software: .* should be non-empty",
+    ),
+    "reason without Georgian": (
+        lambda e: e["reasons"][0].pop("ka"),
+        "reasons/0: 'ka' is a required property",
+    ),
+    "unknown reason": (
+        lambda e: watch(e, UNSUPPORTED)["unsupported"].__setitem__("reason", "nope"),
+        "names reason nope, which reasons lacks",
+    ),
+    "unused reason": (
+        lambda e: e["reasons"].append(dict(e["reasons"][0], id="spare")),
+        "reasons: spare is not used",
+    ),
+    "duplicate reason": (
+        lambda e: e["reasons"].append(dict(e["reasons"][0])),
+        f"reasons: {ENTRIES['reasons'][0]['id']} is listed more than once",
+    ),
+    "issue as text": (
+        lambda e: watch(e).__setitem__("issues", ["#4"]),
+        "watches/0/issues/0: '#4' is not of type 'integer'",
+    ),
+    "malformed model part": (
+        lambda e: watch(e).__setitem__("model_part", "B3703"),
+        "watches/0/model_part: ",
+    ),
+    "install only in betas": (
+        lambda e: e["packs"][0].__setitem__("install", "beta"),
+        "packs/0/install: 'beta' is not of type 'boolean'",
+    ),
+}
+
 # The first TrueType pack's index, for the schema's error paths.
 TT = next(i for i, p in enumerate(ENTRIES["packs"]) if p["kind"] == "truetype")
 

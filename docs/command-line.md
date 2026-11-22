@@ -64,7 +64,7 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 
 | Command | What it does |
 |---|---|
-| `inspect` | Shows the model, software version, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
+| `inspect` | Shows the model, software version, its status in the support list with the GitHub issue to follow, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
 | `inspect --report` | Prints the watch report the app shares in a GitHub issue: model, part number, software, the font files the watch declares and holds, what this build would install, the app version and OS ([Reporting](reporting.md)). No serial number or unit ID. |
 | `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
 | `restore-stock` | The same with Garmin's original fonts. |
@@ -95,15 +95,20 @@ Running `install` again after it succeeded changes nothing and reports `already_
 - `device`: `model`, `part_number`, `software_version`;
 - `supported`: the watch lists a bundled part this build installs and accepts the needed MTP
   writes; `restorable`: `restore-stock` has parts to write, including packs this build only
-  restores (Swiss 721 Hebrew in stable builds);
+  restores (Swiss 721 Hebrew);
 - `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`,
   `waiting` (bitmap, until the restart), `partly`, `beta` (an earlier release's build),
-  `not_installed`, `not_visible` (the watch doesn't show its `.bin` files), `stock_waiting`,
-  `other`, `unknown` or `unsupported`;
+  `not_installed`, `not_visible` (the watch shows its `.bin` files in neither listing),
+  `stock_waiting`, `other`, `unknown` or `unsupported`;
 - `tested`: `status` for the whole install and `verified_software`, the software versions this
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
+- `support`: the watch's status in the support list ([How it works](how-it-works.md)):
+  `status` (`tested`, `expected`, `unsupported` or `unknown`), `listed` (the model's part
+  number is in the list), `issue` (the GitHub issue to follow, or null), `reason` (for
+  `unsupported`: `en` and `ka` sentences, else null) and `report_wanted` (a report from this
+  watch adds information). `inspect-drive --json` has it too;
 - `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
   bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
   choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the
@@ -143,8 +148,9 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
-| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or a TrueType part at another version than the bundled one | Share `inspect --report` in an issue. |
-| `conflict` | A different `.tmp` file is already waiting on the watch, or a `.bin` font is neither Garmin's original nor this build's; nothing was written | For a `.tmp`, unplug and restart the watch so it loads that file, then run again. For a `.bin`, share `inspect --report` in an issue. |
+| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
+| `conflict` | A file under a target's name is neither Garmin's original nor one of this program's builds, by content, or two files share the name; nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
+| `restore_first` | Install: a TrueType file the watch doesn't let be read is declared below 1.00, as watches declared this program's builds before 0.3.0; install never writes over a file it can't identify, so nothing was written | Run `restore-stock`, restart the watch, then install again. |
 | `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |

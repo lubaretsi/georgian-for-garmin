@@ -1,5 +1,6 @@
 //! Embeds the font asset directory named by `GEORGIAN_FOR_GARMIN_FONTS`, after checking every
-//! listed file against the SHA-256 in its `manifest.json` and every font against its pack.
+//! listed file against the SHA-256 in its `manifest.json` and every font against its pack, and
+//! the manifest's support list (the registry's `watches`).
 
 use std::collections::BTreeSet;
 use std::env;
@@ -20,6 +21,31 @@ struct Manifest {
     /// Beta builds: every Georgian font carries a test mark. Absent in older manifests.
     #[serde(default)]
     test_marks: bool,
+    /// The support list. Absent in older manifests: every watch's status is derived from its
+    /// fonts alone.
+    #[serde(default)]
+    watches: Vec<WatchEntry>,
+}
+
+#[derive(Deserialize)]
+struct WatchEntry {
+    model: String,
+    model_part: String,
+    issues: Vec<u32>,
+    #[serde(default)]
+    unsupported: Option<UnsupportedEntry>,
+}
+
+#[derive(Deserialize)]
+struct UnsupportedEntry {
+    software: Vec<String>,
+    reason: ReasonEntry,
+}
+
+#[derive(Deserialize)]
+struct ReasonEntry {
+    en: String,
+    ka: String,
 }
 
 #[derive(Deserialize)]
@@ -76,7 +102,6 @@ fn yes() -> bool {
 
 #[derive(Deserialize)]
 struct TestedEntry {
-    model: String,
     model_part: String,
     software: String,
     parts: Vec<String>,
@@ -266,12 +291,66 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
             }
             writeln!(
                 code,
-                "        BundledTested {{ model: {:?}, model_part: {:?}, software: {:?}, parts: &{:?} }},",
-                tested.model, tested.model_part, tested.software, tested.parts
+                "        BundledTested {{ model_part: {:?}, software: {:?}, parts: &{:?} }},",
+                tested.model_part, tested.software, tested.parts
             )
             .unwrap();
         }
         code.push_str("    ] },\n");
+    }
+    code.push_str("]\n");
+    code
+}
+
+/// Checks the support list against the packs, then writes it.
+fn watch_table(manifest: &Manifest, manifest_path: &Path) -> String {
+    let where_ = manifest_path.display();
+    let mut parts = BTreeSet::new();
+    for watch in &manifest.watches {
+        if !parts.insert(watch.model_part.as_str()) {
+            fail(format!(
+                "{where_}: watch {} is listed twice",
+                watch.model_part
+            ));
+        }
+        if watch.unsupported.is_some() && watch.issues.is_empty() {
+            fail(format!(
+                "{where_}: unsupported watch {} names no issue",
+                watch.model_part
+            ));
+        }
+    }
+    // Older manifests have no support list.
+    if !manifest.watches.is_empty() {
+        for pack in &manifest.packs {
+            if let Some(t) = pack
+                .tested
+                .iter()
+                .find(|t| !parts.contains(t.model_part.as_str()))
+            {
+                fail(format!(
+                    "{where_}: pack {:?} was tested on {}, which the support list lacks",
+                    pack.id, t.model_part
+                ));
+            }
+        }
+    }
+    let mut code = String::from("&[\n");
+    for watch in &manifest.watches {
+        let unsupported = match &watch.unsupported {
+            None => "None".to_owned(),
+            Some(u) => format!(
+                "Some(BundledUnsupported {{ software: &{:?}, reason_en: {:?}, reason_ka: {:?} }})",
+                u.software, u.reason.en, u.reason.ka
+            ),
+        };
+        writeln!(
+            code,
+            "    BundledWatch {{ model: {:?}, model_part: {:?}, issues: &{:?}, unsupported: \
+             {unsupported} }},",
+            watch.model, watch.model_part, watch.issues
+        )
+        .unwrap();
     }
     code.push_str("]\n");
     code
@@ -295,8 +374,16 @@ fn main() {
     )
     .unwrap_or_else(|e| fail(format!("invalid {}: {e}", manifest_path.display())));
 
-    let code = pack_table(&dir, &manifest, &manifest_path);
-    let out =
-        PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR")).join("bundled_fonts.rs");
-    fs::write(&out, code).unwrap_or_else(|e| fail(format!("cannot write {}: {e}", out.display())));
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR"));
+    for (name, code) in [
+        (
+            "bundled_fonts.rs",
+            pack_table(&dir, &manifest, &manifest_path),
+        ),
+        ("bundled_watches.rs", watch_table(&manifest, &manifest_path)),
+    ] {
+        let out = out_dir.join(name);
+        fs::write(&out, code)
+            .unwrap_or_else(|e| fail(format!("cannot write {}: {e}", out.display())));
+    }
 }

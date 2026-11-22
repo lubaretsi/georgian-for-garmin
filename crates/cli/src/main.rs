@@ -7,7 +7,7 @@ use std::process::ExitCode;
 use clap::error::ErrorKind;
 use clap::{Args, Parser, Subcommand};
 use georgian_for_garmin_core::fonts::FontSet;
-use georgian_for_garmin_core::{Error, ErrorCode, connect, ops};
+use georgian_for_garmin_core::{Error, ErrorCode, connect, ops, report};
 use serde_json::{Map, Value, json};
 
 const EXAMPLES: &str = "\
@@ -40,7 +40,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Show the watch model, its font packs, whether they were tested, and what is staged (read-only)
+    /// Show the watch model, its support status, its font packs, whether they were tested, and what is staged (read-only)
     Inspect(InspectArgs),
     /// Stage the Georgian font in every part of the bundled packs the watch lists and verify it
     Install(StageArgs),
@@ -207,10 +207,15 @@ fn print_human(operation: &str, out: &Value) {
                 text(&out["path"])
             );
             println!("{}", text(&out["hosts"]["reason"]));
-            println!(
-                "Nothing can be installed while the watch is a USB drive; it needs MTP. To share \
-                 its font list: georgian-for-garmin inspect-drive --report"
-            );
+            println!("{}", support_words(&out["support"]));
+            if out["support"]["report_wanted"] == true {
+                println!(
+                    "Nothing can be installed while the watch is a USB drive; it needs MTP. To \
+                     share its font list: georgian-for-garmin inspect-drive --report"
+                );
+            } else {
+                println!("Nothing can be installed while the watch is a USB drive; it needs MTP.");
+            }
             return;
         }
         _ => {}
@@ -252,6 +257,7 @@ fn print_human(operation: &str, out: &Value) {
         text(&device["software_version"])
     );
     println!("{}", text(&out["hosts"]["reason"]));
+    println!("{}", support_words(&out["support"]));
     println!(
         "Georgian on the watch: {}",
         state_words(text(&out["state"]))
@@ -339,11 +345,27 @@ fn print_human(operation: &str, out: &Value) {
             println!("restore-stock still puts Garmin's original fonts back.");
         }
     }
-    if out["tested"]["status"] != "tested" {
+    if out["support"]["report_wanted"] == true {
         println!(
             "To help add this watch, share its font list: georgian-for-garmin inspect --report"
         );
     }
+}
+
+/// `inspect`'s `support` in a sentence, with the issue to follow.
+fn support_words(support: &Value) -> String {
+    let mut line = match text(&support["status"]) {
+        "tested" => "Status: tested; Georgian was confirmed on this model and software.".to_owned(),
+        "expected" => "Status: expected; Georgian installs but isn't confirmed on this model and \
+                       software yet."
+            .to_owned(),
+        "unsupported" => format!("Status: unsupported; {}", text(&support["reason"]["en"])),
+        _ => "Status: unknown; this build has no font for this watch.".to_owned(),
+    };
+    if let Some(issue) = support["issue"].as_u64() {
+        line.push_str(&format!(" Updates: {}/{issue}", report::ISSUES));
+    }
+    line
 }
 
 /// `inspect`'s `state` in a sentence.

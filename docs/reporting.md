@@ -16,15 +16,35 @@ it and submits it.
    which [test mark](#beta-test-marks) the watch showed, from pictures of the marks the app
    installed.
 4. **What's shared** shows the exact report text before anything opens. **Share on GitHub** opens
-   the form with every field filled in.
+   the form with every field filled in. On a watch already confirmed on its model and software
+   (`tested`), the screen says so and the button becomes the secondary **Didn't work? Share on
+   GitHub**: only a failure is news there.
 
 The same form is used by:
 
-- **Share my watch's font list** on the main screen, for watches that can't install or aren't
-  tested (report only, no answers);
+- **Share my watch's font list** on the main screen, only when a report from the watch adds
+  information (report only, no answers; see below);
 - **Report this on GitHub** on the error screen after a failed install or restore (the error code
   is in the report);
-- the screen for watches that connect as a [USB drive](#watches-that-connect-as-a-usb-drive).
+- the screen for watches that connect as a [USB drive](#watches-that-connect-as-a-usb-drive),
+  under the same rule.
+
+### When the app asks
+
+Each watch has a status from the support list in `fonts/registry.json`
+([How it works](how-it-works.md#the-watchs-font-folder)), and the app asks for a report only when
+one would add something new:
+
+| Status | Asks for a report |
+|---|---|
+| `tested` | No; after installing, only if Georgian didn't work |
+| `expected` | Yes: install, then **Check on the watch** |
+| `unsupported` | Only on a software version the list doesn't have; otherwise the main screen shows the reason and a **Follow updates** link to the issue |
+| `unknown` | Yes: its font list |
+
+Sharing is always one click to a new issue with the form filled in. The maintainer closes
+duplicates into a watch family's main issue (the first issue a model lists), which is the one the
+app links.
 
 From the command line: `georgian-for-garmin inspect --report` prints the same report text, and
 `issue-link` makes the link ([Command line](command-line.md#commands)).
@@ -64,6 +84,7 @@ appear):
 | `extdata_listing` (`name`, `bytes`, `sha256`) | The `GARMIN/ExtData` folder; `sha256` only for files `inspect` already reads (named for a bundled part, with one of its sizes) |
 | `extdata_hidden` (`status`, `files`: `name`, `bytes`, `read_only`, `file`; `note`) | `GARMIN/ExtData`'s children the normal listing leaves out, from Garmin's `GetObjectIds`; `file` only for this build's parts |
 | `hosts` (`kind`, `reason`), `packs`, `tested`, `state` | This build's choice of fonts for the watch, and Georgian on it |
+| `support` (`status`, `listed`, `issue`, `reason`, `report_wanted`) | The watch's status in the support list; the `support` line, such as `support expected issue=#5`, adds `unlisted` for a model the list doesn't have and `new_software` for an unsupported model on a new software version |
 | `parts` (`part`, `target`, `file`, `tested`, `mark`) | Each bundled part the watch lists |
 | `test_marks` | Whether this is a beta build with test marks (`marks beta` or `marks off`) |
 
@@ -76,6 +97,7 @@ An example (`inspect --report`, a Venu 2 before installing):
 app 0.3.0 "Mac OS" 15.6.1 aarch64
 connection mtp
 watch "Venu 2" 006-B3703-00 19.05
+support tested
 hosts bitmap: This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those.
 packs armenian-noto-sans-regular (tested)
 state not_installed
@@ -104,7 +126,8 @@ restore, the state and files are from just before it, and the lines say so.
 Some watches leave read-only objects out of the normal MTP listing: on the Venu 2, Garmin's vendor
 `GetObjectIds` (`0x9002`) on a folder returns exactly those, such as the imported `.fnt` fonts in
 `ExtData`, and the two listings together cover the folder. The Forerunner 165 and fenix 6S Pro
-reports show an empty `extdata:` while declaring 11 `.bin` fonts, probably the same hiding. When the
+reports show an empty `extdata:` while declaring 11 `.bin` fonts: the same hiding, as the fenix 6S
+Pro's hidden listing later showed (#6). When the
 watch lists `0x9002`, `inspect` lists `ExtData`'s hidden children too, on the report's `hidden:`
 line: each file's name, size and `ro` (read-only), `rw`, or `?` when the protection couldn't be
 read (on Windows it comes from the watch's own ObjectInfo, since WPD has no property for it), and for a file named for one of this
@@ -114,8 +137,10 @@ doesn't list the operation, `hidden: error …` that listing or a read failed (t
 report is unaffected), and `hidden: not read` that `ExtData` wasn't found or the watch is a USB
 drive.
 
-The hidden listing is for the report only: install, restore, each part's `file` and `state` never
-use it, since a read-only object would take install down a delete path it doesn't take today.
+Install and restore use it too: a part's file that only the hidden listing shows is identified
+by the same rule, so `file` and `state` come from it where the normal listing shows nothing. A
+hidden object is never deleted; install and restore write a new file next to it, which the watch
+takes up when it restarts ([How it works](how-it-works.md#truetype-fonts)).
 
 ## The phone test page
 

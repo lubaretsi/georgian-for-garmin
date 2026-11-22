@@ -10,12 +10,17 @@
     "softwareVersion": "ვერსია {version}",
     "install": "ქართულის დაყენება",
     "restore": "ქარხნული შრიფტის დაბრუნება",
-    "unsupportedWatch": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს.",
-    "tested": {
+    "support": {
       "tested": "ამ საათზე შემოწმებულია",
-      "tested_other_software": "ამ მოდელზე შემოწმებულია, ოღონდ ვერსია {versions}-ზე",
-      "untested": "ამ საათზე ჯერ არ შეგვიმოწმებია"
+      "expected": "თქვენს საათზე ჯერ დადასტურებული არ არის",
+      "unsupported": "ამ საათზე ქართული ჯერ ვერ მუშაობს",
+      "unknown": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს"
     },
+    "supportOtherSoftware": "ამ მოდელზე შემოწმებულია ვერსია {versions}-ზე, თქვენს ვერსიაზე ჯერ არა",
+    "restoreHint": "თუ ადრე სატესტო ვერსია დააყენეთ, „ქარხნული შრიფტის დაბრუნება“ Garmin-ის შრიფტებს დააბრუნებს.",
+    "followUpdates": "სიახლეები GitHub-ზე (#{issue})",
+    "checkConfirmed": "ქართული ამ მოდელსა და ვერსიაზე უკვე დადასტურებულია. გაზიარება მხოლოდ მაშინ გვჭირდება, თუ არ იმუშავა.",
+    "checkShareFailed": "არ იმუშავა? GitHub-ზე გაზიარება",
     "untestedBody": "ამ მოდელსა და ვერსიაზე ყველა შრიფტი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტების დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
@@ -106,7 +111,8 @@
       "font_unavailable": "პროგრამას შრიფტი აკლია. ჩამოტვირთეთ პროგრამა თავიდან.",
       "garmin_folder_not_found": "საათის ფაილები ვერ წავიკითხეთ. გამოაერთეთ, ისევ შეაერთეთ და სცადეთ თავიდან.",
       "extdata_not_found": "საათზე შრიფტების საქაღალდე ვერ ვიპოვეთ. გადატვირთეთ საათი, ისევ შეაერთეთ და სცადეთ თავიდან.",
-      "conflict": "საათზე უკვე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას, ამიტომ არაფერი შეგვიცვლია. გამოაერთეთ საათი და გადატვირთეთ, რომ ის ფაილი ჩაიტვირთოს, მერე ისევ შეაერთეთ.",
+      "conflict": "საათზე შრიფტის ფაილია, რომელიც არც Garmin-ისაა და არც ჩვენი, ამიტომ არაფერი შეგვიცვლია. თუ ის გადატვირთვას ელოდება, გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ.",
+      "restore_first": "საათზე შრიფტის ფაილი ვერ წავიკითხეთ, ამიტომ ვერ ვიგებთ, რა არის, და მასზე არაფერს ვწერთ. დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“, გადატვირთეთ საათი და მერე ისევ დააყენეთ ქართული.",
       "verification_failed": "შრიფტი სწორად ვერ ჩაიწერა, ამიტომ საათიდან წავშალეთ. სცადეთ თავიდან.",
       "device_error": "საათთან კავშირი გაწყდა. შეამოწმეთ კაბელი და სცადეთ თავიდან.",
       "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ."
@@ -123,12 +129,17 @@
     "softwareVersion": "Software {version}",
     "install": "Install Georgian",
     "restore": "Restore original font",
-    "unsupportedWatch": "There’s no font for this watch yet.",
-    "tested": {
+    "support": {
       "tested": "Tested on this watch",
-      "tested_other_software": "Tested on this model, with software {versions}",
-      "untested": "Not tested on this watch yet"
+      "expected": "Not yet confirmed on your watch",
+      "unsupported": "Georgian doesn’t work on this watch yet",
+      "unknown": "There’s no font for this watch yet"
     },
+    "supportOtherSoftware": "Confirmed on this model with software {versions}, not yet on yours",
+    "restoreHint": "If you installed a test version earlier, Restore original font puts Garmin’s fonts back.",
+    "followUpdates": "Follow updates on GitHub (#{issue})",
+    "checkConfirmed": "Georgian is already confirmed on this model and software. We only need a report if it didn’t work.",
+    "checkShareFailed": "Didn’t work? Share on GitHub",
     "untestedBody": "Not every font has been tried on this model and software yet: Georgian may still show as boxes, and restoring the original fonts hasn't been checked on this model either.",
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",
@@ -219,7 +230,8 @@
       "font_unavailable": "This copy of the app is missing its font. Download the app again.",
       "garmin_folder_not_found": "The watch’s files couldn’t be read. Unplug it, connect it again and try again.",
       "extdata_not_found": "The watch’s font folder couldn’t be found. Restart the watch, connect it again and try again.",
-      "conflict": "A different font file is already waiting on the watch, so nothing was changed. Unplug the watch and restart it so it loads that file, then connect it again.",
+      "conflict": "A font file on the watch is neither Garmin’s nor ours, so nothing was changed. If it’s waiting for a restart, unplug the watch, restart it and connect it again.",
+      "restore_first": "A font file on the watch can’t be read, so the app can’t tell what it is and writes nothing over it. Click Restore original font, restart the watch, then install Georgian again.",
       "verification_failed": "The font didn’t copy correctly, so it was removed from the watch. Try again.",
       "device_error": "The connection to the watch was interrupted. Check the cable and try again.",
       "internal": "Something went wrong inside the app. Please report it."

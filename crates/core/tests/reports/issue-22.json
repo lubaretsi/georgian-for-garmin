@@ -1,0 +1,78 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/22",
+  "app_version": "0.2.2",
+  "connection": "mtp",
+  "model": "Forerunner 165",
+  "model_part": "006-B4432-00",
+  "software": "29.52",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-22.tmp",
+      "part": "006-D8168-22",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D1053-96.bin",
+      "part": "006-D1053-96",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D1053-97.bin",
+      "part": "006-D1053-97",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D1053-98.bin",
+      "part": "006-D1053-98",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D1053-99.bin",
+      "part": "006-D1053-99",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-00.bin",
+      "part": "006-D9971-00",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-01.bin",
+      "part": "006-D9971-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-06.bin",
+      "part": "006-D9971-06",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-07.bin",
+      "part": "006-D9971-07",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-08.bin",
+      "part": "006-D9971-08",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9971-09.bin",
+      "part": "006-D9971-09",
+      "version": "2.00"
+    }
+  ],
+  "extdata": null,
+  "hidden": null
+}

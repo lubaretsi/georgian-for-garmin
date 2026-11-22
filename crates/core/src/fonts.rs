@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::garmin_device::GarminDevice;
+use crate::support::{Reason, Unsupported, Watch};
 
 /// How a pack's fonts reach the watch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -46,7 +47,6 @@ struct BundledMark {
 }
 
 struct BundledTested {
-    model: &'static str,
     model_part: &'static str,
     software: &'static str,
     parts: &'static [&'static str],
@@ -62,7 +62,21 @@ struct BundledPack {
     tested: &'static [BundledTested],
 }
 
+struct BundledUnsupported {
+    software: &'static [&'static str],
+    reason_en: &'static str,
+    reason_ka: &'static str,
+}
+
+struct BundledWatch {
+    model: &'static str,
+    model_part: &'static str,
+    issues: &'static [u32],
+    unsupported: Option<BundledUnsupported>,
+}
+
 static BUNDLED: &[BundledPack] = include!(concat!(env!("OUT_DIR"), "/bundled_fonts.rs"));
+static BUNDLED_WATCHES: &[BundledWatch] = include!(concat!(env!("OUT_DIR"), "/bundled_watches.rs"));
 
 /// One size (bitmap) or weight (TrueType) of a pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,11 +185,10 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// A watch on which a pack's Georgian build was seen rendering.
+/// A watch on which a pack's Georgian build was seen rendering. Its model is in the support
+/// list ([`FontSet::watches`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tested {
-    /// `Model/Description`, e.g. "Venu 2".
-    pub model: String,
     /// `Model/PartNumber`, e.g. "006-B3703-00".
     pub model_part: String,
     /// `Model/SoftwareVersion` with two decimals, e.g. "19.05".
@@ -214,12 +227,29 @@ pub struct Listed<'a> {
 pub struct FontSet {
     /// In registry order.
     pub packs: Vec<Pack>,
+    /// The support list: every watch model the project knows of, in registry order.
+    pub watches: Vec<Watch>,
 }
 
 impl FontSet {
-    /// The fonts embedded at build time from `GEORGIAN_FOR_GARMIN_FONTS`.
+    /// The fonts and support list embedded at build time from `GEORGIAN_FOR_GARMIN_FONTS`.
     pub fn bundled() -> FontSet {
         FontSet {
+            watches: BUNDLED_WATCHES
+                .iter()
+                .map(|w| Watch {
+                    model: w.model.to_owned(),
+                    model_part: w.model_part.to_owned(),
+                    issues: w.issues.to_vec(),
+                    unsupported: w.unsupported.as_ref().map(|u| Unsupported {
+                        software: u.software.iter().map(|&s| s.to_owned()).collect(),
+                        reason: Reason {
+                            en: u.reason_en.to_owned(),
+                            ka: u.reason_ka.to_owned(),
+                        },
+                    }),
+                })
+                .collect(),
             packs: BUNDLED
                 .iter()
                 .map(|p| Pack {
@@ -260,7 +290,6 @@ impl FontSet {
                         .tested
                         .iter()
                         .map(|t| Tested {
-                            model: t.model.to_owned(),
                             model_part: t.model_part.to_owned(),
                             software: t.software.to_owned(),
                             parts: t.parts.iter().map(|&p| p.to_owned()).collect(),

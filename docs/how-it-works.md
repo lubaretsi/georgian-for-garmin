@@ -34,6 +34,22 @@ flowchart LR
 - **Whether it was tested.** Each part counts as tested on a watch when its pack's `tested` list
   in the registry names that part for the watch's model part number and software version. The
   watch as a whole counts as tested only when every part it gets is.
+- **The watch's status.** The registry's support list (`watches`) names every watch model the
+  project knows of, with its GitHub issues (the main one first) and, for a model known not to
+  work, why and on which software versions. Everything else is derived for the connected watch:
+
+  | Status | When | The app |
+  |---|---|---|
+  | `tested` | This build installs Georgian and the watch as a whole counts as tested | Installs; after installing, the check screen says it's confirmed and offers sharing only as **Didn't work? Share on GitHub** |
+  | `expected` | This build installs Georgian, but not every part is confirmed on this model and software (a new model, or a tested one on new software) | Installs, says it's not confirmed on this watch yet, and asks for a report |
+  | `unsupported` | The support list says the model doesn't work, even if this build has fonts it could install (the command line's `install` still writes those) | Doesn't install; shows the reason, a link to the issue, and **Restore original font** where an earlier build's fonts can go back. Asks for a report only on a software version the list doesn't have |
+  | `unknown` | None of the above: this build has nothing to install on it | Asks for its font list |
+
+  Pre-release builds install exactly what stable builds do: a font family no watch has
+  confirmed isn't installed by any build.
+
+  `inspect` and the watch report carry it as `support`; the README's watch table is generated
+  from the same list ([Font registry](../fonts/README.md#support-list)).
 
 ## The font
 
@@ -74,21 +90,23 @@ with `0x76`, followed by a 16-byte trailer with Garmin's version and part number
 ([Version trailer](../fonts/README.md#version-trailer)). The builder unmasks Garmin's file,
 appends Noto Sans Georgian's outlines, scaled to the host's letters, keeps every original glyph,
 table and name, masks it again and puts the trailer back. Without the trailer, as in builds up
-to 0.3.0-beta.2, the watch lists the part as version 0.01.
+to 0.3.0-beta.2, the watch lists the part below 1.00: 0.01 on the Forerunner 165 (#5), 0.00 on
+the fenix 6S Pro (#6).
 
-Stable builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Forerunner
-165 (29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the
-fenix 6 and Instinct 3 showed question marks on a fenix 6S Pro (#6), so only beta builds install
-them, for a retest with the trailer; stable builds treat those watches as unsupported but still
-restore Garmin's originals. [The font registry](../fonts/README.md#truetype-packs) says why and
-how each is sized.
+Builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Forerunner 165
+(29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the fenix 6
+and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reached the watch (its
+hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
+range bit was set, and the watch still drew question marks (#6). Those watches are unsupported;
+the app shows why, links the issue and restores Garmin's originals.
+[The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
-These watches show no `.bin` files over MTP (the `ExtData` listing in #6's and #19's reports is
-empty), so whether a part holds Garmin's font or Georgian can't be seen: `inspect` reports such a
-part as `not_visible` and the app says it can't tell, rather than offering to install as if
-nothing were there. Where the files are visible, `inspect` names each one by its content:
-`georgian`, `georgian_beta` (an earlier release's build), `stock` or `other`; the app, the CLI
-and the report all show that one result, summed up as `state`.
+These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and
+#19's reports is empty). Where the watch lists Garmin's `GetObjectIds` (0x9002), the hidden
+listing shows them, read-only, and the installer identifies each by its content too; only where
+neither listing shows a part's file does `inspect` report it as `not_visible`. Every file is
+named by its content: `georgian`, `georgian_beta` (an earlier release's build), `stock` or
+`other`; the app, the CLI and the report all show that one result, summed up as `state`.
 
 Only watches that list none of the registry's bitmap fonts get the TrueType ones. A watch with
 bitmap Armenian fonts, such as the fenix 7 Pro, gets Georgian in those, as before, and its
@@ -102,18 +120,34 @@ no restart. MTP has no way to overwrite a file in place, so the installer delete
 `.bin` and writes the new one under the same name, then reads it back. The steps that keep this
 safe:
 
-- It replaces a `.bin` only when it holds Garmin's original byte for byte (the same file the
-  registry pins by SHA-256), this build's Georgian font, or a Georgian build an earlier release
-  installed (also pinned), and only when `GarminDevice.xml` lists the part at the version and
-  file name the build carries, or at 0.01 (an earlier build without the trailer). Anything else,
-  or two files under the name, stops the whole install before anything is written. A beta's
-  waiting bitmap `.tmp` is replaced the same way.
-- Where the watch shows no `.bin` for a part it lists, the file is created, as Garmin's
-  updater would.
-- The original bytes are read from the watch before anything is written. If any part fails,
-  in any pack, each replaced `.bin` is written back from them and read back, and new `.tmp`
+- **Identified by content.** For each part it writes, install and restore find the part's file
+  in the normal listing or, when the watch lists 0x9002, in the hidden listing, read it and
+  compare it with Garmin's original, this build's Georgian font and every earlier release's
+  Georgian build, all pinned by SHA-256 in the registry. A file that is one of those is
+  replaced; anything else (`other`), or two files under one name, stops the whole call before
+  anything is written. The same holds for a bitmap part's waiting `.tmp`.
+- **Hidden files are never deleted.** A file only the hidden listing shows is a read-only
+  import; the installer writes a new `.bin` next to it, which the watch takes up when it
+  restarts, as the Forerunner 165 did with 0.3.0-beta.2's fonts (#5, #19).
+- **A file it can't read.** Where neither listing shows the file (or reading a hidden one
+  fails), only what `GarminDevice.xml` declares is known. **Install never writes over a file it
+  can't identify**: it goes ahead only when the watch declares the part at Garmin's version and
+  file name, as for Garmin's original. **Restore may put Garmin's original back over a file
+  without Garmin's version**: it also accepts a version below 1.00, which is how watches
+  declared this program's builds before 0.3.0, whose trailer was missing (0.00 on the fenix 6S
+  Pro, #6; 0.01 on the Forerunner 165, #5). Restore only ever writes Garmin's own file, so the
+  worst case is a font Garmin made. Below 1.00, install stops with `restore_first`: restore,
+  restart the watch, and it declares Garmin's version again, so install then works by the
+  normal rule. Any other version (perhaps a newer Garmin font) stops both with
+  `unsupported_device`.
+- **Rollback.** The original bytes are read from the watch before anything is written. If any
+  part fails, in any pack, each replaced file is written back from them and read back, and new
   files are deleted; the error says what happened to each file.
 - Restoring writes Garmin's original, bundled in the app, the same way.
+
+The watch behaviors these rules rely on, each with the report that showed it, are listed with
+the [report replay fixtures](../crates/core/tests/reports/README.md): every report posted so far
+is replayed against a fake watch in the tests.
 
 Unplugging and restarting the watch afterwards is still the instruction: the watch may only
 reload its fonts then.

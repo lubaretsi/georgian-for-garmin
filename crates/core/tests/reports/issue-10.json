@@ -1,0 +1,18 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/10",
+  "app_version": "0.2.2",
+  "connection": "mtp",
+  "model": "Forerunner 245 Music",
+  "model_part": "006-B3077-00",
+  "software": "13.70",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-00.tmp",
+      "part": "006-D8168-00",
+      "version": "2.10"
+    }
+  ],
+  "extdata": null,
+  "hidden": null
+}

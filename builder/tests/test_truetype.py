@@ -1,5 +1,6 @@
 import hashlib
 import io
+import struct
 from fractions import Fraction
 from statistics import median
 
@@ -14,6 +15,7 @@ from garmin_fonts.truetype import (
     HOST_LATIN_X,
     LATIN_X_HEIGHT,
     UNICODE_RANGE_GEORGIAN,
+    TRAILER_SIZE,
     UNITS_PER_EM,
     TrueTypeSizing,
     choose_sizing,
@@ -42,6 +44,30 @@ TRUETYPE_SHA256 = {
 # Tables the builder rewrites; every other table must stay byte for byte.
 REWRITTEN = {"glyf", "loca", "hmtx", "hhea", "maxp", "head", "cmap", "post", "OS/2", "hdmx",
              "LTSH", "VDMX"}
+# The fields of rewritten tables the build may change, as fonts/README.md lists them (TrueType
+# packs, Size: "Tables the build updates"): the head bounding box, hhea and maxp totals, post
+# glyph names, OS/2's Georgian range bit (checked alone), and the per-glyph entries of hdmx (and
+# its record size), LTSH and VDMX. head's checkSumAdjustment covers the whole file, so any change
+# moves it. glyf, loca, hmtx and cmap are compared glyph by glyph and code point by code point,
+# and post's names through the glyph order: their encoding may change, as Swiss 721 Hebrew
+# spells out "periodcentered" where fontTools writes its standard Macintosh index.
+UPDATED_FIELDS = {
+    "head": {"xMin", "yMin", "xMax", "yMax", "checkSumAdjustment"},
+    "hhea": {"advanceWidthMax", "minLeftSideBearing", "minRightSideBearing", "xMaxExtent",
+             "numberOfHMetrics"},
+    "maxp": {"numGlyphs", "maxPoints", "maxContours"},
+    "post": {"glyphOrder", "extraNames", "mapping"},
+    "OS/2": {"ulUnicodeRange1"},
+    "hdmx": {"recordSize", "hdmx"},
+    "LTSH": {"yPels"},
+    "VDMX": {"groups"},
+}
+# Garmin's Noto Sans Armenian files keep table data in tag order, and its Swiss 721 Hebrew files
+# put glyf before loca and VDMX last; fontTools writes its own order (head, hhea, maxp, OS/2,
+# hmtx, ...), which the Noto Sans Hebrew files already use. The table directory is kept
+# (test_georgian_build_keeps_the_container_layout) and the pinned builds (TRUETYPE_SHA256) have
+# the moved data, but fonts/README.md doesn't say the data moves.
+REORDERED = {"006-D9971-09", "006-D9971-08", "006-D0952-08", "006-D0952-07"}
 
 
 def font(data):
@@ -110,54 +136,160 @@ def test_each_font_is_built_deterministically_at_its_weight(
 
 
 def outline(glyf, name):
-    """A glyph's outline and instructions, as the rasterizer sees them."""
+    """A glyph's outline, bounds and instructions, as the rasterizer sees them."""
     glyph = glyf[name]
     program = glyph.program.getBytecode() if hasattr(glyph, "program") else b""
     if glyph.numberOfContours == 0:
         return ("empty",)
+    bounds = (glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax)
     if glyph.isComposite():
         components = [(c.glyphName, c.x, c.y, c.flags, getattr(c, "transform", None))
                       for c in glyph.components]
-        return ("composite", components, program)
+        return ("composite", components, bounds, program)
     return (list(glyph.coordinates), list(glyph.endPtsOfContours),
-            bytes(f & 0x41 for f in glyph.flags), program)
+            bytes(f & 0x41 for f in glyph.flags), bounds, program)
+
+
+def fields(table):
+    """A decompiled table's fields, nested records (OS/2's panose) as dicts."""
+    return {key: vars(value) if hasattr(value, "__dict__") else value
+            for key, value in vars(table).items()}
 
 
 @pytest.mark.parametrize("part", TRUETYPE_PART_IDS)
-def test_georgian_build_keeps_the_host(assets, truetype_stock, part):
-    host, georgian = font(truetype_stock[part]), font(built(assets, part))
+def test_georgian_build_keeps_the_host(each_build, truetype_stock, part):
+    host, georgian = font(truetype_stock[part]), font(built(each_build, part))
     order = host.getGlyphOrder()
     added = [f"uni{cp:04X}" for cp in GEORGIAN]
     assert georgian.getGlyphOrder() == order + added
 
-    for tag in sorted(set(host.keys()) - REWRITTEN - {"GlyphOrder"}):
-        assert georgian.reader[tag] == host.reader[tag], tag
     assert set(georgian.keys()) == set(host.keys())
-    for name in order:
-        assert outline(georgian["glyf"], name) == outline(host["glyf"], name), name
-        assert georgian["hmtx"][name] == host["hmtx"][name], name
+    for tag in sorted(set(host.keys()) - REWRITTEN - {"GlyphOrder"}):
+        assert georgian.reader[tag] == host.reader[tag], f"{tag} changed"
+    for tag in sorted(UPDATED_FIELDS.keys() & host.keys()):
+        old, new = fields(host[tag]), fields(georgian[tag])
+        changed = {key for key in old.keys() | new.keys() if old.get(key) != new.get(key)}
+        unlisted = sorted(changed - UPDATED_FIELDS[tag])
+        assert not unlisted, f"{tag} fields fonts/README.md doesn't list changed: {unlisted}"
+    assert georgian["OS/2"].ulUnicodeRange1 == host["OS/2"].ulUnicodeRange1 | UNICODE_RANGE_GEORGIAN
 
+    for name in order:
+        assert outline(georgian["glyf"], name) == outline(host["glyf"], name), f"glyf {name}"
+        assert georgian["hmtx"][name] == host["hmtx"][name], f"hmtx {name}"
+    if "hdmx" in host:
+        for ppem, widths in host["hdmx"].hdmx.items():
+            assert all(georgian["hdmx"].hdmx[ppem][name] == widths[name] for name in order), \
+                f"hdmx {ppem} ppem"
+    if "LTSH" in host:
+        assert {name: georgian["LTSH"].yPels[name] for name in order} == host["LTSH"].yPels, \
+            "LTSH host entries"
+    if "VDMX" in host:
+        # Each size's extremes only grow, as far as the Georgian glyphs need.
+        upm, glyf = host["head"].unitsPerEm, georgian["glyf"]
+        top, bottom = max(glyf[name].yMax for name in added), min(glyf[name].yMin for name in added)
+        for old, new in zip(host["VDMX"].groups, georgian["VDMX"].groups, strict=True):
+            assert new == {
+                ppem: (max(y_max, -(-top * ppem // upm)), min(y_min, bottom * ppem // upm))
+                for ppem, (y_max, y_min) in old.items()
+            }, "VDMX extremes"
+
+    assert georgian["cmap"].tableVersion == host["cmap"].tableVersion, "cmap version"
+    subtables = [(t.platformID, t.platEncID, t.format, t.language) for t in host["cmap"].tables]
+    assert [(t.platformID, t.platEncID, t.format, t.language)
+            for t in georgian["cmap"].tables] == subtables, "cmap subtables"
     for old in host["cmap"].tables:
         new = georgian["cmap"].getcmap(old.platformID, old.platEncID)
-        assert new.format == old.format
+        expected = old.cmap
         if old.isUnicode() and old.format in (4, 12):
-            assert new.cmap == old.cmap | {cp: f"uni{cp:04X}" for cp in GEORGIAN}
-        else:
-            assert new.cmap == old.cmap
+            expected = expected | {cp: f"uni{cp:04X}" for cp in GEORGIAN}
+        wrong = sorted(cp for cp in expected.keys() | new.cmap.keys()
+                       if new.cmap.get(cp) != expected.get(cp))
+        assert not wrong, f"cmap ({old.platformID}, {old.platEncID}) maps differently: " + \
+            ", ".join(f"U+{cp:04X}" for cp in wrong[:10])
 
-    for table, fields in {
-        "head": ("unitsPerEm", "created", "modified", "flags", "fontRevision", "macStyle",
-                 "lowestRecPPEM", "indexToLocFormat"),
-        "hhea": ("ascent", "descent", "lineGap", "caretSlopeRise", "caretSlopeRun"),
-        "OS/2": ("version", "xAvgCharWidth", "usWeightClass", "usWidthClass", "fsType",
-                 "sTypoAscender", "sTypoDescender", "sTypoLineGap", "usWinAscent",
-                 "usWinDescent", "fsSelection", "achVendID", "ulUnicodeRange2",
-                 "ulUnicodeRange3", "ulUnicodeRange4"),
-    }.items():
-        for field in fields:
-            assert getattr(georgian[table], field) == getattr(host[table], field), (table, field)
-    assert georgian["OS/2"].ulUnicodeRange1 == host["OS/2"].ulUnicodeRange1 | UNICODE_RANGE_GEORGIAN
-    assert georgian["post"].formatType == host["post"].formatType
+
+@pytest.mark.parametrize("part", TRUETYPE_PART_IDS)
+def test_updated_totals_are_the_hosts_extended_to_georgian(each_build, truetype_stock, part):
+    host, georgian = font(truetype_stock[part]), font(built(each_build, part))
+    glyf, hmtx = georgian["glyf"], georgian["hmtx"]
+    names = [f"uni{cp:04X}" for cp in GEORGIAN]
+    glyphs = [glyf[name] for name in names]
+    metrics = [hmtx[name] for name in names]
+    head, old_head = georgian["head"], host["head"]
+    assert (head.xMin, head.yMin, head.xMax, head.yMax) == (
+        min(old_head.xMin, *(g.xMin for g in glyphs)),
+        min(old_head.yMin, *(g.yMin for g in glyphs)),
+        max(old_head.xMax, *(g.xMax for g in glyphs)),
+        max(old_head.yMax, *(g.yMax for g in glyphs)),
+    ), "head bounding box"
+    hhea, old_hhea = georgian["hhea"], host["hhea"]
+    extents = [lsb + g.xMax - g.xMin for g, (_, lsb) in zip(glyphs, metrics)]
+    assert hhea.advanceWidthMax == max(old_hhea.advanceWidthMax, *(a for a, _ in metrics))
+    assert hhea.minLeftSideBearing == min(old_hhea.minLeftSideBearing, *(l for _, l in metrics))
+    assert hhea.minRightSideBearing == min(
+        old_hhea.minRightSideBearing, *(a - e for (a, _), e in zip(metrics, extents))
+    )
+    assert hhea.xMaxExtent == max(old_hhea.xMaxExtent, *extents)
+    maxp, old_maxp = georgian["maxp"], host["maxp"]
+    assert maxp.numGlyphs == old_maxp.numGlyphs + len(GEORGIAN) == len(georgian.getGlyphOrder())
+    assert maxp.maxPoints == max(old_maxp.maxPoints, *(len(g.coordinates) for g in glyphs))
+    assert maxp.maxContours == max(old_maxp.maxContours, *(g.numberOfContours for g in glyphs))
+
+
+def layout(data):
+    """A masked `.bin`'s plain font before the trailer, sfnt header (version, table count,
+    binary search fields) and table directory [(tag, checksum, offset, length)]."""
+    plain = unmask(data[:-TRAILER_SIZE])
+    header = struct.unpack_from(">4sHHHH", plain)
+    return plain, header, [struct.unpack_from(">4sIII", plain, 12 + 16 * i) for i in range(header[1])]
+
+
+def checksum(data):
+    data += b"\0" * (-len(data) % 4)
+    return sum(struct.unpack(f">{len(data) // 4}I", data)) & 0xFFFFFFFF
+
+
+def check_container(data):
+    """Assert the sfnt conventions Garmin's files follow: table data right after the directory,
+    each table 4-byte aligned and zero-padded, table and whole-file checksums correct."""
+    plain, _, tables = layout(data)
+    spans = sorted((offset, offset + length, tag.decode()) for tag, _, offset, length in tables)
+    assert spans[0][0] == 12 + 16 * len(tables), "table data start"
+    for (start, end, tag), following in zip(spans, [s for s, _, _ in spans[1:]] + [len(plain)]):
+        assert start % 4 == 0, f"{tag} alignment"
+        assert following - end < 4 and not any(plain[end:following]), f"{tag} padding"
+    for tag, sum_, offset, length in tables:
+        table = plain[offset:offset + length]
+        if tag == b"head":
+            table = table[:8] + b"\0\0\0\0" + table[12:]
+        assert checksum(table) == sum_, f"{tag.decode()} checksum"
+    assert checksum(plain) == 0xB1B0AFBA, "head checkSumAdjustment"
+
+
+@pytest.mark.parametrize("part", TRUETYPE_PART_IDS)
+def test_georgian_build_keeps_the_container_layout(each_build, truetype_stock, part):
+    data, stock = built(each_build, part), truetype_stock[part]
+    assert data[-TRAILER_SIZE:] == stock[-TRAILER_SIZE:], "trailer"
+    (_, header, tables), (_, stock_header, stock_tables) = layout(data), layout(stock)
+    assert header == stock_header, "sfnt header"
+    assert [t[0] for t in tables] == [t[0] for t in stock_tables], "table directory order"
+    check_container(stock)
+    check_container(data)
+
+
+@pytest.mark.parametrize("part", [
+    pytest.param(part, marks=pytest.mark.xfail(
+        strict=True, reason="fontTools moves the table data (REORDERED)"))
+    if part in REORDERED else part
+    for part in TRUETYPE_PART_IDS
+])
+def test_georgian_build_keeps_the_table_data_order(each_build, truetype_stock, part):
+    def data_order(data):
+        _, _, tables = layout(data)
+        return [tag.decode() for tag, _, _, _ in sorted(tables, key=lambda t: t[2])]
+
+    assert data_order(built(each_build, part)) == data_order(truetype_stock[part]), \
+        "table data order"
 
 
 @pytest.mark.parametrize("part", TRUETYPE_PART_IDS)

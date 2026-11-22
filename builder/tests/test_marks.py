@@ -86,13 +86,10 @@ def test_marked_manifest_otherwise_matches_stable(assets, marked_assets):
     changed = {"mark", "georgian_sha256"}
     assert [{k: v for k, v in f.items() if k not in changed} for f in marked["fonts"]] \
         == [{k: v for k, v in f.items() if k not in changed} for f in stable["fonts"]]
-    # Packs differ only in `install`: "beta" packs install in marked (pre-release) builds only.
-    without = lambda packs: [{k: v for k, v in p.items() if k != "install"} for p in packs]  # noqa: E731
-    assert without(marked["packs"]) == without(stable["packs"])
-    beta_only = {p["id"] for p in ENTRIES["packs"] if p.get("install") == "beta"}
-    assert beta_only == {"hebrew-swiss-721-truetype"}
-    for m, s in zip(marked["packs"], stable["packs"]):
-        assert (m["install"], s["install"]) == ((True, False) if m["id"] in beta_only else (True, True))
+    # Packs and the support list are the same: pre-release builds install exactly what stable
+    # builds do, so a beta never installs a font family no watch has confirmed.
+    assert marked["packs"] == stable["packs"]
+    assert marked["watches"] == stable["watches"]
     assert all(m["georgian_sha256"] != s["georgian_sha256"]
                for m, s in zip(marked["fonts"], stable["fonts"]))
 
