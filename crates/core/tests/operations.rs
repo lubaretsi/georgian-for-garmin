@@ -603,7 +603,8 @@ fn finds_unlisted_empty_extdata_by_probe() {
     assert_eq!(
         out["fonts"][2],
         json!({"pack": "armenian", "part": PART, "kind": "bitmap", "size_px": 27, "listed": true,
-               "target": true, "restore": true, "file": "none", "mark": null})
+               "target": true, "restore": true, "file": "none", "imported": false,
+               "mark": null})
     );
     assert_eq!(out["fonts"].as_array().unwrap().len(), 6);
 }
@@ -2848,7 +2849,8 @@ fn a_failing_or_missing_get_object_ids_leaves_the_report_working() {
 }
 
 /// The Venu 2 after a restart: its imported fonts are read-only `.fnt` files only
-/// `GetObjectIds` lists. A target part's is classified like its `.tmp` would be.
+/// `GetObjectIds` lists. A target part's is classified like its `.tmp` would be, and is the
+/// part's file: imported Georgian is installed.
 #[test]
 fn imported_bitmap_fonts_are_classified_by_their_fnt_name() {
     let mut s = venu2(&[PART]);
@@ -2863,32 +2865,208 @@ fn imported_bitmap_fonts_are_classified_by_their_fnt_name() {
         georgian(PART).len()
     );
     assert!(text.lines().any(|l| l == line), "{text}");
-    // The staged-file rule and the state still look at `.tmp` only.
-    assert_eq!(out["fonts"][2]["file"], "none");
+    assert_eq!(out["fonts"][2]["file"], "georgian");
+    assert_eq!(out["fonts"][2]["imported"], true);
+    assert_eq!(out["state"], "installed");
+    assert!(text.contains("\nstate installed\n"), "{text}");
+    assert!(
+        text.contains("\n006-D9035-03 georgian yes tested -\n"),
+        "{text}"
+    );
+}
+
+/// An imported `.fnt` this build doesn't recognise (same size as the Georgian build, other
+/// bytes) is `other`: the watch uses it, and a new `.tmp` would replace it at the next restart,
+/// so install and restore both refuse with nothing written, and a report is wanted.
+#[test]
+fn an_unrecognised_imported_font_blocks_install_and_restore() {
+    let unknown = {
+        let mut bytes = georgian(PART);
+        bytes[40] ^= 0x55;
+        bytes
+    };
+    for operation in ["install", "restore_stock"] {
+        let mut s = venu2(&ALL);
+        s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+        for (i, part) in ALL.iter().enumerate() {
+            let bytes = if *part == PART {
+                unknown.clone()
+            } else {
+                georgian(part)
+            };
+            hidden_file(
+                &mut s,
+                0x0100_0070 + i as u32,
+                &format!("{part}.fnt"),
+                &bytes,
+            );
+        }
+        let fake = Fake::new(s);
+        let out = fake.call("inspect", json!({}), &fonts()).unwrap();
+        assert_eq!(out["state"], "other");
+        assert_eq!(out["fonts"][2]["file"], "other");
+        assert_eq!(out["fonts"][2]["imported"], true);
+        assert_eq!(out["support"]["status"], "tested");
+        assert_eq!(out["support"]["report_wanted"], true);
+        let err = fake.call(operation, json!({}), &fonts()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Conflict, "{operation}");
+        assert!(
+            err.message
+                .starts_with("GARMIN/ExtData/006-D9035-03.fnt holds neither"),
+            "{}",
+            err.message
+        );
+        assert!(err.message.contains("replace it at the next restart"));
+        assert!(fake.writes().is_empty(), "{operation}: {:?}", fake.writes());
+    }
+}
+
+/// The cycle seen on the Venu 2 (19.05, 0.3.1): restore stages Garmin's originals as `.tmp`
+/// (`stock_waiting`); the restart imports them as the hidden `.fnt`, replacing the Georgian
+/// ones (`not_installed`); install stages Georgian (`waiting`); the next restart imports it
+/// (`installed`). Neither operation touches a hidden `.fnt`.
+#[test]
+fn the_bitmap_state_follows_each_import() {
+    let mut s = venu2(&ALL);
+    s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+    for (i, part) in ALL.iter().enumerate() {
+        hidden_file(
+            &mut s,
+            0x0100_0070 + i as u32,
+            &format!("{part}.fnt"),
+            &georgian(part),
+        );
+    }
+    let fake = Fake::new(s);
+    let state = || fake.call("inspect", json!({}), &fonts()).unwrap()["state"].clone();
+    // The watch restarts: each `.tmp` becomes its hidden `.fnt`, replacing the earlier one.
+    let restart = || {
+        let mut s = fake.0.borrow_mut();
+        for part in ALL {
+            let Some((handle, data)) = s.named(EXTDATA, &format!("{part}.tmp")).pop() else {
+                continue;
+            };
+            s.objects.remove(&handle);
+            let old = s.named(EXTDATA, &format!("{part}.fnt"));
+            for (h, _) in old {
+                s.objects.remove(&h);
+                s.hidden.remove(&h);
+            }
+            hidden_file(&mut s, handle, &format!("{part}.fnt"), &data);
+        }
+    };
+    assert_eq!(state(), "installed");
+
+    fake.call("restore_stock", json!({}), &fonts()).unwrap();
+    assert_eq!(state(), "stock_waiting");
+    restart();
+    let out = fake.call("inspect", json!({}), &fonts()).unwrap();
     assert_eq!(out["state"], "not_installed");
+    assert_eq!(staged_files(&out), vec![("stock", true); 4]);
+
+    fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(state(), "waiting");
+    restart();
+    assert_eq!(state(), "installed");
+    assert!(
+        !fake.writes().iter().any(|w| w.starts_with("delete_object")),
+        "{:?}",
+        fake.writes()
+    );
+}
+
+/// Each target part's `file` and `imported`.
+fn staged_files(inspect: &Value) -> Vec<(&str, bool)> {
+    inspect["fonts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["target"] == true)
+        .map(|f| (f["file"].as_str().unwrap(), f["imported"] == true))
+        .collect()
 }
 
 #[test]
 fn the_state_follows_one_rule() {
-    use ops::{FileState as F, GeorgianState as G, georgian_state};
+    use ops::{FileState as F, GeorgianState as G, TargetFile, georgian_state};
     let tt = Some(Kind::Truetype);
     let bm = Some(Kind::Bitmap);
+    // In the normal listing (a bitmap part's `.tmp`, waiting) or imported (hidden).
+    let shown = |file| TargetFile {
+        file,
+        imported: false,
+    };
+    let imported = |file| TargetFile {
+        file,
+        imported: true,
+    };
     for (kind, files, state) in [
         (None, vec![], G::Unsupported),
         (tt, vec![], G::Unsupported),
-        (tt, vec![F::Georgian, F::Georgian], G::Installed),
-        (bm, vec![F::Georgian, F::Georgian], G::Waiting),
-        (bm, vec![F::Stock], G::StockWaiting),
-        (tt, vec![F::Stock, F::Stock], G::NotInstalled),
-        (bm, vec![F::None, F::None], G::NotInstalled),
-        (tt, vec![F::Georgian, F::Stock], G::Partly),
-        (bm, vec![F::Georgian, F::None], G::Partly),
-        (bm, vec![F::Georgian, F::Stock], G::Other),
-        (tt, vec![F::Georgian, F::GeorgianBeta], G::Beta),
-        (tt, vec![F::NotVisible, F::Georgian], G::NotVisible),
-        (tt, vec![F::NotVisible, F::GeorgianBeta], G::Beta),
-        (tt, vec![F::Other, F::GeorgianBeta], G::Other),
-        (bm, vec![F::Unknown], G::Unknown),
+        (
+            tt,
+            vec![shown(F::Georgian), shown(F::Georgian)],
+            G::Installed,
+        ),
+        (
+            tt,
+            vec![imported(F::Georgian), shown(F::Georgian)],
+            G::Installed,
+        ),
+        (bm, vec![shown(F::Georgian), shown(F::Georgian)], G::Waiting),
+        (
+            bm,
+            vec![imported(F::Georgian), imported(F::Georgian)],
+            G::Installed,
+        ),
+        (
+            bm,
+            vec![imported(F::Georgian), shown(F::Georgian)],
+            G::Waiting,
+        ),
+        (bm, vec![shown(F::Stock)], G::StockWaiting),
+        (
+            bm,
+            vec![shown(F::Stock), imported(F::Stock)],
+            G::StockWaiting,
+        ),
+        (
+            bm,
+            vec![imported(F::Stock), imported(F::Stock)],
+            G::NotInstalled,
+        ),
+        (bm, vec![imported(F::GeorgianBeta)], G::Beta),
+        (bm, vec![imported(F::Other), imported(F::Stock)], G::Other),
+        (
+            bm,
+            vec![imported(F::Other), imported(F::Georgian)],
+            G::Other,
+        ),
+        (bm, vec![shown(F::Stock), imported(F::Georgian)], G::Partly),
+        (tt, vec![shown(F::Stock), shown(F::Stock)], G::NotInstalled),
+        (bm, vec![shown(F::None), shown(F::None)], G::NotInstalled),
+        (tt, vec![shown(F::Georgian), shown(F::Stock)], G::Partly),
+        (bm, vec![shown(F::Georgian), shown(F::None)], G::Partly),
+        (bm, vec![shown(F::Georgian), shown(F::Stock)], G::Other),
+        (bm, vec![shown(F::Other)], G::Other),
+        (tt, vec![imported(F::Other)], G::Other),
+        (
+            tt,
+            vec![shown(F::Georgian), shown(F::GeorgianBeta)],
+            G::Beta,
+        ),
+        (
+            tt,
+            vec![shown(F::NotVisible), shown(F::Georgian)],
+            G::NotVisible,
+        ),
+        (
+            tt,
+            vec![shown(F::NotVisible), shown(F::GeorgianBeta)],
+            G::Beta,
+        ),
+        (tt, vec![shown(F::Other), shown(F::GeorgianBeta)], G::Other),
+        (bm, vec![shown(F::Unknown)], G::Unknown),
     ] {
         assert_eq!(georgian_state(kind, &files), state, "{kind:?} {files:?}");
     }

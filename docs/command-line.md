@@ -96,10 +96,10 @@ Running `install` again after it succeeded changes nothing and reports `already_
 - `supported`: the watch lists a bundled part this build installs and accepts the needed MTP
   writes; `restorable`: `restore-stock` has parts to write, including packs this build only
   restores (Swiss 721 Hebrew);
-- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`,
-  `waiting` (bitmap, until the restart), `partly`, `beta` (an earlier release's build),
-  `not_installed`, `not_visible` (the watch shows its `.bin` files in neither listing),
-  `stock_waiting`, `other`, `unknown` or `unsupported`;
+- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`
+  (also a bitmap part imported at the last restart), `waiting` (bitmap, until the restart),
+  `partly`, `beta` (an earlier release's build), `not_installed`, `not_visible` (the watch shows
+  its `.bin` files in neither listing), `stock_waiting`, `other`, `unknown` or `unsupported`;
 - `tested`: `status` for the whole install and `verified_software`, the software versions this
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
@@ -118,10 +118,12 @@ Running `install` again after it succeeded changes nothing and reports `already_
   `kind`, `weight` and `parts`: the parts the watch lists, each with `size_px` (null for
   TrueType parts, which scale) and its own `tested` status;
 - `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, whether
-  `install` writes it (`target`), whether `restore-stock` does (`restore`), and `file` (what the
+  `install` writes it (`target`), whether `restore-stock` does (`restore`), `file` (what the
   part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType
   parts: `none`, `georgian`, `georgian_beta`, `stock`, `other`, `not_visible` for a TrueType part
-  the watch declares but doesn't show, or `unknown` without the folder);
+  the watch declares but doesn't show, or `unknown` without the folder) and `imported` (`file`
+  is from the hidden listing: the `<part>.fnt` the watch imported a bitmap part's `.tmp` as at
+  its last restart, or a TrueType part's hidden `.bin`);
 - `extdata`: the hidden folder's handle, how it was found, and every file in it with its `name`,
   `handle` and size in `bytes`. `sha256` is the file's SHA-256 only for a file named for a
   bundled part with the size of its original or Georgian version; it is `null` for every other
@@ -149,7 +151,7 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
 | `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
-| `conflict` | A file under a target's name is neither Garmin's original nor one of this program's builds, by content, or two files share the name; nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
+| `conflict` | A file under a target's name, or the font the watch imported for it (a bitmap part's `.fnt`, which the next restart would replace), is neither Garmin's original nor one of this program's builds, by content, or two files share the name; nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
 | `restore_first` | Install: a TrueType file the watch doesn't let be read is declared below 1.00, as watches declared this program's builds before 0.3.0; install never writes over a file it can't identify, so nothing was written | Run `restore-stock`, restart the watch, then install again. |
 | `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |

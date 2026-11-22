@@ -47,6 +47,7 @@
       "unknown": "საათზე შრიფტების საქაღალდე ვერ ვიპოვეთ, ამიტომ ვერ ვხედავთ, რა არის დაყენებული."
     },
     "unknownFont": "საათზე ისეთი შრიფტის ფაილია, რომელსაც პროგრამა არ იცნობს, ამიტომ არაფერს შევცვლით. გაგვიზიარეთ საათის შრიფტების სია GitHub-ზე.",
+    "importedUnknownFont": "საათი ამ შრიფტისთვის ისეთ ფაილს იყენებს, რომელსაც პროგრამა არ იცნობს. ქართულის დაყენება მას შემდეგ გადატვირთვაზე შეცვლიდა, ამიტომ არაფერს შევცვლით. გაგვიზიარეთ საათის შრიფტების სია GitHub-ზე.",
     "restoreOnly": "ამ საათის შრიფტებში ქართული შემოწმებისას არ გამოჩნდა, ამიტომ პროგრამა მას არ აყენებს. თუ ადრე სატესტო ვერსია დააყენეთ, „ქარხნული შრიფტის დაბრუნება“ Garmin-ის შრიფტებს დააბრუნებს.",
 
     "workingInstall": "ქართულ შრიფტს საათზე ვწერთ…",
@@ -166,6 +167,7 @@
       "unknown": "The watch’s font folder couldn’t be found, so the app can’t tell what’s installed."
     },
     "unknownFont": "A font file on the watch isn’t one this app knows, so nothing can be changed. Please share the watch’s font list on GitHub.",
+    "importedUnknownFont": "The watch uses a font for this part that the app doesn’t recognise. Installing Georgian would replace it at the next restart, so nothing is changed. Please share the watch’s font list on GitHub.",
     "restoreOnly": "Georgian didn’t show in this watch’s fonts in testing, so the app doesn’t install it. If you installed a test version earlier, Restore original font puts Garmin’s fonts back.",
 
     "workingInstall": "Copying the Georgian font to your watch…",

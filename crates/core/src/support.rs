@@ -71,7 +71,8 @@ pub struct Support {
     pub reason: Option<Reason>,
     /// A report from this watch adds information: `expected` and `unknown` watches, and
     /// `unsupported` ones on a software version the list doesn't have. A `tested` watch's report
-    /// is wanted only if Georgian didn't work after all.
+    /// is wanted only if Georgian didn't work after all. `inspect` also sets it for any watch
+    /// where a target part's file is one this build doesn't recognise (`other`).
     pub report_wanted: bool,
 }
 

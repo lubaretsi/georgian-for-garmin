@@ -1,6 +1,7 @@
 # Report replay fixtures
 
-Every watch report posted in this repository's issues and comments, as a fixture for
+Every watch report posted in this repository's issues and comments, and reports from the
+maintainer's own watch, as a fixture for
 `tests/replay.rs`. That test builds a fake watch from each fixture and runs inspect, install, a
 restart, install again, a restart and restore against it with the real operations. It checks
 that they never write over a file that is neither Garmin's original nor one of this program's
@@ -24,15 +25,25 @@ unit ID or serial number; `fixtures_hold_no_identifiers` checks the same. A pros
 watch that mounts as a drive needs `--connection usb_drive`. Issue #13 has no report (the
 Forerunner 255's font list was never shared).
 
-One fixture is composed by hand, because its report isn't in a report format, and names its
-sources in `composed_from`: `issue-5-comment-7078836039.json` is the Forerunner 165's restore
-failure in [#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039)
-(app 0.3.0-beta.2, `unsupported_device`, the four TrueType parts declared 0.01, nothing written)
-on the declared list of the same watch's report
-[#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19), with those four parts set to
-0.01, an empty ExtData listing and no hidden listing (beta.2 didn't read it).
-`the_0_01_state_restores_and_then_installs` checks it: install asks to restore first and writes
-nothing, restore writes Garmin's originals, and after the restart install succeeds.
+Two fixtures are composed by hand and name their sources in `composed_from`:
+
+- `issue-5-comment-7078836039.json` is the Forerunner 165's restore failure in
+  [#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039) (app
+  0.3.0-beta.2, `unsupported_device`, the four TrueType parts declared 0.01, nothing written) on
+  the declared list of the same watch's report
+  [#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19), with those four parts set to
+  0.01, an empty ExtData listing and no hidden listing (beta.2 didn't read it).
+  `the_0_01_state_restores_and_then_installs` checks it: install asks to restore first and
+  writes nothing, restore writes Garmin's originals, and after the restart install succeeds.
+- `maintainer-venu2-stock-imported.json` is the maintainer's Venu 2 after restore-stock and a
+  restart: the report `maintainer-venu2-georgian-imported.json` (taken after install and a
+  restart) with its four hidden `006-D9035-01..04.fnt` at the stock sizes the watch showed
+  (13181, 16676, 20720 and 27831 bytes) and classified `stock`.
+
+The two `maintainer-venu2-*` fixtures come from the maintainer's own watch, not an issue, and
+say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported Georgian reads
+`installed` (0.3.1 read `not_installed`, every part `file none`) and imported Garmin fonts
+`not_installed`.
 
 | Fixture | Watch, software | App | Source |
 |---|---|---|---|
@@ -62,6 +73,8 @@ nothing, restore writes Garmin's originals, and after the restart install succee
 | `issue-23.json` | Instinct 3 AMOLED 45mm (006-B4586-00), 16.12 | 0.2.2 | [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23) |
 | `issue-24.json` | fenix 6X Pro (006-B3291-00), 28.02, right after installing (declared 2.10) | 0.3.0-beta.2 | [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24) |
 | `issue-25.json` | fenix 6X Pro, 28.02, after the restart (declared 0.00) | 0.3.0-beta.2 | [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25) |
+| `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
+| `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 
 ## What the fake watch does, and what showed it
 
@@ -69,6 +82,7 @@ nothing, restore writes Garmin's originals, and after the restart install succee
 |---|---|
 | A written `<part>.tmp` waits in the normal listing until the watch restarts, which imports it and removes the `.tmp`. | The maintainer's Venu 2 ([How it works](../../../../docs/how-it-works.md#what-has-been-tested)) |
 | An imported font becomes a hidden read-only object, `<part>.fnt` for a bitmap part, that only Garmin's `GetObjectIds` (0x9002) lists. | The Venu 2 ([Reporting](../../../../docs/reporting.md#hidden-files)); `006-D8168-00.fnt ro` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)) |
+| The import keeps the `.tmp`'s bytes unchanged and replaces the earlier `<part>.fnt`: Georgian, then Garmin's original, then Georgian again, each time with the staged file's size and SHA-256. | The maintainer's Venu 2, 19.05, with the 0.3.1 CLI (2026-11-22): hidden `006-D9035-01..04.fnt` held our Georgian build; restore-stock staged Garmin's `.tmp` (13181, 16676, 20720, 27831 bytes) and after the restart the `.fnt` had those sizes and hashes and the watch showed boxes; install staged Georgian and after the next restart the `.fnt` were Georgian again (23101, 28341, 35638, 48004 bytes) and the watch showed Georgian |
 | Watches with TrueType fonts keep their `.bin` files out of the normal listing: the report declares them, `extdata:` is empty. | Forerunner 165 (#18, #19), fenix 6S Pro (#20) |
 | A new `<part>.bin` written next to the hidden import is taken up at the restart and replaces it; the import itself is never deleted. | Forerunner 165: installed by 0.3.0-beta.2 with only the `.bin` write, Georgian showed (#19, #5) |
 | After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)) and the fenix 6X Pro (2.10 right after installing, [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24); 0.00 after the restart, [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)), 0.01 on the Forerunner 165 ([#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), restore error) |

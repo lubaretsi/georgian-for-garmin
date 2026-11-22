@@ -1,0 +1,272 @@
+{
+  "source": "maintainer's watch: Venu 2, 19.05, after restore-stock and a restart with the 0.3.1 CLI (2026-11-22)",
+  "composed_from": [
+    "maintainer's watch: Venu 2, 19.05, inspect --report with the 0.3.1 CLI after install and restart (2026-11-22)",
+    "maintainer's observation on that watch: after restore-stock and a restart, the hidden 006-D9035-01..04.fnt had the staged .tmp files' stock sizes and hashes"
+  ],
+  "app_version": "0.3.1",
+  "connection": "mtp",
+  "model": "Venu 2",
+  "model_part": "006-B3703-00",
+  "software": "19.05",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-04.tmp",
+      "part": "006-D9035-04",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-28.tmp",
+      "part": "006-D8448-28",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-23.tmp",
+      "part": "006-D8945-23",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-23.tmp",
+      "part": "006-D8944-23",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-23.tmp",
+      "part": "006-D8947-23",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-03.tmp",
+      "part": "006-D9035-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-27.tmp",
+      "part": "006-D8448-27",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-22.tmp",
+      "part": "006-D8944-22",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-22.tmp",
+      "part": "006-D8945-22",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-22.tmp",
+      "part": "006-D8947-22",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-01.tmp",
+      "part": "006-D9035-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-25.tmp",
+      "part": "006-D8448-25",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-20.tmp",
+      "part": "006-D8944-20",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-20.tmp",
+      "part": "006-D8945-20",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-20.tmp",
+      "part": "006-D8947-20",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-02.tmp",
+      "part": "006-D9035-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-26.tmp",
+      "part": "006-D8448-26",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-21.tmp",
+      "part": "006-D8944-21",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-21.tmp",
+      "part": "006-D8945-21",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-21.tmp",
+      "part": "006-D8947-21",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-13.tmp",
+      "part": "006-D8168-13",
+      "version": "2.10"
+    }
+  ],
+  "extdata": [],
+  "hidden": {
+    "status": "listed",
+    "files": [
+      {
+        "name": "006-D8168-13.fnt",
+        "bytes": 7442321,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-25.fnt",
+        "bytes": 3809005,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-26.fnt",
+        "bytes": 5177405,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-27.fnt",
+        "bytes": 6760129,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-28.fnt",
+        "bytes": 8563929,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-20.fnt",
+        "bytes": 1170742,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-21.fnt",
+        "bytes": 1558347,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-22.fnt",
+        "bytes": 1999530,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-23.fnt",
+        "bytes": 2570053,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-20.fnt",
+        "bytes": 1834538,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-21.fnt",
+        "bytes": 2382097,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-22.fnt",
+        "bytes": 3095569,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-23.fnt",
+        "bytes": 4012686,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-20.fnt",
+        "bytes": 13601,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-21.fnt",
+        "bytes": 17552,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-22.fnt",
+        "bytes": 22529,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-23.fnt",
+        "bytes": 29289,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D9035-01.fnt",
+        "bytes": 13181,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-02.fnt",
+        "bytes": 16676,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-03.fnt",
+        "bytes": 20720,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-04.fnt",
+        "bytes": 27831,
+        "read_only": true,
+        "file": "stock"
+      }
+    ]
+  }
+}

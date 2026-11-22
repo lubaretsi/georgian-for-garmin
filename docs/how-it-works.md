@@ -23,8 +23,13 @@ flowchart LR
   `MassStorageMode/UpdateFile` entries with `Path` `Garmin/ExtData`. A Venu 2 lists 21 of them;
   the Armenian font comes in four sizes, parts `006-D9035-01` to `-04` (21, 24, 27 and 31 px).
 - **How a font gets onto the watch.** Garmin's updater copies a new font to
-  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`.
-  This project uses the same path; it doesn't modify firmware or any other file.
+  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`;
+  the Venu 2 keeps what it loaded as a read-only `<part>.fnt`, byte for byte the `.tmp`, which
+  only Garmin's vendor `GetObjectIds` lists ([Hidden files](reporting.md#hidden-files)).
+  `inspect` reads that `.fnt` to tell whether Georgian is installed after the restart. Install
+  and restore never delete it, and the next restart replaces it with the next `.tmp`, so they
+  stage one only over an import they recognise (Garmin's original or one of this program's
+  builds). This project uses the same path; it doesn't modify firmware or any other file.
 - **Which fonts get Georgian.** Every font part in [the registry](../fonts/README.md) that the
   watch lists, across all packs: Garmin ships its Armenian font as several products (NotoSans
   Regular, NotoSans Armenian Regular and Bold) in many sizes, and a watch may use parts of more
@@ -121,16 +126,19 @@ no restart. MTP has no way to overwrite a file in place, so the installer delete
 safe:
 
 - **Identified by content.** For each part it writes, install and restore find the part's file
-  in the normal listing or, when the watch lists 0x9002, in the hidden listing, read it and
-  compare it with Garmin's original, this build's Georgian font and every earlier release's
-  Georgian build, all pinned by SHA-256 in the registry. A file that is one of those is
-  replaced; anything else (`other`), or two files under one name, stops the whole call before
-  anything is written. The same holds for a bitmap part's waiting `.tmp`.
+  in the normal listing or, when the watch lists 0x9002, its import in the hidden listing (a
+  bitmap part's `<part>.fnt`, a TrueType part's `<part>.bin`), read it and compare it with
+  Garmin's original, this build's Georgian font and every earlier release's Georgian build, all
+  pinned by SHA-256 in the registry. A file that is one of those is replaced; anything else
+  (`other`), or two files under one name, stops the whole call before anything is written. The
+  same holds for a bitmap part's waiting `.tmp`, and for its imported `.fnt`: a new `.tmp` would
+  replace that font at the next restart, so install never stages over a font it can't identify.
 - **Hidden files are never deleted.** A file only the hidden listing shows is a read-only
-  import; the installer writes a new `.bin` next to it, which the watch takes up when it
-  restarts, as the Forerunner 165 did with 0.3.0-beta.2's fonts (#5, #19).
-- **A file it can't read.** Where neither listing shows the file (or reading a hidden one
-  fails), only what `GarminDevice.xml` declares is known. **Install never writes over a file it
+  import; the installer writes a new file next to it (a `.bin`, or a bitmap part's `.tmp`),
+  which the watch takes up when it restarts, as the Forerunner 165 did with 0.3.0-beta.2's
+  fonts (#5, #19) and the Venu 2 does with every `.tmp`.
+- **A TrueType file it can't read.** Where neither listing shows the file (or reading a hidden
+  one fails), only what `GarminDevice.xml` declares is known. **Install never writes over a file it
   can't identify**: it goes ahead only when the watch declares the part at Garmin's version and
   file name, as for Garmin's original. **Restore may put Garmin's original back over a file
   without Garmin's version**: it also accepts a version below 1.00, which is how watches
@@ -139,7 +147,9 @@ safe:
   worst case is a font Garmin made. Below 1.00, install stops with `restore_first`: restore,
   restart the watch, and it declares Garmin's version again, so install then works by the
   normal rule. Any other version (perhaps a newer Garmin font) stops both with
-  `unsupported_device`.
+  `unsupported_device`. A bitmap part whose import the watch doesn't show (no 0x9002, or the
+  read fails) is staged as before: there is no file to identify and nothing in the declared
+  version to go by, so nothing is claimed either way.
 - **Rollback.** The original bytes are read from the watch before anything is written. If any
   part fails, in any pack, each replaced file is written back from them and read back, and new
   files are deleted; the error says what happened to each file.

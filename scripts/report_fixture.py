@@ -193,7 +193,8 @@ def main(argv=None):
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("file", nargs="?", help="the report text (default: stdin)")
-    parser.add_argument("--source", required=True, help="the report's URL")
+    parser.add_argument("--source", required=True,
+                        help="the report's URL, or \"maintainer's watch: …\" for our own watch")
     parser.add_argument("--connection", choices=["mtp", "usb_drive"],
                         help="override the connection (prose reports of USB-drive watches)")
     parser.add_argument("--out", help="write here instead of stdout")
