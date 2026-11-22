@@ -52,6 +52,9 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 | Venu 2 Plus | 19.05 | Tested by a user: Georgian in notifications ([#4](https://github.com/lubaretsi/georgian-for-garmin/issues/4)) |
 | fenix 7 Pro Solar, Pro Sapphire Solar | 26.09 | Tested by users: Georgian in notifications and incoming calls ([#11](https://github.com/lubaretsi/georgian-for-garmin/issues/11), [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)) |
 
+It works with notifications from Android phones and from iPhones (iPhone confirmed with the
+fenix 7 Pro in [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)).
+
 The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
 font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian
 Bold. Other models and software versions are untested until someone confirms
