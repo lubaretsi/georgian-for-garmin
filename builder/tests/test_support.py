@@ -3,15 +3,31 @@ import copy
 import pytest
 from registry_data import ENTRIES, REGISTRY
 
-from garmin_fonts.support import BEGIN, END, ISSUES, rows, section, table, update
+from garmin_fonts.support import (
+    BEGIN,
+    END,
+    ISSUES,
+    PREDICTED_BEGIN,
+    PREDICTED_END,
+    predicted_rows,
+    predicted_table,
+    rows,
+    section,
+    table,
+    update,
+)
 
 README = REGISTRY.parents[1] / "README.md"
 
 
-def test_the_readme_table_is_the_support_list():
+def test_the_readme_tables_are_the_support_list():
     readme = README.read_text()
     assert section(readme) == table(ENTRIES), (
         "the README's watch table differs from fonts/registry.json; run "
+        "`python -m garmin_fonts.support` from builder/"
+    )
+    assert section(readme, PREDICTED_BEGIN, PREDICTED_END) == predicted_table(ENTRIES), (
+        "the README's predicted watch table differs from fonts/registry.json; run "
         "`python -m garmin_fonts.support` from builder/"
     )
 
@@ -45,8 +61,27 @@ def test_each_status_has_its_words():
     assert table_rows["Venu 3"] == ("–", f"Not confirmed yet ([#5]({ISSUES}/5), [#2]({ISSUES}/2))")
 
 
-def test_every_model_gets_one_row_in_list_order():
-    assert [watch for watch, _, _ in rows(ENTRIES)] == [w["model"] for w in ENTRIES["watches"]]
+def test_every_known_model_gets_one_row_in_list_order():
+    known = [w["model"] for w in ENTRIES["watches"] if "prediction" not in w]
+    assert [watch for watch, _, _ in rows(ENTRIES)] == known
+
+
+def test_predicted_models_are_grouped_by_family_one_row_per_name():
+    predicted = [w for w in ENTRIES["watches"] if "prediction" in w]
+    table_rows = predicted_rows(ENTRIES)
+    names = [watch for _, watch, _ in table_rows]
+    assert names == list(dict.fromkeys(w["model"] for w in predicted))
+    families = [family for family, _, _ in table_rows if family]
+    assert families == list(dict.fromkeys(w["model"].split()[0] for w in predicted))
+    assert len(set(families)) == len(families)
+    by_name = {watch: based_on for _, watch, based_on in table_rows}
+    assert by_name["Forerunner 265"] == (
+        "[Connect IQ device reference]"
+        "(https://developer.garmin.com/connect-iq/articles/device-reference/fr265.html)"
+    )
+    assert by_name["fenix 7S Pro"] == (
+        "Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar"
+    )
 
 
 def test_tested_software_versions_are_merged_and_sorted():
@@ -57,8 +92,12 @@ def test_tested_software_versions_are_merged_and_sorted():
     assert by_model(entries)["Venu 2"] == ("9.80, 19.05", "Tested")
 
 
-def test_update_replaces_only_the_table():
-    text = f"intro\n{BEGIN}\nold\n{END}\noutro\n"
-    assert update(text, ENTRIES) == f"intro\n{table(ENTRIES)}\noutro\n"
+def test_update_replaces_only_the_tables():
+    text = f"intro\n{BEGIN}\nold\n{END}\nmiddle\n{PREDICTED_BEGIN}\nold\n{PREDICTED_END}\noutro\n"
+    assert update(text, ENTRIES) == (
+        f"intro\n{table(ENTRIES)}\nmiddle\n{predicted_table(ENTRIES)}\noutro\n"
+    )
     with pytest.raises(ValueError, match="no watch table"):
         update("no markers", ENTRIES)
+    with pytest.raises(ValueError, match="no watch table"):
+        update(f"{BEGIN}\nold\n{END}\n", ENTRIES)

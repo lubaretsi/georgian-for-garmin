@@ -34,6 +34,22 @@ struct WatchEntry {
     issues: Vec<u32>,
     #[serde(default)]
     unsupported: Option<UnsupportedEntry>,
+    #[serde(default)]
+    prediction: Option<PredictionEntry>,
+}
+
+/// Only the family reaches the app; `confidence`, `basis` and `source` are for people.
+#[derive(Deserialize)]
+struct PredictionEntry {
+    family: PredictionFamily,
+}
+
+/// Written out by its variant name, as `support::PredictionFamily`'s.
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+enum PredictionFamily {
+    NotoTruetype,
+    BitmapArmenian,
 }
 
 #[derive(Deserialize)]
@@ -319,6 +335,12 @@ fn watch_table(manifest: &Manifest, manifest_path: &Path) -> String {
                 watch.model_part
             ));
         }
+        if watch.prediction.is_some() && watch.unsupported.is_some() {
+            fail(format!(
+                "{where_}: watch {} is both predicted and unsupported",
+                watch.model_part
+            ));
+        }
     }
     // Older manifests have no support list.
     if !manifest.watches.is_empty() {
@@ -335,6 +357,21 @@ fn watch_table(manifest: &Manifest, manifest_path: &Path) -> String {
             }
         }
     }
+    let tested: BTreeSet<&str> = manifest
+        .packs
+        .iter()
+        .flat_map(|p| p.tested.iter().map(|t| t.model_part.as_str()))
+        .collect();
+    if let Some(watch) = manifest
+        .watches
+        .iter()
+        .find(|w| w.prediction.is_some() && tested.contains(w.model_part.as_str()))
+    {
+        fail(format!(
+            "{where_}: watch {} is tested but still has a prediction",
+            watch.model_part
+        ));
+    }
     let mut code = String::from("&[\n");
     for watch in &manifest.watches {
         let unsupported = match &watch.unsupported {
@@ -344,10 +381,14 @@ fn watch_table(manifest: &Manifest, manifest_path: &Path) -> String {
                 u.software, u.reason.en, u.reason.ka
             ),
         };
+        let prediction = match &watch.prediction {
+            None => "None".to_owned(),
+            Some(p) => format!("Some(PredictionFamily::{:?})", p.family),
+        };
         writeln!(
             code,
             "    BundledWatch {{ model: {:?}, model_part: {:?}, issues: &{:?}, unsupported: \
-             {unsupported} }},",
+             {unsupported}, prediction: {prediction} }},",
             watch.model, watch.model_part, watch.issues
         )
         .unwrap();

@@ -1,9 +1,10 @@
 //! The support list and a connected watch's status in it.
 //!
 //! The registry's `watches` list every watch model the project knows of: its name, its GitHub
-//! issues (the main one first) and, for a model known not to work, why and on which software
-//! versions. Everything else about a watch's status is derived here, from the list, the packs'
-//! `tested` entries and the fonts the watch lists ([`support`]).
+//! issues (the main one first), for a model known not to work, why and on which software
+//! versions, and for a model only predicted to work, the font host Garmin's data says it has.
+//! Everything else about a watch's status is derived here, from the list, the packs' `tested`
+//! entries and the fonts the watch lists ([`support`]); a prediction changes none of it.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,20 @@ pub struct Watch {
     pub issues: Vec<u32>,
     /// Set for a model known not to work.
     pub unsupported: Option<Unsupported>,
+    /// Set for a model predicted to work from Garmin's data, not tested; never with
+    /// `unsupported` or tested entries.
+    pub prediction: Option<PredictionFamily>,
+}
+
+/// The font host a model is predicted to have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PredictionFamily {
+    /// Noto Sans Armenian TrueType (`006-D9971-08/-09`), as on the Forerunner 165: Garmin's
+    /// Connect IQ device reference lists it.
+    NotoTruetype,
+    /// Bitmap Armenian (`006-D9035`), as on the fenix 7 Pro: same firmware family.
+    BitmapArmenian,
 }
 
 /// Why a model doesn't work, and the software versions it was reported on.
@@ -69,6 +84,10 @@ pub struct Support {
     pub issue: Option<u32>,
     /// `unsupported`: why, in each language of the app.
     pub reason: Option<Reason>,
+    /// The model's prediction in the support list, if it has one. Only for triage: the status
+    /// and `report_wanted` come from the fonts the watch lists, so a wrong prediction shows as
+    /// `unknown` with a report wanted.
+    pub prediction: Option<PredictionFamily>,
     /// A report from this watch adds information: `expected` and `unknown` watches, and
     /// `unsupported` ones on a software version the list doesn't have. A `tested` watch's report
     /// is wanted only if Georgian didn't work after all. `inspect` also sets it for any watch
@@ -84,6 +103,7 @@ impl Default for Support {
             listed: false,
             issue: None,
             reason: None,
+            prediction: None,
             report_wanted: true,
         }
     }
@@ -103,6 +123,7 @@ pub fn support(
         .find(|w| w.model_part.eq_ignore_ascii_case(&device.part_number));
     let listed = watch.is_some();
     let issue = watch.and_then(|w| w.issues.first().copied());
+    let prediction = watch.and_then(|w| w.prediction);
     if let Some(unsupported) = watch.and_then(|w| w.unsupported.as_ref()) {
         let known = unsupported.software.contains(&device.software_version);
         return Support {
@@ -110,6 +131,7 @@ pub fn support(
             listed,
             issue,
             reason: Some(unsupported.reason.clone()),
+            prediction,
             report_wanted: !known,
         };
     }
@@ -125,6 +147,7 @@ pub fn support(
         listed,
         issue,
         reason: None,
+        prediction,
         report_wanted: status != SupportStatus::Tested,
     }
 }

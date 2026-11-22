@@ -84,7 +84,7 @@ appear):
 | `extdata_listing` (`name`, `bytes`, `sha256`) | The `GARMIN/ExtData` folder; `sha256` only for files `inspect` already reads (named for a bundled part, with one of its sizes) |
 | `extdata_hidden` (`status`, `files`: `name`, `bytes`, `read_only`, `file`; `note`) | `GARMIN/ExtData`'s children the normal listing leaves out, from Garmin's `GetObjectIds`; `file` only for this build's parts |
 | `hosts` (`kind`, `reason`), `packs`, `tested`, `state` | This build's choice of fonts for the watch, and Georgian on it |
-| `support` (`status`, `listed`, `issue`, `reason`, `report_wanted`) | The watch's status in the support list; the `support` line, such as `support expected issue=#5`, adds `unlisted` for a model the list doesn't have and `new_software` for an unsupported model on a new software version |
+| `support` (`status`, `listed`, `issue`, `reason`, `prediction`, `report_wanted`) | The watch's status in the support list; the `support` line, such as `support expected issue=#5`, adds `unlisted` for a model the list doesn't have, `new_software` for an unsupported model on a new software version and `predicted=<family>` for a model the list only predicts to work (`support unknown predicted=…` means the prediction was wrong) |
 | `parts` (`part`, `target`, `file`, `tested`, `mark`) | Each bundled part the watch lists |
 | `test_marks` | Whether this is a beta build with test marks (`marks beta` or `marks off`) |
 

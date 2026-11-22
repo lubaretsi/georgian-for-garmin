@@ -26,6 +26,7 @@ A pack has a `kind`:
 | `model_part`   | `Model/PartNumber` from the watch's `GARMIN/GarminDevice.xml`, e.g. `006-B3703-00`; unique |
 | `issues`       | Its GitHub issue numbers, the main one first: the one its owners follow, where duplicates are closed into |
 | `unsupported`  | Only for a model known not to work: `software`, the versions it was reported on, and `reason`, the id of an entry in `reasons` |
+| `prediction`   | Only for a model not tested, predicted to work from Garmin's data ([Predicted models](#predicted-models)) |
 
 `reasons` holds each reason once, by `id`, as `en` and `ka` sentences for the app (the fenix 6
 and Instinct 3 models share `font_unused`). Every reason must be used.
@@ -38,11 +39,37 @@ add one when it gets an issue, so the app links it. Add `unsupported` when a mod
 work, and a version to its `software` when a report from a new version says the same; the app asks
 an unsupported watch for a report only on a version that isn't listed.
 
-The README's watch table is generated from this list: after changing it, run
-`python -m garmin_fonts.support` from `builder/` in `nix develop`. The builder tests fail when the
+The README's watch tables are generated from this list: after changing it, run
+`python -m garmin_fonts.support` from `builder/` in `nix develop`. The builder tests fail when a
 table and the list differ, and the registry checks reject a model listed twice, a tested model
-missing from the list or listed as unsupported, an unsupported model without an issue, and a
-reason that is missing, repeated or unused.
+missing from the list or listed as unsupported, an unsupported model without an issue, a reason
+that is missing, repeated or unused, and a prediction on a tested or unsupported model.
+
+### Predicted models
+
+A `prediction` lists a model no one has tested yet whose fonts Garmin's own data says this
+project can add Georgian to, so the README can show it as likely to work before anyone has
+downloaded the app. Its fields:
+
+| Field        | Value |
+| ------------ | ----- |
+| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters |
+| `confidence` | `high`, the only value allowed: a weaker guess stays out of the list |
+| `basis`      | Why, in a sentence. When one device page gives one name to several part numbers, `model` is that page's name and `basis` says so; don't guess which part is which |
+| `source`     | The device reference page, or `firmware family of <model>` naming a tested model in this list |
+
+A prediction changes nothing on a connected watch: the app still decides from the fonts the watch
+lists, so a watch that lists none of this build's fonts is `unknown` and asked for a report.
+`inspect` and the report show the prediction (`support … predicted=noto_truetype`), so a report
+from a predicted model says at a glance whether the prediction held.
+
+The Connect IQ pages leave out fonts a watch has (the Venu 3's page lacks
+`006-D9971-09`), so a page without Noto Sans Armenian is no evidence against a model; such models
+stay out. When a predicted model gets a report: confirmed, drop `prediction` and add the tested
+entry and its issue; shown not to work, replace `prediction` with `unsupported`. The registry
+checks reject a model that is predicted and tested, or predicted and unsupported. The 2026-11-22
+entries come from every device reference page, with the rules checked against the 17 reported
+model parts first: none disagreed.
 
 ## Add a tested model
 

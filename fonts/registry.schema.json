@@ -236,6 +236,28 @@
               "$ref": "#/$defs/id"
             }
           }
+        },
+        "prediction": {
+          "description": "Not tested: Garmin's own data says the model has a font this project adds Georgian to. Only high-confidence predictions; never on a model with tested entries or one marked unsupported. A connected watch is still judged by the fonts it lists.",
+          "type": "object",
+          "required": ["family", "confidence", "basis", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "description": "The font host it is predicted to have: noto_truetype (Noto Sans Armenian TrueType, as on the Forerunner 165) or bitmap_armenian (bitmap Armenian, as on the fenix 7 Pro).",
+              "enum": ["noto_truetype", "bitmap_armenian"]
+            },
+            "confidence": { "const": "high" },
+            "basis": {
+              "description": "Why, in a sentence; says so when the model name is a Connect IQ device page's name for several parts.",
+              "$ref": "#/$defs/text"
+            },
+            "source": {
+              "description": "The Connect IQ device reference page that lists the font, or \"firmware family of <model>\" naming a tested model in the list.",
+              "type": "string",
+              "pattern": "^(https://developer\\.garmin\\.com/connect-iq/[^\\s]+|firmware family of .+)$"
+            }
+          }
         }
       }
     },

@@ -12,11 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The fenix 5 (software 25.00, #30, #29) in the support list as not working: it connects only as
   a USB drive, and the app found no font on it that it can add Georgian to. Both reports are
   replay fixtures.
+- 58 watch models predicted to work, not tested, in the support list with a `prediction`
+  (`noto_truetype` or `bitmap_armenian`, high confidence only, with its basis and source) and in
+  a new README table, **Likely to work, not confirmed**, grouped by model family. 36 come from
+  Garmin's Connect IQ device reference listing Noto Sans Armenian (as on the Forerunner 165), 22
+  from the fenix 7 firmware family (as the tested fenix 7 Pro). Where one device page names several
+  part numbers, the entry carries that page's name.
+- `inspect` and the watch report's `support` gain `prediction` (the predicted family, or null),
+  and the report's `support` line adds `predicted=<family>`. A prediction changes neither the
+  status nor `report_wanted`: a predicted watch is still judged by the fonts it lists.
 
 ### Changed
 
 - The reason shown for watches that connect only as a USB drive (Forerunner 245, fenix 5) now
   says only what their reports show: the app found no font on the watch it can add Georgian to.
+- The README's first watch table lists only reported models; predicted ones have their own.
 
 ## [0.3.2] - 2026-11-22
 
