@@ -128,14 +128,18 @@ function sharedText(s) {
   return s.result === "shareDemo" ? fill(T.shareDemo, { url: s.url }) : T[s.result];
 }
 
-/** `issue_link`'s input without empty answers. */
+/** The core's `Answers` fields; anything else in `answers` (like `shared`) is the screen's own. */
+const ANSWER_FIELDS = ["result", "views", "phone", "marker", "connect_version"];
+
+/** `issue_link`'s input: only the core's answer fields, without empty ones. */
 function linkInput(report, outcome, answers) {
   const input = { report };
   if (outcome) input.outcome = outcome;
   if (answers) {
     const a = {};
-    for (const [key, value] of Object.entries(answers)) {
-      if (value !== null && !(Array.isArray(value) && value.length === 0)) a[key] = value;
+    for (const key of ANSWER_FIELDS) {
+      const value = answers[key];
+      if (value != null && !(Array.isArray(value) && value.length === 0)) a[key] = value;
     }
     input.answers = a;
   }
@@ -389,8 +393,7 @@ function showCheck(result) {
 
 async function shareCheck() {
   const asked = answers;
-  const { shared: _, ...given } = asked;
-  asked.shared = await openIssue(linkInput(lastRun.report, lastRun.outcome, given));
+  asked.shared = await openIssue(linkInput(lastRun.report, lastRun.outcome, asked));
   if (!$("checking").hidden && asked === answers) redraw();
 }
 

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parts what it holds (`georgian`, `georgian_beta`, `stock`, `other`). Report-only: install and
   restore don't use them, and a failure is a note on the `hidden:` line, never an error.
   `inspect` and the report gain `extdata_hidden`.
+
+## [0.3.0] - 2026-11-22
+
+### Added
+
 - Forerunner 165 (29.52) as a tested watch, the first with TrueType fonts: Georgian in pop-ups,
   the notification list and opened notifications with an iPhone (#5, #19), with both its Armenian
   and Hebrew TrueType fonts installed. The beta's test mark showed the watch draws Georgian from the
@@ -190,7 +195,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same files locally.
 - Releases carry one `SHA256SUMS` for every platform.
 
-[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.1.0...v0.2.0
