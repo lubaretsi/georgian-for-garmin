@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
   every screen from download to the watch's restart.
+- Venu 2 Plus (19.05) and fenix 7 Pro Solar / Pro Sapphire Solar (26.09) as tested watches, from
+  user reports (#4, #11, #15). A model and software version now count as tested once someone
+  confirms Georgian in a real notification; the entry lists the parts the app installed.
 
 ### Changed
 

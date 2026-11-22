@@ -8,15 +8,19 @@ against the schema, checks each stock file against its entry and rebuilds every 
 
 ## Add a tested model
 
-Add a model after installing a pack's Georgian build on that watch, unplugging and restarting
-it, and seeing Georgian render in a notification. Append to the pack's `tested` list:
+Add a model once someone has installed a pack's Georgian build on that watch, unplugged and
+restarted it, and confirmed Georgian in a real notification, with a photo or a clear report in a
+GitHub issue. The owner of a watch rarely knows which font size a view uses, so the entry covers
+the model and software version. List every part of the pack the app installed on it (the parts
+the watch lists) and link the issue in the README's supported-watches table. Append to the
+pack's `tested` list:
 
 | Field        | Value                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------- |
 | `model`      | `Model/Description` from the watch's `GARMIN/GarminDevice.xml`, e.g. `Venu 2`          |
 | `model_part` | `Model/PartNumber`, e.g. `006-B3703-00`                                                |
 | `software`   | `Model/SoftwareVersion` with two decimals: `1905` is `19.05`                            |
-| `parts`      | The parts of this pack you saw rendering Georgian, e.g. `["006-D9035-03"]`             |
+| `parts`      | The parts of this pack installed on that watch, e.g. `["006-D9035-03"]`                 |
 
 `georgian-for-garmin inspect` shows the model, part number and software version too. The same
 model on a different software version is a separate entry.
