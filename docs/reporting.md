@@ -62,6 +62,7 @@ appear):
 | `declared_files` (`path`, `file_name`, `part_number`, `version`) | Every `MassStorageMode/UpdateFile` |
 | `extdata_files` | The same, for `Garmin/ExtData` only |
 | `extdata_listing` (`name`, `bytes`, `sha256`) | The `GARMIN/ExtData` folder; `sha256` only for files `inspect` already reads (named for a bundled part, with one of its sizes) |
+| `extdata_hidden` (`status`, `files`: `name`, `bytes`, `read_only`, `file`; `note`) | `GARMIN/ExtData`'s children the normal listing leaves out, from Garmin's `GetObjectIds`; `file` only for this build's parts |
 | `hosts` (`kind`, `reason`), `packs`, `tested`, `state` | This build's choice of fonts for the watch, and Georgian on it |
 | `parts` (`part`, `target`, `file`, `tested`, `mark`) | Each bundled part the watch lists |
 | `test_marks` | Whether this is a beta build with test marks (`marks beta` or `marks off`) |
@@ -87,6 +88,7 @@ Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10
 …
 extdata: name bytes sha256
 …
+hidden: 006-D9035-03.fnt 35638 ro georgian; 006-D8448-25.fnt 21302 ro
 ```
 
 `state` and each part's `file` follow one rule, the same in the app and the CLI. `file` is what
@@ -96,6 +98,23 @@ Forerunner 165 and fenix 6S Pro) or `unknown`. `state` sums up the parts install
 `installed`, `waiting` (bitmap, until the restart), `partly`, `beta`, `not_installed`,
 `not_visible`, `stock_waiting`, `other`, `unknown` or `unsupported`. With a last install or
 restore, the state and files are from just before it, and the lines say so.
+
+### Hidden files
+
+Some watches leave read-only objects out of the normal MTP listing: on the Venu 2, Garmin's vendor
+`GetObjectIds` (`0x9002`) on a folder returns exactly those, such as the imported `.fnt` fonts in
+`ExtData`, and the two listings together cover the folder. The Forerunner 165 and fenix 6S Pro
+reports show an empty `extdata:` while declaring 11 `.bin` fonts, probably the same hiding. When the
+watch lists `0x9002`, `inspect` lists `ExtData`'s hidden children too, on the report's `hidden:`
+line: each file's name, size and `ro` (read-only) or `rw`, and for a file named for one of this
+build's parts on the watch (a bitmap part also as its imported `<part>.fnt`) what it holds, by
+the same rule as `file`. Only those few files are read. `hidden: unsupported` means the watch
+doesn't list the operation, `hidden: error …` that listing or a read failed (the rest of the
+report is unaffected), and `hidden: not read` that `ExtData` wasn't found or the watch is a USB
+drive.
+
+The hidden listing is for the report only: install, restore, each part's `file` and `state` never
+use it, since a read-only object would take install down a delete path it doesn't take today.
 
 ## The phone test page
 

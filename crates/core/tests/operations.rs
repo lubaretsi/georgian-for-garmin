@@ -1091,6 +1091,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
         "connection",
         "declared_files",
         "extdata_files",
+        "extdata_hidden",
         "extdata_listing",
         "hosts",
         "model",
@@ -2406,6 +2407,132 @@ fn parts_a_watch_declares_at_0_01_are_restored_and_reinstalled() {
         );
     }
     // Any other version is still refused (a_truetype_part_listed_at_another_version...).
+}
+
+/// Adds a read-only file to `ExtData` that only Garmin's `GetObjectIds` lists, as the Venu 2
+/// keeps imported fonts.
+fn hidden_file(s: &mut State, handle: u32, name: &str, data: &[u8]) {
+    s.file(handle, EXTDATA, name, data);
+    s.objects.get_mut(&handle).unwrap().0.protection_status = 1;
+    s.hidden.insert(handle);
+}
+
+/// A TrueType watch that shows its `.bin` fonts only through `GetObjectIds`, read-only, like
+/// the Forerunner 165 and fenix 6S Pro seem to: Georgian in one part, a beta build in the other,
+/// and a large font of another script.
+fn hidden_truetype_watch() -> State {
+    let mut s = truetype_watch(&[]);
+    s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+    hidden_file(&mut s, 0x0100_0070, BIN, &georgian(HEBREW[0]));
+    hidden_file(&mut s, 0x0100_0071, "006-D0952-07.bin", &beta(HEBREW[1]));
+    hidden_file(&mut s, 0x0100_0072, "006-D9971-00.bin", &vec![7; 3 << 20]);
+    s
+}
+
+#[test]
+fn hidden_extdata_files_are_listed_and_classified() {
+    let fake = Fake::new(hidden_truetype_watch());
+    let out = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    let hidden = &out["extdata_hidden"];
+    assert_eq!(hidden["status"], "listed");
+    assert_eq!(
+        hidden["files"],
+        json!([
+            {"name": "006-D0952-07.bin", "bytes": beta(HEBREW[1]).len(), "read_only": true,
+             "file": "georgian_beta"},
+            {"name": "006-D0952-08.bin", "bytes": georgian(HEBREW[0]).len(), "read_only": true,
+             "file": "georgian"},
+            {"name": "006-D9971-00.bin", "bytes": 3 << 20, "read_only": true, "file": null},
+        ])
+    );
+    assert_eq!(out["report"]["extdata_hidden"], *hidden);
+    let text = out["report"]["text"].as_str().unwrap();
+    let line = format!(
+        "hidden: 006-D0952-07.bin {} ro georgian_beta; 006-D0952-08.bin {} ro georgian; \
+         006-D9971-00.bin {} ro",
+        beta(HEBREW[1]).len(),
+        georgian(HEBREW[0]).len(),
+        3 << 20
+    );
+    assert!(text.lines().any(|l| l == line), "{text}");
+    // Only the two target parts were read; the 3 MB font never was.
+    let reads = fake.0.borrow().reads.clone();
+    assert!(!reads.contains(&0x0100_0072), "{reads:x?}");
+    assert!(reads.contains(&0x0100_0070) && reads.contains(&0x0100_0071));
+    // Report only: the parts' files and the state are as without the hidden listing.
+    assert_eq!(truetype_staged(&fake), ["not_visible", "not_visible"]);
+    assert_eq!(out["state"], "not_visible");
+}
+
+#[test]
+fn hidden_extdata_files_never_change_install_targeting() {
+    let plain = Fake::new(truetype_watch(&[]));
+    let hidden = Fake::new(hidden_truetype_watch());
+    let a = plain.call("inspect", json!({}), &fonts_tt()).unwrap();
+    let b = hidden.call("inspect", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(targets(&a), targets(&b));
+    assert_eq!(a["fonts"], b["fonts"]);
+    assert_eq!(a["supported"], b["supported"]);
+    // Install writes exactly as on a watch that shows nothing, and never deletes the
+    // read-only objects.
+    plain.call("install", json!({}), &fonts_tt()).unwrap();
+    hidden.call("install", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(plain.writes(), hidden.writes());
+    assert!(
+        !hidden
+            .writes()
+            .iter()
+            .any(|w| w.starts_with("delete_object"))
+    );
+    for handle in [0x0100_0070, 0x0100_0071, 0x0100_0072] {
+        assert!(hidden.0.borrow().objects.contains_key(&handle));
+    }
+}
+
+#[test]
+fn a_failing_or_missing_get_object_ids_leaves_the_report_working() {
+    let mut s = hidden_truetype_watch();
+    s.object_ids_fail = true;
+    let out = Fake::new(s)
+        .call("inspect", json!({}), &fonts_tt())
+        .unwrap();
+    assert_eq!(out["extdata_hidden"]["status"], "error");
+    assert!(out["extdata_hidden"]["note"].as_str().unwrap().len() <= 84);
+    let text = out["report"]["text"].as_str().unwrap();
+    assert!(
+        text.lines().any(|l| l.starts_with("hidden: error ")),
+        "{text}"
+    );
+
+    let mut s = hidden_truetype_watch();
+    s.operations.retain(|&o| o != op::GARMIN_GET_OBJECT_IDS);
+    let out = Fake::new(s)
+        .call("inspect", json!({}), &fonts_tt())
+        .unwrap();
+    assert_eq!(out["extdata_hidden"]["status"], "unsupported");
+    let text = out["report"]["text"].as_str().unwrap();
+    assert!(text.lines().any(|l| l == "hidden: unsupported"), "{text}");
+}
+
+/// The Venu 2 after a restart: its imported fonts are read-only `.fnt` files only
+/// `GetObjectIds` lists. A target part's is classified like its `.tmp` would be.
+#[test]
+fn imported_bitmap_fonts_are_classified_by_their_fnt_name() {
+    let mut s = venu2(&[PART]);
+    s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+    hidden_file(&mut s, 0x0100_0070, "006-D9035-03.fnt", &georgian(PART));
+    hidden_file(&mut s, 0x0100_0071, "006-D8448-25.fnt", &[1, 2, 3]);
+    let fake = Fake::new(s);
+    let out = fake.call("inspect", json!({}), &fonts()).unwrap();
+    let text = out["report"]["text"].as_str().unwrap();
+    let line = format!(
+        "hidden: 006-D8448-25.fnt 3 ro; 006-D9035-03.fnt {} ro georgian",
+        georgian(PART).len()
+    );
+    assert!(text.lines().any(|l| l == line), "{text}");
+    // The staged-file rule and the state still look at `.tmp` only.
+    assert_eq!(out["fonts"][2]["file"], "none");
+    assert_eq!(out["state"], "not_installed");
 }
 
 #[test]

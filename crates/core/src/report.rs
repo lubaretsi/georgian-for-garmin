@@ -107,6 +107,54 @@ pub struct ListedFile {
     pub sha256: Option<String>,
 }
 
+/// Whether `ExtData`'s hidden children could be listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HiddenStatus {
+    /// Listed with Garmin's vendor `GetObjectIds` (0x9002).
+    Listed,
+    /// The watch doesn't list that operation.
+    Unsupported,
+    /// Listing or reading failed; `note` says how. Nothing else is affected.
+    Error,
+    /// Not looked at: `ExtData` wasn't found, or the watch is a USB drive.
+    NotRead,
+}
+
+/// A child of `GARMIN/ExtData` that the normal listing leaves out: on the Venu 2, the read-only
+/// objects, such as imported fonts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HiddenFile {
+    pub name: String,
+    pub bytes: u64,
+    /// The object's MTP ProtectionStatus is read-only.
+    pub read_only: bool,
+    /// What it holds, only for a file named for a part this build installs or restores on the
+    /// watch (`inspect`'s file rule); null for every other file, which isn't read.
+    pub file: Option<FileState>,
+}
+
+/// `ExtData`'s hidden children. Report-only: install and restore never use them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HiddenListing {
+    pub status: HiddenStatus,
+    pub files: Vec<HiddenFile>,
+    /// A short note on what failed, with `error`.
+    pub note: Option<String>,
+}
+
+impl HiddenListing {
+    pub fn not_read() -> Self {
+        HiddenListing {
+            status: HiddenStatus::NotRead,
+            files: Vec::new(),
+            note: None,
+        }
+    }
+}
+
 /// Which kind of font gets Georgian on this watch, and why.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -158,6 +206,10 @@ pub struct WatchReport {
     pub extdata_files: Vec<ReportedFile>,
     /// What `GARMIN/ExtData` holds; null if the folder wasn't found.
     pub extdata_listing: Option<Vec<ListedFile>>,
+    /// `ExtData`'s children the normal listing leaves out; `not_read` when absent (reports from
+    /// before this field).
+    #[serde(default = "HiddenListing::not_read")]
+    pub extdata_hidden: HiddenListing,
     /// A title for the issue.
     pub title: String,
     /// The report as compact text for the form's report field (rendered as a code block),
@@ -175,6 +227,7 @@ pub struct ReportInput {
     pub parts: Vec<ReportedPart>,
     pub test_marks: bool,
     pub extdata_listing: Option<Vec<ListedFile>>,
+    pub extdata_hidden: HiddenListing,
 }
 
 /// The report for `device`. Built only from the fields named here.
@@ -213,6 +266,7 @@ pub fn watch_report(device: &GarminDevice, input: ReportInput) -> WatchReport {
         declared_files,
         extdata_files,
         extdata_listing: input.extdata_listing,
+        extdata_hidden: input.extdata_hidden,
         title: String::new(),
         text: String::new(),
     };
@@ -637,6 +691,45 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
             }
         }
     }
+    let hidden = &report.extdata_hidden;
+    match hidden.status {
+        HiddenStatus::Unsupported => out.push_str("hidden: unsupported\n"),
+        HiddenStatus::NotRead => out.push_str("hidden: not read\n"),
+        HiddenStatus::Error if hidden.files.is_empty() => writeln!(
+            out,
+            "hidden: error {}",
+            one_line(hidden.note.as_deref().unwrap_or(""))
+        )
+        .unwrap(),
+        HiddenStatus::Listed | HiddenStatus::Error => {
+            let files: Vec<String> = hidden
+                .files
+                .iter()
+                .map(|f| {
+                    let mut entry = format!(
+                        "{} {} {}",
+                        column(&f.name),
+                        f.bytes,
+                        if f.read_only { "ro" } else { "rw" }
+                    );
+                    if let Some(file) = f.file {
+                        write!(entry, " {}", snake(&file)).unwrap();
+                    }
+                    entry
+                })
+                .collect();
+            let list = if files.is_empty() {
+                "none".to_owned()
+            } else {
+                files.join("; ")
+            };
+            write!(out, "hidden: {list}").unwrap();
+            if let Some(note) = &hidden.note {
+                write!(out, "; error {}", one_line(note)).unwrap();
+            }
+            out.push('\n');
+        }
+    }
     out
 }
 
@@ -683,6 +776,24 @@ mod tests {
                 bytes: 12,
                 sha256: None,
             }]),
+            extdata_hidden: HiddenListing {
+                status: HiddenStatus::Listed,
+                files: vec![
+                    HiddenFile {
+                        name: "006-D9971-09.bin".into(),
+                        bytes: 41124,
+                        read_only: true,
+                        file: Some(FileState::Georgian),
+                    },
+                    HiddenFile {
+                        name: "006-D8448-25.fnt".into(),
+                        bytes: 900,
+                        read_only: true,
+                        file: None,
+                    },
+                ],
+                note: None,
+            },
             title: String::new(),
             text: String::new(),
         };
@@ -752,6 +863,7 @@ mod tests {
             "006-D9035-01 none yes tested B",
             "Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10",
             "\"a b\\u0060.bin\" 12 -",
+            "hidden: 006-D9971-09.bin 41124 ro georgian; 006-D8448-25.fnt 900 ro",
         ] {
             assert!(
                 link.report_text.lines().any(|l| l == line),
@@ -851,7 +963,20 @@ mod marks_off {
                 parts: vec![],
                 test_marks: false,
                 extdata_listing: None,
+                extdata_hidden: HiddenListing {
+                    status: HiddenStatus::Error,
+                    files: vec![],
+                    note: Some("GetObjectIds failed".into()),
+                },
             },
+        );
+        assert!(
+            report
+                .text
+                .lines()
+                .any(|l| l == "hidden: error GetObjectIds failed"),
+            "{}",
+            report.text
         );
         assert!(
             report.text.lines().any(|l| l == "marks off"),
