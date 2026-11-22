@@ -270,7 +270,14 @@
           "sha256": "fc5ef66c27f9963aae250bd5f27cf5a309fd48fb095318a5e999b1588219b6be"
         }
       ],
-      "tested": []
+      "tested": [
+        {
+          "model": "Forerunner 165",
+          "model_part": "006-B4432-00",
+          "software": "29.52",
+          "parts": ["006-D1053-98", "006-D1053-99"]
+        }
+      ]
     },
     {
       "id": "hebrew-swiss-721-truetype",
