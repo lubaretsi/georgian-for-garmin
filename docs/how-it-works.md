@@ -34,6 +34,20 @@ flowchart LR
 - **Whether it was tested.** Each part counts as tested on a watch when its pack's `tested` list
   in the registry names that part for the watch's model part number and software version. The
   watch as a whole counts as tested only when every part it gets is.
+- **The watch's status.** The registry's support list (`watches`) names every watch model the
+  project knows of, with its GitHub issues (the main one first) and, for a model known not to
+  work, why and on which software versions. Everything else is derived for the connected watch:
+
+  | Status | When | The app |
+  |---|---|---|
+  | `tested` | This build installs Georgian and the watch as a whole counts as tested | Installs; after installing, the check screen says it's confirmed and offers sharing only as **Didn't work? Share on GitHub** |
+  | `expected` | This build installs Georgian, but not every part is confirmed on this model and software (a new model, or a tested one on new software) | Installs, says it's not confirmed on this watch yet, and asks for a report |
+  | `beta` | Only pre-release builds install on it (a pack with `install: "beta"`) and this is a stable build | Doesn't install; says it's being tested in the beta, with a link to the issue. A pre-release build shows the same watch as `expected` |
+  | `unsupported` | The support list says the model doesn't work, even if this build has fonts it could install (the command line's `install` still writes those) | Doesn't install; shows the reason and a link to the issue. Asks for a report only on a software version the list doesn't have |
+  | `unknown` | None of the above: this build has nothing to install on it | Asks for its font list |
+
+  `inspect` and the watch report carry it as `support`; the README's watch table is generated
+  from the same list ([Font registry](../fonts/README.md#support-list)).
 
 ## The font
 

@@ -5,8 +5,8 @@
 //! every other part of `GarminDevice.xml` stay out: the model's description, part number and
 //! software version; each `UpdateFile`'s path, file name, part number and version; the
 //! `GARMIN/ExtData` listing (name, size, and SHA-256 only of files `inspect` reads anyway);
-//! this build's host choice, packs and per-part state; the last install or restore; and the
-//! program's version, OS and CPU architecture.
+//! this build's host choice, packs and per-part state; the watch's status in the support list;
+//! the last install or restore; and the program's version, OS and CPU architecture.
 //!
 //! GitHub and browsers refuse very long URLs, so the report is kept compact; one that would
 //! still make the link longer than [`MAX_URL`] is left out of it, and the form's report field
@@ -23,9 +23,18 @@ use crate::error::{Error, ErrorCode};
 use crate::fonts::Kind;
 use crate::garmin_device::GarminDevice;
 use crate::ops::{APP_VERSION, FileState, GeorgianState, StageStatus, TestStatus};
+use crate::support::{Support, SupportStatus};
 
 /// Where watch reports are filed.
 pub const NEW_ISSUE: &str = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
+/// The repository's issues; issue `n` is `{ISSUES}/{n}`.
+pub const ISSUES: &str = "https://github.com/lubaretsi/georgian-for-garmin/issues";
+
+/// The page of GitHub issue `number`.
+pub fn issue_url(number: u32) -> String {
+    format!("{ISSUES}/{number}")
+}
+
 /// The issue form, in `.github/ISSUE_TEMPLATE/`.
 pub const TEMPLATE: &str = "watch-report.yml";
 /// Longest link we make. GitHub answers 414 somewhat above 8 KB; browsers allow more.
@@ -194,6 +203,10 @@ pub struct WatchReport {
     pub packs: Vec<String>,
     /// The overall status, as in `inspect`'s `tested`.
     pub tested: TestStatus,
+    /// The watch's status in the support list, as in `inspect`'s `support`; unknown when absent
+    /// (reports from before this field).
+    #[serde(default)]
+    pub support: Support,
     /// Georgian on the watch, as in `inspect`'s `state`.
     pub state: GeorgianState,
     pub hosts: ReportedHosts,
@@ -223,6 +236,7 @@ pub struct ReportInput {
     pub connection: Connection,
     pub packs: Vec<String>,
     pub tested: TestStatus,
+    pub support: Support,
     pub state: GeorgianState,
     pub hosts: ReportedHosts,
     pub parts: Vec<ReportedPart>,
@@ -260,6 +274,7 @@ pub fn watch_report(device: &GarminDevice, input: ReportInput) -> WatchReport {
         software_version: device.software_version.clone(),
         packs: input.packs,
         tested: input.tested,
+        support: input.support,
         state: input.state,
         hosts: input.hosts,
         parts: input.parts,
@@ -568,6 +583,23 @@ fn title(report: &WatchReport) -> String {
     )
 }
 
+/// The `support` line, for triage at a glance: `support expected issue=#5`, with `unlisted`
+/// when the model isn't in the support list and `new_software` when an unsupported model's
+/// software version isn't.
+fn support_line(support: &Support) -> String {
+    let mut line = format!("support {}", snake(&support.status));
+    if let Some(issue) = support.issue {
+        write!(line, " issue=#{issue}").unwrap();
+    }
+    if !support.listed {
+        line.push_str(" unlisted");
+    }
+    if support.status == SupportStatus::Unsupported && support.report_wanted {
+        line.push_str(" new_software");
+    }
+    line
+}
+
 /// The report field's text. Short words, one item per line, space-separated columns: it has
 /// to fit in a URL.
 pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&Answers>) -> String {
@@ -591,6 +623,7 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
         column(&report.software_version)
     )
     .unwrap();
+    writeln!(out, "{}", support_line(&report.support)).unwrap();
     let kind = report
         .hosts
         .kind
@@ -756,6 +789,13 @@ mod tests {
             software_version: "19.05".into(),
             packs: vec!["armenian-noto-sans-regular".into()],
             tested: TestStatus::Tested,
+            support: Support {
+                status: SupportStatus::Tested,
+                listed: true,
+                issue: None,
+                reason: None,
+                report_wanted: false,
+            },
             state: GeorgianState::NotInstalled,
             hosts: ReportedHosts {
                 kind: Some(Kind::Bitmap),
@@ -860,6 +900,7 @@ mod tests {
         for line in [
             "app 0.3.0-beta.1 \"Mac OS\" 15.6.1 aarch64",
             "watch \"Venu 2\" 006-B3703-00 19.05",
+            "support tested",
             "state not_installed (before install)",
             "last install staged_verified 006-D9035-01",
             "answers result=georgian views=popup,opened phone=android marker=B connect=5.10",
@@ -960,6 +1001,7 @@ mod marks_off {
                 connection: Connection::Mtp,
                 packs: vec![],
                 tested: TestStatus::Untested,
+                support: Support::default(),
                 state: GeorgianState::Unsupported,
                 hosts: ReportedHosts {
                     kind: None,
@@ -989,5 +1031,46 @@ mod marks_off {
             report.text
         );
         assert!(report.text.lines().any(|l| l == "state unsupported"));
+        assert!(
+            report.text.lines().any(|l| l == "support unknown unlisted"),
+            "{}",
+            report.text
+        );
+    }
+
+    #[test]
+    fn the_support_line_has_status_issue_and_what_is_new() {
+        let line = |status, listed, issue, report_wanted| {
+            support_line(&Support {
+                status,
+                listed,
+                issue,
+                reason: None,
+                report_wanted,
+            })
+        };
+        use SupportStatus as S;
+        assert_eq!(line(S::Tested, true, None, false), "support tested");
+        assert_eq!(
+            line(S::Expected, true, Some(5), true),
+            "support expected issue=#5"
+        );
+        assert_eq!(
+            line(S::Expected, false, None, true),
+            "support expected unlisted"
+        );
+        assert_eq!(line(S::Beta, true, Some(6), false), "support beta issue=#6");
+        assert_eq!(
+            line(S::Unsupported, true, Some(16), false),
+            "support unsupported issue=#16"
+        );
+        assert_eq!(
+            line(S::Unsupported, true, Some(16), true),
+            "support unsupported issue=#16 new_software"
+        );
+        assert_eq!(
+            line(S::Unknown, false, None, true),
+            "support unknown unlisted"
+        );
     }
 }

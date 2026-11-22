@@ -16,6 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parts what it holds (`georgian`, `georgian_beta`, `stock`, `other`). Report-only: install and
   restore don't use them, and a failure is a note on the `hidden:` line, never an error.
   `inspect` and the report gain `extdata_hidden`.
+- A support list in `fonts/registry.json` (`watches`): every watch model the project knows of,
+  with its GitHub issues and, for one known not to work, why. It starts with the tested watches,
+  the Forerunner 165 Music, Venu 3 and 3S (#5) and Forerunner 255 (#13) as not confirmed yet,
+  the fenix 6 Pro family and Instinct 3 AMOLED (#6) in beta testing, and the Forerunner 245
+  (#16), Forerunner 245 Music (#10) and Venu (#12) as not working. The README's watch table is
+  generated from it (`python -m garmin_fonts.support`), and the builder tests fail when they
+  differ.
+- The app shows the connected watch's status from the list: tested, not confirmed yet (installs),
+  being tested in the beta (stable builds don't install; links the issue), or not working (the
+  reason and a **Follow updates** link to the issue). It asks for a report only when one adds
+  something new: not for a tested watch, whose check screen says it's confirmed and offers
+  **Didn't work? Share on GitHub** instead, nor for a watch in beta testing, nor for an
+  unsupported one on a software version the list has. Sharing is still one click to the
+  filled-in issue form.
+- `inspect`, `inspect-drive` and the watch report gain `support`: `status` (`tested`,
+  `expected`, `beta`, `unsupported`, `unknown`), `listed`, `issue`, `reason` and
+  `report_wanted`; the report text gets a `support` line, such as `support expected issue=#5`.
+  `inspect` prints the status with the issue's link.
+
+### Changed
+
+- Registry `tested` entries no longer carry `model`; a tested model's name comes from the
+  support list, which must list it. A pack with `install: "beta"` names its test issue as
+  `issue`. The asset manifest gains `watches` and each pack's `beta` and `issue`; its `tested`
+  entries lose `model`.
 
 ## [0.3.0] - 2026-11-22
 

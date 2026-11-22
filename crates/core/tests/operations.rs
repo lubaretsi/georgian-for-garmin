@@ -11,6 +11,7 @@ use georgian_for_garmin_core::fonts::{
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
+use georgian_for_garmin_core::support::{Reason, Unsupported, Watch};
 use georgian_for_garmin_core::{Error, ErrorCode};
 use serde_json::{Value, json};
 
@@ -444,6 +445,8 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
         kind: Kind::Bitmap,
         weight: 400,
         install: true,
+        beta: false,
+        issue: None,
         fonts: parts
             .iter()
             .map(|&(part, size_px)| Font {
@@ -469,6 +472,8 @@ fn truetype_pack() -> Pack {
         kind: Kind::Truetype,
         weight: 400,
         install: true,
+        beta: false,
+        issue: None,
         fonts: HEBREW
             .iter()
             .map(|&part| Font {
@@ -489,7 +494,6 @@ fn truetype_pack() -> Pack {
 /// A `tested` entry for a Venu 2 (`006-B3703-00`).
 fn venu2_tested(software: &str, parts: &[&str]) -> Tested {
     Tested {
-        model: "Venu 2".into(),
         model_part: "006-B3703-00".into(),
         software: software.into(),
         parts: parts.iter().map(|&p| p.into()).collect(),
@@ -503,6 +507,7 @@ fn fonts_tested(armenian: Vec<Tested>, thai: Vec<Tested>) -> FontSet {
             pack("armenian", &ARMENIAN, armenian),
             pack("thai", &THAI, thai),
         ],
+        watches: vec![],
     }
 }
 
@@ -1004,6 +1009,218 @@ fn another_model_is_untested() {
     assert_eq!(out["supported"], true);
 }
 
+// Support status: from the support list, the tested entries, what installs and the build
+
+const VENU3: &str = "006-B4260-00";
+const FENIX6: &str = "006-B3288-00";
+const FR245: &str = "006-B3076-00";
+const UNLISTED: &str = "006-B9999-00";
+
+fn listed(model: &str, model_part: &str, issues: &[u32]) -> Watch {
+    Watch {
+        model: model.into(),
+        model_part: model_part.into(),
+        issues: issues.to_vec(),
+        unsupported: None,
+    }
+}
+
+/// The test registry with its TrueType pack installing only in pre-release builds (as Swiss 721
+/// Hebrew does, tested in #6), built as a pre-release or stable build, and a support list: the
+/// tested Venu 2, the Venu 3 (#5), the fenix 6S Pro (#6) and the Forerunner 245, which doesn't
+/// work (#16, software 13.70).
+fn fonts_support(pre_release: bool) -> FontSet {
+    let mut fonts = fonts_tt();
+    let hebrew = fonts.packs.last_mut().unwrap();
+    hebrew.beta = true;
+    hebrew.install = pre_release;
+    hebrew.issue = Some(6);
+    fonts.watches = vec![
+        listed("Venu 2", "006-B3703-00", &[]),
+        listed("Venu 3", VENU3, &[5]),
+        listed("fenix 6S Pro", FENIX6, &[6]),
+        Watch {
+            unsupported: Some(Unsupported {
+                software: vec!["13.70".into()],
+                reason: Reason {
+                    en: "It connects only as a USB drive.".into(),
+                    ka: "მხოლოდ USB დისკად უერთდება.".into(),
+                },
+            }),
+            ..listed("Forerunner 245", FR245, &[16])
+        },
+    ];
+    fonts
+}
+
+/// `inspect`'s `support` for this watch; the report carries the same and says it on one line.
+fn support_of(fonts: &FontSet, model_part: &str, software: &str, declared: &[&str]) -> Value {
+    let out = tested_with(fonts, model_part, software, declared);
+    assert_eq!(out["report"]["support"], out["support"]);
+    out
+}
+
+fn support_line(out: &Value) -> &str {
+    out["report"]["text"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .find(|l| l.starts_with("support "))
+        .expect("a support line")
+}
+
+#[test]
+fn a_confirmed_model_and_software_is_tested() {
+    let out = support_of(&fonts_support(false), "006-B3703-00", "1905", &ALL);
+    assert_eq!(
+        out["support"],
+        json!({"status": "tested", "listed": true, "issue": null, "reason": null,
+               "report_wanted": false})
+    );
+    assert_eq!(support_line(&out), "support tested");
+}
+
+#[test]
+fn a_tested_model_on_new_software_or_with_more_fonts_is_expected() {
+    let fonts = fonts_support(false);
+    let out = support_of(&fonts, "006-B3703-00", "2026", &ALL);
+    assert_eq!(out["tested"]["status"], "tested_other_software");
+    assert_eq!(out["support"]["status"], "expected");
+    assert_eq!(out["support"]["report_wanted"], true);
+    // Thai isn't tested on it: the parts install writes aren't all confirmed.
+    let out = support_of(&fonts, "006-B3703-00", "1905", &ALL_AND_THAI);
+    assert_eq!(out["support"]["status"], "expected");
+}
+
+#[test]
+fn a_model_that_installs_but_is_not_confirmed_is_expected() {
+    let fonts = fonts_support(false);
+    let out = support_of(&fonts, VENU3, "1705", &ALL);
+    assert_eq!(
+        out["support"],
+        json!({"status": "expected", "listed": true, "issue": 5, "reason": null,
+               "report_wanted": true})
+    );
+    assert_eq!(support_line(&out), "support expected issue=#5");
+    let out = support_of(&fonts, UNLISTED, "1000", &ALL);
+    assert_eq!(out["support"]["status"], "expected");
+    assert_eq!(out["support"]["listed"], false);
+    assert_eq!(support_line(&out), "support expected unlisted");
+}
+
+#[test]
+fn a_beta_only_route_is_beta_in_stable_and_expected_in_pre_release_builds() {
+    let stable = support_of(&fonts_support(false), FENIX6, "2802", &HEBREW);
+    assert_eq!(stable["supported"], false);
+    assert_eq!(stable["restorable"], true);
+    assert_eq!(
+        stable["support"],
+        json!({"status": "beta", "listed": true, "issue": 6, "reason": null,
+               "report_wanted": false})
+    );
+    assert_eq!(support_line(&stable), "support beta issue=#6");
+
+    let beta = support_of(&fonts_support(true), FENIX6, "2802", &HEBREW);
+    assert_eq!(beta["supported"], true);
+    assert_eq!(beta["support"]["status"], "expected");
+    assert_eq!(beta["support"]["issue"], 6);
+    assert_eq!(beta["support"]["report_wanted"], true);
+
+    // A model the list doesn't have links the issue the pack is tested in.
+    let out = support_of(&fonts_support(false), UNLISTED, "2802", &HEBREW);
+    assert_eq!(out["support"]["status"], "beta");
+    assert_eq!(out["support"]["issue"], 6);
+    assert_eq!(support_line(&out), "support beta issue=#6 unlisted");
+}
+
+#[test]
+fn an_unsupported_model_wants_a_report_only_on_new_software() {
+    let fonts = fonts_support(false);
+    let known = support_of(&fonts, FR245, "1370", &[]);
+    assert_eq!(
+        known["support"],
+        json!({"status": "unsupported", "listed": true, "issue": 16,
+               "reason": {"en": "It connects only as a USB drive.", "ka": "მხოლოდ USB დისკად უერთდება."},
+               "report_wanted": false})
+    );
+    assert_eq!(support_line(&known), "support unsupported issue=#16");
+    let new = support_of(&fonts, FR245, "1380", &[]);
+    assert_eq!(new["support"]["status"], "unsupported");
+    assert_eq!(new["support"]["report_wanted"], true);
+    assert_eq!(
+        support_line(&new),
+        "support unsupported issue=#16 new_software"
+    );
+    // The list's word beats a route this build has: it was seen not to work.
+    let routed = support_of(&fonts, FR245, "1370", &ALL);
+    assert_eq!(routed["supported"], true);
+    assert_eq!(routed["support"]["status"], "unsupported");
+}
+
+#[test]
+fn a_watch_with_nothing_to_install_is_unknown() {
+    let fonts = fonts_support(false);
+    let out = support_of(&fonts, UNLISTED, "1000", &[]);
+    assert_eq!(
+        out["support"],
+        json!({"status": "unknown", "listed": false, "issue": null, "reason": null,
+               "report_wanted": true})
+    );
+    assert_eq!(support_line(&out), "support unknown unlisted");
+    // Listed, but this watch lists none of the build's fonts: its issue is still the one.
+    let out = support_of(&fonts, VENU3, "1705", &[]);
+    assert_eq!(out["support"]["status"], "unknown");
+    assert_eq!(out["support"]["issue"], 5);
+}
+
+#[test]
+fn a_watch_mounted_as_a_drive_gets_its_support_status() {
+    let root = std::env::temp_dir().join(format!("gfg-support-drive-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("GARMIN")).unwrap();
+    std::fs::write(
+        root.join("GARMIN/GarminDevice.xml"),
+        device_xml_for(FR245, "1370", &[]),
+    )
+    .unwrap();
+    let out = ops::call(
+        "inspect_drive",
+        json!({"path": root}),
+        &fonts_support(false),
+        &mut || panic!("inspect_drive never opens MTP"),
+    )
+    .unwrap();
+    std::fs::remove_dir_all(&root).unwrap();
+    assert_eq!(out["support"]["status"], "unsupported");
+    assert_eq!(out["support"]["report_wanted"], false);
+    assert_eq!(out["report"]["support"], out["support"]);
+}
+
+#[test]
+fn the_bundled_support_list_names_every_tested_model() {
+    let fonts = FontSet::bundled();
+    assert!(!fonts.watches.is_empty());
+    for pack in &fonts.packs {
+        for t in &pack.tested {
+            let watch = fonts.watches.iter().find(|w| w.model_part == t.model_part);
+            assert!(
+                watch.is_some_and(|w| w.unsupported.is_none()),
+                "{}: tested on {}, which the support list lacks or calls unsupported",
+                pack.id,
+                t.model_part
+            );
+        }
+        assert!(
+            !pack.beta || pack.issue.is_some(),
+            "{} names no issue",
+            pack.id
+        );
+    }
+    for w in fonts.watches.iter().filter(|w| w.unsupported.is_some()) {
+        assert!(!w.issues.is_empty(), "{} names no issue", w.model);
+    }
+}
+
 // Watch report
 
 const UNIT_ID: &str = "3398765432";
@@ -1110,6 +1327,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
         "state",
         "test_marks",
         "tested",
+        "support",
         "text",
         "title",
     ];
@@ -2288,7 +2506,10 @@ fn the_bundled_fonts_follow_the_release_channel() {
 fn fonts_restore_only() -> FontSet {
     let mut pack = truetype_pack();
     pack.install = false;
-    FontSet { packs: vec![pack] }
+    FontSet {
+        packs: vec![pack],
+        watches: vec![],
+    }
 }
 
 #[test]

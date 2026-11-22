@@ -1,20 +1,26 @@
 //! An in-memory watch for trying the app without hardware (`--features demo`).
 //!
 //! It follows a short script so every screen shows up: the first three connections find no
-//! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]), the next two find
-//! it held by Garmin Express, and from then on one of three watches is attached:
+//! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at a
+//! software version the support list has), the next two find it held by Garmin Express, and
+//! from then on one of five watches is attached, one per support status:
 //!
 //! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
-//!    (the real one doesn't): after installing, the main screen says Georgian is installed;
+//!    (the real one doesn't): `tested`; after installing, the main screen says Georgian is
+//!    installed;
 //! 2. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
 //!    staged: `tested`;
-//! 3. an untested model (its name and part number are made up for the demo) listing every part
-//!    of the first two bundled packs, with a different file already staged for the last one, so
-//!    installing on it ends in a `conflict`.
+//! 3. a Venu 3, made to list every part of the first two bundled packs (the real one lists
+//!    TrueType fonts), with a different file already staged for the last one, so installing on
+//!    it ends in a `conflict`: `expected`;
+//! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which only pre-release builds install: `beta` in
+//!    a stable build, `expected` in a pre-release one;
+//! 5. a Venu listing none of this build's fonts: `unsupported`.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
-//! importing (removing) every staged `.tmp` file, and the other watch is attached. So the
-//! second visit to the untested watch installs cleanly, as a real one would once restarted.
+//! importing (removing) every staged `.tmp` file, and the next watch is attached. So the
+//! second visit to the Venu 3 installs cleanly, as a real one would once restarted.
+//! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -36,11 +42,39 @@ const LEFTOVER: u32 = 0x0100_0004;
 const ABSENT: usize = 3;
 const BUSY: usize = 2;
 
-/// (description, part number, software version as in `GarminDevice.xml`, stage a leftover).
-const WATCHES: [(&str, &str, &str, bool); 3] = [
-    ("Forerunner 165", "006-B4432-00", "2952", false),
-    ("Venu 2", "006-B3703-00", "1905", false),
-    ("Venu 3", "006-B4260-00", "1209", true),
+/// What a demo watch lists under `Garmin/ExtData`.
+#[derive(Clone, Copy)]
+enum Lists {
+    /// The parts the registry verified on this model.
+    Verified,
+    /// Every part of the first two bundled packs.
+    FirstTwoPacks,
+    /// Every part of the bundled pack with this id.
+    Pack(&'static str),
+    /// None of this build's parts.
+    Nothing,
+}
+
+/// (description, part number, software version as in `GarminDevice.xml`, fonts listed, stage
+/// a leftover).
+const WATCHES: [(&str, &str, &str, Lists, bool); 5] = [
+    (
+        "Forerunner 165",
+        "006-B4432-00",
+        "2952",
+        Lists::Verified,
+        false,
+    ),
+    ("Venu 2", "006-B3703-00", "1905", Lists::Verified, false),
+    ("Venu 3", "006-B4260-00", "1705", Lists::FirstTwoPacks, true),
+    (
+        "fenix 6S Pro",
+        "006-B3288-00",
+        "2802",
+        Lists::Pack("hebrew-swiss-721-truetype"),
+        false,
+    ),
+    ("Venu", "006-B3226-00", "780", Lists::Nothing, false),
 ];
 
 type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
@@ -95,25 +129,28 @@ fn device_xml(
     .into_bytes()
 }
 
-/// The parts a demo watch lists: on a model the registry verified, the parts verified on it;
-/// otherwise every part of the first two bundled packs.
-fn listed_parts(fonts: &FontSet, model_part: &str) -> Vec<String> {
-    let verified: Vec<String> = fonts
-        .packs
-        .iter()
-        .flat_map(|p| &p.tested)
-        .filter(|t| t.model_part == model_part)
-        .flat_map(|t| t.parts.iter().cloned())
-        .collect();
-    if !verified.is_empty() {
-        return verified;
+/// The parts a demo watch lists.
+fn listed_parts(fonts: &FontSet, model_part: &str, lists: Lists) -> Vec<String> {
+    let pack_parts = |p: &georgian_for_garmin_core::fonts::Pack| {
+        p.fonts.iter().map(|f| f.part.clone()).collect::<Vec<_>>()
+    };
+    match lists {
+        Lists::Verified => fonts
+            .packs
+            .iter()
+            .flat_map(|p| &p.tested)
+            .filter(|t| t.model_part == model_part)
+            .flat_map(|t| t.parts.iter().cloned())
+            .collect(),
+        Lists::FirstTwoPacks => fonts.packs.iter().take(2).flat_map(pack_parts).collect(),
+        Lists::Pack(id) => fonts
+            .packs
+            .iter()
+            .filter(|p| p.id == id)
+            .flat_map(pack_parts)
+            .collect(),
+        Lists::Nothing => Vec::new(),
     }
-    fonts
-        .packs
-        .iter()
-        .take(2)
-        .flat_map(|p| p.fonts.iter().map(|f| f.part.clone()))
-        .collect()
 }
 
 fn object(parent: u32, name: &str, fmt: u16, data: Vec<u8>) -> (ObjectInfo, Vec<u8>) {
@@ -140,8 +177,8 @@ impl Demo {
         let fonts = FontSet::bundled();
         let watches = WATCHES
             .iter()
-            .map(|&(description, part, software, leftover)| {
-                let parts = listed_parts(&fonts, part);
+            .map(|&(description, part, software, lists, leftover)| {
+                let parts = listed_parts(&fonts, part, lists);
                 let mut objects = Objects::new();
                 // Objects in the storage root have parent 0.
                 objects.insert(GARMIN, object(0, "GARMIN", format::ASSOCIATION, vec![]));
@@ -220,6 +257,18 @@ impl Demo {
         s.current = (s.current + 1) % s.watches.len();
     }
 
+    /// Attaches the watch named `model` next, if there is one.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn attach(&self, model: &str) -> bool {
+        match WATCHES.iter().position(|w| w.0.eq_ignore_ascii_case(model)) {
+            Some(index) => {
+                self.state().current = index;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Whether the script is still in its no-watch connections.
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn absent(&self) -> bool {
@@ -228,8 +277,15 @@ impl Demo {
 }
 
 #[cfg(feature = "demo")]
-static WATCH: std::sync::LazyLock<Demo> =
-    std::sync::LazyLock::new(|| Demo::new(Duration::from_millis(300)));
+static WATCH: std::sync::LazyLock<Demo> = std::sync::LazyLock::new(|| {
+    let demo = Demo::new(Duration::from_millis(300));
+    if let Ok(model) = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_WATCH")
+        && !demo.attach(&model)
+    {
+        eprintln!("GEORGIAN_FOR_GARMIN_DEMO_WATCH: no demo watch is called {model:?}");
+    }
+    demo
+});
 
 /// The app's demo watch. Transfers take a moment so the progress state is visible.
 #[cfg(feature = "demo")]
@@ -401,6 +457,7 @@ mod tests {
         assert_eq!(fr165["hosts"]["kind"], "truetype");
         assert_eq!(fr165["state"], "not_installed");
         assert_eq!(staged(&fr165), vec!["stock"; 4]);
+        assert_eq!(fr165["support"]["status"], "tested");
         assert_eq!(call(&demo, "install").unwrap()["status"], "staged_verified");
         let after = call(&demo, "inspect").unwrap();
         assert_eq!(after["state"], "installed");
@@ -415,6 +472,8 @@ mod tests {
         assert_eq!(ready["device"]["software_version"], "19.05");
         assert_eq!(ready["supported"], true);
         assert_eq!(ready["tested"]["status"], "tested");
+        assert_eq!(ready["support"]["status"], "tested");
+        assert_eq!(ready["support"]["report_wanted"], false);
         assert_eq!(ready["packs"].as_array().unwrap().len(), 1);
         assert_eq!(staged(&ready), vec!["none"; sizes]);
         let installed = call(&demo, "install").unwrap();
@@ -430,10 +489,12 @@ mod tests {
         assert_eq!(call(&demo, "install").unwrap()["status"], "already_staged");
         demo.swap();
 
-        // The untested watch lists two packs; a leftover file makes installing a conflict.
+        // The Venu 3 lists two packs; a leftover file makes installing a conflict.
         let other = call(&demo, "inspect").unwrap();
         let other_sizes = staged(&other).len();
         assert_eq!(other["tested"]["status"], "untested");
+        assert_eq!(other["support"]["status"], "expected");
+        assert_eq!(other["support"]["issue"], 5);
         assert_eq!(other["packs"].as_array().unwrap().len(), 2);
         assert_eq!(staged(&other).last(), Some(&"other"));
         assert!(
@@ -443,6 +504,29 @@ mod tests {
                 .contains("3300000000")
         );
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
+        demo.swap();
+
+        // The fenix 6S Pro: only pre-release builds install its Swiss 721 Hebrew.
+        let fenix = call(&demo, "inspect").unwrap();
+        assert_eq!(fenix["device"]["model"], "fenix 6S Pro");
+        let beta_build = FontSet::bundled()
+            .packs
+            .iter()
+            .any(|p| p.id == "hebrew-swiss-721-truetype" && p.install);
+        assert_eq!(fenix["supported"], beta_build);
+        assert_eq!(
+            fenix["support"]["status"],
+            if beta_build { "expected" } else { "beta" }
+        );
+        assert_eq!(fenix["support"]["issue"], 6);
+        demo.swap();
+
+        // The Venu: known not to work, on the software the list has; no report asked.
+        let venu = call(&demo, "inspect").unwrap();
+        assert_eq!(venu["supported"], false);
+        assert_eq!(venu["support"]["status"], "unsupported");
+        assert_eq!(venu["support"]["issue"], 12);
+        assert_eq!(venu["support"]["report_wanted"], false);
         demo.swap();
 
         // The Forerunner 165 keeps its fonts across restarts.
@@ -456,7 +540,7 @@ mod tests {
         );
         demo.swap();
 
-        // So did the untested watch; now every part of both packs installs.
+        // So did the Venu 3; now every part of both packs installs.
         let installed = call(&demo, "install").unwrap();
         assert_eq!(installed["status"], "staged_verified");
         let parts: usize = installed["packs"]

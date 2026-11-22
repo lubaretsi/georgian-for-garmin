@@ -25,6 +25,7 @@ use crate::report::{
     self, Connection, HiddenFile, HiddenListing, HiddenStatus, IssueLink, IssueLinkInput,
     ListedFile, ReportInput, ReportedHosts, ReportedPart, WatchReport,
 };
+use crate::support::{self, Support};
 
 /// This program's version, as reported in the watch report.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -281,6 +282,9 @@ pub struct InspectOutput {
     pub state: GeorgianState,
     /// Whether every part `install` writes was verified on this model and software.
     pub tested: TestReport,
+    /// The watch's status in the support list (tested, expected, beta, unsupported, unknown),
+    /// its issue, and whether a report from it adds information.
+    pub support: Support,
     /// Which kind of font gets Georgian on this watch, and why.
     pub hosts: HostChoice,
     /// Every pack of that kind, in registry order, with a part the watch lists under
@@ -304,6 +308,8 @@ pub struct InspectDriveOutput {
     pub device: DeviceReport,
     /// Which kind of font would get Georgian on this watch over MTP, and why.
     pub hosts: HostChoice,
+    /// The watch's status in the support list, as in `inspect`.
+    pub support: Support,
     /// Its report; `connection` is `usb_drive`, no part is a target and files are `unknown`.
     pub report: WatchReport,
 }
@@ -428,7 +434,10 @@ pub static OPERATIONS: [Operation; 5] = [
                       gets Georgian on it and why (bitmap fonts when the watch lists any of this \
                       build's, otherwise TrueType), the font packs of that kind this build installs \
                       (in registry order) with each listed part and whether it was tested on this \
-                      model and software, the overall tested status, what each part's file in the \
+                      model and software, the overall tested status, the watch's status in the \
+                      support list (tested, expected, beta, unsupported or unknown, with its \
+                      GitHub issue and whether a report from it adds information), what each \
+                      part's file in the \
                       hidden GARMIN/ExtData folder holds (only files that may be this build's are \
                       read), and a shareable report of the watch's font list without its unit ID or \
                       serial number. Read-only.",
@@ -742,6 +751,7 @@ fn report_of(
     hosts: &HostChoice,
     packs: &[PackReport],
     tested: TestStatus,
+    support: &Support,
     state: GeorgianState,
     reports: &[FontReport],
     connection: Connection,
@@ -766,6 +776,7 @@ fn report_of(
             connection,
             packs: packs.iter().map(|p| p.id.clone()).collect(),
             tested,
+            support: support.clone(),
             state,
             hosts: ReportedHosts {
                 kind: hosts.kind,
@@ -1036,6 +1047,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         .collect();
     let state = georgian_state(hosts.kind, &targets);
     let restorable = writable && !restore.listed.is_empty();
+    let support = support::support(fonts, &device, &hosts, tested.status);
     let hosts = host_choice(&hosts);
     let listing = extdata.as_ref().map(|ext| {
         ext.files
@@ -1053,6 +1065,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         &hosts,
         &packs,
         tested.status,
+        &support,
         state,
         &reports,
         Connection::Mtp,
@@ -1064,6 +1077,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         restorable,
         state,
         tested,
+        support,
         hosts,
         packs,
         fonts: reports,
@@ -1102,6 +1116,7 @@ pub fn inspect_drive(
         .collect();
     let packs = pack_reports(&hosts.listed, &device);
     let tested = test_report(&hosts.listed, &packs, &device);
+    let support = support::support(fonts, &device, &hosts, tested.status);
     let hosts = host_choice(&hosts);
     let report = report_of(
         &device,
@@ -1109,6 +1124,7 @@ pub fn inspect_drive(
         &hosts,
         &packs,
         tested.status,
+        &support,
         GeorgianState::Unknown,
         &reports,
         Connection::UsbDrive,
@@ -1123,6 +1139,7 @@ pub fn inspect_drive(
             software_version: device.software_version,
         },
         hosts,
+        support,
         report,
     })
 }

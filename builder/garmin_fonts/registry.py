@@ -49,6 +49,7 @@ def validate(registry, schema, source="registry"):
         raise RegistryError(f"{source}: {where}: {error.message}")
 
     packs = registry["packs"]
+    watches = {watch["model_part"]: watch for watch in registry["watches"]}
     problems = [f"pack id {i} is listed more than once" for i in _repeated(p["id"] for p in packs)]
     all_parts = (part["part"] for pack in packs for part in pack["parts"])
     problems += [f"part {part} is listed more than once" for part in _repeated(all_parts)]
@@ -64,12 +65,30 @@ def validate(registry, schema, source="registry"):
             problems.append(f"{name}: {model_part} with software {software} is listed more than once")
         known = {part["part"] for part in pack["parts"]}
         for test in pack["tested"]:
+            watch = watches.get(test["model_part"])
+            if watch is None:
+                problems.append(
+                    f"{name}: tested on {test['model_part']}, which is not in watches"
+                )
+            elif "unsupported" in watch:
+                problems.append(
+                    f"{name}: tested on {watch['model']} ({test['model_part']}), which watches "
+                    "lists as unsupported"
+                )
             for part in test["parts"]:
                 if part not in known:
                     problems.append(
-                        f"{name}: tested on {test['model']} ({test['model_part']}) lists part "
+                        f"{name}: tested on {test['model_part']} lists part "
                         f"{part}, which is not in this pack"
                     )
+    for model_part in _repeated(watch["model_part"] for watch in registry["watches"]):
+        problems.append(f"watches: {model_part} is listed more than once")
+    for watch in registry["watches"]:
+        if "unsupported" in watch and not watch["issues"]:
+            problems.append(
+                f"watches: {watch['model']} ({watch['model_part']}) is unsupported but names no "
+                "issue to follow"
+            )
     if problems:
         raise RegistryError("\n".join(f"{source}: {problem}" for problem in problems))
 

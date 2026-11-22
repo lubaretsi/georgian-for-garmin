@@ -105,11 +105,16 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
                 # Whether the installer writes this pack's Georgian: "beta" resolves to whether
                 # this is a pre-release build (`test_marks`); false packs are restore-only.
                 "install": installs(pack, test_marks),
+                # Installs only in pre-release builds; a stable build shows its watches as beta.
+                "beta": pack.get("install") == "beta",
+                "issue": pack.get("issue"),
                 "parts": [part["part"] for part in pack["parts"]],
                 "tested": pack["tested"],
             }
             for pack in packs
         ],
+        # The support list, for the installer's per-watch status.
+        "watches": entries["watches"],
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest

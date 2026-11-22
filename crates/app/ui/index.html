@@ -24,9 +24,10 @@
     <main id="ready" class="view" hidden>
       <h1 id="ready-model"></h1>
       <p id="ready-version" class="quiet"></p>
-      <p id="ready-tested" class="tested" hidden></p>
+      <p id="ready-support" class="tested" hidden></p>
       <p id="ready-untested" class="quiet small" data-t="untestedBody" hidden></p>
       <p id="ready-note" class="note" hidden></p>
+      <button id="ready-follow" class="link" hidden></button>
       <div id="ready-actions" class="actions">
         <button id="install" class="primary" data-t="install"></button>
         <button id="restore" class="secondary" data-t="restore"></button>
@@ -47,7 +48,9 @@
       <h1 id="drive-model"></h1>
       <p id="drive-version" class="quiet"></p>
       <p class="note" data-t="driveBody"></p>
-      <div class="share">
+      <p id="drive-reason" class="note" hidden></p>
+      <button id="drive-follow" class="link" hidden></button>
+      <div id="drive-share-box" class="share">
         <p class="quiet small" data-t="driveShareWhy"></p>
         <details class="shared">
           <summary data-t="sharedSummary"></summary>
@@ -84,6 +87,7 @@
 
     <main id="checking" class="view check" hidden>
       <h1 data-t="checkTitle"></h1>
+      <p id="check-confirmed" class="note" data-t="checkConfirmed" hidden></p>
       <div id="check-phone" class="phone">
         <img id="check-qr" class="qr" alt="">
         <div>
@@ -119,7 +123,7 @@
         <pre id="check-text" class="report"></pre>
       </details>
       <div class="actions">
-        <button id="check-share" class="primary" data-t="shareGithub"></button>
+        <button id="check-share" class="primary"></button>
         <p id="check-result" class="quiet small result" role="status" hidden></p>
         <button id="check-done" class="secondary" data-t="done"></button>
       </div>

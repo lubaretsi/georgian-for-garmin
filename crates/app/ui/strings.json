@@ -10,12 +10,19 @@
     "softwareVersion": "ვერსია {version}",
     "install": "ქართულის დაყენება",
     "restore": "ქარხნული შრიფტის დაბრუნება",
-    "unsupportedWatch": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს.",
-    "tested": {
+    "support": {
       "tested": "ამ საათზე შემოწმებულია",
-      "tested_other_software": "ამ მოდელზე შემოწმებულია, ოღონდ ვერსია {versions}-ზე",
-      "untested": "ამ საათზე ჯერ არ შეგვიმოწმებია"
+      "expected": "თქვენს საათზე ჯერ დადასტურებული არ არის",
+      "beta": "ამ საათისთვის ქართული ბეტა ვერსიაში მოწმდება",
+      "unsupported": "ამ საათზე ქართული ჯერ ვერ მუშაობს",
+      "unknown": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს"
     },
+    "supportOtherSoftware": "ამ მოდელზე შემოწმებულია ვერსია {versions}-ზე, თქვენს ვერსიაზე ჯერ არა",
+    "supportBeta": "ეს ვერსია ქართულს ამ საათზე ჯერ არ აყენებს: ჯერ ბეტა ვერსიაში ვამოწმებთ, მუშაობს თუ არა.",
+    "supportBetaRestore": "თუ ბეტა ვერსია დააყენეთ, „ქარხნული შრიფტის დაბრუნება“ Garmin-ის შრიფტებს დააბრუნებს.",
+    "followUpdates": "სიახლეები GitHub-ზე (#{issue})",
+    "checkConfirmed": "ქართული ამ მოდელსა და ვერსიაზე უკვე დადასტურებულია. გაზიარება მხოლოდ მაშინ გვჭირდება, თუ არ იმუშავა.",
+    "checkShareFailed": "არ იმუშავა? GitHub-ზე გაზიარება",
     "untestedBody": "ამ მოდელსა და ვერსიაზე ყველა შრიფტი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტების დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
@@ -123,12 +130,19 @@
     "softwareVersion": "Software {version}",
     "install": "Install Georgian",
     "restore": "Restore original font",
-    "unsupportedWatch": "There’s no font for this watch yet.",
-    "tested": {
+    "support": {
       "tested": "Tested on this watch",
-      "tested_other_software": "Tested on this model, with software {versions}",
-      "untested": "Not tested on this watch yet"
+      "expected": "Not yet confirmed on your watch",
+      "beta": "Being tested in the beta version",
+      "unsupported": "Georgian doesn’t work on this watch yet",
+      "unknown": "There’s no font for this watch yet"
     },
+    "supportOtherSoftware": "Confirmed on this model with software {versions}, not yet on yours",
+    "supportBeta": "This version doesn’t install Georgian on this watch yet: the beta version checks first whether it works.",
+    "supportBetaRestore": "If you installed the beta, Restore original font puts Garmin’s fonts back.",
+    "followUpdates": "Follow updates on GitHub (#{issue})",
+    "checkConfirmed": "Georgian is already confirmed on this model and software. We only need a report if it didn’t work.",
+    "checkShareFailed": "Didn’t work? Share on GitHub",
     "untestedBody": "Not every font has been tried on this model and software yet: Georgian may still show as boxes, and restoring the original fonts hasn't been checked on this model either.",
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",

@@ -4,8 +4,9 @@
 //! blocking thread, and a mutex keeps the watch to one operation at a time, so the frontend's
 //! `inspect` polling never overlaps an install. Commands return core output unchanged, and
 //! errors as `{code, message}`; the frontend turns codes into words (`ui/strings.json`).
-//! `share_report` opens the GitHub issue form filled in by the core's `issue_link`; `share`
-//! draws the check screen's QR code and test-mark pictures.
+//! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, and
+//! `open_issue` a watch's issue from the support list; `share` draws the check screen's QR code
+//! and test-mark pictures.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -25,7 +26,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::mtp::Mtp;
-use georgian_for_garmin_core::{Error, ErrorCode, ops};
+use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager, State};
@@ -70,9 +71,10 @@ impl Watch {
         let _busy = self.busy.lock().unwrap_or_else(PoisonError::into_inner);
         let mut connect = self.connect;
         let result = ops::call(operation, input, &self.fonts, &mut connect);
-        // The demo moves on to its next watch after every install or restore.
+        // The demo moves on to its next watch after every install or restore (not after
+        // `inspect_drive`, which the waiting screen polls).
         #[cfg(feature = "demo")]
-        if operation != "inspect" {
+        if matches!(operation, "install" | "restore_stock") {
             demo::unplug();
         }
         Ok(result?)
@@ -179,6 +181,24 @@ fn share_report(
     Ok(Shared { complete, url })
 }
 
+/// Opens this project's GitHub issue `issue` (a watch's, from the support list) in the browser
+/// and returns its link. The demo build opens nothing.
+#[tauri::command]
+fn open_issue(app: AppHandle, issue: u32) -> Result<String, Failure> {
+    let url = report::issue_url(issue);
+    if !cfg!(feature = "demo") {
+        app.opener()
+            .open_url(url.clone(), None::<&str>)
+            .map_err(|e| {
+                Failure::from(Error::new(
+                    ErrorCode::Internal,
+                    format!("could not open the browser: {e}"),
+                ))
+            })?;
+    }
+    Ok(url)
+}
+
 /// The phone test page in `language`, with its QR code.
 #[tauri::command]
 fn phone_page(language: String) -> share::PhonePage {
@@ -258,6 +278,7 @@ fn main() {
             inspect_drive,
             issue_link,
             share_report,
+            open_issue,
             phone_page,
             test_marks,
             demo_mode,
@@ -276,7 +297,6 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use georgian_for_garmin_core::report;
 
     /// Every string value of a `const` or `enum` anywhere in `schema`.
     fn constants(schema: &Value, out: &mut BTreeSet<String>) {
@@ -378,7 +398,10 @@ mod tests {
     #[test]
     fn every_core_status_the_ui_shows_has_words() {
         let tables = [
-            ("tested", schemars::schema_for!(ops::TestStatus).to_value()),
+            (
+                "support",
+                schemars::schema_for!(georgian_for_garmin_core::support::SupportStatus).to_value(),
+            ),
             (
                 "afterRestart",
                 schemars::schema_for!(ops::Variant).to_value(),

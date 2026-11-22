@@ -202,7 +202,8 @@ def manifest_view(entries):
     ]
     packs = [
         {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "weight": pack["weight"],
-         "install": pack.get("install", True) is True,
+         "install": pack.get("install", True) is True, "beta": pack.get("install") == "beta",
+         "issue": pack.get("issue"),
          "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]
@@ -217,6 +218,7 @@ def test_manifest_reflects_registry(assets):
     assert len(manifest["fonts"]) == len(fonts)
     assert not any("size_px" in font for font in manifest["fonts"][len(PART_IDS):])
     assert manifest["packs"] == packs
+    assert manifest["watches"] == ENTRIES["watches"]
 
 
 def write_registry(directory, entries):

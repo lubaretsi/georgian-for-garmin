@@ -64,7 +64,7 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 
 | Command | What it does |
 |---|---|
-| `inspect` | Shows the model, software version, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
+| `inspect` | Shows the model, software version, its status in the support list with the GitHub issue to follow, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
 | `inspect --report` | Prints the watch report the app shares in a GitHub issue: model, part number, software, the font files the watch declares and holds, what this build would install, the app version and OS ([Reporting](reporting.md)). No serial number or unit ID. |
 | `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
 | `restore-stock` | The same with Garmin's original fonts. |
@@ -104,6 +104,11 @@ Running `install` again after it succeeded changes nothing and reports `already_
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
+- `support`: the watch's status in the support list ([How it works](how-it-works.md)):
+  `status` (`tested`, `expected`, `beta`, `unsupported` or `unknown`), `listed` (the model's
+  part number is in the list), `issue` (the GitHub issue to follow, or null), `reason` (for
+  `unsupported`: `en` and `ka` sentences, else null) and `report_wanted` (a report from this
+  watch adds information). `inspect-drive --json` has it too;
 - `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
   bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
   choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the

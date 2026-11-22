@@ -1,10 +1,12 @@
 # Font registry
 
 `registry.json` lists every Garmin stock font pack that gets Georgian, the font the Georgian
-glyphs come from, and the watches each pack was verified on. `registry.schema.json` defines its
-format. `nix build .#fonts` downloads every part listed here by its SHA-256, adds Georgian to it
-and writes `pack` and `packs` into the asset manifest. `nix flake check` validates the registry
-against the schema, checks each stock file against its entry and rebuilds every font.
+glyphs come from, the watches each pack was verified on, and the support list: every watch model
+the project knows of. `registry.schema.json` defines its format. `nix build .#fonts` downloads
+every part listed here by its SHA-256, adds Georgian to it and writes `pack`, `packs` and
+`watches` into the asset manifest. `nix flake check` validates the registry against the schema,
+checks each stock file against its entry, rebuilds every font and checks the README's watch table
+against the support list.
 
 A pack has a `kind`:
 
@@ -14,24 +16,50 @@ A pack has a `kind`:
   `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
   [TrueType packs](#truetype-packs)).
 
+## Support list
+
+`watches` is the one place a watch model's status comes from. Each model appears once:
+
+| Field          | Value                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `model`        | Its name for people, as the README table shows it, e.g. `Venu 2`; one part number Garmin sells under two names gets both, e.g. `fenix 7 Pro Solar, Pro Sapphire Solar` |
+| `model_part`   | `Model/PartNumber` from the watch's `GARMIN/GarminDevice.xml`, e.g. `006-B3703-00`; unique |
+| `issues`       | Its GitHub issue numbers, the main one first: the one its owners follow, where duplicates are closed into |
+| `unsupported`  | Only for a model known not to work: `software`, the versions it was reported on, and `reason`, why, as `en` and `ka` sentences for the app |
+
+The list holds only what can't be derived. A connected watch's status is worked out from the
+list, the packs' `tested` entries and `install` settings and the fonts the watch lists
+([How it works](../docs/how-it-works.md#the-watchs-font-folder)): `tested`, `expected`, `beta`
+(only pre-release builds install a pack it lists; such a pack names its test issue as `issue`),
+`unsupported` or `unknown`. So a new model with fonts this build knows needs no entry to install;
+add one when it gets an issue, so the app links it. Add `unsupported` when a model is shown not to
+work, and a version to its `software` when a report from a new version says the same; the app asks
+an unsupported watch for a report only on a version that isn't listed.
+
+The README's watch table is generated from this list: after changing it, run
+`python -m garmin_fonts.support` from `builder/` in `nix develop`. The builder tests fail when the
+table and the list differ, and the registry checks reject a model listed twice, a tested model
+missing from the list or listed as unsupported, an unsupported model without an issue, and a beta
+pack without one.
+
 ## Add a tested model
 
 Add a model once someone has installed a pack's Georgian build on that watch, unplugged and
 restarted it, and confirmed Georgian in a real notification, with a photo or a clear report in a
 GitHub issue. The owner of a watch rarely knows which font size a view uses, so the entry covers
 the model and software version. List every part of the pack the app installed on it (the parts
-the watch lists) and link the issue in the README's supported-watches table. Append to the
-pack's `tested` list:
+the watch lists). The model must be in the [support list](#support-list), with the issue. Append
+to the pack's `tested` list:
 
 | Field        | Value                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------- |
-| `model`      | `Model/Description` from the watch's `GARMIN/GarminDevice.xml`, e.g. `Venu 2`          |
 | `model_part` | `Model/PartNumber`, e.g. `006-B3703-00`                                                |
 | `software`   | `Model/SoftwareVersion` with two decimals: `1905` is `19.05`                            |
 | `parts`      | The parts of this pack installed on that watch, e.g. `["006-D9035-03"]`                 |
 
 `georgian-for-garmin inspect` shows the model, part number and software version too. The same
-model on a different software version is a separate entry.
+model on a different software version is a separate entry. Then regenerate the README's watch
+table.
 
 ## Add a pack
 
@@ -181,7 +209,9 @@ A pack's `install` decides: `true` (the default) in every build, `false` in none
 pre-release builds. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `"beta"`: its Georgian
 showed question marks on a fenix 6S Pro (#6) with the trailer-less beta.2 build, and beta.3
 retests it with the trailer. Every build still restores a pack it doesn't install, and
-recognizes its Georgian builds, so a beta tester can put Garmin's originals back.
+recognizes its Georgian builds, so a beta tester can put Garmin's originals back. A `"beta"` pack
+names the GitHub issue it is tested in as `issue` (6 for Swiss 721 Hebrew): a stable build shows
+the watches it would install on as `beta` and links that issue.
 
 ### Earlier builds
 

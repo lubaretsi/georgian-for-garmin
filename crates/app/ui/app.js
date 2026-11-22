@@ -104,13 +104,51 @@ function showWaiting(error) {
 
 /**
  * What the main screen says about Georgian on the watch, from the core's `state` (the one rule
- * the CLI and the report use too), or null when nothing needs saying.
+ * the CLI and the report use too), or null when nothing needs saying. Only for watches this
+ * build installs on; `supportNote` covers the rest.
  */
 function stateNote(report) {
-  if (!report.supported) return report.restorable ? T.restoreOnly : T.unsupportedWatch;
   // A TrueType file this build doesn't know isn't waiting for a restart; it blocks install.
   if (report.state === "other" && report.hosts.kind === "truetype") return T.unknownFont;
   return report.state === "not_installed" ? null : T.state[report.state];
+}
+
+// Support status: the core's `support` (tested, expected, beta, unsupported, unknown), from the
+// support list in fonts/registry.json.
+
+/** The status line: on another software version, which versions were confirmed. */
+function supportHeadline(report) {
+  const status = report.support.status;
+  if (status === "expected" && report.tested.status === "tested_other_software") {
+    return fill(T.supportOtherSoftware, { versions: report.tested.verified_software.join(", ") });
+  }
+  return T.support[status];
+}
+
+/** An unsupported watch's reason, in the app's language. */
+const reasonText = (support) => support.reason && (support.reason[language] || support.reason.en);
+
+/** What the main screen says under the status, or null when nothing needs saying. */
+function supportNote(report) {
+  const support = report.support;
+  if (support.status === "unsupported") return reasonText(support);
+  if (support.status === "beta") {
+    return report.restorable ? `${T.supportBeta} ${T.supportBetaRestore}` : T.supportBeta;
+  }
+  // Nothing installs, yet an earlier test version's fonts can be restored.
+  if (!report.supported) return report.restorable ? T.restoreOnly : null;
+  return stateNote(report);
+}
+
+/** The "Follow updates" link to a beta or unsupported watch's GitHub issue. */
+function drawFollow(id, support) {
+  const button = $(id);
+  const issue = support.issue;
+  button.hidden = issue == null || !["beta", "unsupported"].includes(support.status);
+  if (button.hidden) return;
+  button.textContent = fill(T.followUpdates, { issue });
+  // The demo build opens nothing.
+  button.onclick = () => invoke("open_issue", { issue }).catch(() => {});
 }
 
 /** States in which Install Georgian would change nothing, so it isn't offered. */
@@ -178,27 +216,28 @@ let readyReport = null;
 function showReady(report) {
   readyReport = report;
   show("ready", () => {
-    // The overall status: `tested` only when every part install writes was verified here.
-    const tested = report.packs.length > 0 ? report.tested : null;
+    const support = report.support;
     $("ready-model").textContent = report.device.model;
     $("ready-version").textContent = fill(T.softwareVersion, {
       version: report.device.software_version,
     });
-    $("ready-tested").hidden = !tested;
-    if (tested) {
-      $("ready-tested").className = `tested ${tested.status === "tested" ? "yes" : "no"}`;
-      $("ready-tested").textContent = fill(T.tested[tested.status], {
-        versions: tested.verified_software.join(", "),
-      });
-    }
-    $("ready-untested").hidden = !tested || tested.status === "tested";
-    const note = stateNote(report);
+    $("ready-support").hidden = false;
+    $("ready-support").className = `tested ${support.status === "tested" ? "yes" : "no"}`;
+    $("ready-support").textContent = supportHeadline(report);
+    $("ready-untested").hidden = support.status !== "expected";
+    const note = supportNote(report);
     $("ready-note").hidden = !note;
     $("ready-note").textContent = note || "";
+    drawFollow("ready-follow", support);
     // A watch whose fonts only an earlier test version installed into can still restore.
     $("ready-actions").hidden = !report.supported && !report.restorable;
-    $("install").hidden = !report.supported || NOTHING_TO_INSTALL.includes(report.state);
-    $("share").hidden = Boolean(tested && tested.status === "tested");
+    // The support list's word that a model doesn't work beats a route this build has.
+    $("install").hidden =
+      !report.supported ||
+      support.status === "unsupported" ||
+      NOTHING_TO_INSTALL.includes(report.state);
+    // Asked only when a report adds information (the core's rule).
+    $("share").hidden = !support.report_wanted;
     // Once shared, the result takes the explanation's place.
     $("share-why").hidden = drawShared(report.report, "share-text", "share-result");
   });
@@ -214,6 +253,10 @@ function showDrive(output) {
     $("drive-version").textContent = fill(T.softwareVersion, {
       version: output.device.software_version,
     });
+    $("drive-reason").hidden = output.support.status !== "unsupported";
+    $("drive-reason").textContent = reasonText(output.support) || "";
+    drawFollow("drive-follow", output.support);
+    $("drive-share-box").hidden = !output.support.report_wanted;
     drawShared(output.report, "drive-text", "drive-result");
   });
 }
@@ -318,6 +361,12 @@ function drawCheck() {
   });
   const failed = Boolean(lastRun.outcome.error);
   $("check-phone").hidden = failed;
+  // Already confirmed on this model and software: a report helps only if it didn't work.
+  const confirmed = !failed && lastRun.report.support.status === "tested";
+  $("check-confirmed").hidden = !confirmed;
+  $("check-share").textContent = confirmed ? T.checkShareFailed : T.shareGithub;
+  $("check-share").className = confirmed ? "secondary" : "primary";
+  $("check-done").className = confirmed ? "primary" : "secondary";
   $("ask-result").replaceChildren(
     ...RESULTS.map((r) =>
       choice(T.results[r], answers.result === r, () => {

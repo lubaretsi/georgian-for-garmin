@@ -108,6 +108,55 @@ MALFORMED = {
     ),
 }
 
+# Support list: the first unsupported model and the beta pack, for the schema's error paths.
+UNSUPPORTED = next(i for i, w in enumerate(ENTRIES["watches"]) if "unsupported" in w)
+BETA = next(i for i, p in enumerate(ENTRIES["packs"]) if p.get("install") == "beta")
+
+
+def watch(entries, index=0):
+    return entries["watches"][index]
+
+
+MALFORMED |= {
+    "no support list": (lambda e: e.pop("watches"), "'watches' is a required property"),
+    "duplicate model in the support list": (
+        lambda e: e["watches"].append(dict(watch(e))),
+        "watches: 006-B3703-00 is listed more than once",
+    ),
+    "tested model not in the support list": (
+        set_tested("model_part", "006-B9999-00"),
+        "tested on 006-B9999-00, which is not in watches",
+    ),
+    "tested model listed as unsupported": (
+        set_tested("model_part", ENTRIES["watches"][UNSUPPORTED]["model_part"]),
+        "which watches lists as unsupported",
+    ),
+    "unsupported model without an issue": (
+        lambda e: watch(e, UNSUPPORTED).__setitem__("issues", []),
+        "is unsupported but names no issue to follow",
+    ),
+    "unsupported model without software": (
+        lambda e: watch(e, UNSUPPORTED)["unsupported"].__setitem__("software", []),
+        f"watches/{UNSUPPORTED}/unsupported/software: .* should be non-empty",
+    ),
+    "unsupported reason without Georgian": (
+        lambda e: watch(e, UNSUPPORTED)["unsupported"]["reason"].pop("ka"),
+        f"watches/{UNSUPPORTED}/unsupported/reason: 'ka' is a required property",
+    ),
+    "issue as text": (
+        lambda e: watch(e).__setitem__("issues", ["#4"]),
+        "watches/0/issues/0: '#4' is not of type 'integer'",
+    ),
+    "malformed model part": (
+        lambda e: watch(e).__setitem__("model_part", "B3703"),
+        "watches/0/model_part: ",
+    ),
+    "beta pack without an issue": (
+        lambda e: e["packs"][BETA].pop("issue"),
+        f"packs/{BETA}: 'issue' is a required property",
+    ),
+}
+
 # The first TrueType pack's index, for the schema's error paths.
 TT = next(i for i, p in enumerate(ENTRIES["packs"]) if p["kind"] == "truetype")
 
