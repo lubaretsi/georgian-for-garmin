@@ -98,6 +98,9 @@ struct State {
     object_ids_extra: Vec<u32>,
     /// Garmin's `GetObjectIds` answers with an error response.
     object_ids_fail: bool,
+    /// The backend can't tell objects' ProtectionStatus, as WPD couldn't without asking the
+    /// watch.
+    protection_unknown: bool,
 }
 
 impl State {
@@ -369,6 +372,10 @@ impl Mtp for Fake {
             .remove(&handle)
             .map(drop)
             .ok_or(invalid_handle(op::DELETE_OBJECT))
+    }
+
+    fn read_only(&mut self, _handle: u32, info: &ObjectInfo) -> Option<bool> {
+        (!self.0.borrow().protection_unknown).then_some(info.protection_status != 0)
     }
 
     /// As the tactix 7 answers it: only the children standard listings leave out.
@@ -2487,6 +2494,23 @@ fn hidden_extdata_files_never_change_install_targeting() {
     for handle in [0x0100_0070, 0x0100_0071, 0x0100_0072] {
         assert!(hidden.0.borrow().objects.contains_key(&handle));
     }
+}
+
+#[test]
+fn hidden_files_whose_protection_is_unknown_say_so() {
+    let mut s = hidden_truetype_watch();
+    s.protection_unknown = true;
+    let out = Fake::new(s)
+        .call("inspect", json!({}), &fonts_tt())
+        .unwrap();
+    let files = out["extdata_hidden"]["files"].as_array().unwrap();
+    assert!(files.iter().all(|f| f["read_only"].is_null()), "{files:?}");
+    let text = out["report"]["text"].as_str().unwrap();
+    let line = text.lines().find(|l| l.starts_with("hidden: ")).unwrap();
+    assert!(
+        line.contains(" ? georgian;") && !line.contains(" rw"),
+        "{line}"
+    );
 }
 
 #[test]

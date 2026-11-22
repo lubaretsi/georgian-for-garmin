@@ -106,7 +106,8 @@ Some watches leave read-only objects out of the normal MTP listing: on the Venu 
 `ExtData`, and the two listings together cover the folder. The Forerunner 165 and fenix 6S Pro
 reports show an empty `extdata:` while declaring 11 `.bin` fonts, probably the same hiding. When the
 watch lists `0x9002`, `inspect` lists `ExtData`'s hidden children too, on the report's `hidden:`
-line: each file's name, size and `ro` (read-only) or `rw`, and for a file named for one of this
+line: each file's name, size and `ro` (read-only), `rw`, or `?` when the protection couldn't be
+read (on Windows it comes from the watch's own ObjectInfo, since WPD has no property for it), and for a file named for one of this
 build's parts on the watch (a bitmap part also as its imported `<part>.fnt`) what it holds, by
 the same rule as `file`. Only those few files are read. `hidden: unsupported` means the watch
 doesn't list the operation, `hidden: error …` that listing or a read failed (the rest of the

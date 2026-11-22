@@ -949,10 +949,11 @@ fn hidden_listing(
                 }
             },
         };
+        let read_only = dev.read_only(handle, &info);
         files.push(HiddenFile {
             name: info.filename,
             bytes: info.compressed_size.into(),
-            read_only: info.protection_status != 0,
+            read_only,
             file,
         });
     }

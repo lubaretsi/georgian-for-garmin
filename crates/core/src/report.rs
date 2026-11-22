@@ -128,8 +128,9 @@ pub enum HiddenStatus {
 pub struct HiddenFile {
     pub name: String,
     pub bytes: u64,
-    /// The object's MTP ProtectionStatus is read-only.
-    pub read_only: bool,
+    /// The object's MTP ProtectionStatus is other than No Protection; null when the backend
+    /// can't tell.
+    pub read_only: Option<bool>,
     /// What it holds, only for a file named for a part this build installs or restores on the
     /// watch (`inspect`'s file rule); null for every other file, which isn't read.
     pub file: Option<FileState>,
@@ -710,7 +711,11 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
                         "{} {} {}",
                         column(&f.name),
                         f.bytes,
-                        if f.read_only { "ro" } else { "rw" }
+                        match f.read_only {
+                            Some(true) => "ro",
+                            Some(false) => "rw",
+                            None => "?",
+                        }
                     );
                     if let Some(file) = f.file {
                         write!(entry, " {}", snake(&file)).unwrap();
@@ -782,13 +787,13 @@ mod tests {
                     HiddenFile {
                         name: "006-D9971-09.bin".into(),
                         bytes: 41124,
-                        read_only: true,
+                        read_only: Some(true),
                         file: Some(FileState::Georgian),
                     },
                     HiddenFile {
                         name: "006-D8448-25.fnt".into(),
                         bytes: 900,
-                        read_only: true,
+                        read_only: None,
                         file: None,
                     },
                 ],
@@ -863,7 +868,7 @@ mod tests {
             "006-D9035-01 none yes tested B",
             "Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10",
             "\"a b\\u0060.bin\" 12 -",
-            "hidden: 006-D9971-09.bin 41124 ro georgian; 006-D8448-25.fnt 900 ro",
+            "hidden: 006-D9971-09.bin 41124 ro georgian; 006-D8448-25.fnt 900 ?",
         ] {
             assert!(
                 link.report_text.lines().any(|l| l == line),
