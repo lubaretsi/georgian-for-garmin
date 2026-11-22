@@ -54,14 +54,15 @@ cargo tauri dev                                            # against a real watc
 cargo tauri build --debug --features demo --bundles app    # a simulated watch, no hardware
 ```
 
-The demo build walks through one watch per support status (a tested Forerunner 165 and Venu 2,
-an expected Venu 3 listing parts from two packs with a conflict, a fenix 6S Pro that only beta
-builds install on, and an unsupported Venu), and a Forerunner 245 mounted as a USB drive.
-`GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first. The fenix 6S
-Pro shows as `beta` only with stable fonts:
-`GEORGIAN_FOR_GARMIN_FONTS=$(nix build .#fonts-stable --no-link --print-out-paths)`. Every string
-is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the tests check
-that.
+The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
+expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
+Restore, and an unsupported Venu), and a Forerunner 245 mounted as a USB
+drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first.
+Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
+tests check that.
+
+`tests/replay.rs` in `crates/core` replays every watch report posted in the issues against a fake
+watch; add a new report with `scripts/report_fixture.py` ([fixtures](../crates/core/tests/reports/README.md)).
 
 ## Release
 

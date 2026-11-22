@@ -108,9 +108,8 @@ MALFORMED = {
     ),
 }
 
-# Support list: the first unsupported model and the beta pack, for the schema's error paths.
+# Support list: the first unsupported model, for the schema's error paths.
 UNSUPPORTED = next(i for i, w in enumerate(ENTRIES["watches"]) if "unsupported" in w)
-BETA = next(i for i, p in enumerate(ENTRIES["packs"]) if p.get("install") == "beta")
 
 
 def watch(entries, index=0):
@@ -139,9 +138,21 @@ MALFORMED |= {
         lambda e: watch(e, UNSUPPORTED)["unsupported"].__setitem__("software", []),
         f"watches/{UNSUPPORTED}/unsupported/software: .* should be non-empty",
     ),
-    "unsupported reason without Georgian": (
-        lambda e: watch(e, UNSUPPORTED)["unsupported"]["reason"].pop("ka"),
-        f"watches/{UNSUPPORTED}/unsupported/reason: 'ka' is a required property",
+    "reason without Georgian": (
+        lambda e: e["reasons"][0].pop("ka"),
+        "reasons/0: 'ka' is a required property",
+    ),
+    "unknown reason": (
+        lambda e: watch(e, UNSUPPORTED)["unsupported"].__setitem__("reason", "nope"),
+        "names reason nope, which reasons lacks",
+    ),
+    "unused reason": (
+        lambda e: e["reasons"].append(dict(e["reasons"][0], id="spare")),
+        "reasons: spare is not used",
+    ),
+    "duplicate reason": (
+        lambda e: e["reasons"].append(dict(e["reasons"][0])),
+        f"reasons: {ENTRIES['reasons'][0]['id']} is listed more than once",
     ),
     "issue as text": (
         lambda e: watch(e).__setitem__("issues", ["#4"]),
@@ -151,9 +162,9 @@ MALFORMED |= {
         lambda e: watch(e).__setitem__("model_part", "B3703"),
         "watches/0/model_part: ",
     ),
-    "beta pack without an issue": (
-        lambda e: e["packs"][BETA].pop("issue"),
-        f"packs/{BETA}: 'issue' is a required property",
+    "install only in betas": (
+        lambda e: e["packs"][0].__setitem__("install", "beta"),
+        "packs/0/install: 'beta' is not of type 'boolean'",
     ),
 }
 

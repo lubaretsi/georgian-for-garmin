@@ -352,8 +352,7 @@
       "name": "Font, binary data, Hebrew",
       "kind": "truetype",
       "weight": 400,
-      "install": "beta",
-      "issue": 6,
+      "install": false,
       "parts": [
         {
           "part": "006-D0952-08",
@@ -385,51 +384,80 @@
     {"model": "tactix 7", "model_part": "006-B4135-00", "issues": []},
     {"model": "Venu 2 Plus", "model_part": "006-B3851-00", "issues": [4]},
     {"model": "fenix 7 Pro Solar, Pro Sapphire Solar", "model_part": "006-B4375-00", "issues": [11, 15]},
-    {"model": "Forerunner 165", "model_part": "006-B4432-00", "issues": [5, 19]},
-    {"model": "Forerunner 165 Music", "model_part": "006-B4433-00", "issues": [5]},
-    {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5]},
-    {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5]},
+    {"model": "Forerunner 165", "model_part": "006-B4432-00", "issues": [5, 18, 19, 22]},
+    {"model": "Forerunner 165 Music", "model_part": "006-B4433-00", "issues": [5, 7]},
+    {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2]},
+    {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5, 9]},
     {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13]},
-    {"model": "fenix 6S Pro", "model_part": "006-B3288-00", "issues": [6]},
-    {"model": "fenix 6 Pro Solar", "model_part": "006-B3290-00", "issues": [6]},
-    {"model": "fenix 6X Pro", "model_part": "006-B3291-00", "issues": [6]},
-    {"model": "Instinct 3 AMOLED 50mm", "model_part": "006-B4587-00", "issues": [6]},
-    {"model": "Instinct 3 AMOLED 45mm", "model_part": "006-B4586-00", "issues": [6]},
+    {
+      "model": "fenix 6S Pro",
+      "model_part": "006-B3288-00",
+      "issues": [6, 20],
+      "unsupported": {"software": ["28.02"], "reason": "font_unused"}
+    },
+    {
+      "model": "fenix 6 Pro Solar",
+      "model_part": "006-B3290-00",
+      "issues": [6, 14],
+      "unsupported": {"software": ["28.02"], "reason": "font_unused"}
+    },
+    {
+      "model": "fenix 6X Pro",
+      "model_part": "006-B3291-00",
+      "issues": [6, 3],
+      "unsupported": {"software": ["28.02"], "reason": "font_unused"}
+    },
+    {
+      "model": "Instinct 3 AMOLED 50mm",
+      "model_part": "006-B4587-00",
+      "issues": [6, 8],
+      "unsupported": {"software": ["15.19"], "reason": "font_unused"}
+    },
+    {
+      "model": "Instinct 3 AMOLED 45mm",
+      "model_part": "006-B4586-00",
+      "issues": [6, 23],
+      "unsupported": {"software": ["16.12"], "reason": "font_unused"}
+    },
     {
       "model": "Forerunner 245",
       "model_part": "006-B3076-00",
       "issues": [16],
-      "unsupported": {
-        "software": ["13.70"],
-        "reason": {
-          "en": "It connects to a computer only as a USB drive and lists no fonts Georgian could be added to.",
-          "ka": "კომპიუტერს მხოლოდ USB დისკად უერთდება და არცერთ შრიფტს არ ასახელებს, რომელსაც ქართულს დავამატებდით."
-        }
-      }
+      "unsupported": {"software": ["13.70"], "reason": "usb_drive_only"}
     },
     {
       "model": "Forerunner 245 Music",
       "model_part": "006-B3077-00",
       "issues": [10],
-      "unsupported": {
-        "software": ["13.70"],
-        "reason": {
-          "en": "Its only optional fonts are emoji fonts, which have no letters to add Georgian to.",
-          "ka": "მისი დამატებითი შრიფტები მხოლოდ ემოჯის შრიფტებია: ასოები არ აქვთ, რომ ქართული დავამატოთ."
-        }
-      }
+      "unsupported": {"software": ["13.70"], "reason": "emoji_fonts_only"}
     },
     {
       "model": "Venu",
       "model_part": "006-B3226-00",
       "issues": [12],
-      "unsupported": {
-        "software": ["7.80"],
-        "reason": {
-          "en": "It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet.",
-          "ka": "ქართული მის ჩინურ, იაპონურ და კორეულ ბიტმაპ შრიფტებს უნდა დაემატოს, ამას პროგრამა ჯერ ვერ აკეთებს."
-        }
-      }
+      "unsupported": {"software": ["7.80"], "reason": "cjk_bitmap_fonts"}
+    }
+  ],
+  "reasons": [
+    {
+      "id": "font_unused",
+      "en": "The watch has the font file but doesn't use it for Georgian letters: they still show as question marks.",
+      "ka": "საათს შრიფტის ფაილი აქვს, მაგრამ ქართული ასოებისთვის არ იყენებს: მათ ადგილას ისევ კითხვის ნიშნები ჩანს."
+    },
+    {
+      "id": "usb_drive_only",
+      "en": "It connects to a computer only as a USB drive and lists no fonts Georgian could be added to.",
+      "ka": "კომპიუტერს მხოლოდ USB დისკად უერთდება და არცერთ შრიფტს არ ასახელებს, რომელსაც ქართულს დავამატებდით."
+    },
+    {
+      "id": "emoji_fonts_only",
+      "en": "Its only optional fonts are emoji fonts, which have no letters to add Georgian to.",
+      "ka": "მისი დამატებითი შრიფტები მხოლოდ ემოჯის შრიფტებია: ასოები არ აქვთ, რომ ქართული დავამატოთ."
+    },
+    {
+      "id": "cjk_bitmap_fonts",
+      "en": "It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet.",
+      "ka": "ქართული მის ჩინურ, იაპონურ და კორეულ ბიტმაპ შრიფტებს უნდა დაემატოს, ამას პროგრამა ჯერ ვერ აკეთებს."
     }
   ]
 }

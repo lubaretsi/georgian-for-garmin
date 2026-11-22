@@ -152,17 +152,25 @@ def test_readme_lists_the_measured_sizes(assets):
     assert table in readme, f"update the table in fonts/README.md to:\n{table}"
 
 
+# codec.HEADER's fields; the build may move only the section offsets after the range table.
+HEADER_FIELDS = ("header size", "flags", "end", "ranges offset", "index offset", "pixels offset",
+                 "field 6", "height", *(f"field {i}" for i in range(8, 12)), "magic")
+MOVED = {"end", "index offset", "pixels offset"}
+
+
 @pytest.mark.parametrize("part", PART_IDS)
-def test_georgian_build_adds_glyphs_and_preserves_stock(assets, stock, part):
-    out, _ = assets
+def test_georgian_build_adds_glyphs_and_preserves_stock(each_build, stock, part):
+    out, _ = each_build
     header, footer, cmap = decode((out / "georgian" / f"{part}.fnt").read_bytes())
     stock_header, stock_footer, stock_cmap = decode(stock[part])
 
-    assert footer == stock_footer
-    # Only the section offsets (end, ranges, index, pixels) may move.
-    assert header[:2] + header[6:] == stock_header[:2] + stock_header[6:]
+    assert footer == stock_footer, "footer (part, version)"
+    changed = {name for name, new, old in zip(HEADER_FIELDS, header, stock_header, strict=True)
+               if new != old}
+    assert changed <= MOVED, f"header fields changed: {sorted(changed - MOVED)}"
     assert cmap.keys() == stock_cmap.keys() | set(GEORGIAN)
-    assert all(cmap[cp] == tile for cp, tile in stock_cmap.items())
+    for cp, tile in stock_cmap.items():
+        assert cmap[cp] == tile, "missing glyph" if cp is None else f"U+{cp:04X}"
     missing = stock_cmap[None]
     for cp in GEORGIAN:
         _, bitmap = cmap[cp]
@@ -202,8 +210,7 @@ def manifest_view(entries):
     ]
     packs = [
         {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "weight": pack["weight"],
-         "install": pack.get("install", True) is True, "beta": pack.get("install") == "beta",
-         "issue": pack.get("issue"),
+         "install": pack.get("install", True),
          "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]
@@ -218,7 +225,21 @@ def test_manifest_reflects_registry(assets):
     assert len(manifest["fonts"]) == len(fonts)
     assert not any("size_px" in font for font in manifest["fonts"][len(PART_IDS):])
     assert manifest["packs"] == packs
-    assert manifest["watches"] == ENTRIES["watches"]
+    # The support list, each reason written out where a model names it.
+    watches = {w["model_part"]: w for w in manifest["watches"]}
+    assert [w["model_part"] for w in manifest["watches"]] == \
+        [w["model_part"] for w in ENTRIES["watches"]]
+    reasons = {r["id"]: r for r in ENTRIES["reasons"]}
+    for entry in ENTRIES["watches"]:
+        written = watches[entry["model_part"]]
+        if "unsupported" in entry:
+            reason = reasons[entry["unsupported"]["reason"]]
+            assert written["unsupported"] == {
+                "software": entry["unsupported"]["software"],
+                "reason": {"en": reason["en"], "ka": reason["ka"]},
+            }
+        assert {k: v for k, v in written.items() if k != "unsupported"} == \
+            {k: v for k, v in entry.items() if k != "unsupported"}
 
 
 def write_registry(directory, entries):

@@ -35,31 +35,24 @@ def rows(registry):
     """(watch, software, status) per model in the support list, in its order.
 
     A model with tested entries is Tested on those software versions. An unsupported one says
-    why. One whose main issue is a beta pack's issue (`install: "beta"`) is in beta testing;
-    every other model is not confirmed yet. On a connected watch the app derives the status
+    why; every other model is not confirmed yet. On a connected watch the app derives the status
     from the fonts the watch lists too.
     """
     tested = {}
     for pack in registry["packs"]:
         for test in pack["tested"]:
             tested.setdefault(test["model_part"], set()).add(test["software"])
-    beta_issues = {p["issue"] for p in registry["packs"] if p.get("install") == "beta"}
+    reasons = {r["id"]: r["en"] for r in registry["reasons"]}
     out = []
     for watch in registry["watches"]:
         links = issue_links(watch["issues"])
-        main = watch["issues"][0] if watch["issues"] else None
         if watch["model_part"] in tested:
             versions = sorted(tested[watch["model_part"]], key=version_key)
             out.append((watch["model"], ", ".join(versions), f"Tested{links}"))
         elif "unsupported" in watch:
             unsupported = watch["unsupported"]
-            out.append((
-                watch["model"],
-                ", ".join(unsupported["software"]),
-                f"Doesn't work{links}. {unsupported['reason']['en']}",
-            ))
-        elif main in beta_issues:
-            out.append((watch["model"], "–", f"Being tested in the beta{links}"))
+            status = f"Doesn't work{links}. {reasons[unsupported['reason']]}"
+            out.append((watch["model"], ", ".join(unsupported["software"]), status))
         else:
             out.append((watch["model"], "–", f"Not confirmed yet{links}"))
     return out

@@ -1,0 +1,138 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/4",
+  "app_version": "0.2.0",
+  "connection": "mtp",
+  "model": "Venu 2 Plus",
+  "model_part": "006-B3851-00",
+  "software": "19.05",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-04.tmp",
+      "part": "006-D9035-04",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-28.tmp",
+      "part": "006-D8448-28",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-23.tmp",
+      "part": "006-D8945-23",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-23.tmp",
+      "part": "006-D8944-23",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-23.tmp",
+      "part": "006-D8947-23",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-03.tmp",
+      "part": "006-D9035-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-27.tmp",
+      "part": "006-D8448-27",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-22.tmp",
+      "part": "006-D8944-22",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-22.tmp",
+      "part": "006-D8945-22",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-22.tmp",
+      "part": "006-D8947-22",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-01.tmp",
+      "part": "006-D9035-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-25.tmp",
+      "part": "006-D8448-25",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-20.tmp",
+      "part": "006-D8944-20",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-20.tmp",
+      "part": "006-D8945-20",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-20.tmp",
+      "part": "006-D8947-20",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-02.tmp",
+      "part": "006-D9035-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-26.tmp",
+      "part": "006-D8448-26",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-21.tmp",
+      "part": "006-D8944-21",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-21.tmp",
+      "part": "006-D8945-21",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-21.tmp",
+      "part": "006-D8947-21",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-13.tmp",
+      "part": "006-D8168-13",
+      "version": "2.10"
+    }
+  ],
+  "extdata": null,
+  "hidden": null
+}

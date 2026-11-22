@@ -113,7 +113,7 @@ function stateNote(report) {
   return report.state === "not_installed" ? null : T.state[report.state];
 }
 
-// Support status: the core's `support` (tested, expected, beta, unsupported, unknown), from the
+// Support status: the core's `support` (tested, expected, unsupported, unknown), from the
 // support list in fonts/registry.json.
 
 /** The status line: on another software version, which versions were confirmed. */
@@ -125,26 +125,26 @@ function supportHeadline(report) {
   return T.support[status];
 }
 
-/** An unsupported watch's reason, in the app's language. */
-const reasonText = (support) => support.reason && (support.reason[language] || support.reason.en);
+/** A sentence from the support list (`{en, ka}`), in the app's language. */
+const sentence = (s) => s && (s[language] || s.en);
 
 /** What the main screen says under the status, or null when nothing needs saying. */
 function supportNote(report) {
   const support = report.support;
-  if (support.status === "unsupported") return reasonText(support);
-  if (support.status === "beta") {
-    return report.restorable ? `${T.supportBeta} ${T.supportBetaRestore}` : T.supportBeta;
+  if (support.status === "unsupported") {
+    const reason = sentence(support.reason);
+    return report.restorable ? `${reason} ${T.restoreHint}` : reason;
   }
   // Nothing installs, yet an earlier test version's fonts can be restored.
   if (!report.supported) return report.restorable ? T.restoreOnly : null;
   return stateNote(report);
 }
 
-/** The "Follow updates" link to a beta or unsupported watch's GitHub issue. */
+/** The "Follow updates" link to an unsupported watch's GitHub issue. */
 function drawFollow(id, support) {
   const button = $(id);
   const issue = support.issue;
-  button.hidden = issue == null || !["beta", "unsupported"].includes(support.status);
+  button.hidden = issue == null || support.status !== "unsupported";
   if (button.hidden) return;
   button.textContent = fill(T.followUpdates, { issue });
   // The demo build opens nothing.
@@ -254,7 +254,7 @@ function showDrive(output) {
       version: output.device.software_version,
     });
     $("drive-reason").hidden = output.support.status !== "unsupported";
-    $("drive-reason").textContent = reasonText(output.support) || "";
+    $("drive-reason").textContent = sentence(output.support.reason) || "";
     drawFollow("drive-follow", output.support);
     $("drive-share-box").hidden = !output.support.report_wanted;
     drawShared(output.report, "drive-text", "drive-result");

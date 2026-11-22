@@ -94,12 +94,6 @@ struct PackEntry {
     /// false: restore only. Absent in older manifests: true.
     #[serde(default = "yes")]
     install: bool,
-    /// The registry installs it only in pre-release builds. Absent in older manifests: false.
-    #[serde(default)]
-    beta: bool,
-    /// The GitHub issue where it is being tested.
-    #[serde(default)]
-    issue: Option<u32>,
 }
 
 fn yes() -> bool {
@@ -205,8 +199,8 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
         writeln!(
             code,
             "    BundledPack {{ id: {:?}, name: {:?}, kind: Kind::{kind}, weight: {}, \
-             install: {}, beta: {}, issue: {:?}, fonts: &[",
-            pack.id, pack.name, pack.weight, pack.install, pack.beta, pack.issue
+             install: {}, fonts: &[",
+            pack.id, pack.name, pack.weight, pack.install
         )
         .unwrap();
         for part in &pack.parts {

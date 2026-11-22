@@ -1,0 +1,54 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/12",
+  "app_version": "0.2.2",
+  "connection": "mtp",
+  "model": "Venu",
+  "model_part": "006-B3226-00",
+  "software": "7.80",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-18.tmp",
+      "part": "006-D8448-18",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-13.tmp",
+      "part": "006-D8945-13",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-27.tmp",
+      "part": "006-D8448-27",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-22.tmp",
+      "part": "006-D8945-22",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-26.tmp",
+      "part": "006-D8448-26",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-21.tmp",
+      "part": "006-D8945-21",
+      "version": "0.01"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-01.tmp",
+      "part": "006-D8168-01",
+      "version": "2.10"
+    }
+  ],
+  "extdata": null,
+  "hidden": null
+}

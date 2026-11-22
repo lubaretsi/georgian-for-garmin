@@ -102,29 +102,19 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
                 "name": pack["name"],
                 "kind": pack["kind"],
                 "weight": pack["weight"],
-                # Whether the installer writes this pack's Georgian: "beta" resolves to whether
-                # this is a pre-release build (`test_marks`); false packs are restore-only.
-                "install": installs(pack, test_marks),
-                # Installs only in pre-release builds; a stable build shows its watches as beta.
-                "beta": pack.get("install") == "beta",
-                "issue": pack.get("issue"),
+                # Whether the installer writes this pack's Georgian; false packs are
+                # restore-only. Every build, pre-release or stable, installs the same packs.
+                "install": pack.get("install", True),
                 "parts": [part["part"] for part in pack["parts"]],
                 "tested": pack["tested"],
             }
             for pack in packs
         ],
-        # The support list, for the installer's per-watch status.
-        "watches": entries["watches"],
+        # The support list, for the installer's per-watch status, with each reason written out.
+        "watches": font_registry.resolved_watches(entries),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
-
-
-def installs(pack, beta):
-    """Whether a build installs `pack`'s Georgian: the registry's `install` (true when absent),
-    with "beta" meaning pre-release builds only."""
-    value = pack.get("install", True)
-    return bool(beta) if value == "beta" else value
 
 
 def bitmap_entry(part, sizing, clipped):

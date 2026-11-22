@@ -359,9 +359,6 @@ fn support_words(support: &Value) -> String {
         "expected" => "Status: expected; Georgian installs but isn't confirmed on this model and \
                        software yet."
             .to_owned(),
-        "beta" => "Status: beta; only beta builds install Georgian on this watch while it is \
-                   being tested."
-            .to_owned(),
         "unsupported" => format!("Status: unsupported; {}", text(&support["reason"]["en"])),
         _ => "Status: unknown; this build has no font for this watch.".to_owned(),
     };

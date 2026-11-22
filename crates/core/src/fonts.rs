@@ -58,8 +58,6 @@ struct BundledPack {
     kind: Kind,
     weight: u16,
     install: bool,
-    beta: bool,
-    issue: Option<u32>,
     fonts: &'static [BundledFont],
     tested: &'static [BundledTested],
 }
@@ -212,12 +210,6 @@ pub struct Pack {
     /// on a watch is restore-only: `restore_stock` still writes Garmin's original, and its
     /// Georgian builds are still recognized.
     pub install: bool,
-    /// The registry installs it only in pre-release builds (`install: "beta"`): `install` is
-    /// true in those and false in stable builds, whose watches it would install on show as
-    /// `beta`.
-    pub beta: bool,
-    /// The GitHub issue where it is being tested (beta packs).
-    pub issue: Option<u32>,
     /// Every part, in manifest order; each has the pack's kind.
     pub fonts: Vec<Font>,
     pub tested: Vec<Tested>,
@@ -266,8 +258,6 @@ impl FontSet {
                     kind: p.kind,
                     weight: p.weight,
                     install: p.install,
-                    beta: p.beta,
-                    issue: p.issue,
                     fonts: p
                         .fonts
                         .iter()

@@ -20,8 +20,8 @@ pub enum ErrorCode {
     /// This user may not open the watch's USB device (on Linux: no udev rule).
     PermissionDenied,
     /// The watch lists none of this build's font packs or not a requested part, lists a
-    /// TrueType part at another version or file name than this build's, or lacks a needed MTP
-    /// operation.
+    /// TrueType part it doesn't let be read at another version or file name than this
+    /// operation accepts, or lacks a needed MTP operation.
     UnsupportedDevice,
     /// This build does not bundle the requested font size.
     FontUnavailable,
@@ -29,9 +29,13 @@ pub enum ErrorCode {
     GarminFolderNotFound,
     /// The hidden `GARMIN/ExtData` staging folder could not be located.
     ExtdataNotFound,
-    /// A different `.tmp` is already staged under the target name, or a `.bin` is neither
-    /// Garmin's original nor this build's Georgian font; nothing was written.
+    /// A file under a target's name is neither Garmin's original nor one of this program's
+    /// Georgian builds (by content), or several files share the name; nothing was written.
     Conflict,
+    /// Install: a TrueType file the watch doesn't let be read is declared at a version other
+    /// than Garmin's (below 1.00, as for this program's builds before 0.3.0), so install can't
+    /// identify it; restoring the original font first fixes it. Nothing was written.
+    RestoreFirst,
     /// A written file read back differently and was deleted (a replaced `.bin` was written
     /// back).
     VerificationFailed,
@@ -54,6 +58,7 @@ impl ErrorCode {
             ErrorCode::GarminFolderNotFound => "garmin_folder_not_found",
             ErrorCode::ExtdataNotFound => "extdata_not_found",
             ErrorCode::Conflict => "conflict",
+            ErrorCode::RestoreFirst => "restore_first",
             ErrorCode::VerificationFailed => "verification_failed",
             ErrorCode::DeviceError => "device_error",
             ErrorCode::Internal => "internal",

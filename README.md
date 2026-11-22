@@ -56,16 +56,16 @@ and software version and saw it in a real notification. Follow a watch's issue f
 | tactix 7 | 27.18 | Tested |
 | Venu 2 Plus | 19.05 | Tested ([#4](https://github.com/lubaretsi/georgian-for-garmin/issues/4)) |
 | fenix 7 Pro Solar, Pro Sapphire Solar | 26.09 | Tested ([#11](https://github.com/lubaretsi/georgian-for-garmin/issues/11), [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)) |
-| Forerunner 165 | 29.52 | Tested ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19)) |
-| Forerunner 165 Music | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5)) |
-| Venu 3 | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5)) |
-| Venu 3S | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5)) |
+| Forerunner 165 | 29.52 | Tested ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#18](https://github.com/lubaretsi/georgian-for-garmin/issues/18), [#19](https://github.com/lubaretsi/georgian-for-garmin/issues/19), [#22](https://github.com/lubaretsi/georgian-for-garmin/issues/22)) |
+| Forerunner 165 Music | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#7](https://github.com/lubaretsi/georgian-for-garmin/issues/7)) |
+| Venu 3 | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#2](https://github.com/lubaretsi/georgian-for-garmin/issues/2)) |
+| Venu 3S | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#9](https://github.com/lubaretsi/georgian-for-garmin/issues/9)) |
 | Forerunner 255 | – | Not confirmed yet ([#13](https://github.com/lubaretsi/georgian-for-garmin/issues/13)) |
-| fenix 6S Pro | – | Being tested in the beta ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6)) |
-| fenix 6 Pro Solar | – | Being tested in the beta ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6)) |
-| fenix 6X Pro | – | Being tested in the beta ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6)) |
-| Instinct 3 AMOLED 50mm | – | Being tested in the beta ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6)) |
-| Instinct 3 AMOLED 45mm | – | Being tested in the beta ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6)) |
+| fenix 6S Pro | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#20](https://github.com/lubaretsi/georgian-for-garmin/issues/20)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
+| fenix 6 Pro Solar | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#14](https://github.com/lubaretsi/georgian-for-garmin/issues/14)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
+| fenix 6X Pro | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#3](https://github.com/lubaretsi/georgian-for-garmin/issues/3)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
+| Instinct 3 AMOLED 50mm | 15.19 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#8](https://github.com/lubaretsi/georgian-for-garmin/issues/8)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
+| Instinct 3 AMOLED 45mm | 16.12 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
 | Forerunner 245 | 13.70 | Doesn't work ([#16](https://github.com/lubaretsi/georgian-for-garmin/issues/16)). It connects to a computer only as a USB drive and lists no fonts Georgian could be added to. |
 | Forerunner 245 Music | 13.70 | Doesn't work ([#10](https://github.com/lubaretsi/georgian-for-garmin/issues/10)). Its only optional fonts are emoji fonts, which have no letters to add Georgian to. |
 | Venu | 7.80 | Doesn't work ([#12](https://github.com/lubaretsi/georgian-for-garmin/issues/12)). It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet. |
@@ -81,16 +81,16 @@ a WhatsApp message and an incoming call both showed Georgian ([#15](https://gith
 The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
 font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian
 Bold. It shows the connected watch's status from the same list: tested, not confirmed yet (it
-installs, and a report confirms it), being tested in the beta, or known not to work, with a link
-to the watch's issue. It asks for a report only when one adds something new. Reporting takes a
-minute and only a GitHub account: after installing, click **Check on the watch**, answer what you
-saw, and **Share on GitHub** opens the issue form already filled in
-([Reporting](docs/reporting.md)).
+installs, and a report confirms it), or known not to work, with the reason and a link to the
+watch's issue. It asks for a report only when one adds something new. Reporting takes a minute
+and only a GitHub account: after installing, click **Check on the watch**, answer what you saw,
+and **Share on GitHub** opens the issue form already filled in ([Reporting](docs/reporting.md)).
 
 Watches without Garmin's Armenian bitmap fonts get Georgian in their TrueType Armenian or Hebrew
 fonts (Noto Sans Armenian, Noto Sans Hebrew) instead; the Forerunner 165 is the first confirmed
-one. On the fenix 6 and Instinct 3 family (Swiss 721 Hebrew) it hasn't worked yet, so the stable
-app doesn't install there; beta builds retest it ([How it works](docs/how-it-works.md#truetype-fonts)).
+one. On the fenix 6 and Instinct 3 family the watch had our font but didn't use it for Georgian,
+so no build installs there; the app still puts Garmin's fonts back
+([How it works](docs/how-it-works.md#truetype-fonts)).
 
 ## Install
 

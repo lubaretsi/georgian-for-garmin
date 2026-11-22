@@ -83,14 +83,38 @@ def validate(registry, schema, source="registry"):
                     )
     for model_part in _repeated(watch["model_part"] for watch in registry["watches"]):
         problems.append(f"watches: {model_part} is listed more than once")
+    for repeated in _repeated(entry["id"] for entry in registry["reasons"]):
+        problems.append(f"reasons: {repeated} is listed more than once")
+    reasons = {r["id"] for r in registry["reasons"]}
+    used_reasons = set()
     for watch in registry["watches"]:
-        if "unsupported" in watch and not watch["issues"]:
-            problems.append(
-                f"watches: {watch['model']} ({watch['model_part']}) is unsupported but names no "
-                "issue to follow"
-            )
+        name = f"watches: {watch['model']} ({watch['model_part']})"
+        if "unsupported" in watch:
+            if not watch["issues"]:
+                problems.append(f"{name} is unsupported but names no issue to follow")
+            reason = watch["unsupported"]["reason"]
+            used_reasons.add(reason)
+            if reason not in reasons:
+                problems.append(f"{name} names reason {reason}, which reasons lacks")
+    for unused in sorted(reasons - used_reasons):
+        problems.append(f"reasons: {unused} is not used")
     if problems:
         raise RegistryError("\n".join(f"{source}: {problem}" for problem in problems))
+
+
+def resolved_watches(registry):
+    """The support list with each unsupported reason as `{en, ka}`, as the asset manifest
+    carries it."""
+    reasons = {r["id"]: {"en": r["en"], "ka": r["ka"]} for r in registry["reasons"]}
+    out = []
+    for watch in registry["watches"]:
+        entry = dict(watch)
+        if "unsupported" in watch:
+            entry["unsupported"] = dict(
+                watch["unsupported"], reason=reasons[watch["unsupported"]["reason"]]
+            )
+        out.append(entry)
+    return out
 
 
 def _repeated(values):

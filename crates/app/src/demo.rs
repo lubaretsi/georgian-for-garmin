@@ -3,7 +3,7 @@
 //! It follows a short script so every screen shows up: the first three connections find no
 //! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at a
 //! software version the support list has), the next two find it held by Garmin Express, and
-//! from then on one of five watches is attached, one per support status:
+//! from then on one of five watches is attached, covering every support status:
 //!
 //! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
 //!    (the real one doesn't): `tested`; after installing, the main screen says Georgian is
@@ -13,8 +13,8 @@
 //! 3. a Venu 3, made to list every part of the first two bundled packs (the real one lists
 //!    TrueType fonts), with a different file already staged for the last one, so installing on
 //!    it ends in a `conflict`: `expected`;
-//! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which only pre-release builds install: `beta` in
-//!    a stable build, `expected` in a pre-release one;
+//! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which no build installs (the watch had our font
+//!    and still drew question marks, #6): `unsupported`, with Restore;
 //! 5. a Venu listing none of this build's fonts: `unsupported`.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
@@ -506,18 +506,12 @@ mod tests {
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
         demo.swap();
 
-        // The fenix 6S Pro: only pre-release builds install its Swiss 721 Hebrew.
+        // The fenix 6S Pro: Swiss 721 Hebrew is restore-only in every build.
         let fenix = call(&demo, "inspect").unwrap();
         assert_eq!(fenix["device"]["model"], "fenix 6S Pro");
-        let beta_build = FontSet::bundled()
-            .packs
-            .iter()
-            .any(|p| p.id == "hebrew-swiss-721-truetype" && p.install);
-        assert_eq!(fenix["supported"], beta_build);
-        assert_eq!(
-            fenix["support"]["status"],
-            if beta_build { "expected" } else { "beta" }
-        );
+        assert_eq!(fenix["supported"], false);
+        assert_eq!(fenix["restorable"], true);
+        assert_eq!(fenix["support"]["status"], "unsupported");
         assert_eq!(fenix["support"]["issue"], 6);
         demo.swap();
 

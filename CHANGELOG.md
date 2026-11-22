@@ -11,36 +11,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The watch report lists `GARMIN/ExtData`'s hidden children: read-only objects the normal MTP
   listing leaves out, which Garmin's vendor `GetObjectIds` (0x9002) returns (the Venu 2's
-  imported fonts; likely the `.bin` fonts the Forerunner 165 and fenix 6S Pro reports didn't
-  show). Each gets its name, size and read-only status, and a file named for one of this build's
-  parts what it holds (`georgian`, `georgian_beta`, `stock`, `other`). Report-only: install and
-  restore don't use them, and a failure is a note on the `hidden:` line, never an error.
-  `inspect` and the report gain `extdata_hidden`.
+  imported fonts; the `.bin` fonts the Forerunner 165 and fenix 6S Pro reports didn't show).
+  Each gets its name, size and read-only status, and a file named for one of this build's parts
+  what it holds (`georgian`, `georgian_beta`, `stock`, `other`). A failure is a note on the
+  `hidden:` line, never an error. `inspect` and the report gain `extdata_hidden`.
 - A support list in `fonts/registry.json` (`watches`): every watch model the project knows of,
-  with its GitHub issues and, for one known not to work, why. It starts with the tested watches,
-  the Forerunner 165 Music, Venu 3 and 3S (#5) and Forerunner 255 (#13) as not confirmed yet,
-  the fenix 6 Pro family and Instinct 3 AMOLED (#6) in beta testing, and the Forerunner 245
-  (#16), Forerunner 245 Music (#10) and Venu (#12) as not working. The README's watch table is
-  generated from it (`python -m garmin_fonts.support`), and the builder tests fail when they
-  differ.
-- The app shows the connected watch's status from the list: tested, not confirmed yet (installs),
-  being tested in the beta (stable builds don't install; links the issue), or not working (the
-  reason and a **Follow updates** link to the issue). It asks for a report only when one adds
-  something new: not for a tested watch, whose check screen says it's confirmed and offers
-  **Didn't work? Share on GitHub** instead, nor for a watch in beta testing, nor for an
+  with its GitHub issues and, for one known not to work, why (`reasons`). It starts with the
+  tested watches; the Forerunner 165 Music, Venu 3 and 3S (#5) and Forerunner 255 (#13) as not
+  confirmed yet; and the fenix 6S Pro, 6 Pro Solar and 6X Pro and Instinct 3 AMOLED (#6),
+  Forerunner 245 (#16), Forerunner 245 Music (#10) and Venu (#12) as not working. The README's
+  watch table is generated from it (`python -m garmin_fonts.support`), and the builder tests
+  fail when they differ.
+- The app shows the connected watch's status from the list: tested, not confirmed yet
+  (installs), or not working, with the reason and a **Follow updates** link to the issue. It
+  asks for a report only when one adds something new: not for a tested watch, whose check
+  screen says it's confirmed and offers **Didn't work? Share on GitHub** instead, nor for an
   unsupported one on a software version the list has. Sharing is still one click to the
   filled-in issue form.
 - `inspect`, `inspect-drive` and the watch report gain `support`: `status` (`tested`,
-  `expected`, `beta`, `unsupported`, `unknown`), `listed`, `issue`, `reason` and
-  `report_wanted`; the report text gets a `support` line, such as `support expected issue=#5`.
-  `inspect` prints the status with the issue's link.
+  `expected`, `unsupported`, `unknown`), `listed`, `issue`, `reason` and `report_wanted`; the
+  report text gets a `support` line, such as `support expected issue=#5`. `inspect` prints the
+  status with the issue's link.
+- A new error, `restore_first`: install refuses a TrueType file it can't read when the watch
+  declares it below 1.00 (see Changed).
+- Every watch report posted in the issues so far (23) is replayed in the tests against a fake
+  watch built from it (`crates/core/tests/reports/`, made by `scripts/report_fixture.py`): install
+  and restore must never write over a file that isn't Garmin's or ours, never delete a hidden
+  object, and leave Garmin's originals wherever restore writes.
+- The builder tests compare every Georgian build with Garmin's original: same table list,
+  header and trailer, other tables byte for byte, every stock glyph, metric and cmap entry
+  unchanged.
 
 ### Changed
 
+- The fenix 6 and Instinct 3 family is unsupported in every build, betas included: on a fenix
+  6S Pro our font reached the watch and the watch still drew question marks (#6). Swiss 721
+  Hebrew (`006-D0952-07/-08`) is restore-only; restore still puts Garmin's fonts back.
+- Betas install exactly what releases do: the registry's `install: "beta"` is gone, and a font
+  family no watch has confirmed isn't installed by any build.
+- Install and restore identify each file by its content, from the normal listing or, where the
+  watch lists 0x9002, the hidden one: Garmin's original or one of this program's builds is
+  replaced (a waiting `.tmp` with Garmin's original too, which install used to refuse), anything
+  else is refused. A hidden read-only import is never deleted; a new file is written next to it.
+  Only a file neither listing lets be read falls back to the declared version: install never
+  writes over a file it can't identify and accepts only Garmin's version (below 1.00 it asks to
+  restore first, `restore_first`), while restore may put Garmin's original back over a file
+  without Garmin's version and accepts below 1.00 too, as watches declared this program's
+  builds before 0.3.0 (0.00 on the fenix 6S Pro, #6; 0.01 on the Forerunner 165, #5). Install no
+  longer accepts 0.01 by itself; restore now also accepts 0.00.
+- `inspect`'s per-part `file` and `state` come from the hidden listing where the normal one shows
+  nothing, as install and restore see it, so such parts no longer show as `not_visible`.
 - Registry `tested` entries no longer carry `model`; a tested model's name comes from the
-  support list, which must list it. A pack with `install: "beta"` names its test issue as
-  `issue`. The asset manifest gains `watches` and each pack's `beta` and `issue`; its `tested`
-  entries lose `model`.
+  support list, which must list it. The asset manifest gains `watches` (reasons written out);
+  its `tested` entries lose `model`.
 
 ## [0.3.0] - 2026-11-22
 

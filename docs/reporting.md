@@ -39,7 +39,6 @@ one would add something new:
 |---|---|
 | `tested` | No; after installing, only if Georgian didn't work |
 | `expected` | Yes: install, then **Check on the watch** |
-| `beta` (stable build) | No; the main screen links the family's issue, where the beta is tested. A beta build treats the watch as `expected` |
 | `unsupported` | Only on a software version the list doesn't have; otherwise the main screen shows the reason and a **Follow updates** link to the issue |
 | `unknown` | Yes: its font list |
 
@@ -127,7 +126,8 @@ restore, the state and files are from just before it, and the lines say so.
 Some watches leave read-only objects out of the normal MTP listing: on the Venu 2, Garmin's vendor
 `GetObjectIds` (`0x9002`) on a folder returns exactly those, such as the imported `.fnt` fonts in
 `ExtData`, and the two listings together cover the folder. The Forerunner 165 and fenix 6S Pro
-reports show an empty `extdata:` while declaring 11 `.bin` fonts, probably the same hiding. When the
+reports show an empty `extdata:` while declaring 11 `.bin` fonts: the same hiding, as the fenix 6S
+Pro's hidden listing later showed (#6). When the
 watch lists `0x9002`, `inspect` lists `ExtData`'s hidden children too, on the report's `hidden:`
 line: each file's name, size and `ro` (read-only), `rw`, or `?` when the protection couldn't be
 read (on Windows it comes from the watch's own ObjectInfo, since WPD has no property for it), and for a file named for one of this
@@ -137,8 +137,10 @@ doesn't list the operation, `hidden: error …` that listing or a read failed (t
 report is unaffected), and `hidden: not read` that `ExtData` wasn't found or the watch is a USB
 drive.
 
-The hidden listing is for the report only: install, restore, each part's `file` and `state` never
-use it, since a read-only object would take install down a delete path it doesn't take today.
+Install and restore use it too: a part's file that only the hidden listing shows is identified
+by the same rule, so `file` and `state` come from it where the normal listing shows nothing. A
+hidden object is never deleted; install and restore write a new file next to it, which the watch
+takes up when it restarts ([How it works](how-it-works.md#truetype-fonts)).
 
 ## The phone test page
 

@@ -445,8 +445,6 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
         kind: Kind::Bitmap,
         weight: 400,
         install: true,
-        beta: false,
-        issue: None,
         fonts: parts
             .iter()
             .map(|&(part, size_px)| Font {
@@ -472,8 +470,6 @@ fn truetype_pack() -> Pack {
         kind: Kind::Truetype,
         weight: 400,
         install: true,
-        beta: false,
-        issue: None,
         fonts: HEBREW
             .iter()
             .map(|&part| Font {
@@ -1025,28 +1021,40 @@ fn listed(model: &str, model_part: &str, issues: &[u32]) -> Watch {
     }
 }
 
-/// The test registry with its TrueType pack installing only in pre-release builds (as Swiss 721
-/// Hebrew does, tested in #6), built as a pre-release or stable build, and a support list: the
-/// tested Venu 2, the Venu 3 (#5), the fenix 6S Pro (#6) and the Forerunner 245, which doesn't
-/// work (#16, software 13.70).
-fn fonts_support(pre_release: bool) -> FontSet {
+fn unsupported(software: &str, en: &str, ka: &str) -> Option<Unsupported> {
+    Some(Unsupported {
+        software: vec![software.into()],
+        reason: Reason {
+            en: en.into(),
+            ka: ka.into(),
+        },
+    })
+}
+
+/// The test registry with its TrueType pack restore-only (as Swiss 721 Hebrew is: our font
+/// reached the fenix 6S Pro and it still drew question marks, #6), and a support list: the
+/// tested Venu 2, the Venu 3 (#5), the fenix 6S Pro, which doesn't work (#6, software 28.02),
+/// and the Forerunner 245, which doesn't work (#16, 13.70).
+fn fonts_support() -> FontSet {
     let mut fonts = fonts_tt();
-    let hebrew = fonts.packs.last_mut().unwrap();
-    hebrew.beta = true;
-    hebrew.install = pre_release;
-    hebrew.issue = Some(6);
+    fonts.packs.last_mut().unwrap().install = false;
     fonts.watches = vec![
         listed("Venu 2", "006-B3703-00", &[]),
         listed("Venu 3", VENU3, &[5]),
-        listed("fenix 6S Pro", FENIX6, &[6]),
         Watch {
-            unsupported: Some(Unsupported {
-                software: vec!["13.70".into()],
-                reason: Reason {
-                    en: "It connects only as a USB drive.".into(),
-                    ka: "მხოლოდ USB დისკად უერთდება.".into(),
-                },
-            }),
+            unsupported: unsupported(
+                "28.02",
+                "It doesn't use the font for Georgian.",
+                "ქართულისთვის შრიფტს არ იყენებს.",
+            ),
+            ..listed("fenix 6S Pro", FENIX6, &[6, 20])
+        },
+        Watch {
+            unsupported: unsupported(
+                "13.70",
+                "It connects only as a USB drive.",
+                "მხოლოდ USB დისკად უერთდება.",
+            ),
             ..listed("Forerunner 245", FR245, &[16])
         },
     ];
@@ -1071,7 +1079,7 @@ fn support_line(out: &Value) -> &str {
 
 #[test]
 fn a_confirmed_model_and_software_is_tested() {
-    let out = support_of(&fonts_support(false), "006-B3703-00", "1905", &ALL);
+    let out = support_of(&fonts_support(), "006-B3703-00", "1905", &ALL);
     assert_eq!(
         out["support"],
         json!({"status": "tested", "listed": true, "issue": null, "reason": null,
@@ -1082,7 +1090,7 @@ fn a_confirmed_model_and_software_is_tested() {
 
 #[test]
 fn a_tested_model_on_new_software_or_with_more_fonts_is_expected() {
-    let fonts = fonts_support(false);
+    let fonts = fonts_support();
     let out = support_of(&fonts, "006-B3703-00", "2026", &ALL);
     assert_eq!(out["tested"]["status"], "tested_other_software");
     assert_eq!(out["support"]["status"], "expected");
@@ -1094,7 +1102,7 @@ fn a_tested_model_on_new_software_or_with_more_fonts_is_expected() {
 
 #[test]
 fn a_model_that_installs_but_is_not_confirmed_is_expected() {
-    let fonts = fonts_support(false);
+    let fonts = fonts_support();
     let out = support_of(&fonts, VENU3, "1705", &ALL);
     assert_eq!(
         out["support"],
@@ -1109,33 +1117,27 @@ fn a_model_that_installs_but_is_not_confirmed_is_expected() {
 }
 
 #[test]
-fn a_beta_only_route_is_beta_in_stable_and_expected_in_pre_release_builds() {
-    let stable = support_of(&fonts_support(false), FENIX6, "2802", &HEBREW);
-    assert_eq!(stable["supported"], false);
-    assert_eq!(stable["restorable"], true);
-    assert_eq!(
-        stable["support"],
-        json!({"status": "beta", "listed": true, "issue": 6, "reason": null,
-               "report_wanted": false})
-    );
-    assert_eq!(support_line(&stable), "support beta issue=#6");
-
-    let beta = support_of(&fonts_support(true), FENIX6, "2802", &HEBREW);
-    assert_eq!(beta["supported"], true);
-    assert_eq!(beta["support"]["status"], "expected");
-    assert_eq!(beta["support"]["issue"], 6);
-    assert_eq!(beta["support"]["report_wanted"], true);
-
-    // A model the list doesn't have links the issue the pack is tested in.
-    let out = support_of(&fonts_support(false), UNLISTED, "2802", &HEBREW);
-    assert_eq!(out["support"]["status"], "beta");
+fn a_watch_that_does_not_use_our_font_is_unsupported_in_every_build() {
+    // Pre-release and stable builds install the same packs, so the restore-only pack never
+    // installs: the watch is unsupported, with its reason and issue, and restore still works.
+    let fonts = fonts_support();
+    let out = support_of(&fonts, FENIX6, "2802", &HEBREW);
+    assert_eq!(out["supported"], false);
+    assert_eq!(out["restorable"], true);
+    assert_eq!(out["support"]["status"], "unsupported");
     assert_eq!(out["support"]["issue"], 6);
-    assert_eq!(support_line(&out), "support beta issue=#6 unlisted");
+    assert_eq!(out["support"]["report_wanted"], false);
+    assert_eq!(support_line(&out), "support unsupported issue=#6");
+
+    // A model the list doesn't have, listing only restore-only fonts: unknown.
+    let out = support_of(&fonts, UNLISTED, "2802", &HEBREW);
+    assert_eq!(out["support"]["status"], "unknown");
+    assert_eq!(out["restorable"], true);
 }
 
 #[test]
 fn an_unsupported_model_wants_a_report_only_on_new_software() {
-    let fonts = fonts_support(false);
+    let fonts = fonts_support();
     let known = support_of(&fonts, FR245, "1370", &[]);
     assert_eq!(
         known["support"],
@@ -1159,7 +1161,7 @@ fn an_unsupported_model_wants_a_report_only_on_new_software() {
 
 #[test]
 fn a_watch_with_nothing_to_install_is_unknown() {
-    let fonts = fonts_support(false);
+    let fonts = fonts_support();
     let out = support_of(&fonts, UNLISTED, "1000", &[]);
     assert_eq!(
         out["support"],
@@ -1186,7 +1188,7 @@ fn a_watch_mounted_as_a_drive_gets_its_support_status() {
     let out = ops::call(
         "inspect_drive",
         json!({"path": root}),
-        &fonts_support(false),
+        &fonts_support(),
         &mut || panic!("inspect_drive never opens MTP"),
     )
     .unwrap();
@@ -1210,11 +1212,6 @@ fn the_bundled_support_list_names_every_tested_model() {
                 t.model_part
             );
         }
-        assert!(
-            !pack.beta || pack.issue.is_some(),
-            "{} names no issue",
-            pack.id
-        );
     }
     for w in fonts.watches.iter().filter(|w| w.unsupported.is_some()) {
         assert!(!w.issues.is_empty(), "{} names no issue", w.model);
@@ -1498,14 +1495,27 @@ fn install_of_identical_file_writes_nothing() {
     assert!(fake.writes().is_empty());
 }
 
+/// The conflict message for files that are neither Garmin's nor ours.
+fn other_conflict(paths: &str, holds: &str) -> String {
+    format!(
+        "{paths} {holds} neither Garmin's original font nor a Georgian build of this program; \
+         this build replaces only those, so nothing was written. A bitmap part's .tmp may be a \
+         file waiting for the watch to restart: unplug the watch and restart it, then try again."
+    )
+}
+
 #[test]
 fn a_conflict_on_any_size_stops_before_writing() {
     let last = ALL[3];
-    for existing in [stock(last), {
-        let mut g = georgian(last);
-        g[100] ^= 1;
-        g
-    }] {
+    // A build that is neither this one's nor an earlier one's, and an unknown file.
+    for existing in [
+        {
+            let mut g = georgian(last);
+            g[100] ^= 1;
+            g
+        },
+        b"older font".to_vec(),
+    ] {
         let mut s = venu2(&ALL);
         s.file(0x0100_0050, EXTDATA, &format!("{last}.tmp"), &existing);
         let fake = Fake::new(s);
@@ -1513,8 +1523,7 @@ fn a_conflict_on_any_size_stops_before_writing() {
         assert_eq!(err.code, ErrorCode::Conflict);
         assert_eq!(
             err.message,
-            "A different file is already staged as GARMIN/ExtData/006-D9035-04.tmp; nothing was \
-             written. Unplug the watch and restart it so it loads that file, then try again."
+            other_conflict("GARMIN/ExtData/006-D9035-04.tmp", "holds")
         );
         assert!(fake.writes().is_empty());
         assert_eq!(staged(&fake, last), [(0x0100_0050, existing)]);
@@ -1522,6 +1531,25 @@ fn a_conflict_on_any_size_stops_before_writing() {
             assert!(staged(&fake, part).is_empty());
         }
     }
+}
+
+/// A waiting `.tmp` identified as Garmin's original is replaced by install, as one of ours is
+/// by restore: identification is by content, and only `other` files are refused.
+#[test]
+fn a_waiting_original_tmp_is_replaced_by_install() {
+    let last = ALL[3];
+    let mut s = venu2(&ALL);
+    s.file(0x0100_0050, EXTDATA, &format!("{last}.tmp"), &stock(last));
+    let fake = Fake::new(s);
+    let out = fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    assert!(
+        fake.writes()
+            .contains(&"delete_object 0x1000050".to_owned())
+    );
+    let staged_now = staged(&fake, last);
+    assert_eq!(staged_now.len(), 1);
+    assert_eq!(staged_now[0].1, georgian(last));
 }
 
 #[test]
@@ -1616,14 +1644,13 @@ fn install_stages_every_listed_part_of_every_pack() {
 #[test]
 fn a_conflict_in_the_second_pack_blocks_every_pack() {
     let mut s = venu2(&ALL_AND_THAI);
-    s.file(0x0100_0050, EXTDATA, "006-D8947-02.tmp", &stock(THAI[1].0));
+    s.file(0x0100_0050, EXTDATA, "006-D8947-02.tmp", b"older font");
     let fake = Fake::new(s);
     let err = fake.call("install", json!({}), &fonts()).unwrap_err();
     assert_eq!(err.code, ErrorCode::Conflict);
     assert_eq!(
         err.message,
-        "A different file is already staged as GARMIN/ExtData/006-D8947-02.tmp; nothing was \
-         written. Unplug the watch and restart it so it loads that file, then try again."
+        other_conflict("GARMIN/ExtData/006-D8947-02.tmp", "holds")
     );
     assert!(fake.writes().is_empty());
     for part in &ALL_AND_THAI[..5] {
@@ -1839,17 +1866,12 @@ fn restore_stock_stages_every_original() {
         fake.call("restore_stock", json!({}), &fonts()).unwrap()["status"],
         "already_staged"
     );
-    // Installing over the staged stock files is refused, not replaced.
-    let writes = fake.writes().len();
-    let err = fake.call("install", json!({}), &fonts()).unwrap_err();
-    assert_eq!(err.code, ErrorCode::Conflict);
-    assert!(
-        err.message
-            .contains("006-D9035-01.tmp, GARMIN/ExtData/006-D9035-02.tmp"),
-        "{}",
-        err.message
-    );
-    assert_eq!(fake.writes().len(), writes);
+    // Installing replaces the staged originals: they are identified as Garmin's.
+    let out = fake.call("install", json!({}), &fonts()).unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    for part in ALL {
+        assert_eq!(staged(&fake, part)[0].1, georgian(part));
+    }
 }
 
 #[test]
@@ -2134,7 +2156,7 @@ fn an_unknown_truetype_file_is_never_replaced() {
 }
 
 #[test]
-fn a_truetype_part_listed_at_another_version_or_name_is_refused() {
+fn a_truetype_part_it_cannot_read_at_another_version_or_name_is_refused() {
     for (files, listed) in [
         (
             update_file(HEBREW[0], "20", BIN),
@@ -2145,20 +2167,36 @@ fn a_truetype_part_listed_at_another_version_or_name_is_refused() {
             "006-D0952-08 as version 2.10 (006-D0952-08.tmp)",
         ),
     ] {
-        let mut s = venu2_with(device_xml_with("006-B3703-00", "1905", &files));
-        s.file(0x0100_0050, EXTDATA, BIN, &stock(HEBREW[0]));
-        let fake = Fake::new(s);
-        let err = fake.call("install", json!({}), &fonts_tt()).unwrap_err();
-        assert_eq!(err.code, ErrorCode::UnsupportedDevice);
-        assert_eq!(
-            err.message,
-            format!(
-                "Venu 2 (006-B3703-00) lists {listed}, where this build has version 2.10 \
-                 (006-D0952-08.bin). Nothing was written."
-            )
-        );
-        assert!(fake.writes().is_empty());
+        // The watch shows no file and doesn't list 0x9002: only the declaration is known.
+        for operation in ["install", "restore_stock"] {
+            let fake = Fake::new(venu2_with(device_xml_with("006-B3703-00", "1905", &files)));
+            let err = fake.call(operation, json!({}), &fonts_tt()).unwrap_err();
+            assert_eq!(err.code, ErrorCode::UnsupportedDevice, "{operation}");
+            assert_eq!(
+                err.message,
+                format!(
+                    "Venu 2 (006-B3703-00) lists {listed}, where this build has version 2.10 \
+                     (006-D0952-08.bin). Nothing was written."
+                )
+            );
+            assert!(fake.writes().is_empty());
+        }
     }
+}
+
+#[test]
+fn a_readable_truetype_file_is_identified_whatever_its_declared_version() {
+    // Garmin's original by content, though the watch declares another version.
+    let mut s = venu2_with(device_xml_with(
+        "006-B3703-00",
+        "1905",
+        &update_file(HEBREW[0], "20", BIN),
+    ));
+    s.file(0x0100_0050, EXTDATA, BIN, &stock(HEBREW[0]));
+    let fake = Fake::new(s);
+    let out = fake.call("install", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    assert_eq!(bin(&fake, HEBREW[0])[0].1, georgian(HEBREW[0]));
 }
 
 #[test]
@@ -2225,9 +2263,8 @@ fn rolling_back_truetype_files_the_watch_did_not_show_removes_them() {
     let err = fake.call("install", json!({}), &fonts_tt()).unwrap_err();
     assert!(
         err.message.ends_with(
-            "Rolled back this run's changes: GARMIN/ExtData/006-D0952-08.bin removed; the watch \
-             showed none before; GARMIN/ExtData/006-D0952-07.bin not left behind; the watch \
-             showed none before."
+            "Rolled back the files this run had staged: GARMIN/ExtData/006-D0952-08.bin \
+             (0x01000100) deleted. Files staged before this run were left in place."
         ),
         "{}",
         err.message
@@ -2444,42 +2481,31 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
 }
 
 #[test]
-fn the_instinct_3_gets_georgian_in_its_hebrew_truetype_fonts_only_in_beta_builds() {
+fn the_instinct_3_gets_no_georgian_in_any_build() {
+    // Swiss 721 Hebrew is restore-only in every build: the fenix 6S Pro had our font and still
+    // drew question marks (#6). The Instinct 3 is unsupported, and restore still works.
     let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
-    if !ops::APP_VERSION.contains('-') {
-        // Stable: Swiss 721 Hebrew didn't show Georgian on the fenix 6S Pro (#6).
-        assert_eq!(inspect["supported"], false);
-        assert_eq!(inspect["restorable"], true);
-        assert_eq!(inspect["state"], "unsupported");
-        assert_eq!(
-            inspect["hosts"]["restore_only_parts"],
-            json!(["006-D0952-08", "006-D0952-07"])
-        );
-        assert_eq!(
-            error_code(fake.call("install", json!({}), &fonts)),
-            ErrorCode::UnsupportedDevice
-        );
-        return;
-    }
-    assert_eq!(inspect["hosts"]["kind"], "truetype");
-    assert_eq!(inspect["hosts"]["skipped_parts"], json!([]));
-    assert_eq!(pack_ids(&inspect), ["hebrew-swiss-721-truetype"]);
-    assert_eq!(targets(&inspect), ["006-D0952-08", "006-D0952-07"]);
-    let out = fake.call("install", json!({}), &fonts).unwrap();
+    assert_eq!(inspect["supported"], false);
+    assert_eq!(inspect["restorable"], true);
+    assert_eq!(inspect["state"], "unsupported");
     assert_eq!(
-        statuses(&out),
-        pairs(&[
-            ("006-D0952-08", "staged_verified"),
-            ("006-D0952-07", "staged_verified")
-        ])
+        inspect["hosts"]["restore_only_parts"],
+        json!(["006-D0952-08", "006-D0952-07"])
     );
+    assert_eq!(inspect["support"]["status"], "unsupported");
+    assert_eq!(inspect["support"]["issue"], 6);
+    assert_eq!(
+        error_code(fake.call("install", json!({}), &fonts)),
+        ErrorCode::UnsupportedDevice
+    );
+    assert!(fake.writes().is_empty(), "{:?}", fake.writes());
 }
 
-/// The bundled registry: the beta channel installs every pack; stable leaves out Swiss 721
-/// Hebrew, which didn't show Georgian on the fenix 6S Pro (#6), and its builds carry no test
-/// marks. Every part knows the 0.3.0-beta.2 build it replaces.
+/// The bundled registry: pre-release and stable builds install the same packs (Swiss 721
+/// Hebrew in none); only pre-release builds carry test marks. Every part knows the
+/// 0.3.0-beta.2 build it replaces.
 #[test]
 fn the_bundled_fonts_follow_the_release_channel() {
     let fonts = FontSet::bundled();
@@ -2490,8 +2516,12 @@ fn the_bundled_fonts_follow_the_release_channel() {
         "marks exactly in pre-release builds"
     );
     for pack in &fonts.packs {
-        let installs = beta || pack.id != "hebrew-swiss-721-truetype";
-        assert_eq!(pack.install, installs, "{}", pack.id);
+        assert_eq!(
+            pack.install,
+            pack.id != "hebrew-swiss-721-truetype",
+            "{}",
+            pack.id
+        );
         for font in &pack.fonts {
             assert!(
                 font.earlier.iter().any(|e| e.build == "0.3.0-beta.2"),
@@ -2612,29 +2642,67 @@ fn earlier_georgian_builds_are_upgraded_and_restored() {
     }
 }
 
-/// #5's Forerunner 165 after a beta install: the watch declares every TrueType part at version
-/// 0.01, since the beta's builds lacked Garmin's version trailer.
-#[test]
-fn parts_a_watch_declares_at_0_01_are_restored_and_reinstalled() {
+/// A watch declaring both TrueType parts at `version`, holding `existing` under their names in
+/// the normal listing (or nothing it lets be read).
+fn unreadable_at(version: (&str, &str), existing: Option<&[u8]>) -> Fake {
+    let (major, minor) = version;
     let files: String = HEBREW
         .iter()
         .map(|p| {
             format!(
-                "<UpdateFile><PartNumber>{p}</PartNumber><Version><Major>0</Major><Minor>1</Minor>\
-                 </Version><Path>Garmin/ExtData</Path><FileName>{p}.bin</FileName></UpdateFile>"
+                "<UpdateFile><PartNumber>{p}</PartNumber><Version><Major>{major}</Major>\
+                 <Minor>{minor}</Minor></Version><Path>Garmin/ExtData</Path>\
+                 <FileName>{p}.bin</FileName></UpdateFile>"
             )
         })
         .collect();
-    for operation in ["restore_stock", "install"] {
-        let fake = Fake::new(venu2_with(device_xml_with("006-B4432-00", "2952", &files)));
-        let out = fake.call(operation, json!({}), &fonts_tt()).unwrap();
+    let mut s = venu2_with(device_xml_with("006-B4432-00", "2952", &files));
+    if let Some(bytes) = existing {
+        for (i, p) in HEBREW.iter().enumerate() {
+            s.file(0x0100_0050 + i as u32, EXTDATA, &format!("{p}.bin"), bytes);
+        }
+    }
+    Fake::new(s)
+}
+
+/// What a watch declares for this program's trailer-less builds: 0.01 on the Forerunner 165
+/// (#5), 0.00 on the fenix 6S Pro (#6). Install never writes over a file it can't identify, so
+/// it asks to restore first; restore may put Garmin's original back over a file without
+/// Garmin's version. After restore and a restart the watch declares Garmin's version again.
+#[test]
+fn an_unreadable_file_below_1_00_is_restored_but_not_installed_over() {
+    for version in [("0", "0"), ("0", "1")] {
+        let fake = unreadable_at(version, None);
+        let err = fake.call("install", json!({}), &fonts_tt()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::RestoreFirst, "{version:?}");
+        assert!(err.message.contains("Restore the original font first"));
+        assert!(fake.writes().is_empty());
+
+        let out = fake.call("restore_stock", json!({}), &fonts_tt()).unwrap();
         assert_eq!(
             statuses(&out),
-            pairs(&HEBREW.map(|p| (p, "staged_verified"))),
-            "{operation}"
+            pairs(&HEBREW.map(|p| (p, "staged_verified")))
         );
+        for part in HEBREW {
+            assert_eq!(bin(&fake, part)[0].1, stock(part));
+        }
     }
-    // Any other version is still refused (a_truetype_part_listed_at_another_version...).
+    // Declared at Garmin's version, install writes as before.
+    let fake = unreadable_at(("2", "10"), None);
+    assert_eq!(
+        fake.call("install", json!({}), &fonts_tt()).unwrap()["status"],
+        "staged_verified"
+    );
+}
+
+#[test]
+fn a_readable_unknown_file_at_0_00_is_refused_by_both() {
+    for operation in ["install", "restore_stock"] {
+        let fake = unreadable_at(("0", "0"), Some(b"something else entirely"));
+        let err = fake.call(operation, json!({}), &fonts_tt()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Conflict, "{operation}");
+        assert!(fake.writes().is_empty());
+    }
 }
 
 /// Adds a read-only file to `ExtData` that only Garmin's `GetObjectIds` lists, as the Venu 2
@@ -2687,25 +2755,25 @@ fn hidden_extdata_files_are_listed_and_classified() {
     let reads = fake.0.borrow().reads.clone();
     assert!(!reads.contains(&0x0100_0072), "{reads:x?}");
     assert!(reads.contains(&0x0100_0070) && reads.contains(&0x0100_0071));
-    // Report only: the parts' files and the state are as without the hidden listing.
-    assert_eq!(truetype_staged(&fake), ["not_visible", "not_visible"]);
-    assert_eq!(out["state"], "not_visible");
+    // Install and restore identify these files the same way: the parts' files and the state
+    // come from the hidden listing where the normal one shows nothing.
+    assert_eq!(truetype_staged(&fake), ["georgian", "georgian_beta"]);
+    assert_eq!(out["state"], "beta");
 }
 
 #[test]
-fn hidden_extdata_files_never_change_install_targeting() {
-    let plain = Fake::new(truetype_watch(&[]));
+fn hidden_files_are_identified_for_install_and_never_deleted() {
     let hidden = Fake::new(hidden_truetype_watch());
-    let a = plain.call("inspect", json!({}), &fonts_tt()).unwrap();
-    let b = hidden.call("inspect", json!({}), &fonts_tt()).unwrap();
-    assert_eq!(targets(&a), targets(&b));
-    assert_eq!(a["fonts"], b["fonts"]);
-    assert_eq!(a["supported"], b["supported"]);
-    // Install writes exactly as on a watch that shows nothing, and never deletes the
-    // read-only objects.
-    plain.call("install", json!({}), &fonts_tt()).unwrap();
-    hidden.call("install", json!({}), &fonts_tt()).unwrap();
-    assert_eq!(plain.writes(), hidden.writes());
+    // 006-D0952-08 is this build's Georgian already; 006-D0952-07 an earlier build, so a new
+    // file is written for the watch to import, and the read-only import stays.
+    let out = hidden.call("install", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&[
+            (HEBREW[0], "already_staged"),
+            (HEBREW[1], "staged_verified")
+        ])
+    );
     assert!(
         !hidden
             .writes()
@@ -2715,6 +2783,26 @@ fn hidden_extdata_files_never_change_install_targeting() {
     for handle in [0x0100_0070, 0x0100_0071, 0x0100_0072] {
         assert!(hidden.0.borrow().objects.contains_key(&handle));
     }
+    // Restore writes Garmin's originals over both, still deleting nothing hidden.
+    let fresh = Fake::new(hidden_truetype_watch());
+    let out = fresh.call("restore_stock", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&HEBREW.map(|p| (p, "staged_verified")))
+    );
+    assert!(
+        !fresh
+            .writes()
+            .iter()
+            .any(|w| w.starts_with("delete_object"))
+    );
+    // A hidden file that isn't ours or Garmin's is refused.
+    let mut s = hidden_truetype_watch();
+    s.objects.get_mut(&0x0100_0071).unwrap().1 = vec![9; beta(HEBREW[1]).len()];
+    let err = Fake::new(s)
+        .call("install", json!({}), &fonts_tt())
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::Conflict);
 }
 
 #[test]

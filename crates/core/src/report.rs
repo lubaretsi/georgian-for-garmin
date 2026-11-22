@@ -145,7 +145,8 @@ pub struct HiddenFile {
     pub file: Option<FileState>,
 }
 
-/// `ExtData`'s hidden children. Report-only: install and restore never use them.
+/// `ExtData`'s hidden children; install and restore identify a part's file from them where the
+/// normal listing doesn't show it, and never delete one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HiddenListing {
@@ -1059,7 +1060,6 @@ mod marks_off {
             line(S::Expected, false, None, true),
             "support expected unlisted"
         );
-        assert_eq!(line(S::Beta, true, Some(6), false), "support beta issue=#6");
         assert_eq!(
             line(S::Unsupported, true, Some(16), false),
             "support unsupported issue=#16"

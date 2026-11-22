@@ -29,8 +29,13 @@ def test_each_status_has_its_words():
     assert software == "13.70"
     assert status.startswith(f"Doesn't work ([#16]({ISSUES}/16)). It connects to a computer only")
     assert status.endswith("could be added to.")
-    assert table_rows["fenix 6S Pro"] == ("–", f"Being tested in the beta ([#6]({ISSUES}/6))")
-    assert table_rows["Venu 3"] == ("–", f"Not confirmed yet ([#5]({ISSUES}/5))")
+    software, status = table_rows["fenix 6S Pro"]
+    assert software == "28.02"
+    assert status == (
+        f"Doesn't work ([#6]({ISSUES}/6), [#20]({ISSUES}/20)). The watch has the font file but "
+        "doesn't use it for Georgian letters: they still show as question marks."
+    )
+    assert table_rows["Venu 3"] == ("–", f"Not confirmed yet ([#5]({ISSUES}/5), [#2]({ISSUES}/2))")
 
 
 def test_every_model_gets_one_row_in_list_order():
