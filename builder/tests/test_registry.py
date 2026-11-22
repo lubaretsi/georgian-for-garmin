@@ -168,6 +168,43 @@ MALFORMED |= {
     ),
 }
 
+# The first predicted model, for the schema's error paths.
+PREDICTED = next(i for i, w in enumerate(ENTRIES["watches"]) if "prediction" in w)
+
+
+def prediction(entries):
+    return watch(entries, PREDICTED)["prediction"]
+
+
+MALFORMED |= {
+    "predicted model marked unsupported": (
+        lambda e: watch(e, PREDICTED).__setitem__(
+            "unsupported", dict(watch(e, UNSUPPORTED)["unsupported"])
+        ),
+        "is predicted to work but marked unsupported",
+    ),
+    "predicted model with tested entries": (
+        lambda e: watch(e).__setitem__("prediction", dict(prediction(e))),
+        "006-B3703-00\\) is tested; drop its prediction",
+    ),
+    "prediction below high confidence": (
+        lambda e: prediction(e).__setitem__("confidence", "medium"),
+        f"watches/{PREDICTED}/prediction/confidence: 'high' was expected",
+    ),
+    "unknown prediction family": (
+        lambda e: prediction(e).__setitem__("family", "swiss721"),
+        f"watches/{PREDICTED}/prediction/family: 'swiss721' is not one of",
+    ),
+    "prediction without a source": (
+        lambda e: prediction(e).__setitem__("source", "a forum post"),
+        f"watches/{PREDICTED}/prediction/source: ",
+    ),
+    "firmware family of an untested model": (
+        lambda e: prediction(e).__setitem__("source", "firmware family of Venu 3"),
+        "prediction source names Venu 3, not a tested model",
+    ),
+}
+
 # The first TrueType pack's index, for the schema's error paths.
 TT = next(i for i, p in enumerate(ENTRIES["packs"]) if p["kind"] == "truetype")
 

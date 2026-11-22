@@ -87,6 +87,8 @@ def validate(registry, schema, source="registry"):
         problems.append(f"reasons: {repeated} is listed more than once")
     reasons = {r["id"] for r in registry["reasons"]}
     used_reasons = set()
+    tested = {test["model_part"] for pack in packs for test in pack["tested"]}
+    tested_models = {w["model"] for w in registry["watches"] if w["model_part"] in tested}
     for watch in registry["watches"]:
         name = f"watches: {watch['model']} ({watch['model_part']})"
         if "unsupported" in watch:
@@ -96,6 +98,15 @@ def validate(registry, schema, source="registry"):
             used_reasons.add(reason)
             if reason not in reasons:
                 problems.append(f"{name} names reason {reason}, which reasons lacks")
+        if "prediction" in watch:
+            if "unsupported" in watch:
+                problems.append(f"{name} is predicted to work but marked unsupported")
+            if watch["model_part"] in tested:
+                problems.append(f"{name} is tested; drop its prediction")
+            source = watch["prediction"]["source"]
+            family = source.removeprefix("firmware family of ")
+            if family != source and family not in tested_models:
+                problems.append(f"{name}: prediction source names {family}, not a tested model")
     for unused in sorted(reasons - used_reasons):
         problems.append(f"reasons: {unused} is not used")
     if problems:

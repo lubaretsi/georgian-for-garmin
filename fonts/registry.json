@@ -442,6 +442,644 @@
       "model_part": "006-B2697-00",
       "issues": [30, 29],
       "unsupported": {"software": ["25.00"], "reason": "usb_drive_only"}
+    },
+    {
+      "model": "D2 Mach 1",
+      "model_part": "006-B4079-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "D2 Mach 2",
+      "model_part": "006-B4879-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/d2mach2.html"
+      }
+    },
+    {
+      "model": "D2 Mach 2 Pro",
+      "model_part": "006-B5056-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/d2mach2pro.html"
+      }
+    },
+    {
+      "model": "Enduro 3",
+      "model_part": "006-B4575-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/enduro3.html"
+      }
+    },
+    {
+      "model": "Enduro 4",
+      "model_part": "006-B5169-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/enduro4.html"
+      }
+    },
+    {
+      "model": "epix (Gen 2) / quatix 7 Sapphire",
+      "model_part": "006-B3943-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix (Gen 2) / quatix 7 Sapphire",
+      "model_part": "006-B3944-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix Pro (Gen 2) 42mm",
+      "model_part": "006-B4312-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix Pro (Gen 2) 47mm / quatix 7 Pro",
+      "model_part": "006-B4313-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix Pro (Gen 2) 51mm / D2 Mach 1 Pro / tactix 7 - AMOLED Edition",
+      "model_part": "006-B4314-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 3 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix Pro (Gen 2) 51mm / D2 Mach 1 Pro / tactix 7 - AMOLED Edition",
+      "model_part": "006-B4542-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 3 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "epix Pro (Gen 2) 51mm / D2 Mach 1 Pro / tactix 7 - AMOLED Edition",
+      "model_part": "006-B4556-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 3 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7 / quatix 7",
+      "model_part": "006-B3906-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7 / quatix 7",
+      "model_part": "006-B3909-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7 Pro - Solar Edition (no Wi-Fi)",
+      "model_part": "006-B4595-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7S",
+      "model_part": "006-B3905-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7S",
+      "model_part": "006-B3908-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7S Pro",
+      "model_part": "006-B4374-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7X / tactix 7 / quatix 7X Solar / Enduro 2",
+      "model_part": "006-B3907-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 4 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7X / tactix 7 / quatix 7X Solar / Enduro 2",
+      "model_part": "006-B3910-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 4 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7X / tactix 7 / quatix 7X Solar / Enduro 2",
+      "model_part": "006-B4341-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 4 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7X Pro",
+      "model_part": "006-B4376-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 7X Pro - Solar Edition (no Wi-Fi)",
+      "model_part": "006-B4596-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "fenix 8 43mm",
+      "model_part": "006-B4534-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix843mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 47mm / 51mm / tactix 8 47mm / 51mm / quatix 8 47mm / 51mm",
+      "model_part": "006-B4536-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix847mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 47mm / 51mm / tactix 8 47mm / 51mm / quatix 8 47mm / 51mm",
+      "model_part": "006-B4775-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix847mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 Pro 47mm / 51mm / MicroLED / quatix 8 Pro 47mm / 51mm",
+      "model_part": "006-B4631-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix8pro47mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 Solar 47mm",
+      "model_part": "006-B4532-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix8solar47mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 Solar 51mm / tactix 8 Solar 51mm",
+      "model_part": "006-B4533-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix8solar51mm.html"
+      }
+    },
+    {
+      "model": "fenix 8 Solar 51mm / tactix 8 Solar 51mm",
+      "model_part": "006-B4776-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix8solar51mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 43mm",
+      "model_part": "006-B5133-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix943mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 47mm / 51mm",
+      "model_part": "006-B5134-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix947mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 Pro 43mm",
+      "model_part": "006-B4952-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro43mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 Pro 47mm",
+      "model_part": "006-B4953-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro47mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 Pro 51mm",
+      "model_part": "006-B4954-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro51mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 Pro Solar 47mm",
+      "model_part": "006-B4955-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix9prosolar47mm.html"
+      }
+    },
+    {
+      "model": "fenix 9 Pro Solar 51mm",
+      "model_part": "006-B4956-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenix9prosolar51mm.html"
+      }
+    },
+    {
+      "model": "fenix E",
+      "model_part": "006-B4666-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fenixe.html"
+      }
+    },
+    {
+      "model": "Forerunner 170",
+      "model_part": "006-B4815-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr170.html"
+      }
+    },
+    {
+      "model": "Forerunner 170 Music",
+      "model_part": "006-B4814-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr170m.html"
+      }
+    },
+    {
+      "model": "Forerunner 265",
+      "model_part": "006-B4257-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr265.html"
+      }
+    },
+    {
+      "model": "Forerunner 265s",
+      "model_part": "006-B4258-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr265s.html"
+      }
+    },
+    {
+      "model": "Forerunner 570 42mm",
+      "model_part": "006-B4574-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr57042mm.html"
+      }
+    },
+    {
+      "model": "Forerunner 570 47mm",
+      "model_part": "006-B4570-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr57047mm.html"
+      }
+    },
+    {
+      "model": "Forerunner 70",
+      "model_part": "006-B4916-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr70.html"
+      }
+    },
+    {
+      "model": "Forerunner 70",
+      "model_part": "006-B5214-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr70.html"
+      }
+    },
+    {
+      "model": "Forerunner 955 / Solar",
+      "model_part": "006-B4024-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr955.html"
+      }
+    },
+    {
+      "model": "Forerunner 965",
+      "model_part": "006-B4315-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr965.html"
+      }
+    },
+    {
+      "model": "Forerunner 970",
+      "model_part": "006-B4565-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr970.html"
+      }
+    },
+    {
+      "model": "MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition",
+      "model_part": "006-B4105-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition",
+      "model_part": "006-B4472-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "MARQ (Gen 2) Aviator",
+      "model_part": "006-B4124-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_armenian",
+        "confidence": "high",
+        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
+        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
+      }
+    },
+    {
+      "model": "MARQ (Gen 3) Athlete / Adventurer / Aviator / Commander / Golfer / Diver",
+      "model_part": "006-B5000-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/marq3.html"
+      }
+    },
+    {
+      "model": "Venu 4 41mm",
+      "model_part": "006-B4644-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/venu441mm.html"
+      }
+    },
+    {
+      "model": "Venu 4 45mm / D2 Air X15",
+      "model_part": "006-B4643-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/venu445mm.html"
+      }
+    },
+    {
+      "model": "Venu 4 45mm / D2 Air X15",
+      "model_part": "006-B4944-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165. The name is the Connect IQ device page's for 2 parts; which part is which isn't stated.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/venu445mm.html"
+      }
+    },
+    {
+      "model": "Venu X1",
+      "model_part": "006-B4603-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/venux1.html"
+      }
+    },
+    {
+      "model": "vivoactive 6",
+      "model_part": "006-B4625-00",
+      "issues": [],
+      "prediction": {
+        "family": "noto_truetype",
+        "confidence": "high",
+        "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
+        "source": "https://developer.garmin.com/connect-iq/articles/device-reference/vivoactive6.html"
+      }
     }
   ],
   "reasons": [

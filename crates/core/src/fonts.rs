@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::garmin_device::GarminDevice;
-use crate::support::{Reason, Unsupported, Watch};
+use crate::support::{PredictionFamily, Reason, Unsupported, Watch};
 
 /// How a pack's fonts reach the watch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -73,6 +73,7 @@ struct BundledWatch {
     model_part: &'static str,
     issues: &'static [u32],
     unsupported: Option<BundledUnsupported>,
+    prediction: Option<PredictionFamily>,
 }
 
 static BUNDLED: &[BundledPack] = include!(concat!(env!("OUT_DIR"), "/bundled_fonts.rs"));
@@ -248,6 +249,7 @@ impl FontSet {
                             ka: u.reason_ka.to_owned(),
                         },
                     }),
+                    prediction: w.prediction,
                 })
                 .collect(),
             packs: BUNDLED

@@ -585,8 +585,9 @@ fn title(report: &WatchReport) -> String {
 }
 
 /// The `support` line, for triage at a glance: `support expected issue=#5`, with `unlisted`
-/// when the model isn't in the support list and `new_software` when an unsupported model's
-/// software version isn't.
+/// when the model isn't in the support list, `new_software` when an unsupported model's
+/// software version isn't, and `predicted=<family>` for a model only predicted to work (an
+/// `unknown` one shows the prediction was wrong).
 fn support_line(support: &Support) -> String {
     let mut line = format!("support {}", snake(&support.status));
     if let Some(issue) = support.issue {
@@ -597,6 +598,9 @@ fn support_line(support: &Support) -> String {
     }
     if support.status == SupportStatus::Unsupported && support.report_wanted {
         line.push_str(" new_software");
+    }
+    if let Some(family) = &support.prediction {
+        write!(line, " predicted={}", snake(family)).unwrap();
     }
     line
 }
@@ -795,6 +799,7 @@ mod tests {
                 listed: true,
                 issue: None,
                 reason: None,
+                prediction: None,
                 report_wanted: false,
             },
             state: GeorgianState::NotInstalled,
@@ -1047,6 +1052,7 @@ mod marks_off {
                 listed,
                 issue,
                 reason: None,
+                prediction: None,
                 report_wanted,
             })
         };
@@ -1071,6 +1077,15 @@ mod marks_off {
         assert_eq!(
             line(S::Unknown, false, None, true),
             "support unknown unlisted"
+        );
+        let predicted = Support {
+            listed: true,
+            prediction: Some(crate::support::PredictionFamily::BitmapArmenian),
+            ..Support::default()
+        };
+        assert_eq!(
+            support_line(&predicted),
+            "support unknown predicted=bitmap_armenian"
         );
     }
 }

@@ -11,7 +11,7 @@ use georgian_for_garmin_core::fonts::{
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
-use georgian_for_garmin_core::support::{Reason, Unsupported, Watch};
+use georgian_for_garmin_core::support::{PredictionFamily, Reason, Unsupported, Watch};
 use georgian_for_garmin_core::{Error, ErrorCode};
 use serde_json::{Value, json};
 
@@ -1012,6 +1012,7 @@ const VENU3: &str = "006-B4260-00";
 const FENIX6: &str = "006-B3288-00";
 const FR245: &str = "006-B3076-00";
 const UNLISTED: &str = "006-B9999-00";
+const FR265: &str = "006-B4257-00";
 
 fn listed(model: &str, model_part: &str, issues: &[u32]) -> Watch {
     Watch {
@@ -1019,6 +1020,7 @@ fn listed(model: &str, model_part: &str, issues: &[u32]) -> Watch {
         model_part: model_part.into(),
         issues: issues.to_vec(),
         unsupported: None,
+        prediction: None,
     }
 }
 
@@ -1035,7 +1037,8 @@ fn unsupported(software: &str, en: &str, ka: &str) -> Option<Unsupported> {
 /// The test registry with its TrueType pack restore-only (as Swiss 721 Hebrew is: our font
 /// reached the fenix 6S Pro and it still drew question marks, #6), and a support list: the
 /// tested Venu 2, the Venu 3 (#5), the fenix 6S Pro, which doesn't work (#6, software 28.02),
-/// and the Forerunner 245, which doesn't work (#16, 13.70).
+/// the Forerunner 245, which doesn't work (#16, 13.70), and the Forerunner 265, only predicted
+/// to work.
 fn fonts_support() -> FontSet {
     let mut fonts = fonts_tt();
     fonts.packs.last_mut().unwrap().install = false;
@@ -1057,6 +1060,10 @@ fn fonts_support() -> FontSet {
                 "მხოლოდ USB დისკად უერთდება.",
             ),
             ..listed("Forerunner 245", FR245, &[16])
+        },
+        Watch {
+            prediction: Some(PredictionFamily::NotoTruetype),
+            ..listed("Forerunner 265", FR265, &[])
         },
     ];
     fonts
@@ -1084,7 +1091,7 @@ fn a_confirmed_model_and_software_is_tested() {
     assert_eq!(
         out["support"],
         json!({"status": "tested", "listed": true, "issue": null, "reason": null,
-               "report_wanted": false})
+               "prediction": null, "report_wanted": false})
     );
     assert_eq!(support_line(&out), "support tested");
 }
@@ -1108,7 +1115,7 @@ fn a_model_that_installs_but_is_not_confirmed_is_expected() {
     assert_eq!(
         out["support"],
         json!({"status": "expected", "listed": true, "issue": 5, "reason": null,
-               "report_wanted": true})
+               "prediction": null, "report_wanted": true})
     );
     assert_eq!(support_line(&out), "support expected issue=#5");
     let out = support_of(&fonts, UNLISTED, "1000", &ALL);
@@ -1144,7 +1151,7 @@ fn an_unsupported_model_wants_a_report_only_on_new_software() {
         known["support"],
         json!({"status": "unsupported", "listed": true, "issue": 16,
                "reason": {"en": "It connects only as a USB drive.", "ka": "მხოლოდ USB დისკად უერთდება."},
-               "report_wanted": false})
+               "prediction": null, "report_wanted": false})
     );
     assert_eq!(support_line(&known), "support unsupported issue=#16");
     let new = support_of(&fonts, FR245, "1380", &[]);
@@ -1167,13 +1174,37 @@ fn a_watch_with_nothing_to_install_is_unknown() {
     assert_eq!(
         out["support"],
         json!({"status": "unknown", "listed": false, "issue": null, "reason": null,
-               "report_wanted": true})
+               "prediction": null, "report_wanted": true})
     );
     assert_eq!(support_line(&out), "support unknown unlisted");
     // Listed, but this watch lists none of the build's fonts: its issue is still the one.
     let out = support_of(&fonts, VENU3, "1705", &[]);
     assert_eq!(out["support"]["status"], "unknown");
     assert_eq!(out["support"]["issue"], 5);
+}
+
+#[test]
+fn a_predicted_model_is_judged_by_its_fonts_and_a_report_is_always_wanted() {
+    // The prediction says what Garmin's data suggests; the fonts the watch lists decide.
+    let fonts = fonts_support();
+    let out = support_of(&fonts, FR265, "1000", &ALL);
+    assert_eq!(
+        out["support"],
+        json!({"status": "expected", "listed": true, "issue": null, "reason": null,
+               "prediction": "noto_truetype", "report_wanted": true})
+    );
+    assert_eq!(
+        support_line(&out),
+        "support expected predicted=noto_truetype"
+    );
+    // A wrong prediction: the watch lists none of this build's fonts. Still asked to report.
+    let out = support_of(&fonts, FR265, "1000", &[]);
+    assert_eq!(out["support"]["status"], "unknown");
+    assert_eq!(out["support"]["report_wanted"], true);
+    assert_eq!(
+        support_line(&out),
+        "support unknown predicted=noto_truetype"
+    );
 }
 
 #[test]
@@ -1216,6 +1247,33 @@ fn the_bundled_support_list_names_every_tested_model() {
     }
     for w in fonts.watches.iter().filter(|w| w.unsupported.is_some()) {
         assert!(!w.issues.is_empty(), "{} names no issue", w.model);
+    }
+    // A prediction never stands for a test or a known failure, so it can't hold back a report.
+    let tested: BTreeSet<&str> = fonts
+        .packs
+        .iter()
+        .flat_map(|p| p.tested.iter().map(|t| t.model_part.as_str()))
+        .collect();
+    let predicted: Vec<_> = fonts
+        .watches
+        .iter()
+        .filter(|w| w.prediction.is_some())
+        .collect();
+    assert!(
+        !predicted.is_empty(),
+        "the bundled list carries its predictions"
+    );
+    for w in predicted {
+        assert!(
+            w.unsupported.is_none(),
+            "{} is predicted and unsupported",
+            w.model
+        );
+        assert!(
+            !tested.contains(w.model_part.as_str()),
+            "{} is predicted and tested",
+            w.model
+        );
     }
 }
 

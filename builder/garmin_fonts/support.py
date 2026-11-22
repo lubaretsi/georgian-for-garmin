@@ -1,8 +1,9 @@
-"""The README's watch table, generated from the registry's support list (`watches`) and the
-packs' `tested` entries, so the README and the list can't disagree.
+"""The README's watch tables, generated from the registry's support list (`watches`) and the
+packs' `tested` entries, so the README and the list can't disagree: the known watches, and the
+ones Garmin's data predicts to work (`prediction`).
 
-`python -m garmin_fonts.support` (from `builder/`) rewrites the table in the repository's
-README.md between its markers; the builder tests fail when it differs from the registry.
+`python -m garmin_fonts.support` (from `builder/`) rewrites both tables in the repository's
+README.md between their markers; the builder tests fail when they differ from the registry.
 """
 
 import argparse
@@ -22,6 +23,12 @@ BEGIN = (
     "(from builder/); edit the registry, not this table -->"
 )
 END = "<!-- /watches -->"
+PREDICTED_BEGIN = (
+    "<!-- predicted watches: generated from fonts/registry.json by `python -m garmin_fonts.support` "
+    "(from builder/); edit the registry, not this table -->"
+)
+PREDICTED_END = "<!-- /predicted watches -->"
+FIRMWARE_FAMILY = "firmware family of "
 
 
 def issue_links(issues):
@@ -32,7 +39,7 @@ def issue_links(issues):
 
 
 def rows(registry):
-    """(watch, software, status) per model in the support list, in its order.
+    """(watch, software, status) per model in the support list but not predicted, in its order.
 
     A model with tested entries is Tested on those software versions. An unsupported one says
     why; every other model is not confirmed yet. On a connected watch the app derives the status
@@ -44,7 +51,7 @@ def rows(registry):
             tested.setdefault(test["model_part"], set()).add(test["software"])
     reasons = {r["id"]: r["en"] for r in registry["reasons"]}
     out = []
-    for watch in registry["watches"]:
+    for watch in (w for w in registry["watches"] if "prediction" not in w):
         links = issue_links(watch["issues"])
         if watch["model_part"] in tested:
             versions = sorted(tested[watch["model_part"]], key=version_key)
@@ -63,26 +70,59 @@ def version_key(version):
     return int(major), int(minor)
 
 
+def predicted_rows(registry):
+    """(family, watch, based on) per predicted model name, grouped by model family (the name's
+    first word, in list order); `family` is set on each group's first row only. Parts that share
+    a Connect IQ device page's name share a row."""
+    groups = {}
+    for watch in registry["watches"]:
+        if "prediction" not in watch:
+            continue
+        source = watch["prediction"]["source"]
+        if source.startswith(FIRMWARE_FAMILY):
+            based_on = f"Firmware family of the tested {source.removeprefix(FIRMWARE_FAMILY)}"
+        else:
+            based_on = f"[Connect IQ device reference]({source})"
+        group = groups.setdefault(watch["model"].split()[0], [])
+        if (watch["model"], based_on) not in group:
+            group.append((watch["model"], based_on))
+    return [
+        (family if i == 0 else "", model, based_on)
+        for family, group in groups.items()
+        for i, (model, based_on) in enumerate(group)
+    ]
+
+
 def table(registry):
-    """The README section, markers included."""
+    """The known watches' README section, markers included."""
     lines = [BEGIN, "| Watch | Software | Status |", "|---|---|---|"]
     lines += [f"| {watch} | {software} | {status} |" for watch, software, status in rows(registry)]
     lines.append(END)
     return "\n".join(lines)
 
 
-def section(readme_text):
-    """The generated section of `readme_text`, markers included."""
-    start = readme_text.find(BEGIN)
-    end = readme_text.find(END, start)
-    if start < 0 or end < 0:
-        raise ValueError(f"the README has no watch table between {BEGIN!r} and {END!r}")
-    return readme_text[start:end + len(END)]
+def predicted_table(registry):
+    """The predicted watches' README section, markers included."""
+    lines = [PREDICTED_BEGIN, "| Family | Watch | Based on |", "|---|---|---|"]
+    lines += [f"| {family} | {watch} | {based} |" for family, watch, based in predicted_rows(registry)]
+    lines.append(PREDICTED_END)
+    return "\n".join(lines)
+
+
+def section(readme_text, begin=BEGIN, end=END):
+    """The generated section of `readme_text` between `begin` and `end`, markers included."""
+    start = readme_text.find(begin)
+    stop = readme_text.find(end, start)
+    if start < 0 or stop < 0:
+        raise ValueError(f"the README has no watch table between {begin!r} and {end!r}")
+    return readme_text[start:stop + len(end)]
 
 
 def update(readme_text, registry):
-    """`readme_text` with its watch table regenerated."""
-    return readme_text.replace(section(readme_text), table(registry))
+    """`readme_text` with both watch tables regenerated."""
+    text = readme_text.replace(section(readme_text), table(registry))
+    predicted = section(text, PREDICTED_BEGIN, PREDICTED_END)
+    return text.replace(predicted, predicted_table(registry))
 
 
 def fail(as_json, message):
@@ -97,7 +137,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(
         prog=PROG,
-        description="Rewrite the README's watch table from the registry's support list.",
+        description="Rewrite the README's watch tables from the registry's support list.",
         epilog="example:\n  python -m garmin_fonts.support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

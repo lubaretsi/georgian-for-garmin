@@ -107,8 +107,10 @@ Running `install` again after it succeeded changes nothing and reports `already_
 - `support`: the watch's status in the support list ([How it works](how-it-works.md)):
   `status` (`tested`, `expected`, `unsupported` or `unknown`), `listed` (the model's part
   number is in the list), `issue` (the GitHub issue to follow, or null), `reason` (for
-  `unsupported`: `en` and `ka` sentences, else null) and `report_wanted` (a report from this
-  watch adds information). `inspect-drive --json` has it too;
+  `unsupported`: `en` and `ka` sentences, else null), `prediction` (`noto_truetype` or
+  `bitmap_armenian` for a model the list only predicts to work, else null; it changes neither
+  the status nor `report_wanted`) and `report_wanted` (a report from this watch adds
+  information). `inspect-drive --json` has it too;
 - `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
   bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
   choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the

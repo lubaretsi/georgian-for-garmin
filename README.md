@@ -45,8 +45,9 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 
 ## Supported watches
 
-Every watch model the project knows of, from the support list in
-[fonts/registry.json](fonts/registry.json). "Tested" means someone installed Georgian on that model
+Every watch model reported to the project, from the support list in
+[fonts/registry.json](fonts/registry.json); the models Garmin's data predicts are
+[below](#likely-to-work-not-confirmed). "Tested" means someone installed Georgian on that model
 and software version and saw it in a real notification. Follow a watch's issue for updates.
 
 <!-- watches: generated from fonts/registry.json by `python -m garmin_fonts.support` (from builder/); edit the registry, not this table -->
@@ -92,6 +93,65 @@ fonts (Noto Sans Armenian, Noto Sans Hebrew) instead; the Forerunner 165 is the 
 one. On the fenix 6 and Instinct 3 family the watch had our font but didn't use it for Georgian,
 so no build installs there; the app still puts Garmin's fonts back
 ([How it works](docs/how-it-works.md#truetype-fonts)).
+
+### Likely to work, not confirmed
+
+These models come from Garmin's Connect IQ device reference (it lists Noto Sans Armenian, the
+font Georgian works through on the Forerunner 165) and from firmware families (the fenix 7
+family, with the tested fenix 7 Pro), not from tests; a report from one confirms it. The app
+still decides from the fonts your watch lists. Where one Garmin page names several models, the
+row shows that name.
+
+<!-- predicted watches: generated from fonts/registry.json by `python -m garmin_fonts.support` (from builder/); edit the registry, not this table -->
+| Family | Watch | Based on |
+|---|---|---|
+| D2 | D2 Mach 1 | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | D2 Mach 2 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/d2mach2.html) |
+|  | D2 Mach 2 Pro | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/d2mach2pro.html) |
+| Enduro | Enduro 3 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/enduro3.html) |
+|  | Enduro 4 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/enduro4.html) |
+| epix | epix (Gen 2) / quatix 7 Sapphire | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | epix Pro (Gen 2) 42mm | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | epix Pro (Gen 2) 47mm / quatix 7 Pro | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | epix Pro (Gen 2) 51mm / D2 Mach 1 Pro / tactix 7 - AMOLED Edition | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+| fenix | fenix 7 / quatix 7 | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7 Pro - Solar Edition (no Wi-Fi) | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7S | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7S Pro | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7X / tactix 7 / quatix 7X Solar / Enduro 2 | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7X Pro | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 7X Pro - Solar Edition (no Wi-Fi) | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | fenix 8 43mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix843mm.html) |
+|  | fenix 8 47mm / 51mm / tactix 8 47mm / 51mm / quatix 8 47mm / 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix847mm.html) |
+|  | fenix 8 Pro 47mm / 51mm / MicroLED / quatix 8 Pro 47mm / 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix8pro47mm.html) |
+|  | fenix 8 Solar 47mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix8solar47mm.html) |
+|  | fenix 8 Solar 51mm / tactix 8 Solar 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix8solar51mm.html) |
+|  | fenix 9 43mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix943mm.html) |
+|  | fenix 9 47mm / 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix947mm.html) |
+|  | fenix 9 Pro 43mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro43mm.html) |
+|  | fenix 9 Pro 47mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro47mm.html) |
+|  | fenix 9 Pro 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix9pro51mm.html) |
+|  | fenix 9 Pro Solar 47mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix9prosolar47mm.html) |
+|  | fenix 9 Pro Solar 51mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenix9prosolar51mm.html) |
+|  | fenix E | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fenixe.html) |
+| Forerunner | Forerunner 170 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr170.html) |
+|  | Forerunner 170 Music | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr170m.html) |
+|  | Forerunner 265 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr265.html) |
+|  | Forerunner 265s | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr265s.html) |
+|  | Forerunner 570 42mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr57042mm.html) |
+|  | Forerunner 570 47mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr57047mm.html) |
+|  | Forerunner 70 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr70.html) |
+|  | Forerunner 955 / Solar | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr955.html) |
+|  | Forerunner 965 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr965.html) |
+|  | Forerunner 970 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr970.html) |
+| MARQ | MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | MARQ (Gen 2) Aviator | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
+|  | MARQ (Gen 3) Athlete / Adventurer / Aviator / Commander / Golfer / Diver | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/marq3.html) |
+| Venu | Venu 4 41mm | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/venu441mm.html) |
+|  | Venu 4 45mm / D2 Air X15 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/venu445mm.html) |
+|  | Venu X1 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/venux1.html) |
+| vivoactive | vivoactive 6 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/vivoactive6.html) |
+<!-- /predicted watches -->
 
 ## Help us test
 
