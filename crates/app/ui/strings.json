@@ -4,7 +4,7 @@
     "demo": "დემო: ნამდვილი საათის გარეშე",
 
     "waitingTitle": "შეაერთეთ საათი",
-    "waitingBody": "შეაერთეთ საათი კომპიუტერთან USB კაბელით.",
+    "waitingBody": "შეაერთეთ საათი კომპიუტერთან USB კაბელით. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
     "looking": "საათს ვეძებთ…",
 
     "softwareVersion": "ვერსია {version}",
@@ -51,7 +51,7 @@
 
     "errors": {
       "invalid_input": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ.",
-      "no_device": "შეაერთეთ საათი კომპიუტერთან USB კაბელით.",
+      "no_device": "შეაერთეთ საათი კომპიუტერთან USB კაბელით. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
       "multiple_devices": "მიერთებულია ერთზე მეტი Garmin-ის საათი. დატოვეთ მხოლოდ ერთი.",
       "device_busy": "დახურეთ Garmin Express (Linux-ზე ფაილების მენეჯერში ამოიღეთ საათი) და სცადეთ თავიდან.",
       "permission_denied": "ამ მომხმარებელს საათთან წვდომა არ აქვს. Linux-ზე დააყენეთ პროგრამის udev წესი (დეტალებში წერია როგორ) და ისევ შეაერთეთ საათი.",
@@ -70,7 +70,7 @@
     "demo": "Demo: no real watch",
 
     "waitingTitle": "Connect your watch",
-    "waitingBody": "Connect your watch with its USB cable.",
+    "waitingBody": "Connect your watch with its USB cable. If the watch asks how to connect, choose MTP.",
     "looking": "Looking for your watch…",
 
     "softwareVersion": "Software {version}",
@@ -117,7 +117,7 @@
 
     "errors": {
       "invalid_input": "Something went wrong inside the app. Please report it.",
-      "no_device": "Connect your watch with its USB cable.",
+      "no_device": "Connect your watch with its USB cable. If the watch asks how to connect, choose MTP.",
       "multiple_devices": "More than one Garmin watch is connected. Unplug all but one.",
       "device_busy": "Quit Garmin Express (on Linux, eject the watch in your file manager), then try again.",
       "permission_denied": "This user isn’t allowed to open the watch. On Linux, install the app’s udev rule (Details shows how), then reconnect the watch.",

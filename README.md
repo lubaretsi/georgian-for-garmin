@@ -77,8 +77,8 @@ Step by step on Windows, in Georgian, with every screen: [Windows-ზე და�
 
 Then:
 
-1. Quit Garmin Express if it's running, and connect the watch. On Linux,
-   [release it from GNOME or KDE](docs/command-line.md#linux) first.
+1. Quit Garmin Express if it's running, and connect the watch. If the watch asks how to connect,
+   choose MTP. On Linux, [release it from GNOME or KDE](docs/command-line.md#linux) first.
 2. Click **Install Georgian** (**ქართულის დაყენება**).
 3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
 4. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.

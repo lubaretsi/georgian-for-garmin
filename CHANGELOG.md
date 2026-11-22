@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
   every screen from download to the watch's restart.
 
+### Changed
+
+- If the app can't find the watch, it says to choose MTP when the watch asks how to connect; some
+  watches connect as a USB drive until you do. The README and the Windows guide say the same.
+
 ## [0.2.2] - 2026-11-22
 
 ### Fixed
