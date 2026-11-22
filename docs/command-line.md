@@ -96,13 +96,22 @@ Running `install` again after it succeeded changes nothing and reports `already_
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
-- `packs`: every bundled pack the watch lists, in registry order, with `id`, `name`, `kind`
-  (`bitmap` or `truetype`), `weight` and `parts`: the parts the watch lists, each with
-  `size_px` (null for TrueType parts, which scale) and its own `tested` status;
-- `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, and `staged`
-  (what the part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for
-  TrueType parts: `none`, `georgian`, `stock`, `other`, or `unknown` without the folder);
-- `extdata`: the hidden folder's handle, how it was found, and the files in it with their SHA-256;
+- `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
+  bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
+  choice in a sentence) and `skipped_parts` (parts of the other kind it lists, left alone; the
+  fenix 7 Pro's Hebrew TrueType fonts, for example);
+- `packs`: every bundled pack of that kind the watch lists, in registry order, with `id`, `name`,
+  `kind`, `weight` and `parts`: the parts the watch lists, each with `size_px` (null for
+  TrueType parts, which scale) and its own `tested` status;
+- `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, whether
+  `install` writes it (`target`), and `staged` (what the part's file in the folder holds,
+  `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType parts: `none`, `georgian`,
+  `stock`, `other`, or `unknown` without the folder);
+- `extdata`: the hidden folder's handle, how it was found, and every file in it with its `name`,
+  `handle` and size in `bytes`. `sha256` is the file's SHA-256 only for a file named for a
+  bundled part with the size of its original or Georgian version; it is `null` for every other
+  file, which `inspect` doesn't read (watches with TrueType fonts keep files of several MB
+  there);
 - `report`: the same data as `--report`.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or

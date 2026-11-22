@@ -162,7 +162,13 @@ a preview of each part, `previews/<part>.png`, showing the host's own text besid
 
 ### Hosts
 
-A watch gets Georgian in every TrueType part below that it lists, as with bitmap packs. Which
+TrueType hosts are only for watches that list none of the registry's bitmap parts. A watch that
+lists any bitmap part gets Georgian there, exactly as before TrueType support, and its TrueType
+fonts stay Garmin's: the fenix 7 Pro, which Georgian already works on through its bitmap
+Armenian parts, keeps that install. `inspect` reports the choice under `hosts`, with the reason
+and the TrueType parts it leaves alone.
+
+A watch without bitmap parts gets Georgian in every TrueType part below that it lists. Which
 font a watch's firmware draws a Georgian letter from is not known for these watches: the
 Venu 2 drew one from a Thai bitmap pack, so it searches loaded fonts beyond the one for the
 text's script, but no TrueType watch has been tested. More than one host per watch raises the
@@ -174,7 +180,7 @@ chance that the font the firmware searches has Georgian.
 | Forerunner 165, 165 Music (29.52)                | `006-D9971-08/-09`, `006-D1053-96..99`, CJK, Thai      | `006-D9971-08/-09`, `006-D1053-98/-99`              |
 | fenix 6 Pro Solar, 6S Pro, 6X Pro (28.02)        | `006-D0952-05..08`                                     | `006-D0952-07/-08`                                  |
 | Instinct 3 AMOLED 50mm (15.19)                   | `006-D0952-05..08`, `006-D9971-00..03`                 | `006-D0952-07/-08`                                  |
-| fenix 7 Pro Solar (26.09), also bitmap Armenian  | `006-D0952-05..08`, `006-D9971-00..03`                 | its bitmap Armenian parts and `006-D0952-07/-08`    |
+| fenix 7 Pro Solar (26.09), also bitmap Armenian  | `006-D0952-05..08`, `006-D9971-00..03`                 | its bitmap Armenian parts only                      |
 
 - **Noto Sans Armenian** (`armenian-noto-sans-armenian-truetype`: `006-D9971-09` Regular,
   `-08` Bold): the same design family as Noto Sans Georgian, with the same units per em and

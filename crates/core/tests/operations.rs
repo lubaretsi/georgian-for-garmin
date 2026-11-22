@@ -90,6 +90,8 @@ struct State {
     misplace_into: Option<u32>,
     writes: Vec<String>,
     connects: usize,
+    /// Handles passed to `GetObject`, in order.
+    reads: Vec<u32>,
     /// Handles Garmin's `GetObjectIds` reports beyond `parent`'s hidden children.
     object_ids_extra: Vec<u32>,
     /// Garmin's `GetObjectIds` answers with an error response.
@@ -320,7 +322,8 @@ impl Mtp for Fake {
     }
 
     fn get_object(&mut self, handle: u32) -> Result<Vec<u8>, MtpError> {
-        let s = self.0.borrow();
+        let mut s = self.0.borrow_mut();
+        s.reads.push(handle);
         s.objects
             .get(&handle)
             .map(|(_, d)| d.clone())
@@ -543,9 +546,9 @@ fn finds_hidden_extdata_through_a_staged_font() {
     assert_eq!(out["extdata"]["listed_under_garmin"], false);
     assert_eq!(
         out["extdata"]["files"],
+        // Not a part of this build, so listed but never read.
         json!([{"name": "006-D1234-20.tmp", "handle": "0x01000050", "bytes": 3,
-                // SHA-256 of b"cjk"
-                "sha256": "a875bed89364302fb6f5a5a783899015d4e285f54a9a9660a97654d33c0f428f"}])
+                "sha256": null}])
     );
 }
 
@@ -1732,20 +1735,6 @@ fn an_unknown_truetype_file_is_never_replaced() {
             assert!(fake.writes().is_empty());
         }
     }
-    // With a stale bitmap file too, both are named.
-    let mut s = venu2(&[PART, HEBREW[0]]);
-    s.file(0x0100_0050, EXTDATA, STAGED, &stock(PART));
-    s.file(0x0100_0051, EXTDATA, BIN, &altered);
-    let fake = Fake::new(s);
-    let err = fake.call("install", json!({}), &fonts_tt()).unwrap_err();
-    assert_eq!(
-        err.message,
-        format!(
-            "A different file is already staged as GARMIN/ExtData/006-D9035-03.tmp; nothing was \
-             written. Unplug the watch and restart it so it loads that file, then try again. {one}"
-        )
-    );
-    assert!(fake.writes().is_empty());
 }
 
 #[test]
@@ -1868,22 +1857,254 @@ fn a_truetype_file_that_cannot_be_deleted_stays_as_it_was() {
 }
 
 #[test]
-fn a_truetype_failure_rolls_back_bitmap_and_truetype_parts_together() {
-    let mut s = venu2(&[PART, HEBREW[0]]);
+fn a_watch_with_bitmap_parts_keeps_its_truetype_files() {
+    let mut altered = stock(HEBREW[1]);
+    altered[7] ^= 1;
+    let mut s = venu2(&[PART, HEBREW[0], HEBREW[1]]);
     s.file(0x0100_0050, EXTDATA, BIN, &stock(HEBREW[0]));
-    s.fail_send_object_at = Some(2);
+    // An unknown file under a TrueType name isn't even a conflict: it isn't a target.
+    s.file(0x0100_0051, EXTDATA, "006-D0952-07.bin", &altered);
     let fake = Fake::new(s);
-    let err = fake.call("install", json!({}), &fonts_tt()).unwrap_err();
+    let inspect = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(inspect["hosts"]["kind"], "bitmap");
+    assert_eq!(inspect["hosts"]["skipped_parts"], json!(HEBREW));
+    assert_eq!(pack_ids(&inspect), ["armenian"]);
+    assert_eq!(targets(&inspect), [PART]);
+
+    let out = fake.call("install", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(statuses(&out), pairs(&[(PART, "staged_verified")]));
+    assert_eq!(
+        fake.writes(),
+        ["send_object_info 0x1000009 006-D9035-03.tmp", "send_object"]
+    );
+    assert_eq!(bin(&fake, HEBREW[0]), [(0x0100_0050, stock(HEBREW[0]))]);
+    let err = fake
+        .call("install", json!({"parts": [HEBREW[0]]}), &fonts_tt())
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::UnsupportedDevice);
     assert_eq!(
         err.message,
-        "SendObject timed out waiting for the reply. A new object was created as \
-         GARMIN/ExtData/006-D0952-08.bin (0x01000101) and has been deleted. Rolled back this \
-         run's changes: GARMIN/ExtData/006-D9035-03.tmp (0x01000100) deleted; \
-         GARMIN/ExtData/006-D0952-08.bin written back from the original and verified \
-         (0x01000102). Files staged before this run were left in place."
+        "Venu 2 (006-B3703-00) gets Georgian in its bitmap fonts, so this build leaves its \
+         TrueType part 006-D0952-08 alone. Nothing was written."
     );
-    assert!(staged(&fake, PART).is_empty());
-    assert_eq!(bin(&fake, HEBREW[0]), [(0x0100_0102, stock(HEBREW[0]))]);
+    assert_eq!(fake.writes().len(), 2);
+}
+
+/// The fenix 7 Pro Solar's font list (006-B4375-00, software 26.09, issue #11).
+const FENIX_7_PRO: &[(&str, &str, &str)] = &[
+    ("006-D0952-05", "2.30", "bin"),
+    ("006-D0952-06", "2.30", "bin"),
+    ("006-D0952-07", "2.10", "bin"),
+    ("006-D0952-08", "2.10", "bin"),
+    ("006-D9971-00", "2.00", "bin"),
+    ("006-D9971-01", "2.10", "bin"),
+    ("006-D9971-02", "2.00", "bin"),
+    ("006-D9971-03", "2.00", "bin"),
+    ("006-D8448-06", "2.20", "tmp"),
+    ("006-D8944-01", "2.10", "tmp"),
+    ("006-D8945-01", "2.30", "tmp"),
+    ("006-D8947-01", "2.20", "tmp"),
+    ("006-D8946-01", "2.20", "tmp"),
+    ("006-D8448-07", "2.20", "tmp"),
+    ("006-D8944-02", "2.10", "tmp"),
+    ("006-D8945-02", "2.30", "tmp"),
+    ("006-D8947-02", "2.20", "tmp"),
+    ("006-D8946-02", "2.10", "tmp"),
+    ("006-D9035-05", "2.00", "tmp"),
+    ("006-D8448-08", "2.20", "tmp"),
+    ("006-D8944-03", "2.10", "tmp"),
+    ("006-D8945-03", "2.30", "tmp"),
+    ("006-D8947-03", "2.20", "tmp"),
+    ("006-D8946-03", "2.10", "tmp"),
+    ("006-D9035-06", "2.00", "tmp"),
+    ("006-D8448-11", "2.20", "tmp"),
+    ("006-D8944-06", "2.10", "tmp"),
+    ("006-D8945-06", "2.30", "tmp"),
+    ("006-D8947-06", "2.20", "tmp"),
+    ("006-D8946-06", "2.10", "tmp"),
+    ("006-D9035-00", "2.10", "tmp"),
+    ("006-D8448-22", "2.20", "tmp"),
+    ("006-D8944-17", "2.10", "tmp"),
+    ("006-D8945-17", "2.30", "tmp"),
+    ("006-D8947-17", "2.20", "tmp"),
+    ("006-D8946-17", "2.20", "tmp"),
+    ("006-D9035-07", "2.00", "tmp"),
+    ("006-D8448-13", "2.20", "tmp"),
+    ("006-D8944-08", "2.10", "tmp"),
+    ("006-D8945-08", "2.30", "tmp"),
+    ("006-D8947-08", "2.20", "tmp"),
+    ("006-D8946-08", "2.10", "tmp"),
+    ("006-D9035-08", "2.00", "tmp"),
+    ("006-D8448-15", "2.20", "tmp"),
+    ("006-D8944-10", "2.10", "tmp"),
+    ("006-D8945-10", "2.40", "tmp"),
+    ("006-D8947-10", "2.20", "tmp"),
+    ("006-D8946-10", "2.10", "tmp"),
+    ("006-D8448-16", "2.20", "tmp"),
+    ("006-D8944-11", "2.10", "tmp"),
+    ("006-D8945-11", "2.30", "tmp"),
+    ("006-D8947-11", "2.20", "tmp"),
+    ("006-D8946-11", "2.10", "tmp"),
+    ("006-D8168-09", "2.00", "tmp"),
+    ("006-D8168-20", "2.10", "tmp"),
+];
+
+/// The Instinct 3 AMOLED 50mm's TrueType fonts (006-B4587-00, software 15.19, issue #8); its
+/// bitmap packs are none of this build's.
+const INSTINCT_3_TRUETYPE: &[(&str, &str, &str)] = &[
+    ("006-D0952-05", "2.30", "bin"),
+    ("006-D0952-06", "2.30", "bin"),
+    ("006-D0952-07", "2.10", "bin"),
+    ("006-D0952-08", "2.10", "bin"),
+    ("006-D9971-00", "2.00", "bin"),
+    ("006-D9971-01", "2.10", "bin"),
+    ("006-D9971-02", "2.00", "bin"),
+    ("006-D9971-03", "2.00", "bin"),
+    ("006-D8448-23", "2.30", "tmp"),
+    ("006-D8945-07", "2.20", "tmp"),
+    ("006-D8947-20", "2.00", "tmp"),
+    ("006-D8168-21", "2.10", "tmp"),
+];
+
+/// A watch as reported: model part, software and font list, with Garmin's stock `.bin` files
+/// for this build's TrueType parts in `ExtData`.
+fn reported_watch(model_part: &str, software: &str, list: &[(&str, &str, &str)]) -> State {
+    let files: String = list
+        .iter()
+        .map(|(part, version, ext)| update_file(part, &version[2..], &format!("{part}.{ext}")))
+        .collect();
+    let mut s = venu2_with(device_xml_with(model_part, software, &files));
+    let bundled = FontSet::bundled();
+    let mut handle = 0x0100_0050;
+    for (_, font) in bundled.fonts().filter(|(p, _)| p.kind == Kind::Truetype) {
+        if list.iter().any(|(part, ..)| *part == font.part) {
+            s.file(handle, EXTDATA, &font.file_name(), &font.stock);
+            handle += 1;
+        }
+    }
+    s
+}
+
+#[test]
+fn the_fenix_7_pro_keeps_todays_bitmap_install() {
+    let fake = Fake::new(reported_watch("006-B4375-00", "2609", FENIX_7_PRO));
+    let fonts = FontSet::bundled();
+    let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
+    assert_eq!(inspect["hosts"]["kind"], "bitmap");
+    assert_eq!(
+        inspect["hosts"]["skipped_parts"],
+        json!(["006-D0952-08", "006-D0952-07"])
+    );
+    assert_eq!(
+        inspect["hosts"]["reason"],
+        "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those, \
+         as before TrueType support; its TrueType fonts 006-D0952-08 and 006-D0952-07 stay \
+         Garmin's. TrueType fonts get Georgian only on watches that list none of this build's \
+         bitmap fonts."
+    );
+    assert_eq!(
+        pack_ids(&inspect),
+        [
+            "armenian-noto-sans-regular",
+            "armenian-noto-sans-armenian-bold"
+        ]
+    );
+    let mut expected = vec![
+        "006-D9035-00",
+        "006-D9035-05",
+        "006-D9035-06",
+        "006-D9035-07",
+        "006-D9035-08",
+    ];
+    let mut got = targets(&inspect);
+    expected.sort_unstable();
+    got.sort_unstable();
+    assert_eq!(got, expected);
+    for font in inspect["fonts"].as_array().unwrap() {
+        if font["kind"] == "truetype" && font["pack"] == "hebrew-swiss-721-truetype" {
+            assert_eq!(
+                (font["listed"].as_bool(), font["target"].as_bool()),
+                (Some(true), Some(false))
+            );
+            assert_eq!(font["staged"], "stock");
+        }
+    }
+
+    let out = fake.call("install", json!({}), &fonts).unwrap();
+    assert!(
+        staged_parts(&out)
+            .iter()
+            .all(|p| p["path"].as_str().unwrap().ends_with(".tmp"))
+    );
+    assert_eq!(staged_parts(&out).len(), 5);
+    assert!(
+        !fake
+            .writes()
+            .iter()
+            .any(|w| w.contains(".bin") || w.starts_with("delete_object")),
+        "{:?}",
+        fake.writes()
+    );
+}
+
+#[test]
+fn the_instinct_3_gets_georgian_in_its_hebrew_truetype_fonts() {
+    let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
+    let fonts = FontSet::bundled();
+    let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
+    assert_eq!(inspect["hosts"]["kind"], "truetype");
+    assert_eq!(inspect["hosts"]["skipped_parts"], json!([]));
+    assert_eq!(pack_ids(&inspect), ["hebrew-swiss-721-truetype"]);
+    assert_eq!(targets(&inspect), ["006-D0952-08", "006-D0952-07"]);
+    let out = fake.call("install", json!({}), &fonts).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&[
+            ("006-D0952-08", "staged_verified"),
+            ("006-D0952-07", "staged_verified")
+        ])
+    );
+}
+
+#[test]
+fn inspect_never_reads_files_that_cannot_be_this_builds() {
+    let mut s = truetype_watch(&stock_bins());
+    // A large Chinese font, an unrelated .tmp, and a file under one of this build's names but
+    // of neither of its sizes.
+    s.file(0x0100_0060, EXTDATA, "006-D9971-00.bin", &vec![7; 3 << 20]);
+    s.file(0x0100_0061, EXTDATA, "006-D8168-12.tmp", &[1, 2, 3]);
+    s.file(0x0100_0062, EXTDATA, "006-D9035-03.tmp", &[9; 10]);
+    let fake = Fake::new(s);
+    let inspect = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    let reads = fake.0.borrow().reads.clone();
+    assert!(
+        reads
+            .iter()
+            .all(|h| [XML, 0x0100_0050, 0x0100_0051].contains(h)),
+        "{reads:x?}"
+    );
+    let files = inspect["extdata"]["files"].as_array().unwrap();
+    let file = |name: &str| files.iter().find(|f| f["name"] == name).unwrap().clone();
+    assert_eq!(
+        file("006-D9971-00.bin"),
+        json!({"name": "006-D9971-00.bin", "handle": "0x01000060", "bytes": 3 << 20,
+               "sha256": null})
+    );
+    assert!(file("006-D8168-12.tmp")["sha256"].is_null());
+    assert!(file("006-D9035-03.tmp")["sha256"].is_null());
+    assert_eq!(
+        file(BIN)["sha256"].as_str().unwrap().len(),
+        64,
+        "this build's file is hashed"
+    );
+    let staged_03 = inspect["fonts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["part"] == PART)
+        .unwrap()
+        .clone();
+    assert_eq!(staged_03["staged"], "other");
 }
 
 #[test]

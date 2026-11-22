@@ -181,6 +181,7 @@ fn print_human(operation: &str, out: &Value) {
         text(&device["part_number"]),
         text(&device["software_version"])
     );
+    println!("{}", text(&out["hosts"]["reason"]));
     let packs = items(&out["packs"]);
     if packs.is_empty() {
         println!("Font packs: none; this watch lists none of the packs in this build.");

@@ -162,10 +162,16 @@ impl FontSet {
         self.fonts().any(|(_, f)| f.part == part)
     }
 
-    /// Every pack, in registry order, with a part the watch lists under `Garmin/ExtData`, and
-    /// the fonts of it the watch lists: what `install` and `restore_stock` write.
-    pub fn listed(&self, device: &GarminDevice) -> Vec<Listed<'_>> {
-        self.packs
+    /// What `install` and `restore_stock` write on the watch `device` describes: the packs of
+    /// one kind with a part the watch lists under `Garmin/ExtData`, and the parts of the other
+    /// kind it lists that are left alone.
+    ///
+    /// Bitmap packs win: a watch that lists any bitmap part gets Georgian there, as before
+    /// TrueType support, and its TrueType fonts stay Garmin's. Only a watch that lists no bitmap
+    /// part gets Georgian in its TrueType fonts.
+    pub fn hosts(&self, device: &GarminDevice) -> Hosts<'_> {
+        let all: Vec<Listed<'_>> = self
+            .packs
             .iter()
             .filter_map(|pack| {
                 let fonts: Vec<&Font> = pack
@@ -175,6 +181,31 @@ impl FontSet {
                     .collect();
                 (!fonts.is_empty()).then_some(Listed { pack, fonts })
             })
-            .collect()
+            .collect();
+        let kind = if all.iter().any(|l| l.pack.kind == Kind::Bitmap) {
+            Some(Kind::Bitmap)
+        } else if all.is_empty() {
+            None
+        } else {
+            Some(Kind::Truetype)
+        };
+        let (listed, other): (Vec<_>, Vec<_>) =
+            all.into_iter().partition(|l| Some(l.pack.kind) == kind);
+        Hosts {
+            kind,
+            listed,
+            skipped: other.into_iter().flat_map(|l| l.fonts).collect(),
+        }
     }
+}
+
+/// The fonts a watch gets Georgian in ([`FontSet::hosts`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hosts<'a> {
+    /// The kind of every pack in `listed`; `None` when the watch lists no part of this build.
+    pub kind: Option<Kind>,
+    /// Every pack of that kind, in registry order, with the parts of it the watch lists.
+    pub listed: Vec<Listed<'a>>,
+    /// Parts of the other kind that the watch lists, in registry order; left alone.
+    pub skipped: Vec<&'a Font>,
 }

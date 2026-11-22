@@ -15,16 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so far: Noto Sans Armenian (`006-D9971-08/-09`), Noto Sans Hebrew (`006-D1053-98/-99`) and
   Swiss 721 Hebrew (`006-D0952-07/-08`) get Mkhedruli and Mtavruli, sized to each font's letters.
   This covers the Venu 3 and 3S, Forerunner 165 and 165 Music, fenix 6 Pro/6S Pro/6X Pro and
-  Instinct 3 AMOLED reported in issues #2 to #14. Install replaces the watch's
-  `GARMIN/ExtData/<part>.bin`, only when it is Garmin's original or this build's Georgian font,
-  reads it back, and writes every original back if any part fails; restore puts Garmin's
-  original back. `inspect` and install output give each pack's `kind` (`bitmap` or `truetype`);
-  TrueType parts have no `size_px` (null). Install and restore are now declared destructive.
+  Instinct 3 AMOLED reported in issues #2 to #14. Only watches that list none of the bitmap
+  Armenian fonts get them; a watch that does, like the fenix 7 Pro, installs exactly as before.
+  Install replaces the watch's `GARMIN/ExtData/<part>.bin`, only when it is Garmin's original or
+  this build's Georgian font, reads it back, and writes every original back if any part fails;
+  restore puts Garmin's original back.
+- `inspect` reports `hosts`: which kind of font (`bitmap` or `truetype`) gets Georgian on the
+  watch, why, and the parts of the other kind it leaves alone.
 
 ### Changed
 
 - If the app can't find the watch, it says to choose MTP when the watch asks how to connect; some
   watches connect as a USB drive until you do. The README and the Windows guide say the same.
+- JSON output, ahead of 1.0: packs and fonts carry a `kind`; TrueType parts have a null
+  `size_px`; and `inspect` now gives a file's `sha256` only for files named for one of this
+  build's parts with the size of one of its versions, `null` for all others, which it no longer
+  reads. Watches with TrueType fonts keep files of several MB in `GARMIN/ExtData`, and the app
+  inspects the watch every two seconds. Install and restore are declared destructive, since a
+  TrueType install replaces a file.
 
 ## [0.2.2] - 2026-11-22
 

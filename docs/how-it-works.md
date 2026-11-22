@@ -76,6 +76,13 @@ Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts and to the Swiss 7
 the fenix 6 and Instinct 3 list; [the font registry](../fonts/README.md#truetype-packs) says
 why and how each is sized.
 
+Only watches that list none of the registry's bitmap fonts get the TrueType ones. A watch with
+bitmap Armenian fonts, such as the fenix 7 Pro, gets Georgian in those, as before, and its
+TrueType fonts are left as Garmin made them; `inspect` says which kind a watch gets and why.
+`inspect` reads only files that may be this build's (named for one of its parts, with the size
+of its original or Georgian version), so the app's polling never transfers the watch's
+multi-megabyte Chinese, Japanese or Korean fonts.
+
 Garmin's update catalog installs these as `GARMIN/ExtData/<part>.bin` and marks them as needing
 no restart. MTP has no way to overwrite a file in place, so the installer deletes the watch's
 `.bin` and writes the new one under the same name, then reads it back. The steps that keep this
