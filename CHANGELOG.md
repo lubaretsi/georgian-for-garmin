@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore puts Garmin's original back.
 - `inspect` reports `hosts`: which kind of font (`bitmap` or `truetype`) gets Georgian on the
   watch, why, and the parts of the other kind it leaves alone.
+- Venu 2 Plus (19.05) and fenix 7 Pro Solar / Pro Sapphire Solar (26.09) as tested watches, from
+  user reports (#4, #11, #15). A model and software version now count as tested once someone
+  confirms Georgian in a real notification; the entry lists the parts the app installed.
 
 ### Changed
 
