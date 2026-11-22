@@ -45,9 +45,9 @@ fn unescape_mount(field: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        let octal = bytes.get(i + 1..i + 4).filter(|d| {
-            bytes[i] == b'\\' && d.iter().all(|b| (b'0'..=b'7').contains(b))
-        });
+        let octal = bytes
+            .get(i + 1..i + 4)
+            .filter(|d| bytes[i] == b'\\' && d.iter().all(|b| (b'0'..=b'7').contains(b)));
         match octal {
             Some(d) => {
                 out.push(d.iter().fold(0u8, |n, b| n.wrapping_mul(8) + (b - b'0')));
@@ -151,7 +151,10 @@ mod tests {
 
     #[test]
     fn mount_escapes_are_decoded() {
-        assert_eq!(unescape_mount(r"/media/me/GARMIN\040DRIVE"), "/media/me/GARMIN DRIVE");
+        assert_eq!(
+            unescape_mount(r"/media/me/GARMIN\040DRIVE"),
+            "/media/me/GARMIN DRIVE"
+        );
         assert_eq!(unescape_mount(r"/a\134b\0"), r"/a\b\0");
     }
 

@@ -131,7 +131,10 @@ async fn inspect_drive(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
 #[tauri::command]
 fn issue_link(watch: State<'_, Arc<Watch>>, input: Value) -> Result<Value, Failure> {
     Ok(ops::call("issue_link", input, &watch.fonts, &mut || {
-        Err(Error::new(ErrorCode::Internal, "issue_link opened the watch"))
+        Err(Error::new(
+            ErrorCode::Internal,
+            "issue_link opened the watch",
+        ))
     })?)
 }
 

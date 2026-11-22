@@ -1124,14 +1124,19 @@ fn beta_marks_are_in_inspect_and_the_report() {
             picture: Cow::Borrowed(b"png"),
         });
     }
-    let out = Fake::new(venu2(&[PART])).call("inspect", json!({}), &fonts).unwrap();
+    let out = Fake::new(venu2(&[PART]))
+        .call("inspect", json!({}), &fonts)
+        .unwrap();
     assert_eq!(out["fonts"][2]["mark"], "C");
     assert_eq!(out["fonts"][4]["mark"], Value::Null, "Thai has no marks");
     assert_eq!(out["report"]["test_marks"], true);
     assert_eq!(out["report"]["parts"][0]["mark"], "C");
     let text = out["report"]["text"].as_str().unwrap();
     assert!(text.contains("\nmarks beta\n"));
-    assert!(text.contains("\n006-D9035-03 none yes tested C\n"), "{text}");
+    assert!(
+        text.contains("\n006-D9035-03 none yes tested C\n"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -1156,7 +1161,12 @@ fn a_watch_mounted_as_a_drive_gets_the_same_report() {
         json!([{"part": "006-D9035-03", "target": false, "staged": "unknown", "tested": "tested", "mark": null}])
     );
     assert_eq!(report["extdata_listing"], Value::Null);
-    assert!(report["text"].as_str().unwrap().contains("\nextdata not found\n"));
+    assert!(
+        report["text"]
+            .as_str()
+            .unwrap()
+            .contains("\nextdata not found\n")
+    );
     let everything = out.to_string();
     for secret in [UNIT_ID, "99001122", "SN-77X1"] {
         assert!(!everything.contains(secret), "{secret} leaked");
@@ -1676,7 +1686,13 @@ fn tool_definitions_follow_the_schemas() {
         .collect();
     assert_eq!(
         names,
-        ["inspect", "install", "restore_stock", "inspect_drive", "issue_link"]
+        [
+            "inspect",
+            "install",
+            "restore_stock",
+            "inspect_drive",
+            "issue_link"
+        ]
     );
     for pure in &tools["tools"].as_array().unwrap()[3..] {
         assert_eq!(pure["annotations"]["readOnlyHint"], true);

@@ -11,8 +11,8 @@ pub mod fonts;
 pub mod garmin_device;
 pub mod mtp;
 pub mod ops;
-pub mod report;
 pub mod ptp;
+pub mod report;
 pub mod trace;
 #[cfg(not(windows))]
 pub mod usb;

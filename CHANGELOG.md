@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Check on the watch** after installing: a QR code for a new phone test page that sends a
+  `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test` notification, one-tap questions (what the watch showed, where,
+  which phone), and **Share on GitHub**, which opens a new watch report issue form with every
+  field filled in. The screen shows the exact report before the browser opens; a report too long
+  for the link is copied for pasting instead. Sharing from the main screen and after a failed
+  install or restore uses the same form ([Reporting](docs/reporting.md)).
+- The phone test page (`site/`, published by GitHub Pages), in Georgian and English, with a copy
+  fallback where the browser can't show notifications.
+- Watches that connect as a USB drive instead of MTP, like the Forerunner 245 (#16): the app says
+  Georgian can't be installed that way and offers to share their font list;
+  `georgian-for-garmin inspect-drive` reads them.
+- Beta builds draw a test mark into each font: one capital of ᲛᲗᲐᲕᲠᲣᲚᲘ gets a bar, in a
+  different place per font file, so a notification shows which file the watch used. The check
+  screen shows the installed marks as pictures to pick from. Stable builds' fonts are unchanged.
+- The `issue_link` operation and `georgian-for-garmin issue-link`: the prefilled issue link from
+  a report, the last install or restore, and the answers.
+- The restart screen, README and Windows guide say to restart the watch once more if boxes still
+  show (#4).
 - Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
   every screen from download to the watch's restart.
 - Georgian for watches with TrueType fonts instead of bitmap Armenian ones, untested on a watch
@@ -25,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The watch report is now compact text for the issue form's report field, and lists every file
+  `GarminDevice.xml` declares (path, file name, part, version), the `ExtData` listing, the host
+  choice, each listed part's state, the OS and CPU architecture. JSON, ahead of 1.0: `report`
+  gains `platform`, `connection`, `hosts`, `parts`, `test_marks`, `declared_files` and
+  `extdata_listing`, and `fonts` entries gain `mark`. The Markdown issue template is replaced by
+  the form.
 - If the app can't find the watch, it says to choose MTP when the watch asks how to connect; some
   watches connect as a USB drive until you do. The README and the Windows guide say the same.
 - JSON output, ahead of 1.0: packs and fonts carry a `kind`; TrueType parts have a null

@@ -75,6 +75,10 @@ mod tests {
     fn the_phone_page_follows_the_language() {
         assert_eq!(phone_page("ka").url, PHONE_PAGE);
         assert_eq!(phone_page("en").url, format!("{PHONE_PAGE}?lang=en"));
-        assert!(phone_page("en").qr.starts_with("data:image/svg+xml;base64,"));
+        assert!(
+            phone_page("en")
+                .qr
+                .starts_with("data:image/svg+xml;base64,")
+        );
     }
 }

@@ -190,7 +190,10 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
                         || m.position >= 8
                         || m.variant.len() != 1
                     {
-                        fail(format!("{where_}: font part {} has an invalid mark", font.part));
+                        fail(format!(
+                            "{where_}: font part {} has an invalid mark",
+                            font.part
+                        ));
                     }
                     let picture = checked_file(dir, &m.picture, &m.picture_sha256);
                     format!(

@@ -191,7 +191,12 @@ fn issue_link_needs_no_watch() {
 #[test]
 fn inspect_drive_names_a_missing_volume() {
     let out = run(
-        &["inspect-drive", "--path", "/nonexistent-gfg-volume", "--json"],
+        &[
+            "inspect-drive",
+            "--path",
+            "/nonexistent-gfg-volume",
+            "--json",
+        ],
         "",
     );
     assert_eq!(out.status.code(), Some(1));

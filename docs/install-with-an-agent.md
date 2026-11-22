@@ -85,8 +85,10 @@ a watch, so tell the user that.
 
 If any target isn't tested on this model and software version, or no part matches,
 ask the user to share the watch's font list in a
-[watch report issue](https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.md):
-model, `Model/PartNumber`, software version, and each `Garmin/ExtData` `UpdateFile`'s part
-number, version (`Major`.`Minor`, two-digit minor: `2.10`) and file name. Never include the
-unit ID or serial number (the `Id` elements). `georgian-for-garmin inspect --report` prints
-this report.
+[watch report issue](https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml)
+(the form's **Watch report** field):
+model, `Model/PartNumber`, software version, and each `UpdateFile`'s path, file name, part number
+and version (`Major`.`Minor`, two-digit minor: `2.10`). Never include the unit ID or serial number
+(the `Id` elements). `georgian-for-garmin inspect --report` prints this report, and
+`georgian-for-garmin issue-link` makes a link with the form filled in
+([Reporting](reporting.md)).

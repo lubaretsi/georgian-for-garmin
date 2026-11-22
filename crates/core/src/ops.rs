@@ -658,7 +658,11 @@ fn test_report(listed: &[Listed<'_>], packs: &[PackReport], device: &GarminDevic
 /// A watch-provided value as one line of text.
 fn md(value: &str) -> String {
     let line = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    if line.is_empty() { "(none)".into() } else { line }
+    if line.is_empty() {
+        "(none)".into()
+    } else {
+        line
+    }
 }
 
 /// The shareable report of a watch whose fonts `reports` describes (one per font of `fonts`,

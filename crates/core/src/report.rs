@@ -455,7 +455,11 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
 /// A watch-provided value on one line: words joined by single spaces, "(none)" if empty.
 fn one_line(value: &str) -> String {
     let line = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    if line.is_empty() { "(none)".into() } else { line }
+    if line.is_empty() {
+        "(none)".into()
+    } else {
+        line
+    }
 }
 
 /// One space-separated column: "-" when empty; quoted as JSON when it holds anything but
@@ -563,7 +567,10 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
         {
             write!(line, " connect={}", column(version)).unwrap();
         }
-        writeln!(out, "{line}").unwrap();
+        // No answers picked yet: no line.
+        if line.len() > "answers".len() {
+            writeln!(out, "{line}").unwrap();
+        }
     }
     if report.test_marks {
         out.push_str("marks beta\n");
@@ -704,7 +711,10 @@ mod tests {
             ]
         );
         assert_eq!(q[0].1, TEMPLATE);
-        assert_eq!(q[1].1, "Watch report: Venu 2 (006-B3703-00), software 19.05");
+        assert_eq!(
+            q[1].1,
+            "Watch report: Venu 2 (006-B3703-00), software 19.05"
+        );
         assert_eq!(q[2].1, "Georgian letters");
         assert_eq!(q[3].1, "Pop-up when it arrives, Opened notification");
         assert_eq!(q[6].1, "5.10");
@@ -765,7 +775,9 @@ mod tests {
     #[test]
     fn labels_match_the_issue_form() {
         let form = include_str!("../../../.github/ISSUE_TEMPLATE/watch-report.yml");
-        for id in ["result", "views", "marker", "phone", "connect", "report", "notes"] {
+        for id in [
+            "result", "views", "marker", "phone", "connect", "report", "notes",
+        ] {
             assert!(form.contains(&format!("id: {id}\n")), "form lacks id {id}");
         }
         let seen = [
