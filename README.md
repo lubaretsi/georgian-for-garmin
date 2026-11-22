@@ -50,7 +50,7 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 | Venu 2 | 19.05 | Tested: Georgian in pop-ups, the notification list and opened notifications |
 | tactix 7 | 27.18 | Tested: Georgian in notifications |
 | Venu 2 Plus | 19.05 | Tested by a user: Georgian in notifications ([#4](https://github.com/lubaretsi/georgian-for-garmin/issues/4)) |
-| fenix 7 Pro Solar, Pro Sapphire Solar | 26.09 | Tested by users: Georgian in notifications and incoming calls ([#11](https://github.com/lubaretsi/georgian-for-garmin/issues/11), [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)) |
+| fenix 7 Pro Solar, Pro Sapphire Solar | 26.09 | Tested by users: Georgian in pop-ups, the notification list, opened notifications and incoming calls ([#11](https://github.com/lubaretsi/georgian-for-garmin/issues/11), [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)) |
 
 It works with notifications from Android phones and from iPhones: on an iPhone-paired fenix 7 Pro,
 a WhatsApp message and an incoming call both showed Georgian ([#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)).
