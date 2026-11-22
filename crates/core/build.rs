@@ -17,26 +17,61 @@ const FONTS_ENV: &str = "GEORGIAN_FOR_GARMIN_FONTS";
 struct Manifest {
     fonts: Vec<Entry>,
     packs: Vec<PackEntry>,
+    /// Beta builds: every Georgian font carries a test mark. Absent in older manifests.
+    #[serde(default)]
+    test_marks: bool,
 }
 
 #[derive(Deserialize)]
 struct Entry {
     pack: String,
     part: String,
-    size_px: u16,
+    version: String,
+    /// Bitmap parts only.
+    size_px: Option<u16>,
     stock: String,
     stock_sha256: String,
     georgian: String,
     georgian_sha256: String,
+    /// Present exactly when the manifest's `test_marks` is.
+    mark: Option<MarkEntry>,
+    /// Georgian builds earlier releases installed. Absent in older manifests.
+    #[serde(default)]
+    earlier_georgian: Vec<EarlierEntry>,
+}
+
+#[derive(Deserialize)]
+struct EarlierEntry {
+    build: String,
+    sha256: String,
+    bytes: u64,
+}
+
+#[derive(Deserialize)]
+struct MarkEntry {
+    variant: String,
+    code_point: String,
+    position: u8,
+    style: String,
+    picture: String,
+    picture_sha256: String,
 }
 
 #[derive(Deserialize)]
 struct PackEntry {
     id: String,
     name: String,
+    kind: String,
     weight: u16,
     parts: Vec<String>,
     tested: Vec<TestedEntry>,
+    /// false: restore only. Absent in older manifests: true.
+    #[serde(default = "yes")]
+    install: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Deserialize)]
@@ -97,6 +132,14 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
                 font.part, font.pack
             ));
         }
+        if font.mark.is_some() != manifest.test_marks {
+            fail(format!(
+                "{where_}: font part {} {} a test mark, but test_marks is {}",
+                font.part,
+                if font.mark.is_some() { "has" } else { "lacks" },
+                manifest.test_marks
+            ));
+        }
     }
     let mut code = String::from("&[\n");
     for pack in &manifest.packs {
@@ -119,28 +162,97 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
                 pack.id, pack.parts, carried
             ));
         }
+        let kind = match pack.kind.as_str() {
+            "bitmap" => "Bitmap",
+            "truetype" => "Truetype",
+            other => fail(format!(
+                "{where_}: pack {:?} has unknown kind {other:?}",
+                pack.id
+            )),
+        };
         let mut sizes = BTreeSet::new();
         writeln!(
             code,
-            "    BundledPack {{ id: {:?}, name: {:?}, weight: {}, fonts: &[",
-            pack.id, pack.name, pack.weight
+            "    BundledPack {{ id: {:?}, name: {:?}, kind: Kind::{kind}, weight: {}, \
+             install: {}, fonts: &[",
+            pack.id, pack.name, pack.weight, pack.install
         )
         .unwrap();
         for part in &pack.parts {
             let font = fonts.iter().find(|f| &f.part == part).expect("checked");
-            if !sizes.insert(font.size_px) {
-                fail(format!(
-                    "{where_}: pack {:?} has two {} px fonts",
-                    pack.id, font.size_px
-                ));
+            match (kind, font.size_px) {
+                ("Bitmap", Some(size)) => {
+                    if !sizes.insert(size) {
+                        fail(format!(
+                            "{where_}: pack {:?} has two {size} px fonts",
+                            pack.id
+                        ));
+                    }
+                }
+                ("Bitmap", None) => fail(format!(
+                    "{where_}: bitmap font part {} has no size_px",
+                    font.part
+                )),
+                (_, Some(_)) => fail(format!(
+                    "{where_}: TrueType font part {} has a size_px",
+                    font.part
+                )),
+                (_, None) => {}
             }
             let stock = checked_file(dir, &font.stock, &font.stock_sha256);
             let georgian = checked_file(dir, &font.georgian, &font.georgian_sha256);
+            let mark = match &font.mark {
+                None => "None".to_owned(),
+                Some(m) => {
+                    if !matches!(m.style.as_str(), "below" | "above" | "both")
+                        || m.position >= 8
+                        || m.variant.len() != 1
+                    {
+                        fail(format!(
+                            "{where_}: font part {} has an invalid mark",
+                            font.part
+                        ));
+                    }
+                    let picture = checked_file(dir, &m.picture, &m.picture_sha256);
+                    format!(
+                        "Some(BundledMark {{ variant: {:?}, code_point: {:?}, position: {}, \
+                         style: {:?}, picture: include_bytes!({picture:?}) }})",
+                        m.variant, m.code_point, m.position, m.style
+                    )
+                }
+            };
+            let mut earlier = String::from("&[");
+            for e in &font.earlier_georgian {
+                let valid = e.sha256.len() == 64
+                    && e.sha256
+                        .bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
+                if !valid || e.bytes == 0 {
+                    fail(format!(
+                        "{where_}: font part {} has an invalid earlier_georgian entry",
+                        font.part
+                    ));
+                }
+                if e.sha256 == font.stock_sha256 {
+                    fail(format!(
+                        "{where_}: font part {}'s earlier Georgian build from {} is its stock font",
+                        font.part, e.build
+                    ));
+                }
+                write!(
+                    earlier,
+                    "BundledEarlier {{ build: {:?}, sha256: {:?}, bytes: {} }}, ",
+                    e.build, e.sha256, e.bytes
+                )
+                .unwrap();
+            }
+            earlier.push(']');
             writeln!(
                 code,
-                "        BundledFont {{ part: {:?}, size_px: {}, stock: include_bytes!({stock:?}), \
-                 georgian: include_bytes!({georgian:?}) }},",
-                font.part, font.size_px,
+                "        BundledFont {{ part: {:?}, size_px: {:?}, version: {:?}, \
+                 stock: include_bytes!({stock:?}), georgian: include_bytes!({georgian:?}), \
+                 mark: {mark}, earlier: {earlier} }},",
+                font.part, font.size_px, font.version,
             )
             .unwrap();
         }

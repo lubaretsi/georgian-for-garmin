@@ -59,9 +59,10 @@ pub struct Layout {
     pub extdata: Option<ExtData>,
 }
 
-/// A Garmin standalone data file as staged or downloaded (`006-D<4 digits>-<2 digits>.tmp` or
-/// `.fnt`): font packs of any series, including ones this build doesn't carry. Only a hint for
-/// where `ExtData` is; every candidate parent is still checked by [`is_extdata`].
+/// A Garmin standalone data file as staged, downloaded or installed
+/// (`006-D<4 digits>-<2 digits>.tmp`, `.fnt` or `.bin`): font packs of any series, including
+/// ones this build doesn't carry. Only a hint for where `ExtData` is; every candidate parent is
+/// still checked by [`is_extdata`].
 fn is_font_package(name: &str) -> bool {
     let n = name.as_bytes();
     n.len() == 16
@@ -70,7 +71,9 @@ fn is_font_package(name: &str) -> bool {
         && n[9] == b'-'
         && n[10].is_ascii_digit()
         && n[11].is_ascii_digit()
-        && (n[12..].eq_ignore_ascii_case(b".fnt") || n[12..].eq_ignore_ascii_case(b".tmp"))
+        && [b".fnt", b".tmp", b".bin"]
+            .iter()
+            .any(|ext| n[12..].eq_ignore_ascii_case(*ext))
 }
 
 fn is_extdata(info: &ObjectInfo, garmin: u32, storage: u32) -> bool {
@@ -281,6 +284,7 @@ mod tests {
             "006-d8945-20.TMP",
             "006-D8168-13.fnt",
             "006-D1234-03.tmp",
+            "006-D9971-09.bin",
         ] {
             assert!(is_font_package(name), "{name}");
         }
@@ -288,7 +292,7 @@ mod tests {
             "006-D9035-3.tmp",
             "006-D12a4-03.tmp",
             "006-B9035-03.tmp",
-            "006-D9035-03.bin",
+            "006-D9035-03.bix",
             "006-D9035-03.tmpx",
             "GarminDevice.xml",
         ] {

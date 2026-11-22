@@ -2,30 +2,51 @@
 //! every call. CLI, app and any future adapter call [`call`].
 //!
 //! A watch gets Georgian in every part of this build's packs that it lists under
-//! `Garmin/ExtData`, across all packs: `install`/`restore_stock` write each of them.
+//! `Garmin/ExtData`, across all packs: `install`/`restore_stock` write each of them. A bitmap
+//! part is staged as a new `<part>.tmp`; a TrueType part replaces the watch's `<part>.bin`.
+//! `inspect_drive` reads a watch that connects as a USB drive instead, and `issue_link` makes
+//! the link that shares a watch report in a GitHub issue (`report`).
 
-use std::collections::BTreeSet;
-use std::fmt::Write as _;
+use std::collections::{BTreeSet, HashMap};
+use std::path::PathBuf;
 
 use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
+use crate::drive;
 use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
-use crate::fonts::{Font, FontSet, Listed, Pack};
+use crate::fonts::{Content, Font, FontSet, Hosts, Kind, Listed, Pack, sha256_hex};
 use crate::garmin_device::{self, GarminDevice};
-use crate::mtp::{CreateError, Mtp};
+use crate::mtp::{CreateError, Mtp, MtpError};
 use crate::ptp::{self, ObjectInfo, op};
+use crate::report::{
+    self, Connection, IssueLink, IssueLinkInput, ListedFile, ReportInput, ReportedHosts,
+    ReportedPart, WatchReport,
+};
 
 /// This program's version, as reported in the watch report.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The version a watch declares for a TrueType part holding one of this program's Georgian
+/// builds from before 0.3.0, which lacked Garmin's version trailer.
+pub const TRAILERLESS_VERSION: &str = "0.01";
 
 /// `inspect` takes no parameters.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectInput {}
+
+/// Where to look for a watch connected as a USB drive.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct InspectDriveInput {
+    /// The volume's root, e.g. "/Volumes/GARMIN" or "E:\\". Default: the one mounted volume
+    /// that has `GARMIN/GarminDevice.xml`.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+}
 
 /// Which parts to stage.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -51,7 +72,9 @@ pub struct DeviceReport {
 
 /// Whether Georgian was seen working on this watch, for one part or for every part `install`
 /// writes. Ordered from best to worst; the overall status is the worst of the parts'.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum TestStatus {
     /// Part: its pack's `tested` list has an entry for this model part number and software
@@ -63,16 +86,6 @@ pub enum TestStatus {
     /// Part: no entry for this model part number names it. Overall: at least one target part is
     /// `untested`, or the watch lists no part of this build's packs.
     Untested,
-}
-
-impl TestStatus {
-    fn words(self) -> &'static str {
-        match self {
-            TestStatus::Tested => "tested on this model and software",
-            TestStatus::TestedOtherSoftware => "tested on this model with other software",
-            TestStatus::Untested => "untested on this model",
-        }
-    }
 }
 
 /// Whether every part `install` writes was verified on this watch.
@@ -89,7 +102,8 @@ pub struct TestReport {
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct ListedPart {
     pub part: String,
-    pub size_px: u16,
+    /// Nominal pixel size of a bitmap part; null for a TrueType part.
+    pub size_px: Option<u16>,
     /// Whether this part was verified on this model and software.
     pub tested: TestStatus,
 }
@@ -100,26 +114,96 @@ pub struct PackReport {
     pub id: String,
     /// Garmin's product name, e.g. "Armenian Font, NotoSans Regular".
     pub name: String,
+    pub kind: Kind,
     /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too.
     pub weight: u16,
     /// The pack's parts the watch lists, in pack order: what `install` and `restore_stock` write.
     pub parts: Vec<ListedPart>,
 }
 
-/// What `GARMIN/ExtData/<part>.tmp` holds now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+/// What a part's file in `GARMIN/ExtData` holds: `<part>.tmp` for a bitmap part (waiting to be
+/// imported at the next restart; none afterwards), `<part>.bin` for a TrueType part (the font
+/// the watch loads). Install, restore, inspect, the app and the report all use this one rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum Staged {
-    /// No file is staged under this name.
+pub enum FileState {
+    /// No file has this name.
     None,
     /// This build's Georgian font.
     Georgian,
+    /// A Georgian build an earlier release installed (a beta's test marks); install and
+    /// restore replace it.
+    GeorgianBeta,
     /// Garmin's stock font.
     Stock,
-    /// Some other file.
+    /// A file this build doesn't know.
     Other,
-    /// `ExtData` was not found, so staging state is unknown.
+    /// A TrueType part the watch declares, whose `.bin` it doesn't show over MTP: whether it is
+    /// Garmin's or Georgian can't be seen (the Forerunner 165 and fenix 6S Pro show no files in
+    /// `ExtData`).
+    NotVisible,
+    /// `ExtData` wasn't found or wasn't read (a watch mounted as a USB drive).
     Unknown,
+}
+
+/// Georgian on the watch, from the files of the parts `install` writes, summed up in one word.
+/// The app's main screen, the CLI and the report all show this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GeorgianState {
+    /// `install` writes nothing on this watch.
+    Unsupported,
+    /// None of the target parts holds Georgian: install it.
+    NotInstalled,
+    /// Bitmap: every target's `.tmp` is this build's Georgian, waiting for a restart.
+    Waiting,
+    /// TrueType: every target's `.bin` is this build's Georgian.
+    Installed,
+    /// Some targets hold this build's Georgian, the rest Garmin's or nothing: install adds the
+    /// rest.
+    Partly,
+    /// A target holds a Georgian build from an earlier release: install replaces it.
+    Beta,
+    /// Bitmap: every target's `.tmp` is Garmin's original, waiting for a restart.
+    StockWaiting,
+    /// The watch doesn't show a target's `.bin`, so whether Georgian is installed can't be
+    /// seen; installing again is harmless.
+    NotVisible,
+    /// A target holds a file this build doesn't know, or bitmap targets wait with different
+    /// fonts: install refuses until that is sorted out.
+    Other,
+    /// `ExtData` wasn't found or read.
+    Unknown,
+}
+
+/// The one rule behind [`GeorgianState`], from the target parts' files.
+pub fn georgian_state(kind: Option<Kind>, files: &[FileState]) -> GeorgianState {
+    use FileState as F;
+    let Some(kind) = kind.filter(|_| !files.is_empty()) else {
+        return GeorgianState::Unsupported;
+    };
+    let any = |s: F| files.contains(&s);
+    let all = |s: F| files.iter().all(|f| *f == s);
+    if any(F::Unknown) {
+        GeorgianState::Unknown
+    } else if any(F::Other) || (kind == Kind::Bitmap && any(F::Georgian) && any(F::Stock)) {
+        GeorgianState::Other
+    } else if any(F::GeorgianBeta) {
+        GeorgianState::Beta
+    } else if any(F::NotVisible) {
+        GeorgianState::NotVisible
+    } else if all(F::Georgian) {
+        match kind {
+            Kind::Bitmap => GeorgianState::Waiting,
+            Kind::Truetype => GeorgianState::Installed,
+        }
+    } else if kind == Kind::Bitmap && all(F::Stock) {
+        GeorgianState::StockWaiting
+    } else if any(F::Georgian) {
+        GeorgianState::Partly
+    } else {
+        GeorgianState::NotInstalled
+    }
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -127,13 +211,21 @@ pub struct FontReport {
     /// Id of the pack this font belongs to.
     pub pack: String,
     pub part: String,
-    pub size_px: u16,
+    /// Its pack's kind.
+    pub kind: Kind,
+    /// Nominal pixel size of a bitmap part; null for a TrueType part.
+    pub size_px: Option<u16>,
     /// The watch lists this part under `Garmin/ExtData`.
     pub listed: bool,
-    /// `install` and `restore_stock` write this part: the watch lists it and supports the MTP
-    /// writes needed.
+    /// `install` writes this part: the watch lists it, it is of the kind `hosts` chose, its pack
+    /// is installable, and the watch supports the MTP writes needed.
     pub target: bool,
-    pub staged: Staged,
+    /// `restore_stock` writes this part: as `target`, restore-only packs included.
+    pub restore: bool,
+    pub file: FileState,
+    /// Beta builds: the test mark's variant ("A", "B", …) drawn into this part's Georgian
+    /// build; null in stable builds.
+    pub mark: Option<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -142,8 +234,11 @@ pub struct StagedFile {
     /// MTP object handle, hexadecimal.
     pub handle: String,
     pub bytes: u32,
-    /// SHA-256 of the file as read back from the watch.
-    pub sha256: String,
+    /// SHA-256 of the file as read back from the watch. Only a file named for a part of this
+    /// build, with the size of its stock, Georgian or an earlier Georgian build, is read; any
+    /// other file (a multi-megabyte Chinese font, say) is null and never transferred, so
+    /// inspecting stays fast.
+    pub sha256: Option<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -155,49 +250,41 @@ pub struct ExtDataReport {
     /// Whether the watch lists the folder among `GARMIN`'s children (the Venu 2 does not).
     pub listed_under_garmin: bool,
     pub found_by: FoundBy,
-    /// Files currently staged in the folder.
+    /// Every file in the folder.
     pub files: Vec<StagedFile>,
 }
 
-/// A `Garmin/ExtData` update file from `GarminDevice.xml`.
+/// Which kind of font this build writes on this watch, and why.
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct ReportedFile {
-    pub part_number: String,
-    /// e.g. "2.10"; null if the watch gives none.
-    pub version: Option<String>,
-    pub file_name: String,
-}
-
-/// The watch's font list for sharing, e.g. in a GitHub issue so a new watch can be added. It
-/// never includes the unit ID, serial number or any other `Id` element.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct WatchReport {
-    /// This program's version.
-    pub app_version: String,
-    pub model: String,
-    pub model_part: String,
-    pub software_version: String,
-    /// Ids of the packs with a part the watch lists, in registry order; empty if it lists none.
-    pub packs: Vec<String>,
-    /// The overall status, as in `inspect`'s `tested`.
-    pub tested: TestStatus,
-    /// Every `Garmin/ExtData` update file the watch lists, in its order.
-    pub extdata_files: Vec<ReportedFile>,
-    /// A title for the issue.
-    pub title: String,
-    /// The report as Markdown for the issue body.
-    pub text: String,
+pub struct HostChoice {
+    /// `bitmap` when the watch lists any bitmap part of this build, else `truetype` when it
+    /// lists a TrueType part; null when it lists neither.
+    pub kind: Option<Kind>,
+    /// The choice in a sentence, for people.
+    pub reason: String,
+    /// Parts of the other kind the watch lists, which `install` leaves alone, in registry order.
+    pub skipped_parts: Vec<String>,
+    /// Parts of restore-only packs the watch lists: `install` leaves them alone because their
+    /// Georgian didn't render on a watch; `restore_stock` writes Garmin's originals.
+    pub restore_only_parts: Vec<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InspectOutput {
     pub device: DeviceReport,
-    /// The watch lists a part of this build's packs and supports the MTP writes needed.
+    /// The watch lists a part this build installs and supports the MTP writes needed.
     pub supported: bool,
+    /// `restore_stock` has parts to write (restore-only packs included) and the watch supports
+    /// the MTP writes needed.
+    pub restorable: bool,
+    /// Georgian on the watch, from the files of the parts `install` writes.
+    pub state: GeorgianState,
     /// Whether every part `install` writes was verified on this model and software.
     pub tested: TestReport,
-    /// Every pack, in registry order, with a part the watch lists under `Garmin/ExtData`. Empty
-    /// if it lists none.
+    /// Which kind of font gets Georgian on this watch, and why.
+    pub hosts: HostChoice,
+    /// Every pack of that kind, in registry order, with a part the watch lists under
+    /// `Garmin/ExtData`: what `install` writes. Empty if it lists none.
     pub packs: Vec<PackReport>,
     /// Every font part this build carries.
     pub fonts: Vec<FontReport>,
@@ -206,13 +293,26 @@ pub struct InspectOutput {
     pub report: WatchReport,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+/// A watch connected as a USB drive.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct InspectDriveOutput {
+    /// The volume's root.
+    pub path: String,
+    pub device: DeviceReport,
+    /// Which kind of font would get Georgian on this watch over MTP, and why.
+    pub hosts: HostChoice,
+    /// Its report; `connection` is `usb_drive`, no part is a target and files are `unknown`.
+    pub report: WatchReport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StageStatus {
-    /// Written and read back byte for byte. The watch imports it after USB is disconnected and
-    /// the watch restarts.
+    /// Written and read back byte for byte. A bitmap part's `.tmp` is imported when USB is
+    /// disconnected and the watch restarts; a TrueType part's `.bin` replaced the watch's file
+    /// (or was created where it had none), and a restart makes the watch reload it.
     StagedVerified,
-    /// The identical file was already staged; nothing was written.
+    /// The identical file was already there; nothing was written.
     AlreadyStaged,
 }
 
@@ -235,11 +335,12 @@ impl Variant {
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct StagedPart {
     pub part: String,
-    pub size_px: u16,
+    /// Nominal pixel size of a bitmap part; null for a TrueType part.
+    pub size_px: Option<u16>,
     pub status: StageStatus,
     /// Path on the watch.
     pub path: String,
-    /// MTP object handle of the staged file, hexadecimal.
+    /// MTP object handle of the written file, hexadecimal.
     pub handle: String,
     pub bytes: u64,
     pub sha256: String,
@@ -251,6 +352,7 @@ pub struct StagedPack {
     pub id: String,
     /// Garmin's product name, e.g. "Armenian Font, NotoSans Regular".
     pub name: String,
+    pub kind: Kind,
     /// The weight its stock glyphs are drawn at, e.g. 400.
     pub weight: u16,
     /// Each part, in pack order.
@@ -309,19 +411,24 @@ impl Operation {
     }
 }
 
-// Behavior hints: the operations touch one attached watch (closed world). Staging never
-// replaces an existing file (a different one is a conflict), so writes are not destructive,
-// and repeating one returns `already_staged`.
-pub static OPERATIONS: [Operation; 3] = [
+// Behavior hints: the operations touch one attached watch (closed world). Staging a bitmap
+// part never replaces a file (a different one is a conflict). A TrueType part replaces the
+// watch's `<part>.bin`, so install and restore are destructive, but only a file identical to
+// Garmin's original or this build's Georgian one, both of which restore_stock and install can
+// write back. Repeating either returns `already_staged`. `inspect_drive` only reads a mounted
+// volume, and `issue_link` computes a link from its input without touching anything.
+pub static OPERATIONS: [Operation; 5] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
-        description: "Read the connected watch's model and software version, the font packs this \
-                      build installs on it (every pack, in registry order, with a part the watch lists \
-                      under Garmin/ExtData) with each listed part and whether it was tested on this \
-                      model and software, the overall tested status, what is staged in the hidden \
-                      GARMIN/ExtData folder, and a shareable report of the watch's font list without \
-                      its unit ID or serial number. Read-only.",
+        description: "Read the connected watch's model and software version, which kind of font \
+                      gets Georgian on it and why (bitmap fonts when the watch lists any of this \
+                      build's, otherwise TrueType), the font packs of that kind this build installs \
+                      (in registry order) with each listed part and whether it was tested on this \
+                      model and software, the overall tested status, what each part's file in the \
+                      hidden GARMIN/ExtData folder holds (only files that may be this build's are \
+                      read), and a shareable report of the watch's font list without its unit ID or \
+                      serial number. Read-only.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -332,14 +439,21 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "install",
         title: "Install Georgian font",
-        description: "Stage the Georgian build of every part of this build's packs that the watch \
-                      lists, across all packs (or only parts), as GARMIN/ExtData/<part>.tmp, each \
-                      verified by reading it back. Every target is checked first: an identical staged \
-                      file is skipped, a different one fails the whole call with conflict before \
-                      anything is written. If a part fails, the files this call created are deleted. \
-                      Disconnect USB and restart the watch to load them.",
+        description: "Write the Georgian build of every part the watch lists of this build's packs \
+                      of the kind inspect's hosts names (bitmap if the watch lists any bitmap part, \
+                      else TrueType), across those packs (or only parts), each verified by reading \
+                      it back: a \
+                      bitmap part is staged as GARMIN/ExtData/<part>.tmp, a TrueType part replaces \
+                      GARMIN/ExtData/<part>.bin (or creates it where the watch shows none). Every \
+                      target is checked first, and the whole call \
+                      fails before anything is written if a staged .tmp differs from the build, if \
+                      a .bin is neither Garmin's original nor this build's Georgian font, or if the \
+                      watch lists a TrueType part at another version or file name than this build \
+                      carries; identical files are skipped. If a part fails, this call's changes are \
+                      undone: new .tmp files deleted, replaced .bin files written back from the \
+                      bytes read before. Disconnect USB and restart the watch to load them.",
         read_only: false,
-        destructive: false,
+        destructive: true,
         idempotent: true,
         open_world: false,
         input: || schema_for!(StageInput),
@@ -348,16 +462,49 @@ pub static OPERATIONS: [Operation; 3] = [
     Operation {
         name: "restore_stock",
         title: "Restore stock font",
-        description: "Stage Garmin's original font for every part of this build's packs that the \
-                      watch lists, across all packs (or only parts), as GARMIN/ExtData/<part>.tmp, \
-                      with the same checks, readback and rollback as install. Disconnect USB and \
-                      restart the watch to load them.",
+        description: "Write Garmin's original font for every part of this build's packs that the \
+                      watch lists, across all packs (or only parts), as GARMIN/ExtData/<part>.tmp \
+                      (bitmap) or over GARMIN/ExtData/<part>.bin (TrueType), with the same checks, \
+                      readback and rollback as install. Disconnect USB and restart the watch to load \
+                      them.",
         read_only: false,
-        destructive: false,
+        destructive: true,
         idempotent: true,
         open_world: false,
         input: || schema_for!(StageInput),
         output: || schema_for!(StageOutput),
+    },
+    Operation {
+        name: "inspect_drive",
+        title: "Inspect watch connected as a USB drive",
+        description: "Read a watch that connects as a USB drive (mass storage) instead of MTP: \
+                      its GARMIN/GarminDevice.xml from the mounted volume (the one found, or \
+                      path), the kind of font that would get Georgian over MTP and why, and the \
+                      same shareable report as inspect (connection usb_drive; the ExtData listing \
+                      without hashes). Nothing can be installed this way. Read-only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(InspectDriveInput),
+        output: || schema_for!(InspectDriveOutput),
+    },
+    Operation {
+        name: "issue_link",
+        title: "Make a watch report link",
+        description: "Make the GitHub new-issue link that fills the watch report form from a \
+                      report (from inspect or inspect_drive), the last install or restore outcome \
+                      and the owner's answers (what the test notification showed, where, phone, \
+                      beta marker). The report text is rebuilt from the report's allowlisted \
+                      fields. If the link would pass 8000 characters, the report is left out of \
+                      it, report_in_url is false, and the form's report field asks for a paste of \
+                      report_text. Touches nothing.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(IssueLinkInput),
+        output: || schema_for!(IssueLink),
     },
 ];
 
@@ -392,6 +539,14 @@ pub fn call(
         "inspect" => {
             let InspectInput {} = parse(input)?;
             to_value(inspect(&mut *connect()?, fonts)?)
+        }
+        "inspect_drive" => {
+            let InspectDriveInput { path } = parse(input)?;
+            to_value(inspect_drive(path.as_deref(), fonts)?)
+        }
+        "issue_link" => {
+            let input: IssueLinkInput = parse(input)?;
+            to_value(report::issue_link(&input)?)
         }
         _ => {
             let StageInput { parts } = parse(input)?;
@@ -457,13 +612,6 @@ fn hex_handle(handle: u32) -> String {
     format!("{handle:#010x}")
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
-}
-
 /// MTP operations a watch must support for staging.
 const WRITE_OPERATIONS: [u16; 4] = [
     op::GET_OBJECT,
@@ -491,9 +639,9 @@ fn read_garmin_device(dev: &mut dyn Mtp, layout: &Layout) -> Result<GarminDevice
     garmin_device::parse(&dev.get_object(handle)?)
 }
 
-/// Objects in `ExtData` under `font`'s staged name.
+/// Objects in `ExtData` under `font`'s file name.
 fn staged_in<'a>(ext: &'a ExtData, font: &Font) -> Vec<&'a Object> {
-    let name = font.staged_name();
+    let name = font.file_name();
     ext.files
         .iter()
         .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
@@ -501,7 +649,7 @@ fn staged_in<'a>(ext: &'a ExtData, font: &Font) -> Vec<&'a Object> {
 }
 
 fn staged_path(font: &Font) -> String {
-    format!("GARMIN/ExtData/{}", font.staged_name())
+    format!("GARMIN/ExtData/{}", font.file_name())
 }
 
 /// Whether `part` of `pack` was verified on this watch.
@@ -530,6 +678,7 @@ fn pack_reports(listed: &[Listed<'_>], device: &GarminDevice) -> Vec<PackReport>
         .map(|l| PackReport {
             id: l.pack.id.clone(),
             name: l.pack.name.clone(),
+            kind: l.pack.kind,
             weight: l.pack.weight,
             parts: l
                 .fonts
@@ -571,152 +720,224 @@ fn test_report(listed: &[Listed<'_>], packs: &[PackReport], device: &GarminDevic
     }
 }
 
-/// A watch-provided value as one line of Markdown text.
+/// A watch-provided value as one line of text.
 fn md(value: &str) -> String {
     let line = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    let escaped = line.replace('\\', "\\\\").replace('|', "\\|");
-    if escaped.is_empty() {
+    if line.is_empty() {
         "(none)".into()
     } else {
-        escaped
+        line
     }
 }
 
-/// The shareable report. Built only from the fields named here, so the unit ID, serial number
-/// and every other `Id` element in `GarminDevice.xml` stay out of it.
-fn watch_report(device: &GarminDevice, packs: &[PackReport], tested: TestStatus) -> WatchReport {
-    let extdata_files: Vec<ReportedFile> = device
-        .extdata_files()
-        .map(|f| ReportedFile {
-            part_number: f.part_number.clone(),
-            version: f.version.clone(),
-            file_name: f.file_name.clone(),
+/// The shareable report of a watch whose fonts `reports` describes (one per font of `fonts`,
+/// in order). Built only from allowlisted fields (`report`).
+#[allow(clippy::too_many_arguments)]
+fn report_of(
+    device: &GarminDevice,
+    fonts: &FontSet,
+    hosts: &HostChoice,
+    packs: &[PackReport],
+    tested: TestStatus,
+    state: GeorgianState,
+    reports: &[FontReport],
+    connection: Connection,
+    extdata_listing: Option<Vec<ListedFile>>,
+) -> WatchReport {
+    let parts = fonts
+        .fonts()
+        .zip(reports)
+        .filter(|(_, r)| r.listed)
+        .map(|((pack, font), r)| ReportedPart {
+            part: r.part.clone(),
+            target: r.target,
+            file: r.file,
+            tested: part_tested(pack, &font.part, device),
+            mark: r.mark.clone(),
         })
         .collect();
-    let title = format!(
-        "Watch report: {} ({}), software {}",
-        md(&device.description),
-        md(&device.part_number),
-        md(&device.software_version)
-    );
-    let mut text = String::from(
-        "<!-- Shared from Georgian for Garmin. It lists no unit ID or serial number. -->\n\n## Watch\n\n",
-    );
-    let packs: Vec<String> = packs.iter().map(|p| p.id.clone()).collect();
-    let pack_line = if packs.is_empty() {
-        "none of this build's packs".into()
-    } else {
-        format!("{} ({})", md(&packs.join(", ")), tested.words())
+    report::watch_report(
+        device,
+        ReportInput {
+            connection,
+            packs: packs.iter().map(|p| p.id.clone()).collect(),
+            tested,
+            state,
+            hosts: ReportedHosts {
+                kind: hosts.kind,
+                reason: hosts.reason.clone(),
+            },
+            parts,
+            test_marks: fonts.test_marks(),
+            extdata_listing,
+        },
+    )
+}
+
+/// What the file named for `font` holds, by the one rule in [`FileState`]: `files` is the
+/// `ExtData` listing (`None` when it wasn't found or read) and `contents` the files read.
+fn file_state(
+    font: &Font,
+    device: &GarminDevice,
+    files: Option<&[Object]>,
+    contents: &HashMap<u32, Vec<u8>>,
+) -> FileState {
+    let Some(files) = files else {
+        return FileState::Unknown;
     };
-    for (label, value) in [
-        ("Model", md(&device.description)),
-        ("Model part number", md(&device.part_number)),
-        ("Software version", md(&device.software_version)),
-        ("Georgian for Garmin", md(APP_VERSION)),
-        ("Font packs", pack_line),
-    ] {
-        writeln!(text, "- {label}: {value}").unwrap();
-    }
-    text.push_str("\n## Fonts the watch lists in Garmin/ExtData\n\n");
-    if extdata_files.is_empty() {
-        text.push_str("None.\n");
-    } else {
-        text.push_str("| Part number | Version | File name |\n| --- | --- | --- |\n");
-        for f in &extdata_files {
-            writeln!(
-                text,
-                "| {} | {} | {} |",
-                md(&f.part_number),
-                md(f.version.as_deref().unwrap_or("")),
-                md(&f.file_name)
-            )
-            .unwrap();
+    let name = font.file_name();
+    let found: Vec<&Object> = files
+        .iter()
+        .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
+        .collect();
+    match found.as_slice() {
+        [] if font.kind == Kind::Truetype && device.declares_extdata_part(&font.part) => {
+            FileState::NotVisible
         }
+        [] => FileState::None,
+        [one] => match contents.get(&one.handle).map(|bytes| font.identify(bytes)) {
+            Some(Content::Georgian) => FileState::Georgian,
+            Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
+            Some(Content::Stock) => FileState::Stock,
+            Some(Content::Other) | None => FileState::Other,
+        },
+        _ => FileState::Other,
     }
-    text.push_str(
-        "\n## Result\n\n<!-- If you installed Georgian: after unplugging and restarting the watch, did \
-         a notification with მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ show letters instead of boxes? -->\n",
-    );
-    WatchReport {
-        app_version: APP_VERSION.into(),
-        model: device.description.clone(),
-        model_part: device.part_number.clone(),
-        software_version: device.software_version.clone(),
-        packs,
-        tested,
-        extdata_files,
-        title,
-        text,
+}
+
+/// `inspect`'s `hosts`: the choice `FontSet::hosts` made, in words.
+fn host_choice(hosts: &Hosts<'_>) -> HostChoice {
+    let skipped_parts: Vec<String> = hosts.skipped.iter().map(|f| f.part.clone()).collect();
+    let restore_only_parts: Vec<String> =
+        hosts.restore_only.iter().map(|f| f.part.clone()).collect();
+    let mut reason = match hosts.kind {
+        Some(Kind::Bitmap) if skipped_parts.is_empty() => {
+            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
+             those."
+                .to_owned()
+        }
+        Some(Kind::Bitmap) => format!(
+            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
+             those, as before TrueType support; its TrueType fonts {} stay Garmin's. TrueType \
+             fonts get Georgian only on watches that list none of this build's bitmap fonts.",
+            and_list(&skipped_parts)
+        ),
+        Some(Kind::Truetype) => "This watch lists none of this build's bitmap fonts, so Georgian \
+                                 goes into the TrueType fonts it lists."
+            .to_owned(),
+        None => "This watch lists none of the fonts this build adds Georgian to.".to_owned(),
+    };
+    if !restore_only_parts.is_empty() {
+        reason.push_str(&format!(
+            " Its fonts {} didn't show Georgian on a watch, so this build only restores \
+             Garmin's originals there.",
+            and_list(&restore_only_parts)
+        ));
     }
+    HostChoice {
+        kind: hosts.kind,
+        reason,
+        skipped_parts,
+        restore_only_parts,
+    }
+}
+
+/// Whether `font` is among `hosts`' parts.
+fn chosen(hosts: &Hosts<'_>, font: &Font) -> bool {
+    hosts
+        .listed
+        .iter()
+        .any(|l| l.fonts.iter().any(|f| f.part == font.part))
 }
 
 pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Error> {
     let writable = missing_write_operations(dev)?.is_empty();
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
-    let listed = fonts.listed(&device);
+    let hosts = fonts.hosts(&device);
+    let restore = fonts.restore_hosts(&device);
+    // Read only the files that may be this build's: named for one of its parts, with the size
+    // of that part's stock, Georgian or earlier Georgian build. Everything else (multi-megabyte
+    // Chinese fonts on TrueType watches) is listed without being transferred; the app polls
+    // inspect.
+    let mut contents: HashMap<u32, Vec<u8>> = HashMap::new();
+    for o in layout.extdata.iter().flat_map(|ext| &ext.files) {
+        let size = o.info.compressed_size as usize;
+        let ours = fonts.fonts().any(|(_, f)| {
+            o.info.filename.eq_ignore_ascii_case(&f.file_name()) && f.known_size(size)
+        });
+        if ours {
+            contents.insert(o.handle, dev.get_object(o.handle)?);
+        }
+    }
+    let files = layout.extdata.as_ref().map(|ext| ext.files.as_slice());
     let mut reports = Vec::new();
     for (pack, font) in fonts.fonts() {
-        let staged = match layout.extdata.as_ref().map(|ext| staged_in(ext, font)) {
-            None => Staged::Unknown,
-            Some(found) => match found.as_slice() {
-                [] => Staged::None,
-                [one] => {
-                    let size = one.info.compressed_size as usize;
-                    if size != font.georgian.len() && size != font.stock.len() {
-                        Staged::Other
-                    } else {
-                        let bytes = dev.get_object(one.handle)?;
-                        if bytes == *font.georgian {
-                            Staged::Georgian
-                        } else if bytes == *font.stock {
-                            Staged::Stock
-                        } else {
-                            Staged::Other
-                        }
-                    }
-                }
-                _ => Staged::Other,
-            },
-        };
-        let listed = device.declares_extdata_part(&font.part);
         reports.push(FontReport {
             pack: pack.id.clone(),
             part: font.part.clone(),
+            kind: font.kind,
             size_px: font.size_px,
-            listed,
-            target: writable && listed,
-            staged,
+            listed: device.declares_extdata_part(&font.part),
+            target: writable && chosen(&hosts, font),
+            restore: writable && chosen(&restore, font),
+            file: file_state(font, &device, files, &contents),
+            mark: font.mark.as_ref().map(|m| m.variant.clone()),
         });
     }
-    let extdata = match layout.extdata {
-        None => None,
-        Some(ext) => {
-            let mut files = Vec::new();
-            for o in ext.files {
-                let sha256 = sha256_hex(&dev.get_object(o.handle)?);
-                files.push(StagedFile {
-                    name: o.info.filename,
-                    handle: hex_handle(o.handle),
-                    bytes: o.info.compressed_size,
-                    sha256,
-                });
-            }
-            Some(ExtDataReport {
-                handle: hex_handle(ext.handle),
-                storage_id: hex_handle(layout.storage),
-                listed_under_garmin: ext.listed_under_garmin,
-                found_by: ext.found_by,
-                files,
+    let extdata = layout.extdata.map(|ext| ExtDataReport {
+        handle: hex_handle(ext.handle),
+        storage_id: hex_handle(layout.storage),
+        listed_under_garmin: ext.listed_under_garmin,
+        found_by: ext.found_by,
+        files: ext
+            .files
+            .into_iter()
+            .map(|o| StagedFile {
+                sha256: contents.get(&o.handle).map(|bytes| sha256_hex(bytes)),
+                name: o.info.filename,
+                handle: hex_handle(o.handle),
+                bytes: o.info.compressed_size,
             })
-        }
-    };
-    let packs = pack_reports(&listed, &device);
-    let tested = test_report(&listed, &packs, &device);
-    let report = watch_report(&device, &packs, tested.status);
+            .collect(),
+    });
+    let packs = pack_reports(&hosts.listed, &device);
+    let tested = test_report(&hosts.listed, &packs, &device);
+    let targets: Vec<FileState> = reports
+        .iter()
+        .filter(|r| r.target)
+        .map(|r| r.file)
+        .collect();
+    let state = georgian_state(hosts.kind, &targets);
+    let restorable = writable && !restore.listed.is_empty();
+    let hosts = host_choice(&hosts);
+    let listing = extdata.as_ref().map(|ext| {
+        ext.files
+            .iter()
+            .map(|f| ListedFile {
+                name: f.name.clone(),
+                bytes: f.bytes.into(),
+                sha256: f.sha256.clone(),
+            })
+            .collect()
+    });
+    let report = report_of(
+        &device,
+        fonts,
+        &hosts,
+        &packs,
+        tested.status,
+        state,
+        &reports,
+        Connection::Mtp,
+        listing,
+    );
     Ok(InspectOutput {
         supported: writable && !packs.is_empty(),
+        restorable,
+        state,
         tested,
+        hosts,
         packs,
         fonts: reports,
         extdata,
@@ -726,6 +947,54 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             part_number: device.part_number,
             software_version: device.software_version,
         },
+    })
+}
+
+/// Reads a watch that connects as a USB drive: the volume at `path`, or the one mounted.
+pub fn inspect_drive(
+    path: Option<&std::path::Path>,
+    fonts: &FontSet,
+) -> Result<InspectDriveOutput, Error> {
+    let root = drive::locate(path)?;
+    let (device, listing) = drive::read(&root)?;
+    let hosts = fonts.hosts(&device);
+    let reports: Vec<FontReport> = fonts
+        .fonts()
+        .map(|(pack, font)| FontReport {
+            pack: pack.id.clone(),
+            part: font.part.clone(),
+            kind: font.kind,
+            size_px: font.size_px,
+            listed: device.declares_extdata_part(&font.part),
+            target: false,
+            restore: false,
+            file: FileState::Unknown,
+            mark: font.mark.as_ref().map(|m| m.variant.clone()),
+        })
+        .collect();
+    let packs = pack_reports(&hosts.listed, &device);
+    let tested = test_report(&hosts.listed, &packs, &device);
+    let hosts = host_choice(&hosts);
+    let report = report_of(
+        &device,
+        fonts,
+        &hosts,
+        &packs,
+        tested.status,
+        GeorgianState::Unknown,
+        &reports,
+        Connection::UsbDrive,
+        listing,
+    );
+    Ok(InspectDriveOutput {
+        path: root.display().to_string(),
+        device: DeviceReport {
+            model: device.description,
+            part_number: device.part_number,
+            software_version: device.software_version,
+        },
+        hosts,
+        report,
     })
 }
 
@@ -747,8 +1016,25 @@ fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
     Error::new(cause.code, message)
 }
 
+/// The objects in `parent` named `name` (case-insensitively), from a fresh listing.
+fn named_objects(
+    dev: &mut dyn Mtp,
+    storage: u32,
+    parent: u32,
+    name: &str,
+) -> Result<Vec<u32>, MtpError> {
+    let mut found = Vec::new();
+    for handle in dev.object_handles(storage, parent)? {
+        if dev.object_info(handle)?.filename.eq_ignore_ascii_case(name) {
+            found.push(handle);
+        }
+    }
+    Ok(found)
+}
+
 /// After creating an object failed unconfirmed: the watch may still have created it. ExtData
-/// held nothing under `name` before, so an object there now is this run's and is deleted.
+/// held nothing under `name` before (callers check, or delete the old file first), so an
+/// object there now is this run's and is deleted.
 fn discard_unconfirmed(
     dev: &mut dyn Mtp,
     storage: u32,
@@ -757,22 +1043,16 @@ fn discard_unconfirmed(
     path: &str,
     cause: Error,
 ) -> Error {
-    let mut created = Vec::new();
-    let listing = dev.object_handles(storage, parent).and_then(|handles| {
-        for handle in handles {
-            if dev.object_info(handle)?.filename.eq_ignore_ascii_case(name) {
-                created.push(handle);
-            }
+    let created = match named_objects(dev, storage, parent, name) {
+        Ok(created) => created,
+        Err(e) => {
+            let message = format!(
+                "{}. Whether the watch created {path} is unknown: listing ExtData failed ({e}).",
+                cause.message
+            );
+            return Error::new(cause.code, message);
         }
-        Ok(())
-    });
-    if let Err(e) = listing {
-        let message = format!(
-            "{}. Whether the watch created {path} is unknown: listing ExtData failed ({e}).",
-            cause.message
-        );
-        return Error::new(cause.code, message);
-    }
+    };
     if created.is_empty() {
         let message = format!("{}. No object was created.", cause.message);
         return Error::new(cause.code, message);
@@ -782,8 +1062,8 @@ fn discard_unconfirmed(
         .fold(cause, |cause, handle| discard(dev, handle, path, cause))
 }
 
-/// Writes `bytes` as `font`'s staged file in `ExtData` and reads it back. On failure the new
-/// object is deleted and the error says how that went.
+/// Writes `bytes` as `font`'s file in `ExtData`, which holds none under that name, and reads it
+/// back. On failure the new object is deleted and the error says how that went.
 fn write_verified(
     dev: &mut dyn Mtp,
     storage: u32,
@@ -791,7 +1071,7 @@ fn write_verified(
     font: &Font,
     bytes: &[u8],
 ) -> Result<u32, Error> {
-    let name = font.staged_name();
+    let name = font.file_name();
     let path = staged_path(font);
     let size = u32::try_from(bytes.len()).map_err(|_| {
         Error::new(
@@ -846,35 +1126,184 @@ fn write_verified(
     }
 }
 
-/// After a part failed: deletes every object this run created before it, and adds each
-/// result to `cause`. Files staged by earlier runs were never in `created`.
-fn roll_back(dev: &mut dyn Mtp, created: &[(u32, String)], cause: Error) -> Error {
-    if created.is_empty() {
+/// A change a failed call undoes.
+enum Undo<'a> {
+    /// A bitmap part's `.tmp` this call created: deleted.
+    Created { handle: u32, path: String },
+    /// A TrueType part's `.bin` this call set out to replace: `original` (read from the watch
+    /// before anything was written; `None` where it showed no file) is put back.
+    Replaced {
+        font: &'a Font,
+        original: Option<Vec<u8>>,
+    },
+}
+
+/// Puts `font`'s TrueType file back as it was before this call: `original`, or no file. A single
+/// file already holding `original` is left alone; anything else under the name is deleted
+/// first, and `original` is written and read back. Returns what happened, for the error.
+fn restore_original(
+    dev: &mut dyn Mtp,
+    storage: u32,
+    ext: &ExtData,
+    font: &Font,
+    original: Option<&[u8]>,
+) -> String {
+    let path = staged_path(font);
+    let current = match named_objects(dev, storage, ext.handle, &font.file_name()) {
+        Ok(current) => current,
+        Err(e) => {
+            return format!(
+                "whether {path} holds its original is unknown (listing ExtData failed: {e})"
+            );
+        }
+    };
+    if let (Some(original), [one]) = (original, current.as_slice())
+        && dev.get_object(*one).is_ok_and(|bytes| bytes == original)
+    {
+        return format!("{path} still holds the original");
+    }
+    let removed = !current.is_empty();
+    for handle in current {
+        if let Err(e) = dev.delete_object(handle) {
+            return format!(
+                "{path} ({}) could not be deleted ({e}), so its original was not written back",
+                hex_handle(handle)
+            );
+        }
+    }
+    match original {
+        None if removed => format!("{path} removed; the watch showed none before"),
+        None => format!("{path} not left behind; the watch showed none before"),
+        Some(original) => match write_verified(dev, storage, ext, font, original) {
+            Ok(handle) => format!(
+                "{path} written back from the original and verified ({})",
+                hex_handle(handle)
+            ),
+            Err(e) => format!("{path} could not be written back: {}", e.message),
+        },
+    }
+}
+
+/// After a part failed: undoes this run's changes, in order, and adds each result to `cause`.
+/// Files staged by earlier runs were never changed.
+fn roll_back(
+    dev: &mut dyn Mtp,
+    storage: u32,
+    ext: &ExtData,
+    undo: &[Undo<'_>],
+    cause: Error,
+) -> Error {
+    if undo.is_empty() {
         return cause;
     }
-    let results: Vec<String> = created
-        .iter()
-        .map(|(handle, path)| match dev.delete_object(*handle) {
-            Ok(()) => format!("{path} ({}) deleted", hex_handle(*handle)),
-            Err(e) => format!(
-                "{path} ({}) could not be deleted ({e})",
-                hex_handle(*handle)
-            ),
-        })
-        .collect();
+    let (mut created, mut replaced) = (false, false);
+    let mut results = Vec::with_capacity(undo.len());
+    for step in undo {
+        results.push(match step {
+            Undo::Created { handle, path } => {
+                created = true;
+                match dev.delete_object(*handle) {
+                    Ok(()) => format!("{path} ({}) deleted", hex_handle(*handle)),
+                    Err(e) => format!(
+                        "{path} ({}) could not be deleted ({e})",
+                        hex_handle(*handle)
+                    ),
+                }
+            }
+            Undo::Replaced { font, original } => {
+                replaced = true;
+                restore_original(dev, storage, ext, font, original.as_deref())
+            }
+        });
+    }
+    let what = if replaced {
+        "Rolled back this run's changes"
+    } else {
+        "Rolled back the files this run had staged"
+    };
+    let tail = if created {
+        " Files staged before this run were left in place."
+    } else {
+        ""
+    };
     Error::new(
         cause.code,
-        format!(
-            "{} Rolled back the files this run had staged: {}. Files staged before this run were \
-             left in place.",
-            cause.message,
-            results.join("; ")
-        ),
+        format!("{} {what}: {}.{tail}", cause.message, results.join("; ")),
     )
 }
 
+/// What a target needs, decided before anything is written.
+enum Plan {
+    /// The identical file is already there.
+    Already(u32),
+    /// A bitmap part: stage a new `<part>.tmp`.
+    Stage,
+    /// A TrueType part: delete `existing` (if the watch shows a file) and write the new one;
+    /// `original` is the deleted file's bytes, for rollback.
+    Replace {
+        existing: Option<u32>,
+        original: Option<Vec<u8>>,
+    },
+}
+
+/// Decides `font`'s Plan from what `ExtData` holds under its name, or `None` for a conflict: a
+/// different staged `.tmp`, more than one file, or a file [`replaceable`] refuses.
+fn plan(
+    dev: &mut dyn Mtp,
+    ext: &ExtData,
+    font: &Font,
+    variant: Variant,
+) -> Result<Option<Plan>, Error> {
+    let bytes = variant.bytes(font);
+    Ok(match staged_in(ext, font).as_slice() {
+        [] => Some(match font.kind {
+            Kind::Bitmap => Plan::Stage,
+            Kind::Truetype => Plan::Replace {
+                existing: None,
+                original: None,
+            },
+        }),
+        [one] if font.known_size(one.info.compressed_size as usize) => {
+            let current = dev.get_object(one.handle)?;
+            if current == bytes {
+                Some(Plan::Already(one.handle))
+            } else if replaceable(font, variant, &current) {
+                Some(Plan::Replace {
+                    existing: Some(one.handle),
+                    original: Some(current),
+                })
+            } else {
+                None
+            }
+        }
+        _ => None,
+    })
+}
+
+/// Whether writing `variant` may replace `current`, the file under `font`'s name: a Georgian
+/// build an earlier release installed, always (a beta tester upgrading or restoring); for a
+/// TrueType part, also the other variant. A different bitmap `.tmp` waiting to be imported is
+/// never replaced.
+fn replaceable(font: &Font, variant: Variant, current: &[u8]) -> bool {
+    match font.identify(current) {
+        Content::EarlierGeorgian => true,
+        Content::Stock => font.kind == Kind::Truetype && variant == Variant::Georgian,
+        Content::Georgian => font.kind == Kind::Truetype && variant == Variant::Stock,
+        Content::Other => false,
+    }
+}
+
+/// "a, b and c" from a list of names.
+fn and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
 /// Stages `variant` of every part of this build's packs that the watch lists, across all packs,
-/// or of `parts`.
+/// or of `parts`: a bitmap part as a new `<part>.tmp`, a TrueType part over `<part>.bin`.
 pub fn stage(
     dev: &mut dyn Mtp,
     fonts: &FontSet,
@@ -894,21 +1323,58 @@ pub fn stage(
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
     let watch = format!("{} ({})", device.description, device.part_number);
-    let listed = fonts.listed(&device);
-    if listed.is_empty() {
+    // Restore also covers restore-only packs, so an earlier release's Georgian can go back.
+    let hosts = match variant {
+        Variant::Georgian => fonts.hosts(&device),
+        Variant::Stock => fonts.restore_hosts(&device),
+    };
+    if let Some(part) = parts
+        .into_iter()
+        .flatten()
+        .find(|&p| hosts.restore_only.iter().any(|f| &f.part == p))
+    {
         return Err(Error::new(
             ErrorCode::UnsupportedDevice,
             format!(
-                "{watch} lists none of this build's font packs under {}; nothing was written.",
-                garmin_device::EXTDATA_PATH
+                "This build only restores part {part}: Georgian in it didn't show on a watch. \
+                 Nothing was written."
             ),
         ));
+    }
+    let listed = hosts.listed;
+    if listed.is_empty() {
+        let message = if hosts.restore_only.is_empty() {
+            format!(
+                "{watch} lists none of this build's font packs under {}; nothing was written.",
+                garmin_device::EXTDATA_PATH
+            )
+        } else {
+            let parts: Vec<String> = hosts.restore_only.iter().map(|f| f.part.clone()).collect();
+            format!(
+                "{watch} lists only fonts this build no longer adds Georgian to ({}), because \
+                 Georgian in them didn't show on a watch; nothing was written.",
+                and_list(&parts)
+            )
+        };
+        return Err(Error::new(ErrorCode::UnsupportedDevice, message));
     }
     let mut targets: Vec<(&Pack, &Font)> = listed
         .iter()
         .flat_map(|l| l.fonts.iter().map(move |&f| (l.pack, f)))
         .collect();
     if let Some(parts) = parts {
+        if let Some(part) = parts
+            .iter()
+            .find(|&p| hosts.skipped.iter().any(|f| &f.part == p))
+        {
+            return Err(Error::new(
+                ErrorCode::UnsupportedDevice,
+                format!(
+                    "{watch} gets Georgian in its bitmap fonts, so this build leaves its TrueType \
+                     part {part} alone. Nothing was written."
+                ),
+            ));
+        }
         if let Some(part) = parts
             .iter()
             .find(|&p| !targets.iter().any(|(_, f)| &f.part == p))
@@ -925,6 +1391,44 @@ pub fn stage(
         }
         targets.retain(|(_, f)| parts.contains(&f.part));
     }
+
+    // A TrueType file is replaced only where the watch lists the version and file name this
+    // build's original has: another version may be a newer Garmin font. Version 0.01 is what
+    // a watch declares for this program's earlier Georgian builds, which lacked the 16-byte
+    // trailer that carries Garmin's version (fonts/README.md, TrueType); those are replaced.
+    let mismatched: Vec<String> = targets
+        .iter()
+        .filter(|(_, f)| f.kind == Kind::Truetype)
+        .filter_map(|(_, font)| {
+            let declared = device
+                .extdata_files()
+                .find(|d| d.part_number == font.part)?;
+            let version = declared.version.as_deref();
+            let same = (version == Some(font.version.as_str())
+                || version == Some(TRAILERLESS_VERSION))
+                && declared.file_name.eq_ignore_ascii_case(&font.file_name());
+            (!same).then(|| {
+                format!(
+                    "{} as version {} ({}), where this build has version {} ({})",
+                    font.part,
+                    md(declared.version.as_deref().unwrap_or("unknown")),
+                    md(&declared.file_name),
+                    font.version,
+                    font.file_name()
+                )
+            })
+        })
+        .collect();
+    if !mismatched.is_empty() {
+        return Err(Error::new(
+            ErrorCode::UnsupportedDevice,
+            format!(
+                "{watch} lists {}. Nothing was written.",
+                and_list(&mismatched)
+            ),
+        ));
+    }
+
     let ext = layout.extdata.as_ref().ok_or_else(|| {
         Error::new(
             ErrorCode::ExtdataNotFound,
@@ -933,51 +1437,80 @@ pub fn stage(
     })?;
 
     // Check every target before writing anything.
-    let mut already = Vec::with_capacity(targets.len());
-    let mut conflicts = Vec::new();
+    let mut plans = Vec::with_capacity(targets.len());
+    let (mut staged_conflicts, mut unknown) = (Vec::new(), Vec::new());
     for (_, font) in &targets {
-        let bytes = variant.bytes(font);
-        match staged_in(ext, font).as_slice() {
-            [] => already.push(None),
-            [one]
-                if one.info.compressed_size as usize == bytes.len()
-                    && dev.get_object(one.handle)? == bytes =>
-            {
-                already.push(Some(one.handle));
-            }
-            _ => conflicts.push(staged_path(font)),
+        match plan(dev, ext, font, variant)? {
+            Some(plan) => plans.push(plan),
+            None if font.kind == Kind::Bitmap => staged_conflicts.push(staged_path(font)),
+            None => unknown.push(staged_path(font)),
         }
     }
-    if !conflicts.is_empty() {
-        return Err(Error::new(
-            ErrorCode::Conflict,
-            format!(
+    if !staged_conflicts.is_empty() || !unknown.is_empty() {
+        let mut sentences = Vec::new();
+        if !staged_conflicts.is_empty() {
+            sentences.push(format!(
                 "A different file is already staged as {}; nothing was written. Unplug the watch \
                  and restart it so it loads that file, then try again.",
-                conflicts.join(", ")
-            ),
-        ));
+                staged_conflicts.join(", ")
+            ));
+        }
+        if !unknown.is_empty() {
+            sentences.push(format!(
+                "{} {} neither Garmin's original font nor a Georgian build of this program; \
+                 this build replaces only those, so nothing was written.",
+                and_list(&unknown),
+                if unknown.len() == 1 { "holds" } else { "hold" }
+            ));
+        }
+        return Err(Error::new(ErrorCode::Conflict, sentences.join(" ")));
     }
 
-    let mut created: Vec<(u32, String)> = Vec::new();
+    let storage = layout.storage;
+    let mut undo: Vec<Undo<'_>> = Vec::new();
     let mut packs: Vec<StagedPack> = Vec::new();
-    for ((pack, font), already) in targets.into_iter().zip(already) {
+    for ((pack, font), plan) in targets.into_iter().zip(plans) {
         let bytes = variant.bytes(font);
         let path = staged_path(font);
-        let (status, handle) = match already {
-            Some(handle) => (StageStatus::AlreadyStaged, handle),
-            None => match write_verified(dev, layout.storage, ext, font, bytes) {
+        let (status, handle) = match plan {
+            Plan::Already(handle) => (StageStatus::AlreadyStaged, handle),
+            Plan::Stage => match write_verified(dev, storage, ext, font, bytes) {
                 Ok(handle) => {
-                    created.push((handle, path.clone()));
+                    undo.push(Undo::Created {
+                        handle,
+                        path: path.clone(),
+                    });
                     (StageStatus::StagedVerified, handle)
                 }
-                Err(e) => return Err(roll_back(dev, &created, e)),
+                Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
             },
+            Plan::Replace { existing, original } => {
+                undo.push(Undo::Replaced { font, original });
+                let deleted = match existing {
+                    None => Ok(()),
+                    Some(old) => dev.delete_object(old).map_err(|e| {
+                        let e = Error::from(e);
+                        Error::new(
+                            e.code,
+                            format!(
+                                "Could not delete {path} ({}) to replace it: {}.",
+                                hex_handle(old),
+                                e.message
+                            ),
+                        )
+                    }),
+                };
+                match deleted.and_then(|()| write_verified(dev, storage, ext, font, bytes)) {
+                    Ok(handle) => (StageStatus::StagedVerified, handle),
+                    Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
+                }
+            }
         };
         if packs.last().is_none_or(|p| p.id != pack.id) {
             packs.push(StagedPack {
                 id: pack.id.clone(),
                 name: pack.name.clone(),
+                kind: pack.kind,
                 weight: pack.weight,
                 parts: Vec::new(),
             });
@@ -996,7 +1529,7 @@ pub fn stage(
                 sha256: sha256_hex(bytes),
             });
     }
-    let status = if created.is_empty() {
+    let status = if undo.is_empty() {
         StageStatus::AlreadyStaged
     } else {
         StageStatus::StagedVerified

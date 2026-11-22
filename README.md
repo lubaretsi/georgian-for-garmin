@@ -51,15 +51,22 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 | tactix 7 | 27.18 | Tested: Georgian in notifications |
 | Venu 2 Plus | 19.05 | Tested by a user: Georgian in notifications ([#4](https://github.com/lubaretsi/georgian-for-garmin/issues/4)) |
 | fenix 7 Pro Solar, Pro Sapphire Solar | 26.09 | Tested by users: Georgian in pop-ups, the notification list, opened notifications and incoming calls ([#11](https://github.com/lubaretsi/georgian-for-garmin/issues/11), [#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)) |
+| Forerunner 165 | 29.52 | Tested by a user with the TrueType fonts (0.3.0 beta): Georgian in pop-ups, the notification list and opened notifications ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5)) |
 
 It works with notifications from Android phones and from iPhones: on an iPhone-paired fenix 7 Pro,
 a WhatsApp message and an incoming call both showed Georgian ([#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)).
 
 The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
 font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian
-Bold. Other models and software versions are untested until someone confirms
-them. If yours isn't listed, use **Share my watch's font list** in the app (or
-`georgian-for-garmin inspect --report`) to open an issue, and say whether Georgian appeared.
+Bold. Other models and software versions are untested until someone confirms them. Reporting
+takes a minute and only a GitHub account: after installing, click **Check on the watch**, answer
+what you saw, and **Share on GitHub** opens the issue form already filled in
+([Reporting](docs/reporting.md)).
+
+Watches without Garmin's Armenian bitmap fonts get Georgian in their TrueType Armenian or Hebrew
+fonts (Noto Sans Armenian, Noto Sans Hebrew) instead; the Forerunner 165 is the first confirmed
+one. On the fenix 6 and Instinct 3 family (Swiss 721 Hebrew) it hasn't worked yet, so the stable
+app doesn't install there; beta builds retest it ([How it works](docs/how-it-works.md#truetype-fonts)).
 
 ## Install
 
@@ -86,7 +93,9 @@ Then:
    choose MTP. On Linux, [release it from GNOME or KDE](docs/command-line.md#linux) first.
 2. Click **Install Georgian** (**ქართულის დაყენება**).
 3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-4. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
+   If you still see boxes, restart the watch once more.
+4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan its code with your phone
+   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`.
 
 To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
 

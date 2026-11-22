@@ -1,12 +1,12 @@
 use std::fmt;
 
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::mtp::MtpError;
 
 /// Stable, machine-readable error codes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     /// The input does not match the operation's schema.
@@ -19,8 +19,9 @@ pub enum ErrorCode {
     DeviceBusy,
     /// This user may not open the watch's USB device (on Linux: no udev rule).
     PermissionDenied,
-    /// The watch lists none of this build's font packs or not a requested size, or lacks a
-    /// needed MTP operation.
+    /// The watch lists none of this build's font packs or not a requested part, lists a
+    /// TrueType part at another version or file name than this build's, or lacks a needed MTP
+    /// operation.
     UnsupportedDevice,
     /// This build does not bundle the requested font size.
     FontUnavailable,
@@ -28,9 +29,11 @@ pub enum ErrorCode {
     GarminFolderNotFound,
     /// The hidden `GARMIN/ExtData` staging folder could not be located.
     ExtdataNotFound,
-    /// A different file is already staged under the target name; nothing was written.
+    /// A different `.tmp` is already staged under the target name, or a `.bin` is neither
+    /// Garmin's original nor this build's Georgian font; nothing was written.
     Conflict,
-    /// The staged file read back differently and was deleted.
+    /// A written file read back differently and was deleted (a replaced `.bin` was written
+    /// back).
     VerificationFailed,
     /// An MTP operation or USB transfer failed.
     DeviceError,

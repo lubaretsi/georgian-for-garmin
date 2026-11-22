@@ -65,9 +65,11 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | Command | What it does |
 |---|---|
 | `inspect` | Shows the model, software version, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
-| `inspect --report` | Prints the watch's font list as Markdown for a GitHub issue: model, part number, software and font files. No serial number or unit ID. |
+| `inspect --report` | Prints the watch report the app shares in a GitHub issue: model, part number, software, the font files the watch declares and holds, what this build would install, the app version and OS ([Reporting](reporting.md)). No serial number or unit ID. |
 | `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
 | `restore-stock` | The same with Garmin's original fonts. |
+| `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
+| `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …}` (`report` as `inspect --report --json` prints it). Touches nothing. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
@@ -91,21 +93,45 @@ Running `install` again after it succeeded changes nothing and reports `already_
 `inspect --json` returns:
 
 - `device`: `model`, `part_number`, `software_version`;
-- `supported`: the watch lists a bundled part and accepts the needed MTP writes;
+- `supported`: the watch lists a bundled part this build installs and accepts the needed MTP
+  writes; `restorable`: `restore-stock` has parts to write, including packs this build only
+  restores (Swiss 721 Hebrew in stable builds);
+- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`,
+  `waiting` (bitmap, until the restart), `partly`, `beta` (an earlier release's build),
+  `not_installed`, `not_visible` (the watch doesn't show its `.bin` files), `stock_waiting`,
+  `other`, `unknown` or `unsupported`;
 - `tested`: `status` for the whole install and `verified_software`, the software versions this
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
-- `packs`: every bundled pack the watch lists, in registry order, with `id`, `name`, `weight` and
-  `parts`: the parts the watch lists, each with `size_px` and its own `tested` status;
-- `fonts`: one entry per part, with `size_px`, whether the watch lists it, and `staged` (what's
-  waiting in the folder: `none`, `georgian`, `stock`, `other`, or `unknown` without the folder);
-- `extdata`: the hidden folder's handle, how it was found, and the files in it with their SHA-256;
-- `report`: the same data as `--report`.
+- `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
+  bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
+  choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the
+  fenix 7 Pro's Hebrew TrueType fonts, for example) and `restore_only_parts` (parts of packs this
+  build only restores);
+- `packs`: every bundled pack of that kind the watch lists, in registry order, with `id`, `name`,
+  `kind`, `weight` and `parts`: the parts the watch lists, each with `size_px` (null for
+  TrueType parts, which scale) and its own `tested` status;
+- `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, whether
+  `install` writes it (`target`), whether `restore-stock` does (`restore`), and `file` (what the
+  part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType
+  parts: `none`, `georgian`, `georgian_beta`, `stock`, `other`, `not_visible` for a TrueType part
+  the watch declares but doesn't show, or `unknown` without the folder);
+- `extdata`: the hidden folder's handle, how it was found, and every file in it with its `name`,
+  `handle` and size in `bytes`. `sha256` is the file's SHA-256 only for a file named for a
+  bundled part with the size of its original or Georgian version; it is `null` for every other
+  file, which `inspect` doesn't read (watches with TrueType fonts keep files of several MB
+  there);
+- `fonts[].mark`: in beta builds, the test-mark variant (`A`, `B`, …) drawn into the part's
+  Georgian font ([Reporting](reporting.md#beta-test-marks)); null otherwise;
+- `report`: the watch report as an object (`--report --json` prints it): only allowlisted
+  fields, listed in [Reporting](reporting.md#whats-in-a-report), with `text`, what `--report`
+  prints.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
-`already_staged`) and `packs`: each pack written to, with its parts' paths on the watch, sizes in
-bytes, SHA-256s and statuses.
+`already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
+watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
+TrueType part replaces the watch's `<part>.bin`, and a failed run writes the original back.
 
 ## Exit codes and errors
 
@@ -117,9 +143,9 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
-| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part | Share `inspect --report` in an issue. |
-| `conflict` | A different file is already waiting on the watch; nothing was written | Unplug and restart the watch so it loads that file, then run again. |
-| `verification_failed` | A copied file read back differently; it was deleted | Run again. |
+| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or a TrueType part at another version than the bundled one | Share `inspect --report` in an issue. |
+| `conflict` | A different `.tmp` file is already waiting on the watch, or a `.bin` font is neither Garmin's original nor this build's; nothing was written | For a `.tmp`, unplug and restart the watch so it loads that file, then run again. For a `.bin`, share `inspect --report` in an issue. |
+| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |

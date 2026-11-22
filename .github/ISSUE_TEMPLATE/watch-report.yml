@@ -10,7 +10,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The Georgian for Garmin app (0.3.0-beta.2 and later) fills this in for you: after installing, click **Check on the watch**, answer its questions and click **Share on GitHub**. Then check the form and submit it. With an older version, click **Share my watch's font list** and paste the list into **Watch report**.
+        The Georgian for Garmin app (0.3.0 and later) fills this in for you: after installing, click **Check on the watch**, answer its questions and click **Share on GitHub**. Then check the form and submit it. With an older version, click **Share my watch's font list** and paste the list into **Watch report**.
 
         Without the app, run `georgian-for-garmin inspect --report` and paste its output into **Watch report**. Please never add the watch's unit ID or serial number.
 
@@ -22,6 +22,7 @@ body:
       options:
         - "Georgian letters"
         - "Boxes instead of letters"
+        - "Question marks (?) instead of letters"
         - "Some letters, some boxes"
         - "The notification didn't arrive"
         - "Georgian didn't install"

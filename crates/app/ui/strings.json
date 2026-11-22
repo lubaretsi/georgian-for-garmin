@@ -19,14 +19,30 @@
     "untestedBody": "ამ მოდელსა და ვერსიაზე ყველა შრიფტი ჯერ არ შეგვიმოწმებია: შეიძლება ქართული მაინც კვადრატებით გამოჩნდეს. ქარხნული შრიფტების დაბრუნებაც ამ მოდელზე შემოწმებული არ არის.",
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
-    "shareDone": "სია დაკოპირდა და ბრაუზერში GitHub-ის გვერდი გაიხსნა. გადახედეთ და გამოაქვეყნეთ.",
-    "sharePaste": "სია დაკოპირდა. ჩასვით ის ბრაუზერში გახსნილ GitHub-ის გვერდზე და გამოაქვეყნეთ.",
+    "shareDone": "ბრაუზერში GitHub-ის გვერდი გაიხსნა, ყველაფერი შევსებულია. გადახედეთ და გამოაქვეყნეთ.",
+    "sharePaste": "ტექსტი დაკოპირდა. ჩასვით ის ბრაუზერში გახსნილ GitHub-ის გვერდზე, „Watch report“ ველში, და გამოაქვეყნეთ.",
     "shareFailed": "სია ვერ გავაზიარეთ. სცადეთ თავიდან.",
-    "stagedNow": {
-      "georgian": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
-      "stock": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
-      "other": "საათზე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას. გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ."
+    "shareDemo": "დემო: ბრაუზერი არ გაიხსნება. ბმული: {url}",
+    "shareGithub": "GitHub-ზე გაზიარება",
+    "sharedSummary": "რა გაზიარდება",
+    "sharedWhat": "საათის მოდელი და ვერსია, მისი შრიფტის ფაილების სია, რას აყენებს მასზე პროგრამა და როგორ ჩაიარა, თქვენი პასუხები, თუ რამე მონიშნეთ, პროგრამის ვერსია და ოპერაციული სისტემა. სერიული ნომერი და საათის ID არ გაზიარდება. ზუსტად ეს ტექსტი:",
+    "sharePasteAhead": "ტექსტი ბმულში არ ეტევა: დაკოპირდება და GitHub-ის გვერდზე „Watch report“ ველში ჩასვამთ.",
+    "driveBody": "საათი კომპიუტერთან USB დისკად არის შეერთებული, ასე ქართულს ვერ დავაყენებთ. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP. ზოგ საათს მხოლოდ დისკის რეჟიმი აქვს.",
+    "driveShareWhy": "გაგვიზიარეთ ამ საათის შრიფტების სია GitHub-ზე, რომ მისთვისაც ვეძებოთ გზა. სიაში სერიული ნომერი არ არის.",
+    "state": {
+      "unsupported": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს.",
+      "not_installed": "ქართული ჯერ არ არის დაყენებული.",
+      "waiting": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "installed": "ქართული ამ საათზე უკვე დაყენებულია.",
+      "partly": "ქართული ზოგ შრიფტში უკვე არის. „ქართულის დაყენება“ დანარჩენებსაც დაამატებს.",
+      "beta": "საათზე ქართულის სატესტო ვერსიაა. „ქართულის დაყენება“ მას ახლით შეცვლის.",
+      "stock_waiting": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "not_visible": "ეს საათი შრიფტის ფაილებს კომპიუტერს არ აჩვენებს, ამიტომ ვერ ვხედავთ, დაყენებულია თუ არა ქართული. თუ შეტყობინებებში ქართული ჩანს, არაფერია გასაკეთებელი. თავიდან დაყენება არაფერს აფუჭებს.",
+      "other": "საათზე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას. გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ.",
+      "unknown": "საათზე შრიფტების საქაღალდე ვერ ვიპოვეთ, ამიტომ ვერ ვხედავთ, რა არის დაყენებული."
     },
+    "unknownFont": "საათზე ისეთი შრიფტის ფაილია, რომელსაც პროგრამა არ იცნობს, ამიტომ არაფერს შევცვლით. გაგვიზიარეთ საათის შრიფტების სია GitHub-ზე.",
+    "restoreOnly": "ამ საათის შრიფტებში ქართული შემოწმებისას არ გამოჩნდა, ამიტომ პროგრამა მას არ აყენებს. თუ ადრე სატესტო ვერსია დააყენეთ, „ქარხნული შრიფტის დაბრუნება“ Garmin-ის შრიფტებს დააბრუნებს.",
 
     "workingInstall": "ქართულ შრიფტს საათზე ვწერთ…",
     "workingRestore": "ქარხნულ შრიფტს საათზე ვწერთ…",
@@ -36,14 +52,45 @@
     "stagedFiles": "საათზე ჩაიწერა შრიფტის {count} ფაილი:",
     "stagedOneFile": "საათზე ჩაიწერა შრიფტის ერთი ფაილი:",
     "stagedPack": "{pack}: {sizes} px",
+    "stagedTrueTypePack": "{pack} (TrueType): {parts}",
     "unplugRestart": "გამოაერთეთ საათი და გადატვირთეთ: ზედა ღილაკს ხანგრძლივად დააჭირეთ, აირჩიეთ Power Off, მერე ისევ ჩართეთ.",
     "afterRestart": {
       "georgian": "გადატვირთვის შემდეგ შეტყობინებებში ქართული ასოები გამოჩნდება.",
       "stock": "გადატვირთვის შემდეგ საათზე ქარხნული შრიფტი დაბრუნდება."
     },
     "testLabel": "შესამოწმებლად ეს ტექსტი საკუთარ თავს გაუგზავნეთ:",
-    "testLine": "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ",
+    "testLine": "Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test",
+    "restartAgain": "თუ ისევ კვადრატებს ხედავთ, საათი კიდევ ერთხელ გადატვირთეთ.",
+    "checkOnWatch": "საათზე შემოწმება",
     "done": "კარგი",
+
+    "checkTitle": "შეამოწმეთ საათზე",
+    "checkScan": "საათის გადატვირთვის შემდეგ ეს კოდი ტელეფონით დაასკანერეთ და დააჭირეთ „სატესტო შეტყობინების გაგზავნას“.",
+    "checkOr": "ან ეს ტექსტი საკუთარ თავს გაუგზავნეთ:",
+    "askResult": "რა გამოჩნდა საათზე?",
+    "results": {
+      "georgian": "ქართული ასოები",
+      "boxes": "კვადრატები",
+      "question_marks": "კითხვის ნიშნები (?)",
+      "some_letters": "ზოგი ასო, ზოგი კვადრატი",
+      "no_notification": "შეტყობინება საათზე არ მოვიდა",
+      "not_installed": "ქართული ვერ დაყენდა"
+    },
+    "askViews": "სად გამოჩნდა ქართული?",
+    "views": {
+      "popup": "როცა შეტყობინება მოვიდა",
+      "list": "შეტყობინებების სიაში",
+      "opened": "გახსნილ შეტყობინებაში"
+    },
+    "askMarker": "რომელს ჰგავს საათზე ნანახი?",
+    "askMarkerHint": "ამ ბეტა ვერსიაში ერთ მთავრულ ასოს ხაზი აქვს, ყველა შრიფტის ფაილში სხვაგან. აირჩიეთ ის, რაც საათზე ნახეთ.",
+    "markerNone": "არცერთს",
+    "askPhone": "რა ტელეფონი გაქვთ?",
+    "phones": {
+      "android": "Android",
+      "iphone": "iPhone"
+    },
+    "reportProblem": "GitHub-ზე შეტყობინება",
 
     "errorTitle": "ვერ მოხერხდა",
     "details": "დეტალები",
@@ -85,14 +132,30 @@
     "untestedBody": "Not every font has been tried on this model and software yet: Georgian may still show as boxes, and restoring the original fonts hasn't been checked on this model either.",
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",
-    "shareDone": "Copied. A GitHub page opened in your browser; check it and post it.",
-    "sharePaste": "Copied. Paste it into the GitHub page that opened in your browser, then post it.",
+    "shareDone": "A GitHub page opened in your browser with everything filled in. Check it and post it.",
+    "sharePaste": "Copied. Paste it into the Watch report field on the GitHub page that opened, then post it.",
     "shareFailed": "The list couldn’t be shared. Try again.",
-    "stagedNow": {
-      "georgian": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
-      "stock": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
-      "other": "A different font file is waiting on this watch. Unplug the watch and restart it, then connect it again."
+    "shareDemo": "Demo: no browser opens. The link: {url}",
+    "shareGithub": "Share on GitHub",
+    "sharedSummary": "What’s shared",
+    "sharedWhat": "Your watch’s model and software, its list of font files, what the app installs on it and how that went, any answers you picked, and the app’s version and your operating system. No serial number or watch ID. Exactly this text:",
+    "sharePasteAhead": "This is too long for the link: it gets copied, and you paste it into the form’s Watch report field.",
+    "driveBody": "Your watch is connected as a USB drive, so Georgian can’t be installed. If the watch asks how to connect, choose MTP. Some watches only have drive mode.",
+    "driveShareWhy": "Share this watch’s font list on GitHub so we can look for a way for it too. The list has no serial number.",
+    "state": {
+      "unsupported": "There’s no font for this watch yet.",
+      "not_installed": "Georgian isn’t installed yet.",
+      "waiting": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
+      "installed": "Georgian is already installed on this watch.",
+      "partly": "Some fonts already have Georgian. Install Georgian adds the rest.",
+      "beta": "A test version of Georgian is on this watch. Install Georgian replaces it with this one.",
+      "stock_waiting": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
+      "not_visible": "This watch doesn’t show its font files to the computer, so the app can’t tell whether Georgian is installed. If notifications show Georgian, there’s nothing to do; installing again does no harm.",
+      "other": "A different font file is waiting on this watch. Unplug the watch and restart it, then connect it again.",
+      "unknown": "The watch’s font folder couldn’t be found, so the app can’t tell what’s installed."
     },
+    "unknownFont": "A font file on the watch isn’t one this app knows, so nothing can be changed. Please share the watch’s font list on GitHub.",
+    "restoreOnly": "Georgian didn’t show in this watch’s fonts in testing, so the app doesn’t install it. If you installed a test version earlier, Restore original font puts Garmin’s fonts back.",
 
     "workingInstall": "Copying the Georgian font to your watch…",
     "workingRestore": "Copying the original font to your watch…",
@@ -102,14 +165,45 @@
     "stagedFiles": "{count} font files are on the watch:",
     "stagedOneFile": "One font file is on the watch:",
     "stagedPack": "{pack}: {sizes} px",
+    "stagedTrueTypePack": "{pack} (TrueType): {parts}",
     "unplugRestart": "Unplug the watch, then restart it (hold the top button, Power Off, then turn it on).",
     "afterRestart": {
       "georgian": "Georgian notifications will show after the restart.",
       "stock": "The original font will be back after the restart."
     },
     "testLabel": "To check, send yourself this text:",
-    "testLine": "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ",
+    "testLine": "Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test",
+    "restartAgain": "If you still see boxes, restart the watch once more.",
+    "checkOnWatch": "Check on the watch",
     "done": "Done",
+
+    "checkTitle": "Check on the watch",
+    "checkScan": "Once the watch has restarted, scan this with your phone and tap Send test notification.",
+    "checkOr": "Or send yourself this text:",
+    "askResult": "What did the watch show?",
+    "results": {
+      "georgian": "Georgian letters",
+      "boxes": "Boxes",
+      "question_marks": "Question marks (?)",
+      "some_letters": "Some letters, some boxes",
+      "no_notification": "The notification didn’t arrive",
+      "not_installed": "Georgian didn’t install"
+    },
+    "askViews": "Where did Georgian show?",
+    "views": {
+      "popup": "Pop-up when it arrives",
+      "list": "Notification list",
+      "opened": "Opened notification"
+    },
+    "askMarker": "Which one matches your watch?",
+    "askMarkerHint": "In this beta, one capital letter has a bar, in a different place in each font file. Pick what your watch showed.",
+    "markerNone": "None of these",
+    "askPhone": "Your phone",
+    "phones": {
+      "android": "Android",
+      "iphone": "iPhone"
+    },
+    "reportProblem": "Report this on GitHub",
 
     "errorTitle": "That didn’t work",
     "details": "Details",

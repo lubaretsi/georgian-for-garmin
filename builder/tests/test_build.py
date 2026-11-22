@@ -86,7 +86,7 @@ def test_georgian_builds_match_pinned_bytes(assets, part):
 
 def test_clipped_pixels_match_pinned_list(assets):
     _, manifest = assets
-    assert {f["part"]: f["clipped"] for f in manifest["fonts"] if f["clipped"]} == CLIPPED
+    assert {f["part"]: f["clipped"] for f in manifest["fonts"] if f.get("clipped")} == CLIPPED
 
 
 def sizing_of(manifest, number):
@@ -134,7 +134,7 @@ def sizing_table(out, manifest):
         "| -------------- | ------- | ----------------- | ----------------- | ------------------ "
         "| ---------- | ------------------ | --------------- |",
     ]
-    for font in manifest["fonts"]:
+    for font in (f for f in manifest["fonts"] if "size_px" in f):
         cells = heights((out / font["georgian"]).read_bytes())
         x, caps, mkhedruli, mtavruli = (f"{value:.1f}" for value in cells)
         lines.append(
@@ -169,29 +169,40 @@ def test_georgian_build_adds_glyphs_and_preserves_stock(assets, stock, part):
         assert any(bitmap) and cmap[cp] != missing, f"U+{cp:04X}"
 
 
-def test_asset_directory_matches_contract(assets, inputs, stock):
+def test_asset_directory_matches_contract(assets, inputs, stock, truetype_stock):
     out, manifest = assets
     assert json.loads((out / "manifest.json").read_text()) == manifest
     assert [f["part"] for f in manifest["fonts"] if f["default"]] == [DEFAULT_PART]
+    stock_files = stock | truetype_stock
+    assert sorted(f["part"] for f in manifest["fonts"]) == sorted(stock_files)
     for font in manifest["fonts"]:
-        assert (out / font["stock"]).read_bytes() == stock[font["part"]]
+        suffix = ".fnt" if font["part"] in stock else ".bin"
+        assert (out / font["stock"]).read_bytes() == stock_files[font["part"]]
         for kind in ("stock", "georgian"):
             data = (out / font[kind]).read_bytes()
-            assert font[kind] == f"{kind}/{font['part']}.fnt"
+            assert font[kind] == f"{kind}/{font['part']}{suffix}"
             assert font[f"{kind}_sha256"] == hashlib.sha256(data).hexdigest()
+        if suffix == ".bin":
+            assert font["preview"] == f"previews/{font['part']}.png"
+            assert (out / font["preview"]).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+        else:
+            assert "preview" not in font
     assert (out / "LICENSES" / "OFL.txt").read_bytes() == inputs["license_file"].read_bytes()
 
 
 def manifest_view(entries):
-    """What the manifest must say about the registry `entries`."""
+    """What the manifest must say about the registry `entries`: per font, the fields it must
+    carry with their values (bitmap parts have a size, TrueType parts don't); per pack, all."""
     fonts = [
-        {"part": part["part"], "pack": pack["id"], "size_px": part["size_px"],
-         "stock_sha256": part["sha256"]}
+        {"part": part["part"], "pack": pack["id"], "version": part["version"],
+         "stock_sha256": part["sha256"], "earlier_georgian": part.get("earlier_georgian", [])}
+        | ({"size_px": part["size_px"]} if pack["kind"] == "bitmap" else {})
         for pack in entries["packs"]
         for part in pack["parts"]
     ]
     packs = [
-        {"id": pack["id"], "name": pack["name"], "weight": pack["weight"],
+        {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "weight": pack["weight"],
+         "install": pack.get("install", True) is True,
          "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]
@@ -201,7 +212,10 @@ def manifest_view(entries):
 def test_manifest_reflects_registry(assets):
     _, manifest = assets
     fonts, packs = manifest_view(ENTRIES)
-    assert [{key: font[key] for key in fonts[0]} for font in manifest["fonts"]] == fonts
+    assert [{key: font.get(key) for key in view} for font, view in zip(manifest["fonts"], fonts)] \
+        == fonts
+    assert len(manifest["fonts"]) == len(fonts)
+    assert not any("size_px" in font for font in manifest["fonts"][len(PART_IDS):])
     assert manifest["packs"] == packs
 
 

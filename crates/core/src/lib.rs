@@ -2,7 +2,9 @@
 //! and Linux, through Windows' built-in MTP driver on Windows.
 //!
 //! [`ops::call`] runs an operation from JSON input; [`connect`] opens the attached watch.
+//! [`report`] builds the shareable watch report, [`drive`] reads watches that mount as a drive.
 
+pub mod drive;
 pub mod error;
 pub mod extdata;
 pub mod fonts;
@@ -10,6 +12,7 @@ pub mod garmin_device;
 pub mod mtp;
 pub mod ops;
 pub mod ptp;
+pub mod report;
 pub mod trace;
 #[cfg(not(windows))]
 pub mod usb;

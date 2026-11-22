@@ -31,8 +31,11 @@ watch wasn't checked after a Windows-only install.
 
 1. **Get the fonts.** Use `manifest.json`, `georgian/` and `stock/` from a release, or build them
    with `nix build github:lubaretsi/georgian-for-garmin#fonts` (output in `result/`). `packs`
-   lists each pack in order with its `parts` and the watches it was `tested` on; `fonts` gives
-   each part's `pack`, `size_px`, file paths and SHA-256s.
+   lists each pack in order with its `kind`, its `parts` and the watches it was `tested` on;
+   `fonts` gives each part's `pack`, file paths and SHA-256s, and a bitmap part's `size_px`.
+   This procedure covers `bitmap` packs only. `truetype` packs replace a font the watch already
+   uses (`<part>.bin`), which needs the original saved and written back on any failure; install
+   those only with the app or the command-line tool.
 2. **Connect.** Have the user quit Garmin Express (it holds the USB connection) and connect the
    watch by cable. It appears as an MTP device with USB vendor ID `0x091E`. On macOS and Linux,
    use [libmtp](https://github.com/libmtp/libmtp)'s C API (from Python via `ctypes`, for example).
@@ -42,8 +45,9 @@ watch wasn't checked after a Windows-only install.
    through their default resource, and delete with `Delete`. Don't install another driver.
 3. **Pick the targets.** Read `GARMIN/GarminDevice.xml`. Take the `MassStorageMode/UpdateFile`
    entries whose `Path` is `Garmin/ExtData` (compare case-insensitively). The targets are every
-   part of every pack in the manifest's `packs` that is among their `PartNumber`s, across all
-   packs, each staged as `<part>.tmp`. If none matches, stop: tell the user the watch isn't
+   part of every `bitmap` pack in the manifest's `packs` that is among their `PartNumber`s,
+   across those packs, each staged as `<part>.tmp`. If none matches, stop: tell the user the
+   watch isn't
    supported yet and offer to share its report (below). Tell the user the model, software version
    (`Model/Description`, `Model/SoftwareVersion`; `1905` is `19.05`), the targets, and whether
    it's tested: a part is tested when its pack's `tested` list has an entry with this
@@ -81,8 +85,10 @@ a watch, so tell the user that.
 
 If any target isn't tested on this model and software version, or no part matches,
 ask the user to share the watch's font list in a
-[watch report issue](https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.md):
-model, `Model/PartNumber`, software version, and each `Garmin/ExtData` `UpdateFile`'s part
-number, version (`Major`.`Minor`, two-digit minor: `2.10`) and file name. Never include the
-unit ID or serial number (the `Id` elements). `georgian-for-garmin inspect --report` prints
-this report.
+[watch report issue](https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml)
+(the form's **Watch report** field):
+model, `Model/PartNumber`, software version, and each `UpdateFile`'s path, file name, part number
+and version (`Major`.`Minor`, two-digit minor: `2.10`). Never include the unit ID or serial number
+(the `Id` elements). `georgian-for-garmin inspect --report` prints this report, and
+`georgian-for-garmin issue-link` makes a link with the form filled in
+([Reporting](reporting.md)).

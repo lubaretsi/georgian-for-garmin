@@ -33,8 +33,29 @@
       </div>
       <div id="share" class="share" hidden>
         <p id="share-why" class="quiet small" data-t="shareWhy"></p>
+        <details class="shared">
+          <summary data-t="sharedSummary"></summary>
+          <p class="small" data-t="sharedWhat"></p>
+          <pre id="share-text" class="report"></pre>
+        </details>
         <button id="share-button" class="link" data-t="share"></button>
-        <p id="share-result" class="quiet small" role="status" hidden></p>
+        <p id="share-result" class="quiet small result" role="status" hidden></p>
+      </div>
+    </main>
+
+    <main id="drive" class="view" hidden>
+      <h1 id="drive-model"></h1>
+      <p id="drive-version" class="quiet"></p>
+      <p class="note" data-t="driveBody"></p>
+      <div class="share">
+        <p class="quiet small" data-t="driveShareWhy"></p>
+        <details class="shared">
+          <summary data-t="sharedSummary"></summary>
+          <p class="small" data-t="sharedWhat"></p>
+          <pre id="drive-text" class="report"></pre>
+        </details>
+        <button id="drive-share" class="primary" data-t="shareGithub"></button>
+        <p id="drive-result" class="quiet small result" role="status" hidden></p>
       </div>
     </main>
 
@@ -53,9 +74,54 @@
       <div id="staged-test" class="test">
         <p class="quiet" data-t="testLabel"></p>
         <p class="test-line" data-t="testLine" lang="ka"></p>
+        <p class="quiet small" data-t="restartAgain"></p>
       </div>
       <div class="actions">
+        <button id="check" class="primary" data-t="checkOnWatch"></button>
         <button id="done" class="secondary" data-t="done"></button>
+      </div>
+    </main>
+
+    <main id="checking" class="view check" hidden>
+      <h1 data-t="checkTitle"></h1>
+      <div id="check-phone" class="phone">
+        <img id="check-qr" class="qr" alt="">
+        <div>
+          <p class="small" data-t="checkScan"></p>
+          <p class="quiet small" data-t="checkOr"></p>
+          <p class="test-line small-line" data-t="testLine" lang="ka"></p>
+          <p class="quiet small" data-t="restartAgain"></p>
+        </div>
+      </div>
+
+      <fieldset class="question">
+        <legend data-t="askResult"></legend>
+        <div id="ask-result" class="choices"></div>
+      </fieldset>
+      <fieldset id="ask-views-box" class="question" hidden>
+        <legend data-t="askViews"></legend>
+        <div id="ask-views" class="choices"></div>
+      </fieldset>
+      <fieldset id="ask-marker-box" class="question" hidden>
+        <legend data-t="askMarker"></legend>
+        <p class="quiet small" data-t="askMarkerHint"></p>
+        <div id="ask-marker" class="choices pictures"></div>
+      </fieldset>
+      <fieldset class="question">
+        <legend data-t="askPhone"></legend>
+        <div id="ask-phone" class="choices"></div>
+      </fieldset>
+
+      <details class="shared" open>
+        <summary data-t="sharedSummary"></summary>
+        <p class="small" data-t="sharedWhat"></p>
+        <p id="check-paste" class="note small" data-t="sharePasteAhead" hidden></p>
+        <pre id="check-text" class="report"></pre>
+      </details>
+      <div class="actions">
+        <button id="check-share" class="primary" data-t="shareGithub"></button>
+        <p id="check-result" class="quiet small result" role="status" hidden></p>
+        <button id="check-done" class="secondary" data-t="done"></button>
       </div>
     </main>
 
@@ -68,6 +134,7 @@
       </details>
       <div class="actions">
         <button id="retry" class="primary" data-t="tryAgain"></button>
+        <button id="error-report" class="secondary" data-t="reportProblem" hidden></button>
       </div>
     </main>
   </body>

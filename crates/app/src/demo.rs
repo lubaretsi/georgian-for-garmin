@@ -1,12 +1,14 @@
 //! An in-memory watch for trying the app without hardware (`--features demo`).
 //!
-//! It follows a short script so every screen shows up: the first two connections find no
-//! watch, the next two find it held by Garmin Express, and from then on one of two watches is
-//! attached:
+//! It follows a short script so every screen shows up: the first three connections find no
+//! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]), the next two find
+//! it held by Garmin Express, and from then on one of three watches is attached:
 //!
-//! 1. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
+//! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
+//!    (the real one doesn't): after installing, the main screen says Georgian is installed;
+//! 2. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
 //!    staged: `tested`;
-//! 2. an untested model (its name and part number are made up for the demo) listing every part
+//! 3. an untested model (its name and part number are made up for the demo) listing every part
 //!    of the first two bundled packs, with a different file already staged for the last one, so
 //!    installing on it ends in a `conflict`.
 //!
@@ -19,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use georgian_for_garmin_core::fonts::FontSet;
+use georgian_for_garmin_core::fonts::{FontSet, Kind};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
@@ -31,11 +33,12 @@ const EXTDATA: u32 = 0x0100_0003;
 const LEFTOVER: u32 = 0x0100_0004;
 
 /// Connections that find no watch, then connections that find it busy.
-const ABSENT: usize = 2;
+const ABSENT: usize = 3;
 const BUSY: usize = 2;
 
 /// (description, part number, software version as in `GarminDevice.xml`, stage a leftover).
-const WATCHES: [(&str, &str, &str, bool); 2] = [
+const WATCHES: [(&str, &str, &str, bool); 3] = [
+    ("Forerunner 165", "006-B4432-00", "2952", false),
     ("Venu 2", "006-B3703-00", "1905", false),
     ("Venu 3", "006-B4260-00", "1209", true),
 ];
@@ -61,14 +64,24 @@ impl State {
 #[derive(Clone)]
 pub struct Demo(Arc<Mutex<State>>);
 
-fn device_xml(description: &str, part: &str, software: &str, parts: &[String]) -> Vec<u8> {
-    let files: String = parts
-        .iter()
-        .map(|p| {
+fn device_xml(
+    fonts: &FontSet,
+    description: &str,
+    part: &str,
+    software: &str,
+    parts: &[String],
+) -> Vec<u8> {
+    let files: String = fonts
+        .fonts()
+        .filter(|(_, f)| parts.contains(&f.part))
+        .map(|(_, f)| {
+            let (major, minor) = f.version.split_once('.').unwrap_or(("2", "10"));
             format!(
-                "<UpdateFile><PartNumber>{p}</PartNumber>\
-                 <Version><Major>2</Major><Minor>10</Minor></Version>\
-                 <Path>Garmin/ExtData</Path><FileName>{p}.tmp</FileName></UpdateFile>"
+                "<UpdateFile><PartNumber>{}</PartNumber>\
+                 <Version><Major>{major}</Major><Minor>{minor}</Minor></Version>\
+                 <Path>Garmin/ExtData</Path><FileName>{}</FileName></UpdateFile>",
+                f.part,
+                f.file_name()
             )
         })
         .collect();
@@ -138,13 +151,24 @@ impl Demo {
                         GARMIN,
                         "GarminDevice.xml",
                         format::UNDEFINED,
-                        device_xml(description, part, software, &parts),
+                        device_xml(&fonts, description, part, software, &parts),
                     ),
                 );
                 objects.insert(
                     EXTDATA,
                     object(GARMIN, "ExtData", format::ASSOCIATION, vec![]),
                 );
+                // Garmin's own TrueType fonts, which the watch keeps in ExtData.
+                let bins = fonts
+                    .fonts()
+                    .filter(|(p, f)| p.kind == Kind::Truetype && parts.contains(&f.part));
+                for (handle, (_, font)) in (LEFTOVER + 1..).zip(bins) {
+                    let data = font.stock.to_vec();
+                    objects.insert(
+                        handle,
+                        object(EXTDATA, &font.file_name(), format::UNDEFINED, data),
+                    );
+                }
                 if leftover {
                     let name = format!("{}.tmp", parts[parts.len() - 1]);
                     objects.insert(
@@ -195,6 +219,12 @@ impl Demo {
         });
         s.current = (s.current + 1) % s.watches.len();
     }
+
+    /// Whether the script is still in its no-watch connections.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn absent(&self) -> bool {
+        self.state().connects <= ABSENT
+    }
 }
 
 #[cfg(feature = "demo")]
@@ -211,6 +241,35 @@ pub fn connect() -> Result<Box<dyn Mtp>, Error> {
 #[cfg(feature = "demo")]
 pub fn unplug() {
     WATCH.swap();
+}
+
+/// While no demo watch is attached over MTP: a Forerunner 245 "mounted as a USB drive" (issue
+/// #16), a folder in the temp directory with its `GARMIN/GarminDevice.xml`.
+#[cfg(feature = "demo")]
+pub fn drive() -> Option<std::path::PathBuf> {
+    if !WATCH.absent() {
+        return None;
+    }
+    let root = std::env::temp_dir().join("georgian-for-garmin-demo-drive");
+    let text_files: String = (0..4)
+        .map(|i| {
+            format!(
+                "<UpdateFile><PartNumber>006-D7547-{i:02}</PartNumber>\
+                 <Version><Major>4</Major><Minor>20</Minor></Version>\
+                 <Path>Garmin/Text</Path><FileName>lang{i}.ln4</FileName></UpdateFile>"
+            )
+        })
+        .collect();
+    let xml = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+         <Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
+         <Model><PartNumber>006-B3076-00</PartNumber><SoftwareVersion>1370</SoftwareVersion>\
+         <Description>Forerunner 245</Description></Model><Id>3300000001</Id>\
+         <MassStorageMode>{text_files}</MassStorageMode></Device>"
+    );
+    std::fs::create_dir_all(root.join("GARMIN")).ok()?;
+    std::fs::write(root.join("GARMIN/GarminDevice.xml"), xml).ok()?;
+    Some(root)
 }
 
 impl Mtp for Demo {
@@ -321,7 +380,7 @@ mod tests {
             .unwrap()
             .iter()
             .filter(|f| f["target"] == true)
-            .map(|f| f["staged"].as_str().unwrap())
+            .map(|f| f["file"].as_str().unwrap())
             .collect()
     }
 
@@ -334,6 +393,19 @@ mod tests {
         for _ in 0..BUSY {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::DeviceBusy));
         }
+
+        // The Forerunner 165: Garmin's TrueType fonts get Georgian; then the main screen says
+        // it is installed.
+        let fr165 = call(&demo, "inspect").unwrap();
+        assert_eq!(fr165["device"]["model"], "Forerunner 165");
+        assert_eq!(fr165["hosts"]["kind"], "truetype");
+        assert_eq!(fr165["state"], "not_installed");
+        assert_eq!(staged(&fr165), vec!["stock"; 4]);
+        assert_eq!(call(&demo, "install").unwrap()["status"], "staged_verified");
+        let after = call(&demo, "inspect").unwrap();
+        assert_eq!(after["state"], "installed");
+        assert_eq!(staged(&after), vec!["georgian"; 4]);
+        demo.swap();
 
         // The tested Venu 2: every listed part of its one pack installs.
         let ready = call(&demo, "inspect").unwrap();
@@ -371,6 +443,10 @@ mod tests {
                 .contains("3300000000")
         );
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
+        demo.swap();
+
+        // The Forerunner 165 keeps its fonts across restarts.
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
         demo.swap();
 
         // The Venu 2 imported its files on restart.

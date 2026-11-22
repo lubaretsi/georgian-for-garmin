@@ -1,6 +1,12 @@
-// Screens: waiting → ready → working → staged, or error. While waiting or ready the app polls
-// the read-only `inspect` command; the backend runs one watch operation at a time, and a
-// result that arrives after the screen has moved on is ignored.
+// Screens: waiting → ready → working → staged → checking, or error; drive when the watch is
+// mounted as a USB drive instead of MTP. While waiting, ready or on the drive screen the app
+// polls the read-only `inspect` command (and `inspect_drive` when no MTP watch is found); the
+// backend runs one watch operation at a time, and a result that arrives after the screen has
+// moved on is ignored.
+//
+// Sharing goes through the core's `issue_link`: the GitHub issue form, filled in from the watch
+// report, the last install or restore, and the answers on the check screen. Every screen that
+// shares shows the exact report text first.
 //
 // Every user-facing string is in strings.json, one table per language with the same keys
 // (`{name}` placeholders are filled in here). Georgian is the default; the language switch's
@@ -11,10 +17,25 @@ const { invoke } = window.__TAURI__.core;
 
 const POLL_MS = 2000;
 const DEFAULT_LANGUAGE = "ka";
+// Answer values, as the core's `issue_link` takes them.
+const RESULTS = [
+  "georgian",
+  "boxes",
+  "question_marks",
+  "some_letters",
+  "no_notification",
+  "not_installed",
+];
+const VIEWS = ["popup", "list", "opened"];
+const PHONES = ["android", "iphone"];
+const NO_MARKER = "none";
 
 let STRINGS = {};
 let language = DEFAULT_LANGUAGE;
 let T = {};
+let demo = false;
+/** The beta build's test-mark pictures by part; empty in stable builds. */
+let marks = new Map();
 
 const $ = (id) => document.getElementById(id);
 const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? "");
@@ -81,24 +102,80 @@ function showWaiting(error) {
   });
 }
 
-/** What the watch's target sizes hold now, as one note, or null when nothing needs saying. */
-function stagedNote(report) {
-  const staged = report.fonts.filter((f) => f.target).map((f) => f.staged);
-  const all = (state) => staged.length > 0 && staged.every((s) => s === state);
-  if (all("georgian")) return T.stagedNow.georgian;
-  if (all("stock")) return T.stagedNow.stock;
-  const mixed = staged.includes("georgian") && staged.includes("stock");
-  return staged.includes("other") || mixed ? T.stagedNow.other : null;
+/**
+ * What the main screen says about Georgian on the watch, from the core's `state` (the one rule
+ * the CLI and the report use too), or null when nothing needs saying.
+ */
+function stateNote(report) {
+  if (!report.supported) return report.restorable ? T.restoreOnly : T.unsupportedWatch;
+  // A TrueType file this build doesn't know isn't waiting for a restart; it blocks install.
+  if (report.state === "other" && report.hosts.kind === "truetype") return T.unknownFont;
+  return report.state === "not_installed" ? null : T.state[report.state];
 }
 
-/** The watch on the ready screen, and what sharing its report last did (a strings key). */
-let readyReport = null;
+/** States in which Install Georgian would change nothing, so it isn't offered. */
+const NOTHING_TO_INSTALL = ["installed", "waiting"];
+
+// Sharing
+
+/** What sharing last did on the ready or drive screen: `{watch, result, url}`. */
 let shared = null;
 
-const watchKey = (report) => `${report.device.part_number} ${report.device.software_version}`;
+const watchKey = (report) => `${report.model_part} ${report.software_version} ${report.connection}`;
+
+/** The words for a share result (a strings key), with the link in the demo build. */
+function sharedText(s) {
+  return s.result === "shareDemo" ? fill(T.shareDemo, { url: s.url }) : T[s.result];
+}
+
+/** The core's `Answers` fields; anything else in `answers` (like `shared`) is the screen's own. */
+const ANSWER_FIELDS = ["result", "views", "phone", "marker", "connect_version"];
+
+/** `issue_link`'s input: only the core's answer fields, without empty ones. */
+function linkInput(report, outcome, answers) {
+  const input = { report };
+  if (outcome) input.outcome = outcome;
+  if (answers) {
+    const a = {};
+    for (const key of ANSWER_FIELDS) {
+      const value = answers[key];
+      if (value != null && !(Array.isArray(value) && value.length === 0)) a[key] = value;
+    }
+    input.answers = a;
+  }
+  return input;
+}
+
+/** Opens the filled-in issue form; returns `{result, url}` with `result` a strings key. */
+async function openIssue(input) {
+  try {
+    const done = await invoke("share_report", { input });
+    const result = demo ? "shareDemo" : done.complete ? "shareDone" : "sharePaste";
+    return { result, url: done.url };
+  } catch (e) {
+    return { result: "shareFailed", url: "" };
+  }
+}
+
+/** Shares `report` from the ready or drive screen (no outcome, no answers). */
+async function shareWatch(report, screen) {
+  const done = await openIssue(linkInput(report));
+  shared = { watch: watchKey(report), ...done };
+  if (!$(screen).hidden) redraw();
+}
+
+function drawShared(report, textId, resultId) {
+  $(textId).textContent = report.text;
+  const mine = shared && shared.watch === watchKey(report);
+  $(resultId).hidden = !mine;
+  $(resultId).textContent = mine ? sharedText(shared) : "";
+  return mine;
+}
+
+/** The watch on the ready screen. */
+let readyReport = null;
 
 function showReady(report) {
-  if (shared && shared.watch !== watchKey(report)) shared = null;
   readyReport = report;
   show("ready", () => {
     // The overall status: `tested` only when every part install writes was verified here.
@@ -115,33 +192,30 @@ function showReady(report) {
       });
     }
     $("ready-untested").hidden = !tested || tested.status === "tested";
-    const note = report.supported ? stagedNote(report) : T.unsupportedWatch;
+    const note = stateNote(report);
     $("ready-note").hidden = !note;
     $("ready-note").textContent = note || "";
-    $("ready-actions").hidden = !report.supported;
+    // A watch whose fonts only an earlier test version installed into can still restore.
+    $("ready-actions").hidden = !report.supported && !report.restorable;
+    $("install").hidden = !report.supported || NOTHING_TO_INSTALL.includes(report.state);
     $("share").hidden = Boolean(tested && tested.status === "tested");
     // Once shared, the result takes the explanation's place.
-    $("share-why").hidden = Boolean(shared);
-    $("share-result").hidden = !shared;
-    $("share-result").textContent = shared ? T[shared.result] : "";
+    $("share-why").hidden = drawShared(report.report, "share-text", "share-result");
   });
 }
 
-async function share() {
-  const report = readyReport;
-  if (!report) return;
-  let result;
-  try {
-    const done = await invoke("share_report", {
-      title: report.report.title,
-      text: report.report.text,
+/** A watch mounted as a USB drive: nothing installs, but its report can be shared. */
+let driveReport = null;
+
+function showDrive(output) {
+  driveReport = output;
+  show("drive", () => {
+    $("drive-model").textContent = output.device.model;
+    $("drive-version").textContent = fill(T.softwareVersion, {
+      version: output.device.software_version,
     });
-    result = done.complete ? "shareDone" : "sharePaste";
-  } catch (e) {
-    result = "shareFailed";
-  }
-  shared = { watch: watchKey(report), result };
-  if (!$("ready").hidden) redraw();
+    drawShared(output.report, "drive-text", "drive-result");
+  });
 }
 
 function showWorking(command) {
@@ -160,15 +234,24 @@ function showStaged(output) {
     $("staged-packs").replaceChildren(
       ...output.packs.map((pack) => {
         const item = document.createElement("li");
-        item.textContent = fill(T.stagedPack, {
-          pack: pack.name,
-          sizes: pack.parts.map((p) => p.size_px).join(", "),
-        });
+        // Bitmap parts by pixel size; TrueType parts scale, so by part number.
+        item.textContent =
+          pack.kind === "truetype"
+            ? fill(T.stagedTrueTypePack, {
+                pack: pack.name,
+                parts: pack.parts.map((p) => p.part).join(", "),
+              })
+            : fill(T.stagedPack, {
+                pack: pack.name,
+                sizes: pack.parts.map((p) => p.size_px).join(", "),
+              });
         return item;
       }),
     );
     $("staged-after").textContent = T.afterRestart[output.variant];
-    $("staged-test").hidden = output.variant !== "georgian";
+    const georgian = output.variant === "georgian";
+    $("staged-test").hidden = !georgian;
+    $("check").hidden = !georgian;
   });
 }
 
@@ -176,7 +259,142 @@ function showError(f) {
   show("error", () => {
     $("error-message").textContent = errorText(f);
     $("error-details").textContent = `${f.code}: ${f.message}`;
+    // A failed install or restore can be reported with what led to it.
+    $("error-report").hidden = !(lastRun && lastRun.outcome.error);
   });
+}
+
+// The check screen
+
+/** The last install or restore: the report from before it and its outcome. */
+let lastRun = null;
+/** The check screen's answers, and the phone page by language. */
+let answers = null;
+const phonePages = new Map();
+
+function choice(label, pressed, onClick, picture) {
+  const button = document.createElement("button");
+  button.className = "choice";
+  button.setAttribute("aria-pressed", String(pressed));
+  if (picture) {
+    const img = document.createElement("img");
+    img.src = picture;
+    img.alt = "";
+    button.append(img);
+  }
+  const text = document.createElement("span");
+  text.textContent = label;
+  button.append(text);
+  button.addEventListener("click", () => {
+    onClick();
+    redraw();
+    preview();
+  });
+  return button;
+}
+
+/** Target parts' test marks, for the marker question; empty in stable builds. */
+function targetMarks() {
+  return lastRun.report.parts
+    .filter((p) => p.target && marks.has(p.part))
+    .map((p) => marks.get(p.part));
+}
+
+const sawLetters = () => answers.result === "georgian" || answers.result === "some_letters";
+
+async function drawPhone() {
+  let page = phonePages.get(language);
+  if (!page) {
+    page = await invoke("phone_page", { language });
+    phonePages.set(language, page);
+  }
+  $("check-qr").src = page.qr;
+  $("check-qr").title = page.url;
+}
+
+function drawCheck() {
+  drawPhone().catch(() => {
+    $("check-qr").hidden = true;
+  });
+  const failed = Boolean(lastRun.outcome.error);
+  $("check-phone").hidden = failed;
+  $("ask-result").replaceChildren(
+    ...RESULTS.map((r) =>
+      choice(T.results[r], answers.result === r, () => {
+        answers.result = answers.result === r ? null : r;
+        if (!sawLetters()) {
+          answers.views = [];
+          answers.marker = null;
+        }
+      }),
+    ),
+  );
+  $("ask-views-box").hidden = !sawLetters();
+  $("ask-views").replaceChildren(
+    ...VIEWS.map((v) =>
+      choice(T.views[v], answers.views.includes(v), () => {
+        answers.views = answers.views.includes(v)
+          ? answers.views.filter((x) => x !== v)
+          : VIEWS.filter((x) => x === v || answers.views.includes(x));
+      }),
+    ),
+  );
+  const pictures = targetMarks();
+  $("ask-marker-box").hidden = !sawLetters() || pictures.length === 0;
+  $("ask-marker").replaceChildren(
+    ...pictures.map((m) =>
+      choice(
+        m.variant,
+        answers.marker === m.variant,
+        () => {
+          answers.marker = answers.marker === m.variant ? null : m.variant;
+        },
+        m.picture,
+      ),
+    ),
+    choice(T.markerNone, answers.marker === NO_MARKER, () => {
+      answers.marker = answers.marker === NO_MARKER ? null : NO_MARKER;
+    }),
+  );
+  $("ask-phone").replaceChildren(
+    ...PHONES.map((p) =>
+      choice(T.phones[p], answers.phone === p, () => {
+        answers.phone = answers.phone === p ? null : p;
+      }),
+    ),
+  );
+  $("check-result").hidden = !answers.shared;
+  $("check-result").textContent = answers.shared ? sharedText(answers.shared) : "";
+}
+
+/** Shows exactly what will be shared, as the core builds it. */
+async function preview() {
+  if (!answers) return;
+  const asked = answers;
+  try {
+    const link = await invoke("issue_link", {
+      input: linkInput(lastRun.report, lastRun.outcome, asked),
+    });
+    if (asked !== answers) return;
+    $("check-text").textContent = link.report_text;
+    $("check-paste").hidden = link.report_in_url;
+  } catch (e) {
+    $("check-text").textContent = errorText(failure(e));
+  }
+}
+
+function showCheck(result) {
+  stopPolling();
+  answers = { result, views: [], marker: null, phone: null, shared: null };
+  show("checking", drawCheck);
+  window.scrollTo(0, 0);
+  preview();
+}
+
+async function shareCheck() {
+  const asked = answers;
+  asked.shared = await openIssue(linkInput(lastRun.report, lastRun.outcome, asked));
+  if (!$("checking").hidden && asked === answers) redraw();
 }
 
 // Polling and actions
@@ -187,14 +405,23 @@ function startPolling() {
   const token = ++pollToken;
   const tick = async () => {
     let result = null;
+    let drive = null;
     let error = null;
     try {
       result = await invoke("inspect");
     } catch (e) {
       error = failure(e);
     }
+    if (error && error.code === "no_device") {
+      try {
+        drive = await invoke("inspect_drive");
+      } catch (e) {
+        // No watch mounted as a drive either: the waiting screen says what to do.
+      }
+    }
     if (token !== pollToken) return;
     if (result) showReady(result);
+    else if (drive) showDrive(drive);
     else showWaiting(error);
     setTimeout(() => token === pollToken && tick(), POLL_MS);
   };
@@ -207,23 +434,36 @@ function stopPolling() {
 
 async function stage(command) {
   stopPolling();
+  const report = readyReport && readyReport.report;
   showWorking(command);
   try {
-    showStaged(await invoke(command));
+    const output = await invoke(command);
+    const parts = output.packs.flatMap((pack) => pack.parts.map((p) => p.part));
+    lastRun = { report, outcome: { operation: command, status: output.status, parts } };
+    showStaged(output);
   } catch (e) {
-    showError(failure(e));
+    const f = failure(e);
+    lastRun = report ? { report, outcome: { operation: command, error: f.code } } : null;
+    showError(f);
   }
 }
 
 function backToStart() {
   readyReport = null;
+  driveReport = null;
+  answers = null;
   showWaiting(null);
   startPolling();
 }
 
 $("install").addEventListener("click", () => stage("install"));
 $("restore").addEventListener("click", () => stage("restore_stock"));
-$("share-button").addEventListener("click", share);
+$("share-button").addEventListener("click", () => readyReport && shareWatch(readyReport.report, "ready"));
+$("drive-share").addEventListener("click", () => driveReport && shareWatch(driveReport.report, "drive"));
+$("check").addEventListener("click", () => showCheck(null));
+$("error-report").addEventListener("click", () => showCheck("not_installed"));
+$("check-share").addEventListener("click", shareCheck);
+$("check-done").addEventListener("click", backToStart);
 $("done").addEventListener("click", backToStart);
 $("retry").addEventListener("click", backToStart);
 $("waiting-retry").addEventListener("click", () => startPolling());
@@ -231,10 +471,13 @@ $("waiting-retry").addEventListener("click", () => startPolling());
 async function start() {
   STRINGS = await (await fetch("strings.json")).json();
   buildLanguageSwitch();
-  const [saved, demo] = await Promise.all([
+  const [saved, isDemo, pictures] = await Promise.all([
     invoke("saved_language").catch(() => null),
     invoke("demo_mode"),
+    invoke("test_marks").catch(() => []),
   ]);
+  demo = isDemo;
+  marks = new Map(pictures.map((m) => [m.part, m]));
   useLanguage(saved || DEFAULT_LANGUAGE);
   $("demo").hidden = !demo;
   backToStart();

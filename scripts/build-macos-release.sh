@@ -118,7 +118,11 @@ import hashlib, json, pathlib, sys
 
 fonts, binary, label = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 data = binary.read_bytes()
-for font in json.loads((fonts / "manifest.json").read_text())["fonts"]:
+manifest = json.loads((fonts / "manifest.json").read_text())
+kinds = {pack["id"]: pack["kind"] for pack in manifest["packs"]}
+for font in manifest["fonts"]:
+    # Bitmap parts by pixel size; TrueType parts scale and have none.
+    size = "TrueType" if kinds[font["pack"]] == "truetype" else f"{font['size_px']} px"
     for kind in ("stock", "georgian"):
         blob = (fonts / font[kind]).read_bytes()
         offset = data.find(blob)
@@ -126,7 +130,7 @@ for font in json.loads((fonts / "manifest.json").read_text())["fonts"]:
             sys.exit(f"error: {label} does not embed {font[kind]}")
         embedded = hashlib.sha256(data[offset:offset + len(blob)]).hexdigest()
         if kind == "georgian":
-            print(f"{label}: embeds {font[kind]} ({font['size_px']} px) sha256 {embedded}")
+            print(f"{label}: embeds {font[kind]} ({size}) sha256 {embedded}")
 EOF
   done
 done

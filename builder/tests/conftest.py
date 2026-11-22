@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import pytest
-from registry_data import PART_IDS, REGISTRY
+from registry_data import PART_IDS, REGISTRY, TRUETYPE_PART_IDS
 
 from garmin_fonts.build import build
 from garmin_fonts.georgian import Outlines
@@ -29,9 +29,23 @@ def stock(inputs):
 
 
 @pytest.fixture(scope="session")
+def truetype_stock(inputs):
+    """Garmin's masked TrueType files, by part."""
+    return {part: (inputs["stock_dir"] / f"{part}.bin").read_bytes() for part in TRUETYPE_PART_IDS}
+
+
+@pytest.fixture(scope="session")
 def assets(inputs, tmp_path_factory):
     out = tmp_path_factory.mktemp("assets") / "fonts"
     manifest = build(out=out, **inputs)
+    return out, manifest
+
+
+@pytest.fixture(scope="session")
+def marked_assets(inputs, tmp_path_factory):
+    """The asset directory built with beta test marks, and its manifest."""
+    out = tmp_path_factory.mktemp("marked") / "fonts"
+    manifest = build(out=out, test_marks=True, **inputs)
     return out, manifest
 
 

@@ -73,6 +73,8 @@ $Fonts = (Resolve-Path -LiteralPath $Fonts).Path
 $manifestPath = Join-Path $Fonts 'manifest.json'
 if (-not (Test-Path -LiteralPath $manifestPath)) { throw "$Fonts has no manifest.json; is it the output of nix build .#fonts?" }
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
+$packKinds = @{}
+foreach ($pack in $manifest.packs) { $packKinds[$pack.id] = $pack.kind }
 $rustup = (Get-Command rustup -ErrorAction SilentlyContinue)
 if (-not $rustup) { throw 'rustup is needed (https://rustup.rs)' }
 $hostTriple = 'x86_64-pc-windows-msvc'
@@ -185,13 +187,16 @@ foreach ($t in $Targets) {
         $data = [IO.File]::ReadAllBytes($bin)
         $haystack = $latin1.GetString($data)
         foreach ($font in $manifest.fonts) {
+            # Bitmap parts by pixel size; TrueType parts scale and have no size_px, which strict
+            # mode refuses to read, so the pack's kind decides.
+            $size = if ($packKinds[$font.pack] -eq 'truetype') { 'TrueType' } else { "$($font.size_px) px" }
             foreach ($kind in 'stock', 'georgian') {
                 $blob = [IO.File]::ReadAllBytes((Join-Path $Fonts $font.$kind))
                 $offset = $haystack.IndexOf($latin1.GetString($blob), [StringComparison]::Ordinal)
                 if ($offset -lt 0) { throw "$label does not embed $($font.$kind)" }
                 if ($kind -eq 'georgian') {
                     $embedded = -join ($sha256.ComputeHash($data, $offset, $blob.Length) | ForEach-Object { $_.ToString('x2') })
-                    Write-Host "${label}: embeds $($font.$kind) ($($font.size_px) px) sha256 $embedded"
+                    Write-Host "${label}: embeds $($font.$kind) ($size) sha256 $embedded"
                 }
             }
         }

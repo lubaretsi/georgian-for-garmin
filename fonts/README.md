@@ -6,6 +6,14 @@ format. `nix build .#fonts` downloads every part listed here by its SHA-256, add
 and writes `pack` and `packs` into the asset manifest. `nix flake check` validates the registry
 against the schema, checks each stock file against its entry and rebuilds every font.
 
+A pack has a `kind`:
+
+- `bitmap`: Garmin's 2-bit `.fnt` fonts, one part per pixel size. The installer stages them as
+  `GARMIN/ExtData/<part>.tmp`; the watch imports them when it restarts.
+- `truetype`: Garmin's TrueType `.bin` fonts, one part per weight. The watch keeps them as
+  `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
+  [TrueType packs](#truetype-packs)).
+
 ## Add a tested model
 
 Add a model once someone has installed a pack's Georgian build on that watch, unplugged and
@@ -42,10 +50,12 @@ model on a different software version is a separate entry.
    - `weight`: the weight the pack's stock glyphs are drawn at, as a value on Noto Sans
      Georgian's `wght` axis (100 to 900; 400 is Regular, 700 Bold). Georgian is drawn at it so it
      matches the stock letters. Go by the glyphs, not the product name (see [Weight](#weight)).
-   - `parts`: one entry per size, smallest first, each with `part` (part number), `size_px`
-     (nominal pixel size; see step 4 for reading it from the file), `version` (as in the
-     catalog, `2.10`), `url` (the official `https://download.garmin.com/…/<part>.fnt` link) and
-     `sha256` (64 lowercase hex digits).
+   - `kind`: `bitmap` for `.fnt` parts, `truetype` for `.bin` parts.
+   - `parts`: for a bitmap pack, one entry per size, smallest first, each with `part` (part
+     number), `size_px` (nominal pixel size; see step 4 for reading it from the file), `version`
+     (as in the catalog, `2.10`), `url` (the official `https://download.garmin.com/…/<part>.fnt`
+     link) and `sha256` (64 lowercase hex digits). For a TrueType pack, one entry per weight,
+     Regular first, with `part`, `version`, `url` (`…/<part>.bin`) and `sha256`, and no size.
      A part drawn at another weight than the rest of its pack gets its own `weight`.
    - `tested`: `[]`. A new pack is not marked tested until someone installs it on a watch and
      sees Georgian render (above).
@@ -68,6 +78,8 @@ model on a different software version is a separate entry.
    faintest pixels of a glyph and lists them under `clipped` in the asset manifest. Pin each new
    part's Georgian SHA-256, and any clipped pixels, in `builder/tests/test_build.py`, and add
    its row to the table under [Size](#size); the builder tests print the row when it's missing.
+   A TrueType part's Georgian SHA-256 goes in `builder/tests/test_truetype.py` and its row in
+   the table under [TrueType packs](#truetype-packs).
 5. **Install it on a watch** that lists one of the pack's parts, then add it as a tested model.
 
 ## Weight
@@ -139,6 +151,120 @@ lists each part's `georgian_size_px` and `georgian_descender_percent`.
 | `006-D9035-08` |   24 px |              16.3 |              22.3 |              29 px |       100% |               16.0 |            21.0 |
 | `006-D9035-09` |   25 px |              18.0 |              24.7 |              32 px |        90% |               18.0 |            24.0 |
 
+## TrueType packs
+
+Many newer watches list no bitmap Armenian pack but do list TrueType fonts (watch reports in
+GitHub issues #2 to #14). Garmin's `.bin` fonts are plain TrueType files with every byte
+XOR-ed with `0x76`. The builder (`builder/garmin_fonts/truetype.py`) unmasks Garmin's file,
+appends Noto Sans Georgian's Mkhedruli (U+10D0 to U+10F0) and Mtavruli (U+1C90 to U+1CB0),
+at the part's weight, and masks it again. Every glyph, table, name and metric of the host stays;
+GSUB, GPOS, hinting programs and names are copied byte for byte. The Georgian glyphs are
+unhinted, as in Garmin's own Noto Sans Georgian (`006-D9971-39`), whose Regular outlines are
+identical to the ones the builder takes from the variable font at weight 400. The build writes
+a preview of each part, `previews/<part>.png`, showing the host's own text beside
+`მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
+
+### Version trailer
+
+Every Garmin `.bin` ends with 16 bytes after the masked font: raw (unmasked) `0x89`, the release
+version as a little-endian u16 (`200` is 2.00, `210` is 2.10), the part number in ASCII and a
+NUL; the table data before it is padded with masked zero bytes (`0x76`) to a 4-byte boundary.
+Stock `006-D0952-08` ends `89 d2 00 "006-D0952-08" 00`. Watches read the version there; a file
+without it is listed in `GarminDevice.xml` as version 0.01. Each build pads the same way and
+keeps the stock trailer byte for byte, and the builder checks every stock trailer against the
+registry's part and version. Builds up to 0.3.0-beta.2 left it out; the installer treats a
+part listed at 0.01 as one of those and replaces it.
+
+### Which builds install a pack
+
+A pack's `install` decides: `true` (the default) in every build, `false` in none, `"beta"` only in
+pre-release builds. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `"beta"`: its Georgian
+showed question marks on a fenix 6S Pro (#6) with the trailer-less beta.2 build, and beta.3
+retests it with the trailer. Every build still restores a pack it doesn't install, and
+recognizes its Georgian builds, so a beta tester can put Garmin's originals back.
+
+### Earlier builds
+
+A part's `earlier_georgian` lists, by SHA-256 and size, the Georgian builds earlier releases
+installed: 0.3.0-beta.2's marked builds, and for TrueType parts 0.3.0-beta.1's (both without
+the trailer). `inspect` reports such a file as `georgian_beta`; install and restore replace it.
+The builder tests pin the marked builds to the beta.2 entries (TrueType ones with the trailer
+removed) and the stable TrueType builds, without their trailer, to the beta.1 entries.
+
+### Hosts
+
+TrueType hosts are only for watches that list none of the registry's bitmap parts. A watch that
+lists any bitmap part gets Georgian there, exactly as before TrueType support, and its TrueType
+fonts stay Garmin's: the fenix 7 Pro, which Georgian already works on through its bitmap
+Armenian parts, keeps that install. `inspect` reports the choice under `hosts`, with the reason
+and the TrueType parts it leaves alone.
+
+A watch without bitmap parts gets Georgian in every TrueType part below that it lists. Which
+font a watch's firmware draws a Georgian letter from is not known for these watches: the
+Venu 2 drew one from a Thai bitmap pack, so it searches loaded fonts beyond the one for the
+text's script, but no TrueType watch has been tested. More than one host per watch raises the
+chance that the font the firmware searches has Georgian.
+
+| Watches (reported software)                      | TrueType fonts they list                               | Get Georgian in                                     |
+| ------------------------------------------------ | ------------------------------------------------------ | --------------------------------------------------- |
+| Venu 3, Venu 3S (17.05)                          | `006-D9971-09`, `006-D1053-96/-98`, CJK, Thai          | `006-D9971-09`, `006-D1053-98`                      |
+| Forerunner 165, 165 Music (29.52)                | `006-D9971-08/-09`, `006-D1053-96..99`, CJK, Thai      | `006-D9971-08/-09`, `006-D1053-98/-99`              |
+| fenix 6 Pro Solar, 6S Pro, 6X Pro (28.02)        | `006-D0952-05..08`                                     | `006-D0952-07/-08`                                  |
+| Instinct 3 AMOLED 50mm (15.19)                   | `006-D0952-05..08`, `006-D9971-00..03`                 | `006-D0952-07/-08`                                  |
+| fenix 7 Pro Solar (26.09), also bitmap Armenian  | `006-D0952-05..08`, `006-D9971-00..03`                 | its bitmap Armenian parts only                      |
+
+- **Noto Sans Armenian** (`armenian-noto-sans-armenian-truetype`: `006-D9971-09` Regular,
+  `-08` Bold): the same design family as Noto Sans Georgian, with the same units per em and
+  vertical metrics, 30 KB, and a script few people in Georgia read. Listed by the Venu 3 and
+  Forerunner 165.
+- **Noto Sans Hebrew** (`hebrew-noto-sans-hebrew-truetype`: `006-D1053-98` Regular, `-99`
+  Bold): a second Noto host on the same watches, 27 KB, so Georgian is in two font families
+  there. Without it the Venu 3 would have one host only.
+- **Swiss 721 Hebrew** (`hebrew-swiss-721-truetype`: `006-D0952-08` Roman, `-07` Bold): the
+  only small fonts the fenix 6 and Instinct 3 list that are neither Arabic nor CJK; 38 KB, with
+  Latin letters to size Georgian by. A Bitstream font; the project owner allows shipping
+  Garmin's fonts modified.
+
+Not used: the Arabic fonts (`006-D0952-05/-06` Sakkal Majalla, `006-D1053-96/-97` Noto Naskh
+Arabic) depend on shaping tables a modification could disturb, are 250 to 355 KB, and every
+watch that lists them also lists a Hebrew host. The CJK and Thai fonts are 0.2 to 11 MB, so
+replacing them over MTP is slow, and their readers depend on them. Garmin's own Noto Sans
+Georgian (`006-D9971-39`) is listed by none of the reporting watches.
+
+### Size
+
+Georgian is scaled from Noto's 1000 units per em into the host's units, by `choose_sizing`:
+
+- **Host with Latin letters** (Swiss 721 Hebrew): Mkhedruli x-height matches the host's Latin
+  x-height. Both are the median top of round letters, which include their overshoot: ა თ ი ო
+  against o c e s.
+- **Host without Latin** (Noto Sans Armenian, Noto Sans Hebrew): Noto's own proportions, the
+  host's units per em over Noto's; Noto fonts are designed to be set together at one size.
+- **Limits**: Georgian stays within the tighter of the host's `hhea` and OS/2 Windows ascent
+  and descent, which renderers clip to. If the tallest Georgian letter would rise above the
+  ascent, the scale shrinks to fit (no current host needs it). Descenders below the overshoot
+  are shortened, by whole percent, as in the bitmap builds, until they stay within the descent:
+  Swiss 721 Hebrew's 483-unit descent takes 95%. OS/2 typo metrics set line spacing, and the
+  hosts' own glyphs reach past them, so they don't limit Georgian.
+
+The asset manifest lists each part's `georgian_scale` (an exact fraction), its
+`georgian_scale_basis` and `georgian_descender_percent`. Heights are in host font units:
+
+| Part           | Font                       | Units/em | Matched to     | Scale  | Descenders | Host Latin x-height | Mkhedruli x-height | Georgian top, bottom | Host ascent, descent |
+| -------------- | -------------------------- | -------- | -------------- | ------ | ---------- | ------------------- | ------------------ | -------------------- | -------------------- |
+| `006-D9971-09` | Noto Sans Armenian Regular |     1000 | em             | 1.0000 |       100% |                none |                546 |            770, -250 |           1069, -293 |
+| `006-D9971-08` | Noto Sans Armenian Bold    |     1000 | em             | 1.0000 |       100% |                none |                556 |            770, -250 |           1069, -293 |
+| `006-D1053-98` | Noto Sans Hebrew           |     2048 | em             | 2.0480 |       100% |                none |               1118 |           1577, -512 |           2189, -600 |
+| `006-D1053-99` | Noto Sans Hebrew Bold      |     2048 | em             | 2.0480 |       100% |                none |               1139 |           1577, -512 |           2189, -600 |
+| `006-D0952-08` | Swis721Hebrew BT Roman     |     2048 | Latin x-height | 2.0256 |        95% |                1106 |               1106 |           1560, -482 |           1565, -483 |
+| `006-D0952-07` | Swis721Hebrew BT Bold      |     2048 | Latin x-height | 2.0252 |        95% |                1126 |               1126 |           1559, -482 |           1587, -483 |
+
+Tables the build updates for the new glyphs: `cmap` (each Unicode subtable of format 4 or 12;
+Swiss 721 Hebrew's Mac Roman subtable can't hold Georgian), `glyf`, `loca`, `hmtx`, `post`
+glyph names (`uniXXXX`), `maxp` and `hhea` totals, the `head` bounding box, OS/2's Georgian
+Unicode range bit, and in Swiss 721 Hebrew `hdmx` (linear widths), `LTSH` and `VDMX`. No
+timestamp changes, so the same inputs give the same bytes.
+
 ## Pack order
 
 A watch gets Georgian in every part, of every pack, that it lists. Registry order only sets the
@@ -147,6 +273,27 @@ order of packs in `inspect` and install output, and the order files are written 
 1. `armenian-noto-sans-regular`, the pack tested on hardware (Venu 2).
 2. `armenian-noto-sans-armenian-regular`.
 3. `armenian-noto-sans-armenian-bold`.
+4. `armenian-noto-sans-armenian-truetype`, the first TrueType pack: the closest match to the
+   bitmap Armenian packs.
+5. `hebrew-noto-sans-hebrew-truetype`.
+6. `hebrew-swiss-721-truetype`.
+
+## Test marks
+
+Pre-release builds (a Cargo workspace version with a `-`, such as `0.3.0-beta.3`) mark each
+part, so a photo of the test notification `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test` tells which part the watch
+rendered. Each part's Georgian draws a solid bar under, over or on both sides of one capital of
+`ᲛᲗᲐᲕᲠᲣᲚᲘ`; every other glyph is the release build's. Variants are assigned per kind, in
+registry order (packs in order, parts in pack order): part i, counting from 0, is variant `A` + i,
+marks capital i mod 8, and draws its bar below for parts 0 to 7, above for 8 to 15 and on both
+sides from 16. Adding or moving a part changes the variants after it.
+
+`nix build .#fonts` builds with marks exactly when the version is a pre-release;
+`.#fonts-stable` never does and `.#fonts-marked` always does (`python -m garmin_fonts
+--test-marks`). A marked build sets `test_marks` in the manifest and gives each font a `mark`:
+its variant, marked code point, position and style, and a picture of the marked capitals,
+`previews/mark-<part>.png`, with its SHA-256. `python -m garmin_fonts.preview --marks <fonts dir>
+--out marks.png` draws all of them on one sheet.
 
 ## Georgian source
 

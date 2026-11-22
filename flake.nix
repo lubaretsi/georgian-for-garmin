@@ -12,9 +12,13 @@
       systems = [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ];
       forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # Every stock font pack that gets Georgian, and the font the glyphs come from.
+      # Every stock font pack that gets Georgian, and the font the glyphs come from. Bitmap
+      # parts are `<part>.fnt`, TrueType parts `<part>.bin`, as Garmin names the downloads.
       registry = builtins.fromJSON (builtins.readFile ./fonts/registry.json);
-      stockParts = lib.concatMap (pack: pack.parts) registry.packs;
+      suffix = { bitmap = "fnt"; truetype = "bin"; };
+      stockParts = lib.concatMap
+        (pack: map (part: part // { file = "${part.part}.${suffix.${pack.kind}}"; }) pack.parts)
+        registry.packs;
 
       builderFiles = lib.fileset.unions [
         ./builder
@@ -31,7 +35,7 @@
       fontInputs = pkgs: {
         GFG_STOCK_DIR = pkgs.linkFarm "garmin-stock-fonts" (map
           (part: {
-            name = "${part.part}.fnt";
+            name = part.file;
             path = pkgs.fetchurl { inherit (part) url sha256; };
           })
           stockParts);
@@ -40,19 +44,31 @@
       };
 
       python = pkgs: pkgs.python3.withPackages (ps: with ps; [ fonttools jsonschema pillow pytest ]);
+
+      # Pre-release versions (with a `-` identifier, e.g. 0.3.0-beta.1) build fonts with beta
+      # test marks (fonts/README.md, Test marks); releases build the fonts tested on watches.
+      version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
+      preRelease = lib.hasInfix "-" version;
+
+      buildFonts = pkgs: testMarks: pkgs.runCommand
+        "georgian-garmin-fonts${lib.optionalString testMarks "-test-marks"}"
+        ((fontInputs pkgs) // {
+          nativeBuildInputs = [ (python pkgs) ];
+          PYTHONDONTWRITEBYTECODE = 1;
+        })
+        ''
+          cd ${src}/builder
+          python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
+            --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out" \
+            ${lib.optionalString testMarks "--test-marks"}
+        '';
     in
     {
       packages = forAllSystems (pkgs: {
-        fonts = pkgs.runCommand "georgian-garmin-fonts"
-          ((fontInputs pkgs) // {
-            nativeBuildInputs = [ (python pkgs) ];
-            PYTHONDONTWRITEBYTECODE = 1;
-          })
-          ''
-            cd ${src}/builder
-            python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
-              --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out"
-          '';
+        # The fonts the app embeds: test marks exactly when the workspace version is a pre-release.
+        fonts = buildFonts pkgs preRelease;
+        fonts-stable = buildFonts pkgs false;
+        fonts-marked = buildFonts pkgs true;
       });
 
       checks = forAllSystems (pkgs: {

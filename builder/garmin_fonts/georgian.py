@@ -60,10 +60,26 @@ def measure(cmap, height, letters):
     return median(letter_height(rows(cmap[ord(letter)], height)) for letter in letters)
 
 
+def shorten(y, descender):
+    """Font-unit `y` with the part of an outline below OVERSHOOT `descender`% as long."""
+    return y if y >= -OVERSHOOT else -OVERSHOOT + round((y + OVERSHOOT) * descender / 100)
+
+
+@dataclass(frozen=True)
+class SourceGlyph:
+    """A Noto Sans Georgian glyph as designed, in Noto's font units."""
+
+    coordinates: tuple
+    end_points: tuple
+    flags: bytes
+    advance: int
+
+
 class Outlines:
     """Noto Sans Georgian at one weight, drawable at any size with shortened descenders."""
 
     def __init__(self, font_path, weight):
+        from fontTools.misc.roundTools import otRound
         from fontTools.ttLib import TTFont
         from fontTools.varLib import instancer
 
@@ -81,11 +97,27 @@ class Outlines:
             location = {tag: None for tag in axes} | {"wght": weight}
             self._ttf = instancer.instantiateVariableFont(ttf, location)
         glyf = self._ttf["glyf"]
-        names = {cmap[cp] for cp in GEORGIAN}
+        self._names = {cp: cmap[cp] for cp in GEORGIAN}
+        names = set(self._names.values())
         if any(glyf[name].isComposite() for name in names):
             raise ValueError("Georgian glyphs built from components are not supported")
         self._coordinates = {name: list(glyf[name].coordinates) for name in names}
+        # Instancing can leave fractional coordinates; saving rounds them, as these do.
+        self._glyphs = {
+            cp: SourceGlyph(
+                coordinates=tuple((otRound(x), otRound(y)) for x, y in self._coordinates[name]),
+                end_points=tuple(glyf[name].endPtsOfContours),
+                flags=bytes(glyf[name].flags),
+                advance=otRound(self._ttf["hmtx"][name][0]),
+            )
+            for cp, name in self._names.items()
+        }
         self._fonts = {}
+        self.units_per_em = self._ttf["head"].unitsPerEm
+
+    def glyph(self, cp):
+        """The SourceGlyph for Georgian code point `cp`, as designed (no shortening)."""
+        return self._glyphs[cp]
 
     def font(self, size, descender=100):
         """A Pillow font at `size` pixels, its outlines below the overshoot `descender`% long."""
@@ -96,8 +128,7 @@ class Outlines:
             for name, points in self._coordinates.items():
                 glyph = glyf[name]
                 glyph.coordinates = type(glyph.coordinates)(
-                    (x, y if y >= -OVERSHOOT else -OVERSHOOT + round((y + OVERSHOOT) * descender / 100))
-                    for x, y in points
+                    (x, shorten(y, descender)) for x, y in points
                 )
                 glyph.recalcBounds(glyf)
             buffer = io.BytesIO()
@@ -174,13 +205,46 @@ def choose_sizing(data, outlines, nominal):
     raise ValueError(f"Georgian does not fit the template at {size} px")
 
 
-def with_georgian(data, outlines, sizing):
+def bar_thickness(cap_height, room):
+    """A test mark bar's thickness, also its gap to the letter: a tenth of `cap_height`, at
+    least 1, at most half the `room` it is drawn in. Raises ValueError when `room` < 2."""
+    thickness = min(max(1, round(cap_height / 10)), room // 2)
+    if thickness < 1:
+        raise ValueError(f"a test mark needs 2 free rows, but only {room} are left")
+    return thickness
+
+
+def add_bar(inside, width, height, baseline, sides):
+    """The levels `inside` of a glyph drawn by `draw`, with a test mark's solid bar (level 3)
+    spanning its inked columns on each of `sides`: "below" in the rows under the baseline and
+    the glyph's lowest ink, "above" in the rows over its highest ink, with a gap as thick as
+    the bar (`bar_thickness`). Raises ValueError when a bar doesn't fit the row."""
+    levels = bytearray(inside)
+    inked = [(y, x) for y in range(height) for x in range(width) if levels[y * width + x]]
+    top, bottom = inked[0][0], inked[-1][0]
+    left, right = min(x for _, x in inked), max(x for _, x in inked)
+    cap_height = baseline - top
+    for side in sides:
+        if side == "below":
+            start = max(baseline, bottom + 1)
+            thickness = bar_thickness(cap_height, height - start)
+            bar = range(start + thickness, start + 2 * thickness)
+        else:
+            thickness = bar_thickness(cap_height, top)
+            bar = range(top - 2 * thickness, top - thickness)
+        for y in bar:
+            levels[y * width + left:y * width + right + 1] = b"\x03" * (right - left + 1)
+    return bytes(levels)
+
+
+def with_georgian(data, outlines, sizing, mark=None):
     """Return (`data` with GEORGIAN glyphs drawn from `outlines` at `sizing`, clipped pixels).
 
     Existing glyphs are kept. Glyphs are drawn on the template's own row height and baseline.
     Ink outside the row is dropped only when it is at most MAX_CLIPPED_PIXELS faintest (level 1)
     pixels; the second value maps each code point that lost pixels to how many. Any other
-    overflow raises ValueError.
+    overflow raises ValueError. A test `mark` (marks.Mark) adds its bar to the marked capital
+    (`add_bar`).
     """
     header, footer, cmap = decode(data)
     height, baseline = header[7:9]
@@ -192,12 +256,14 @@ def with_georgian(data, outlines, sizing):
             raise ValueError(f"Georgian glyph U+{cp:04X} does not fit the template")
         if lost:
             clipped[cp] = len(lost)
+        if not any(inside):
+            raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
+        if mark is not None and cp == mark.code_point:
+            inside = add_bar(inside, width, height, baseline, mark.sides)
         stride = (width + 3) // 4
         packed = bytearray(stride * height)
         for i, level in enumerate(inside):
             y, col = divmod(i, width)
             packed[y * stride + col // 4] |= level << (2 * (col % 4))
-        if not any(packed):
-            raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
         cmap[cp] = (width, bytes(packed))
     return encode(header, footer, cmap), clipped
