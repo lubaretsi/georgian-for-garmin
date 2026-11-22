@@ -1,0 +1,15 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/29",
+  "app_version": "0.3.2",
+  "connection": "usb_drive",
+  "model": "fenix 5",
+  "model_part": "006-B2697-00",
+  "software": "25.00",
+  "declared": [],
+  "extdata": "not_found",
+  "hidden": {
+    "status": "not_read",
+    "files": []
+  },
+  "note": "The form's answer to what the watch showed is \"Georgian letters\", although nothing was installed (packs none, connected as a USB drive); unexplained."
+}

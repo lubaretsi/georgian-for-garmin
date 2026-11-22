@@ -27,8 +27,15 @@ def test_each_status_has_its_words():
     assert table_rows["Forerunner 165"][1].startswith("Tested ([#5]")
     software, status = table_rows["Forerunner 245"]
     assert software == "13.70"
-    assert status.startswith(f"Doesn't work ([#16]({ISSUES}/16)). It connects to a computer only")
-    assert status.endswith("could be added to.")
+    usb_drive = (
+        "The app found no font on this watch it can add Georgian to: it connects only as a USB "
+        "drive."
+    )
+    assert status == f"Doesn't work ([#16]({ISSUES}/16)). {usb_drive}"
+    assert table_rows["fenix 5"] == (
+        "25.00",
+        f"Doesn't work ([#30]({ISSUES}/30), [#29]({ISSUES}/29)). {usb_drive}",
+    )
     software, status = table_rows["fenix 6S Pro"]
     assert software == "28.02"
     assert status == (

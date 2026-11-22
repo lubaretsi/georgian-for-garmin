@@ -1,0 +1,14 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/30",
+  "app_version": "0.3.2",
+  "connection": "usb_drive",
+  "model": "fenix 5",
+  "model_part": "006-B2697-00",
+  "software": "25.00",
+  "declared": [],
+  "extdata": "not_found",
+  "hidden": {
+    "status": "not_read",
+    "files": []
+  }
+}

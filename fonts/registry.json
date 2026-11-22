@@ -436,6 +436,12 @@
       "model_part": "006-B3226-00",
       "issues": [12],
       "unsupported": {"software": ["7.80"], "reason": "cjk_bitmap_fonts"}
+    },
+    {
+      "model": "fenix 5",
+      "model_part": "006-B2697-00",
+      "issues": [30, 29],
+      "unsupported": {"software": ["25.00"], "reason": "usb_drive_only"}
     }
   ],
   "reasons": [
@@ -446,8 +452,8 @@
     },
     {
       "id": "usb_drive_only",
-      "en": "It connects to a computer only as a USB drive and lists no fonts Georgian could be added to.",
-      "ka": "კომპიუტერს მხოლოდ USB დისკად უერთდება და არცერთ შრიფტს არ ასახელებს, რომელსაც ქართულს დავამატებდით."
+      "en": "The app found no font on this watch it can add Georgian to: it connects only as a USB drive.",
+      "ka": "პროგრამამ ამ საათზე ვერ იპოვა შრიფტი, რომელსაც ქართულს დაამატებდა: საათი კომპიუტერს მხოლოდ USB დისკად უერთდება."
     },
     {
       "id": "emoji_fonts_only",

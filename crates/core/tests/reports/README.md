@@ -23,7 +23,9 @@ allowlisted fields (model, part number, software, app version, connection, the d
 `Garmin/ExtData` files, the ExtData and hidden listings) and refuses any value that looks like a
 unit ID or serial number; `fixtures_hold_no_identifiers` checks the same. A prose report of a
 watch that mounts as a drive needs `--connection usb_drive`. Issue #13 has no report (the
-Forerunner 255's font list was never shared).
+Forerunner 255's font list was never shared). A fixture may carry a `note` on what its report
+says beyond the allowlisted fields: `issue-29.json`'s form answer was "Georgian letters",
+although nothing was installed (`packs none`, connected as a USB drive); that is unexplained.
 
 Two fixtures are composed by hand and name their sources in `composed_from`:
 
@@ -73,6 +75,8 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | `issue-23.json` | Instinct 3 AMOLED 45mm (006-B4586-00), 16.12 | 0.2.2 | [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23) |
 | `issue-24.json` | fenix 6X Pro (006-B3291-00), 28.02, right after installing (declared 2.10) | 0.3.0-beta.2 | [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24) |
 | `issue-25.json` | fenix 6X Pro, 28.02, after the restart (declared 0.00) | 0.3.0-beta.2 | [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25) |
+| `issue-29.json` | fenix 5 (006-B2697-00), 25.00, a USB drive; answered "Georgian letters" with nothing installed (see above) | 0.3.2 | [#29](https://github.com/lubaretsi/georgian-for-garmin/issues/29), closed as a duplicate of #30 |
+| `issue-30.json` | fenix 5 (006-B2697-00), 25.00, a USB drive | 0.3.2 | [#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30) |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 
@@ -87,7 +91,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | A new `<part>.bin` written next to the hidden import is taken up at the restart and replaces it; the import itself is never deleted. | Forerunner 165: installed by 0.3.0-beta.2 with only the `.bin` write, Georgian showed (#19, #5) |
 | After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)) and the fenix 6X Pro (2.10 right after installing, [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24); 0.00 after the restart, [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)), 0.01 on the Forerunner 165 ([#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), restore error) |
 | Those hidden `.bin` files read back as this program's earlier builds. | `006-D0952-07/-08.bin ro georgian_beta` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)) |
-| Some watches mount only as a USB drive and declare no ExtData fonts. | Forerunner 245 (#16) |
+| Some watches mount only as a USB drive and declare no ExtData fonts. | Forerunner 245 (#16), fenix 5 (#30, #29: `extdata not found`) |
 
 The fake can't know everything a report leaves out:
 
