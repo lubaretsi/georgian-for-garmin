@@ -247,6 +247,23 @@ order of packs in `inspect` and install output, and the order files are written 
 5. `hebrew-noto-sans-hebrew-truetype`.
 6. `hebrew-swiss-721-truetype`.
 
+## Test marks
+
+Pre-release builds (a Cargo workspace version with a `-`, such as `0.3.0-beta.1`) mark each
+part, so a photo of the test notification `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test` tells which part the watch
+rendered. Each part's Georgian draws a solid bar under, over or on both sides of one capital of
+`ᲛᲗᲐᲕᲠᲣᲚᲘ`; every other glyph is the release build's. Variants are assigned per kind, in
+registry order (packs in order, parts in pack order): part i, counting from 0, is variant `A` + i,
+marks capital i mod 8, and draws its bar below for parts 0 to 7, above for 8 to 15 and on both
+sides from 16. Adding or moving a part changes the variants after it.
+
+`nix build .#fonts` builds with marks exactly when the version is a pre-release;
+`.#fonts-stable` never does and `.#fonts-marked` always does (`python -m garmin_fonts
+--test-marks`). A marked build sets `test_marks` in the manifest and gives each font a `mark`:
+its variant, marked code point, position and style, and a picture of the marked capitals,
+`previews/mark-<part>.png`, with its SHA-256. `python -m garmin_fonts.preview --marks <fonts dir>
+--out marks.png` draws all of them on one sheet.
+
 ## Georgian source
 
 `georgian_font` holds the TrueType font the glyphs are rendered from and its license, each with

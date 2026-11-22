@@ -13,10 +13,13 @@ use serde_json::{Map, Value, json};
 const EXAMPLES: &str = "\
 Examples:
   georgian-for-garmin inspect
-  georgian-for-garmin inspect --report     # the watch's font list, to paste into an issue
+  georgian-for-garmin inspect --report     # the watch report, as in the app's GitHub issue
+  georgian-for-garmin inspect-drive --report   # the same for a watch mounted as a USB drive
   georgian-for-garmin install              # every listed part of every pack
   georgian-for-garmin install --parts 006-D9035-02,006-D9035-03 --json
   echo '{\"parts\": [\"006-D9035-03\"]}' | georgian-for-garmin restore-stock --input -
+  georgian-for-garmin inspect --report --json | jq '{report: ., answers: {result: \"georgian\"}}' \\
+    | georgian-for-garmin issue-link --input -   # a prefilled GitHub issue link
   georgian-for-garmin --help --json        # MCP tool definitions
 
 After install or restore-stock, disconnect the USB cable and restart the watch.
@@ -43,6 +46,10 @@ enum Command {
     Install(StageArgs),
     /// Stage Garmin's original font in every part of the bundled packs the watch lists and verify it
     RestoreStock(StageArgs),
+    /// Read a watch that connects as a USB drive instead of MTP (read-only; nothing installs)
+    InspectDrive(InspectDriveArgs),
+    /// Print the GitHub link that files a watch report with the issue form filled in
+    IssueLink(InputArgs),
 }
 
 impl Command {
@@ -51,6 +58,17 @@ impl Command {
             Command::Inspect(_) => "inspect",
             Command::Install(_) => "install",
             Command::RestoreStock(_) => "restore_stock",
+            Command::InspectDrive(_) => "inspect_drive",
+            Command::IssueLink(_) => "issue_link",
+        }
+    }
+
+    /// Whether only the watch report is printed.
+    fn report_only(&self) -> bool {
+        match self {
+            Command::Inspect(args) => args.report,
+            Command::InspectDrive(args) => args.report,
+            _ => false,
         }
     }
 }
@@ -64,8 +82,23 @@ struct InputArgs {
 
 #[derive(Args)]
 struct InspectArgs {
-    /// Print only the watch report (model, software, font list; no unit ID or serial number)
-    /// as Markdown for a GitHub issue; with --json, the report object
+    /// Print only the watch report (no unit ID or serial number), the text the app shares in a
+    /// GitHub issue; with --json, the report object
+    #[arg(long)]
+    report: bool,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[derive(Args)]
+struct InspectDriveArgs {
+    /// The watch volume's root, e.g. /Volumes/GARMIN or E:\ [default: the one mounted volume
+    /// with GARMIN/GarminDevice.xml]
+    #[arg(long)]
+    path: Option<String>,
+
+    /// Print only the watch report; with --json, the report object
     #[arg(long)]
     report: bool,
 
@@ -118,6 +151,14 @@ fn build_input(input: &InputArgs, flags: Map<String, Value>) -> Result<Value, Er
 fn request(command: &Command) -> Result<Value, Error> {
     match command {
         Command::Inspect(args) => build_input(&args.input, Map::new()),
+        Command::IssueLink(input) => build_input(input, Map::new()),
+        Command::InspectDrive(args) => {
+            let mut flags = Map::new();
+            if let Some(path) = &args.path {
+                flags.insert("path".into(), json!(path));
+            }
+            build_input(&args.input, flags)
+        }
         Command::Install(args) | Command::RestoreStock(args) => {
             let mut flags = Map::new();
             if !args.parts.is_empty() {
@@ -145,6 +186,35 @@ fn size(part: &Value) -> String {
 }
 
 fn print_human(operation: &str, out: &Value) {
+    match operation {
+        "issue_link" => {
+            println!("{}", text(&out["url"]));
+            if out["report_in_url"] != true {
+                eprintln!(
+                    "The report is too long for the link; paste report_text (see --json) into \
+                     the form's report field."
+                );
+            }
+            return;
+        }
+        "inspect_drive" => {
+            let device = &out["device"];
+            println!(
+                "{} ({}), software {}, connected as a USB drive at {}",
+                text(&device["model"]),
+                text(&device["part_number"]),
+                text(&device["software_version"]),
+                text(&out["path"])
+            );
+            println!("{}", text(&out["hosts"]["reason"]));
+            println!(
+                "Nothing can be installed while the watch is a USB drive; it needs MTP. To share \
+                 its font list: georgian-for-garmin inspect-drive --report"
+            );
+            return;
+        }
+        _ => {}
+    }
     if operation != "inspect" {
         println!(
             "{} font:",
@@ -288,6 +358,8 @@ fn tool_help(args: &[OsString]) -> Value {
         "inspect" => Some("inspect"),
         "install" => Some("install"),
         "restore-stock" => Some("restore_stock"),
+        "inspect-drive" => Some("inspect_drive"),
+        "issue-link" => Some("issue_link"),
         _ => None,
     });
     match named.and_then(ops::operation) {
@@ -325,7 +397,7 @@ fn main() -> ExitCode {
         }
     };
     let operation = cli.command.operation();
-    let report_only = matches!(&cli.command, Command::Inspect(args) if args.report);
+    let report_only = cli.command.report_only();
     let result = request(&cli.command)
         .and_then(|input| ops::call(operation, input, &FontSet::bundled(), &mut connect));
     match result {

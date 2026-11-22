@@ -52,9 +52,10 @@ Georgian is drawn at the size of the font's own letters: in the 27 px font, Geor
 
 The app reads the font list of the connected watch and adds Georgian to every Garmin Armenian
 font it uses, in any size: NotoSans Regular, NotoSans Armenian Regular and NotoSans Armenian
-Bold. Other models and software versions are untested until someone confirms
-them. If yours isn't listed, use **Share my watch's font list** in the app (or
-`georgian-for-garmin inspect --report`) to open an issue, and say whether Georgian appeared.
+Bold. Other models and software versions are untested until someone confirms them. Reporting
+takes a minute and only a GitHub account: after installing, click **Check on the watch**, answer
+what you saw, and **Share on GitHub** opens the issue form already filled in
+([Reporting](docs/reporting.md)).
 
 ## Install
 
@@ -81,7 +82,9 @@ Then:
    choose MTP. On Linux, [release it from GNOME or KDE](docs/command-line.md#linux) first.
 2. Click **Install Georgian** (**ქართულის დაყენება**).
 3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-4. Check it: send yourself `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
+   If you still see boxes, restart the watch once more.
+4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan its code with your phone
+   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`.
 
 To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
 

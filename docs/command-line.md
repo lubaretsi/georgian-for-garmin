@@ -65,9 +65,11 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | Command | What it does |
 |---|---|
 | `inspect` | Shows the model, software version, the font packs the watch lists with each listed part and whether it was tested on this model and software, and which font files are waiting on the watch. Read-only. |
-| `inspect --report` | Prints the watch's font list as Markdown for a GitHub issue: model, part number, software and font files. No serial number or unit ID. |
+| `inspect --report` | Prints the watch report the app shares in a GitHub issue: model, part number, software, the font files the watch declares and holds, what this build would install, the app version and OS ([Reporting](reporting.md)). No serial number or unit ID. |
 | `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
 | `restore-stock` | The same with Garmin's original fonts. |
+| `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
+| `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …}` (`report` as `inspect --report --json` prints it). Touches nothing. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
@@ -112,7 +114,11 @@ Running `install` again after it succeeded changes nothing and reports `already_
   bundled part with the size of its original or Georgian version; it is `null` for every other
   file, which `inspect` doesn't read (watches with TrueType fonts keep files of several MB
   there);
-- `report`: the same data as `--report`.
+- `fonts[].mark`: in beta builds, the test-mark variant (`A`, `B`, …) drawn into the part's
+  Georgian font ([Reporting](reporting.md#beta-test-marks)); null otherwise;
+- `report`: the watch report as an object (`--report --json` prints it): only allowlisted
+  fields, listed in [Reporting](reporting.md#whats-in-a-report), with `text`, what `--report`
+  prints.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
 `already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the

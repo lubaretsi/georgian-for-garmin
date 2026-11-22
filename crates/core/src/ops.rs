@@ -4,21 +4,28 @@
 //! A watch gets Georgian in every part of this build's packs that it lists under
 //! `Garmin/ExtData`, across all packs: `install`/`restore_stock` write each of them. A bitmap
 //! part is staged as a new `<part>.tmp`; a TrueType part replaces the watch's `<part>.bin`.
+//! `inspect_drive` reads a watch that connects as a USB drive instead, and `issue_link` makes
+//! the link that shares a watch report in a GitHub issue (`report`).
 
 use std::collections::{BTreeSet, HashMap};
-use std::fmt::Write as _;
+use std::path::PathBuf;
 
 use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use crate::drive;
 use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
 use crate::fonts::{Font, FontSet, Hosts, Kind, Listed, Pack};
 use crate::garmin_device::{self, GarminDevice};
 use crate::mtp::{CreateError, Mtp, MtpError};
 use crate::ptp::{self, ObjectInfo, op};
+use crate::report::{
+    self, Connection, IssueLink, IssueLinkInput, ListedFile, ReportInput, ReportedHosts,
+    ReportedPart, WatchReport,
+};
 
 /// This program's version, as reported in the watch report.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +34,16 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectInput {}
+
+/// Where to look for a watch connected as a USB drive.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct InspectDriveInput {
+    /// The volume's root, e.g. "/Volumes/GARMIN" or "E:\\". Default: the one mounted volume
+    /// that has `GARMIN/GarminDevice.xml`.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+}
 
 /// Which parts to stage.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -52,7 +69,9 @@ pub struct DeviceReport {
 
 /// Whether Georgian was seen working on this watch, for one part or for every part `install`
 /// writes. Ordered from best to worst; the overall status is the worst of the parts'.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum TestStatus {
     /// Part: its pack's `tested` list has an entry for this model part number and software
@@ -64,16 +83,6 @@ pub enum TestStatus {
     /// Part: no entry for this model part number names it. Overall: at least one target part is
     /// `untested`, or the watch lists no part of this build's packs.
     Untested,
-}
-
-impl TestStatus {
-    fn words(self) -> &'static str {
-        match self {
-            TestStatus::Tested => "tested on this model and software",
-            TestStatus::TestedOtherSoftware => "tested on this model with other software",
-            TestStatus::Untested => "untested on this model",
-        }
-    }
 }
 
 /// Whether every part `install` writes was verified on this watch.
@@ -111,7 +120,7 @@ pub struct PackReport {
 
 /// What the part's file in `GARMIN/ExtData` holds now: `<part>.tmp` for a bitmap part,
 /// `<part>.bin` for a TrueType part.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Staged {
     /// No file has this name.
@@ -141,6 +150,9 @@ pub struct FontReport {
     /// `hosts` chose, and the watch supports the MTP writes needed.
     pub target: bool,
     pub staged: Staged,
+    /// Beta builds: the test mark's variant ("A", "B", …) drawn into this part's Georgian
+    /// build; null in stable builds.
+    pub mark: Option<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -167,36 +179,6 @@ pub struct ExtDataReport {
     pub found_by: FoundBy,
     /// Every file in the folder.
     pub files: Vec<StagedFile>,
-}
-
-/// A `Garmin/ExtData` update file from `GarminDevice.xml`.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct ReportedFile {
-    pub part_number: String,
-    /// e.g. "2.10"; null if the watch gives none.
-    pub version: Option<String>,
-    pub file_name: String,
-}
-
-/// The watch's font list for sharing, e.g. in a GitHub issue so a new watch can be added. It
-/// never includes the unit ID, serial number or any other `Id` element.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct WatchReport {
-    /// This program's version.
-    pub app_version: String,
-    pub model: String,
-    pub model_part: String,
-    pub software_version: String,
-    /// Ids of the packs with a part the watch lists, in registry order; empty if it lists none.
-    pub packs: Vec<String>,
-    /// The overall status, as in `inspect`'s `tested`.
-    pub tested: TestStatus,
-    /// Every `Garmin/ExtData` update file the watch lists, in its order.
-    pub extdata_files: Vec<ReportedFile>,
-    /// A title for the issue.
-    pub title: String,
-    /// The report as Markdown for the issue body.
-    pub text: String,
 }
 
 /// Which kind of font this build writes on this watch, and why.
@@ -230,7 +212,20 @@ pub struct InspectOutput {
     pub report: WatchReport,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+/// A watch connected as a USB drive.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct InspectDriveOutput {
+    /// The volume's root.
+    pub path: String,
+    pub device: DeviceReport,
+    /// Which kind of font would get Georgian on this watch over MTP, and why.
+    pub hosts: HostChoice,
+    /// Its report; `connection` is `usb_drive`, no part is a target and staged states are
+    /// `unknown`.
+    pub report: WatchReport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StageStatus {
     /// Written and read back byte for byte. A bitmap part's `.tmp` is imported when USB is
@@ -348,8 +343,9 @@ impl Operation {
 // part never replaces a file (a different one is a conflict). A TrueType part replaces the
 // watch's `<part>.bin`, so install and restore are destructive, but only a file identical to
 // Garmin's original or this build's Georgian one, both of which restore_stock and install can
-// write back. Repeating either returns `already_staged`.
-pub static OPERATIONS: [Operation; 3] = [
+// write back. Repeating either returns `already_staged`. `inspect_drive` only reads a mounted
+// volume, and `issue_link` computes a link from its input without touching anything.
+pub static OPERATIONS: [Operation; 5] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
@@ -406,6 +402,38 @@ pub static OPERATIONS: [Operation; 3] = [
         input: || schema_for!(StageInput),
         output: || schema_for!(StageOutput),
     },
+    Operation {
+        name: "inspect_drive",
+        title: "Inspect watch connected as a USB drive",
+        description: "Read a watch that connects as a USB drive (mass storage) instead of MTP: \
+                      its GARMIN/GarminDevice.xml from the mounted volume (the one found, or \
+                      path), the kind of font that would get Georgian over MTP and why, and the \
+                      same shareable report as inspect (connection usb_drive; the ExtData listing \
+                      without hashes). Nothing can be installed this way. Read-only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(InspectDriveInput),
+        output: || schema_for!(InspectDriveOutput),
+    },
+    Operation {
+        name: "issue_link",
+        title: "Make a watch report link",
+        description: "Make the GitHub new-issue link that fills the watch report form from a \
+                      report (from inspect or inspect_drive), the last install or restore outcome \
+                      and the owner's answers (what the test notification showed, where, phone, \
+                      beta marker). The report text is rebuilt from the report's allowlisted \
+                      fields. If the link would pass 8000 characters, the report is left out of \
+                      it, report_in_url is false, and the form's report field asks for a paste of \
+                      report_text. Touches nothing.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(IssueLinkInput),
+        output: || schema_for!(IssueLink),
+    },
 ];
 
 pub fn operation(name: &str) -> Option<&'static Operation> {
@@ -439,6 +467,14 @@ pub fn call(
         "inspect" => {
             let InspectInput {} = parse(input)?;
             to_value(inspect(&mut *connect()?, fonts)?)
+        }
+        "inspect_drive" => {
+            let InspectDriveInput { path } = parse(input)?;
+            to_value(inspect_drive(path.as_deref(), fonts)?)
+        }
+        "issue_link" => {
+            let input: IssueLinkInput = parse(input)?;
+            to_value(report::issue_link(&input)?)
         }
         _ => {
             let StageInput { parts } = parse(input)?;
@@ -619,83 +655,52 @@ fn test_report(listed: &[Listed<'_>], packs: &[PackReport], device: &GarminDevic
     }
 }
 
-/// A watch-provided value as one line of Markdown text.
+/// A watch-provided value as one line of text.
 fn md(value: &str) -> String {
     let line = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    let escaped = line.replace('\\', "\\\\").replace('|', "\\|");
-    if escaped.is_empty() {
-        "(none)".into()
-    } else {
-        escaped
-    }
+    if line.is_empty() { "(none)".into() } else { line }
 }
 
-/// The shareable report. Built only from the fields named here, so the unit ID, serial number
-/// and every other `Id` element in `GarminDevice.xml` stay out of it.
-fn watch_report(device: &GarminDevice, packs: &[PackReport], tested: TestStatus) -> WatchReport {
-    let extdata_files: Vec<ReportedFile> = device
-        .extdata_files()
-        .map(|f| ReportedFile {
-            part_number: f.part_number.clone(),
-            version: f.version.clone(),
-            file_name: f.file_name.clone(),
+/// The shareable report of a watch whose fonts `reports` describes (one per font of `fonts`,
+/// in order). Built only from allowlisted fields (`report`).
+#[allow(clippy::too_many_arguments)]
+fn report_of(
+    device: &GarminDevice,
+    fonts: &FontSet,
+    hosts: &HostChoice,
+    packs: &[PackReport],
+    tested: TestStatus,
+    reports: &[FontReport],
+    connection: Connection,
+    extdata_listing: Option<Vec<ListedFile>>,
+) -> WatchReport {
+    let parts = fonts
+        .fonts()
+        .zip(reports)
+        .filter(|(_, r)| r.listed)
+        .map(|((pack, font), r)| ReportedPart {
+            part: r.part.clone(),
+            target: r.target,
+            staged: r.staged,
+            tested: part_tested(pack, &font.part, device),
+            mark: r.mark.clone(),
         })
         .collect();
-    let title = format!(
-        "Watch report: {} ({}), software {}",
-        md(&device.description),
-        md(&device.part_number),
-        md(&device.software_version)
-    );
-    let mut text = String::from(
-        "<!-- Shared from Georgian for Garmin. It lists no unit ID or serial number. -->\n\n## Watch\n\n",
-    );
-    let packs: Vec<String> = packs.iter().map(|p| p.id.clone()).collect();
-    let pack_line = if packs.is_empty() {
-        "none of this build's packs".into()
-    } else {
-        format!("{} ({})", md(&packs.join(", ")), tested.words())
-    };
-    for (label, value) in [
-        ("Model", md(&device.description)),
-        ("Model part number", md(&device.part_number)),
-        ("Software version", md(&device.software_version)),
-        ("Georgian for Garmin", md(APP_VERSION)),
-        ("Font packs", pack_line),
-    ] {
-        writeln!(text, "- {label}: {value}").unwrap();
-    }
-    text.push_str("\n## Fonts the watch lists in Garmin/ExtData\n\n");
-    if extdata_files.is_empty() {
-        text.push_str("None.\n");
-    } else {
-        text.push_str("| Part number | Version | File name |\n| --- | --- | --- |\n");
-        for f in &extdata_files {
-            writeln!(
-                text,
-                "| {} | {} | {} |",
-                md(&f.part_number),
-                md(f.version.as_deref().unwrap_or("")),
-                md(&f.file_name)
-            )
-            .unwrap();
-        }
-    }
-    text.push_str(
-        "\n## Result\n\n<!-- If you installed Georgian: after unplugging and restarting the watch, did \
-         a notification with მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ show letters instead of boxes? -->\n",
-    );
-    WatchReport {
-        app_version: APP_VERSION.into(),
-        model: device.description.clone(),
-        model_part: device.part_number.clone(),
-        software_version: device.software_version.clone(),
-        packs,
-        tested,
-        extdata_files,
-        title,
-        text,
-    }
+    report::watch_report(
+        device,
+        ReportInput {
+            connection,
+            packs: packs.iter().map(|p| p.id.clone()).collect(),
+            tested,
+            hosts: ReportedHosts {
+                kind: hosts.kind,
+                reason: hosts.reason.clone(),
+            },
+            parts,
+            test_marks: fonts.test_marks(),
+            extdata_listing,
+        },
+    )
 }
 
 /// `inspect`'s `hosts`: the choice `FontSet::hosts` made, in words.
@@ -771,6 +776,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             listed,
             target: writable && chosen,
             staged,
+            mark: font.mark.as_ref().map(|m| m.variant.clone()),
         });
     }
     let extdata = layout.extdata.map(|ext| ExtDataReport {
@@ -791,11 +797,31 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     });
     let packs = pack_reports(&hosts.listed, &device);
     let tested = test_report(&hosts.listed, &packs, &device);
-    let report = watch_report(&device, &packs, tested.status);
+    let hosts = host_choice(&hosts);
+    let listing = extdata.as_ref().map(|ext| {
+        ext.files
+            .iter()
+            .map(|f| ListedFile {
+                name: f.name.clone(),
+                bytes: f.bytes.into(),
+                sha256: f.sha256.clone(),
+            })
+            .collect()
+    });
+    let report = report_of(
+        &device,
+        fonts,
+        &hosts,
+        &packs,
+        tested.status,
+        &reports,
+        Connection::Mtp,
+        listing,
+    );
     Ok(InspectOutput {
         supported: writable && !packs.is_empty(),
         tested,
-        hosts: host_choice(&hosts),
+        hosts,
         packs,
         fonts: reports,
         extdata,
@@ -805,6 +831,52 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             part_number: device.part_number,
             software_version: device.software_version,
         },
+    })
+}
+
+/// Reads a watch that connects as a USB drive: the volume at `path`, or the one mounted.
+pub fn inspect_drive(
+    path: Option<&std::path::Path>,
+    fonts: &FontSet,
+) -> Result<InspectDriveOutput, Error> {
+    let root = drive::locate(path)?;
+    let (device, listing) = drive::read(&root)?;
+    let hosts = fonts.hosts(&device);
+    let reports: Vec<FontReport> = fonts
+        .fonts()
+        .map(|(pack, font)| FontReport {
+            pack: pack.id.clone(),
+            part: font.part.clone(),
+            kind: font.kind,
+            size_px: font.size_px,
+            listed: device.declares_extdata_part(&font.part),
+            target: false,
+            staged: Staged::Unknown,
+            mark: font.mark.as_ref().map(|m| m.variant.clone()),
+        })
+        .collect();
+    let packs = pack_reports(&hosts.listed, &device);
+    let tested = test_report(&hosts.listed, &packs, &device);
+    let hosts = host_choice(&hosts);
+    let report = report_of(
+        &device,
+        fonts,
+        &hosts,
+        &packs,
+        tested.status,
+        &reports,
+        Connection::UsbDrive,
+        listing,
+    );
+    Ok(InspectDriveOutput {
+        path: root.display().to_string(),
+        device: DeviceReport {
+            model: device.description,
+            part_number: device.part_number,
+            software_version: device.software_version,
+        },
+        hosts,
+        report,
     })
 }
 

@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use georgian_for_garmin_core::fonts::{Font, FontSet, Kind, Pack, Tested};
+use georgian_for_garmin_core::fonts::{Font, FontSet, Kind, Mark, Pack, Tested};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
@@ -426,6 +426,7 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
                 version: "2.10".into(),
                 stock: Cow::Owned(stock(part)),
                 georgian: Cow::Owned(georgian(part)),
+                mark: None,
             })
             .collect(),
         tested,
@@ -448,6 +449,7 @@ fn truetype_pack() -> Pack {
                 version: "2.10".into(),
                 stock: Cow::Owned(stock(part)),
                 georgian: Cow::Owned(georgian(part)),
+                mark: None,
             })
             .collect(),
         tested: vec![],
@@ -570,7 +572,7 @@ fn finds_unlisted_empty_extdata_by_probe() {
     assert_eq!(
         out["fonts"][2],
         json!({"pack": "armenian", "part": PART, "kind": "bitmap", "size_px": 27, "listed": true,
-               "target": true, "staged": "none"})
+               "target": true, "staged": "none", "mark": null})
     );
     assert_eq!(out["fonts"].as_array().unwrap().len(), 6);
 }
@@ -1021,23 +1023,140 @@ fn report_lists_the_font_list_and_excludes_ids() {
         report["title"],
         "Watch report: Venu 2 (006-B3703-00), software 19.05"
     );
+    assert_eq!(report["connection"], "mtp");
+    assert_eq!(report["test_marks"], false);
+    assert_eq!(
+        report["declared_files"][0],
+        json!({"path": "Garmin/RemoteSW", "file_name": "GUPDATE.GCD", "part_number": "006-B3703-00", "version": null})
+    );
+    assert_eq!(
+        report["parts"],
+        json!([{"part": "006-D9035-03", "target": true, "staged": "none", "tested": "tested", "mark": null}])
+    );
+    assert_eq!(report["extdata_listing"], json!([]));
     let text = report["text"].as_str().unwrap();
     for line in [
-        "- Model: Venu 2",
-        "- Model part number: 006-B3703-00",
-        "- Software version: 19.05",
-        &format!("- Georgian for Garmin: {}", env!("CARGO_PKG_VERSION")),
-        "- Font packs: armenian (tested on this model and software)",
-        "| 006-D9035-03 | 2.10 | 006-D9035-03.tmp |",
-        "| 006-D8945-20 | 3.05 | 006-D8945-20.tmp |",
-        "| 006-D7777-01 | (none) | x\\|y.tmp |",
+        "connection mtp",
+        "watch \"Venu 2\" 006-B3703-00 19.05",
+        "packs armenian (tested)",
+        "006-D9035-03 none yes tested -",
+        "Garmin/RemoteSW GUPDATE.GCD 006-B3703-00 -",
+        "Garmin/ExtData 006-D9035-03.tmp 006-D9035-03 2.10",
+        "GARMIN/EXTDATA 006-D8945-20.tmp 006-D8945-20 3.05",
+        "Garmin/ExtData x|y.tmp 006-D7777-01 -",
+        "extdata: name bytes sha256",
     ] {
         assert!(
             text.lines().any(|l| l == line),
             "{line:?} missing from\n{text}"
         );
     }
-    assert!(!text.contains("GUPDATE"), "only ExtData files are listed");
+    assert!(text.starts_with(&format!("app {} ", env!("CARGO_PKG_VERSION"))));
+    let everything = out.to_string();
+    for secret in [UNIT_ID, "99001122", "SN-77X1"] {
+        assert!(!everything.contains(secret), "{secret} leaked");
+    }
+    // The report holds only the allowlisted fields.
+    let keys: Vec<&str> = report
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let mut expected = vec![
+        "app_version",
+        "connection",
+        "declared_files",
+        "extdata_files",
+        "extdata_listing",
+        "hosts",
+        "model",
+        "model_part",
+        "packs",
+        "parts",
+        "platform",
+        "software_version",
+        "test_marks",
+        "tested",
+        "text",
+        "title",
+    ];
+    expected.sort_unstable();
+    let mut keys = keys;
+    keys.sort_unstable();
+    assert_eq!(keys, expected);
+}
+
+#[test]
+fn the_report_links_to_a_filled_form() {
+    let out = Fake::new(venu2(&ALL))
+        .call("inspect", json!({}), &fonts())
+        .unwrap();
+    let input = json!({
+        "report": out["report"],
+        "outcome": {"operation": "install", "status": "staged_verified", "parts": ALL},
+        "answers": {"result": "georgian", "views": ["opened"], "phone": "iphone"},
+    });
+    let link = ops::call("issue_link", input, &fonts(), &mut || {
+        panic!("issue_link never opens the watch")
+    })
+    .unwrap();
+    assert_eq!(link["report_in_url"], true);
+    let text = link["report_text"].as_str().unwrap();
+    assert!(text.contains(&format!(
+        "\nlast install staged_verified {}\n",
+        ALL.join(" ")
+    )));
+    assert!(text.contains("\nanswers result=georgian views=opened phone=iphone\n"));
+    let url = link["url"].as_str().unwrap();
+    assert!(url.contains("&phone=iPhone&"), "{url}");
+}
+
+#[test]
+fn beta_marks_are_in_inspect_and_the_report() {
+    let mut fonts = fonts();
+    for (i, font) in fonts.packs[0].fonts.iter_mut().enumerate() {
+        font.mark = Some(Mark {
+            variant: char::from(b'A' + i as u8).to_string(),
+            code_point: "U+1C9B".into(),
+            position: i as u8,
+            style: "below".into(),
+            picture: Cow::Borrowed(b"png"),
+        });
+    }
+    let out = Fake::new(venu2(&[PART])).call("inspect", json!({}), &fonts).unwrap();
+    assert_eq!(out["fonts"][2]["mark"], "C");
+    assert_eq!(out["fonts"][4]["mark"], Value::Null, "Thai has no marks");
+    assert_eq!(out["report"]["test_marks"], true);
+    assert_eq!(out["report"]["parts"][0]["mark"], "C");
+    let text = out["report"]["text"].as_str().unwrap();
+    assert!(text.contains("\nmarks beta\n"));
+    assert!(text.contains("\n006-D9035-03 none yes tested C\n"), "{text}");
+}
+
+#[test]
+fn a_watch_mounted_as_a_drive_gets_the_same_report() {
+    let root = std::env::temp_dir().join(format!("gfg-ops-drive-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("GARMIN")).unwrap();
+    std::fs::write(root.join("GARMIN/GarminDevice.xml"), identifying_xml()).unwrap();
+    let out = ops::call(
+        "inspect_drive",
+        json!({"path": root}),
+        &fonts(),
+        &mut || panic!("inspect_drive never opens MTP"),
+    )
+    .unwrap();
+    std::fs::remove_dir_all(&root).unwrap();
+    let report = &out["report"];
+    assert_eq!(report["connection"], "usb_drive");
+    assert_eq!(report["model"], "Venu 2");
+    assert_eq!(
+        report["parts"],
+        json!([{"part": "006-D9035-03", "target": false, "staged": "unknown", "tested": "tested", "mark": null}])
+    );
+    assert_eq!(report["extdata_listing"], Value::Null);
+    assert!(report["text"].as_str().unwrap().contains("\nextdata not found\n"));
     let everything = out.to_string();
     for secret in [UNIT_ID, "99001122", "SN-77X1"] {
         assert!(!everything.contains(secret), "{secret} leaked");
@@ -1555,7 +1674,14 @@ fn tool_definitions_follow_the_schemas() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["inspect", "install", "restore_stock"]);
+    assert_eq!(
+        names,
+        ["inspect", "install", "restore_stock", "inspect_drive", "issue_link"]
+    );
+    for pure in &tools["tools"].as_array().unwrap()[3..] {
+        assert_eq!(pure["annotations"]["readOnlyHint"], true);
+        assert_eq!(pure["annotations"]["destructiveHint"], false);
+    }
     let install = &tools["tools"][1];
     let parts = &install["inputSchema"]["properties"]["parts"];
     assert_eq!(parts["uniqueItems"], true);

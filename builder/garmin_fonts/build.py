@@ -1,19 +1,21 @@
 """Build the font asset directory: Garmin stock fonts, Georgian builds and a manifest."""
 
 import hashlib
+import io
 import json
 from pathlib import Path
 
+from . import marks as test_mark
 from . import registry as font_registry
 from . import truetype
 from .georgian import Outlines, choose_sizing, with_georgian
-from .preview import truetype_preview
+from .preview import bitmap_mark_picture, truetype_mark_picture, truetype_preview
 
 # The size the installer stages by default: verified on hardware (Venu 2, firmware 19.05).
 DEFAULT_PART = "006-D9035-03"
 
 
-def build(registry, stock_dir, noto, license_file, out):
+def build(registry, stock_dir, noto, license_file, out, test_marks=False):
     """Write the asset directory to `out`, which must not exist yet; return the manifest.
 
     `registry` is the font registry JSON (its schema beside it); `stock_dir` holds every part it
@@ -21,10 +23,16 @@ def build(registry, stock_dir, noto, license_file, out):
     Sans Georgian TTF and `license_file` its OFL text, both matching the registry's
     `georgian_font` hashes. Every file is checked before anything is written. Each TrueType
     build also gets a preview, `previews/<part>.png`.
+
+    With `test_marks` (pre-release builds), each part's Georgian marks one capital of the test
+    text with a bar (`marks`), and gets a picture of the marked capitals,
+    `previews/mark-<part>.png`, described by its manifest entry's `mark`. Without, the fonts
+    are the ones tested on watches.
     """
     stock_dir, out = Path(stock_dir), Path(out)
     entries = font_registry.load(registry)
     packs, source = entries["packs"], entries["georgian_font"]
+    marks = test_mark.assign(packs) if test_marks else {}
     font_registry.check_file(noto, source["sha256"])
     license_text = font_registry.check_file(license_file, source["license"]["sha256"])
     stock = {
@@ -41,14 +49,14 @@ def build(registry, stock_dir, noto, license_file, out):
             weight = font_registry.weight(pack, part)
             if weight not in outlines:
                 outlines[weight] = Outlines(noto, weight)
-            data = stock[part["part"]]
+            data, mark = stock[part["part"]], marks.get(part["part"])
             if pack["kind"] == "truetype":
                 sizing = truetype.choose_sizing(data, outlines[weight])
-                georgian = truetype.with_georgian(data, outlines[weight], sizing)
+                georgian = truetype.with_georgian(data, outlines[weight], sizing, mark)
                 built.append((pack, part, georgian, truetype_entry(sizing)))
             else:
                 sizing = choose_sizing(data, outlines[weight], part["size_px"])
-                georgian, clipped = with_georgian(data, outlines[weight], sizing)
+                georgian, clipped = with_georgian(data, outlines[weight], sizing, mark)
                 built.append((pack, part, georgian, bitmap_entry(part, sizing, clipped)))
 
     out.mkdir(parents=True, exist_ok=False)
@@ -70,8 +78,21 @@ def build(registry, stock_dir, noto, license_file, out):
             label = f"{number} {pack['name']}, weight {font_registry.weight(pack, part)}, with Georgian"
             image = truetype_preview(truetype.unmask(georgian), label)
             image.save(out / entry["preview"])
+        if number in marks:
+            if pack["kind"] == "truetype":
+                picture = truetype_mark_picture(truetype.unmask(georgian))
+            else:
+                picture = bitmap_mark_picture(georgian)
+            buffer = io.BytesIO()
+            picture.save(buffer, format="PNG")
+            path = f"previews/mark-{number}.png"
+            (out / path).write_bytes(buffer.getvalue())
+            entry["mark"] = test_mark.manifest_entry(
+                marks[number], path, hashlib.sha256(buffer.getvalue()).hexdigest()
+            )
         fonts.append(entry)
     manifest = {
+        "test_marks": bool(test_marks),
         "fonts": fonts,
         "packs": [
             {

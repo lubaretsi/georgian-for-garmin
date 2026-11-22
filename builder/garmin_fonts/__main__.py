@@ -56,10 +56,16 @@ def main(argv=None):
     parser.add_argument("--noto", required=True, help="Noto Sans Georgian TTF")
     parser.add_argument("--license", required=True, help="the font's OFL.txt")
     parser.add_argument("--out", required=True, help="output directory; must not exist")
+    parser.add_argument(
+        "--test-marks", action="store_true",
+        help="pre-release build: mark one test capital per part with a bar and write "
+        "previews/mark-<part>.png (manifest: test_marks, mark)",
+    )
     parser.add_argument("--json", action="store_true", help="print the manifest as JSON")
     args = parser.parse_args(argv)
     try:
-        manifest = build(args.registry, args.stock_dir, args.noto, args.license, args.out)
+        manifest = build(args.registry, args.stock_dir, args.noto, args.license, args.out,
+                         test_marks=args.test_marks)
     except INVALID_INPUT as error:
         fail(args.json, 2, "invalid_input", str(error))
     except Exception as error:  # noqa: BLE001 - report every other failure as exit 1

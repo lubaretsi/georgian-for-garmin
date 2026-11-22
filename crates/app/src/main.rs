@@ -4,7 +4,8 @@
 //! blocking thread, and a mutex keeps the watch to one operation at a time, so the frontend's
 //! `inspect` polling never overlaps an install. Commands return core output unchanged, and
 //! errors as `{code, message}`; the frontend turns codes into words (`ui/strings.json`).
-//! `share_report` copies the watch report and opens a prefilled GitHub issue (`share`).
+//! `share_report` opens the GitHub issue form filled in by the core's `issue_link`; `share`
+//! draws the check screen's QR code and test-mark pictures.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -107,18 +108,54 @@ async fn restore_stock(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("restore_stock", json!({})).await
 }
 
-#[derive(Debug, Serialize)]
-struct Shared {
-    /// The whole report is in the issue; otherwise the issue asks for a paste.
-    complete: bool,
+/// Reads a watch mounted as a USB drive (the demo build's is a folder it makes).
+#[tauri::command]
+async fn inspect_drive(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
+    #[cfg(feature = "demo")]
+    let input = match demo::drive() {
+        Some(path) => json!({ "path": path }),
+        None => {
+            return Err(Failure::from(Error::new(
+                ErrorCode::NoDevice,
+                "Demo: no watch is mounted as a drive.",
+            )));
+        }
+    };
+    #[cfg(not(feature = "demo"))]
+    let input = json!({});
+    Arc::clone(&watch).run("inspect_drive", input).await
 }
 
-/// Copies `text` (the watch report from `inspect`) and opens a new GitHub issue prefilled
-/// with `title` and, if it fits in the URL, `text`. The demo build touches neither the
-/// clipboard nor the browser.
+/// The issue link for `input` (`issue_link`'s input), without opening it: what the check
+/// screen shows as what will be shared.
 #[tauri::command]
-fn share_report(app: AppHandle, title: String, text: String) -> Result<Shared, Failure> {
-    let (url, complete) = share::issue_url(&title, &text);
+fn issue_link(watch: State<'_, Arc<Watch>>, input: Value) -> Result<Value, Failure> {
+    Ok(ops::call("issue_link", input, &watch.fonts, &mut || {
+        Err(Error::new(ErrorCode::Internal, "issue_link opened the watch"))
+    })?)
+}
+
+#[derive(Debug, Serialize)]
+struct Shared {
+    /// The whole report is in the link; otherwise it is on the clipboard and the form asks
+    /// for a paste.
+    complete: bool,
+    /// The link opened (the demo build opens nothing and shows it instead).
+    url: String,
+}
+
+/// Opens the GitHub issue form filled in from `input` (`issue_link`'s input). A report too
+/// long for the link goes to the clipboard. The demo build touches neither the clipboard nor
+/// the browser.
+#[tauri::command]
+fn share_report(
+    app: AppHandle,
+    watch: State<'_, Arc<Watch>>,
+    input: Value,
+) -> Result<Shared, Failure> {
+    let link = issue_link(watch, input)?;
+    let complete = link["report_in_url"] == true;
+    let url = link["url"].as_str().unwrap_or_default().to_owned();
     let failed = |what: &str, e: &dyn std::fmt::Display| {
         Failure::from(Error::new(
             ErrorCode::Internal,
@@ -126,14 +163,29 @@ fn share_report(app: AppHandle, title: String, text: String) -> Result<Shared, F
         ))
     };
     if !cfg!(feature = "demo") {
-        app.clipboard()
-            .write_text(text)
-            .map_err(|e| failed("copy the report", &e))?;
+        if !complete {
+            let text = link["report_text"].as_str().unwrap_or_default().to_owned();
+            app.clipboard()
+                .write_text(text)
+                .map_err(|e| failed("copy the report", &e))?;
+        }
         app.opener()
-            .open_url(url, None::<&str>)
+            .open_url(url.clone(), None::<&str>)
             .map_err(|e| failed("open the browser", &e))?;
     }
-    Ok(Shared { complete })
+    Ok(Shared { complete, url })
+}
+
+/// The phone test page in `language`, with its QR code.
+#[tauri::command]
+fn phone_page(language: String) -> share::PhonePage {
+    share::phone_page(&language)
+}
+
+/// The test marks' pictures; empty in stable builds.
+#[tauri::command]
+fn test_marks(watch: State<'_, Arc<Watch>>) -> Vec<share::MarkPicture> {
+    share::mark_pictures(&watch.fonts)
 }
 
 /// Whether this build talks to the in-memory demo watch.
@@ -200,7 +252,11 @@ fn main() {
             inspect,
             install,
             restore_stock,
+            inspect_drive,
+            issue_link,
             share_report,
+            phone_page,
+            test_marks,
             demo_mode,
             saved_language,
             save_language
@@ -217,6 +273,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use georgian_for_garmin_core::report;
 
     /// Every string value of a `const` or `enum` anywhere in `schema`.
     fn constants(schema: &Value, out: &mut BTreeSet<String>) {
@@ -323,6 +380,9 @@ mod tests {
                 "afterRestart",
                 schemars::schema_for!(ops::Variant).to_value(),
             ),
+            ("results", schemars::schema_for!(report::Seen).to_value()),
+            ("views", schemars::schema_for!(report::View).to_value()),
+            ("phones", schemars::schema_for!(report::Phone).to_value()),
         ];
         for (key, schema) in tables {
             let mut values = BTreeSet::new();

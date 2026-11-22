@@ -44,19 +44,31 @@
       };
 
       python = pkgs: pkgs.python3.withPackages (ps: with ps; [ fonttools jsonschema pillow pytest ]);
+
+      # Pre-release versions (with a `-` identifier, e.g. 0.3.0-beta.1) build fonts with beta
+      # test marks (fonts/README.md, Test marks); releases build the fonts tested on watches.
+      version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
+      preRelease = lib.hasInfix "-" version;
+
+      buildFonts = pkgs: testMarks: pkgs.runCommand
+        "georgian-garmin-fonts${lib.optionalString testMarks "-test-marks"}"
+        ((fontInputs pkgs) // {
+          nativeBuildInputs = [ (python pkgs) ];
+          PYTHONDONTWRITEBYTECODE = 1;
+        })
+        ''
+          cd ${src}/builder
+          python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
+            --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out" \
+            ${lib.optionalString testMarks "--test-marks"}
+        '';
     in
     {
       packages = forAllSystems (pkgs: {
-        fonts = pkgs.runCommand "georgian-garmin-fonts"
-          ((fontInputs pkgs) // {
-            nativeBuildInputs = [ (python pkgs) ];
-            PYTHONDONTWRITEBYTECODE = 1;
-          })
-          ''
-            cd ${src}/builder
-            python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
-              --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out"
-          '';
+        # The fonts the app embeds: test marks exactly when the workspace version is a pre-release.
+        fonts = buildFonts pkgs preRelease;
+        fonts-stable = buildFonts pkgs false;
+        fonts-marked = buildFonts pkgs true;
       });
 
       checks = forAllSystems (pkgs: {

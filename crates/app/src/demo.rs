@@ -1,8 +1,8 @@
 //! An in-memory watch for trying the app without hardware (`--features demo`).
 //!
-//! It follows a short script so every screen shows up: the first two connections find no
-//! watch, the next two find it held by Garmin Express, and from then on one of two watches is
-//! attached:
+//! It follows a short script so every screen shows up: the first three connections find no
+//! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]), the next two find
+//! it held by Garmin Express, and from then on one of two watches is attached:
 //!
 //! 1. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
 //!    staged: `tested`;
@@ -31,7 +31,7 @@ const EXTDATA: u32 = 0x0100_0003;
 const LEFTOVER: u32 = 0x0100_0004;
 
 /// Connections that find no watch, then connections that find it busy.
-const ABSENT: usize = 2;
+const ABSENT: usize = 3;
 const BUSY: usize = 2;
 
 /// (description, part number, software version as in `GarminDevice.xml`, stage a leftover).
@@ -195,6 +195,12 @@ impl Demo {
         });
         s.current = (s.current + 1) % s.watches.len();
     }
+
+    /// Whether the script is still in its no-watch connections.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn absent(&self) -> bool {
+        self.state().connects <= ABSENT
+    }
 }
 
 #[cfg(feature = "demo")]
@@ -211,6 +217,35 @@ pub fn connect() -> Result<Box<dyn Mtp>, Error> {
 #[cfg(feature = "demo")]
 pub fn unplug() {
     WATCH.swap();
+}
+
+/// While no demo watch is attached over MTP: a Forerunner 245 "mounted as a USB drive" (issue
+/// #16), a folder in the temp directory with its `GARMIN/GarminDevice.xml`.
+#[cfg(feature = "demo")]
+pub fn drive() -> Option<std::path::PathBuf> {
+    if !WATCH.absent() {
+        return None;
+    }
+    let root = std::env::temp_dir().join("georgian-for-garmin-demo-drive");
+    let text_files: String = (0..4)
+        .map(|i| {
+            format!(
+                "<UpdateFile><PartNumber>006-D7547-{i:02}</PartNumber>\
+                 <Version><Major>4</Major><Minor>20</Minor></Version>\
+                 <Path>Garmin/Text</Path><FileName>lang{i}.ln4</FileName></UpdateFile>"
+            )
+        })
+        .collect();
+    let xml = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+         <Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
+         <Model><PartNumber>006-B3076-00</PartNumber><SoftwareVersion>1370</SoftwareVersion>\
+         <Description>Forerunner 245</Description></Model><Id>3300000001</Id>\
+         <MassStorageMode>{text_files}</MassStorageMode></Device>"
+    );
+    std::fs::create_dir_all(root.join("GARMIN")).ok()?;
+    std::fs::write(root.join("GARMIN/GarminDevice.xml"), xml).ok()?;
+    Some(root)
 }
 
 impl Mtp for Demo {

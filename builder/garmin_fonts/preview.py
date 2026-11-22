@@ -1,8 +1,11 @@
-"""Render a part's Armenian and Georgian letters from their 2-bit bitmaps into a PNG, and
-preview a TrueType build (`truetype_preview`; the font build writes one per TrueType part).
+"""Render a part's Armenian and Georgian letters from their 2-bit bitmaps into a PNG, preview a
+TrueType build (`truetype_preview`; the font build writes one per TrueType part), draw a part's
+test mark picture (`bitmap_mark_picture`, `truetype_mark_picture`) and a contact sheet of a
+build's mark pictures (`marks_sheet`).
 
 The README image is `python -m garmin_fonts.preview --out ../docs/georgian-glyphs-27px.png`,
-run from `builder/` in `nix develop`.
+run from `builder/` in `nix develop`; the contact sheet of a build with test marks is
+`python -m garmin_fonts.preview --marks <fonts dir> --out marks.png`.
 """
 
 import argparse
@@ -15,6 +18,7 @@ from . import __version__
 from . import registry as font_registry
 from .codec import decode
 from .georgian import Outlines, choose_sizing, rows, with_georgian
+from .marks import TEST_CAPS
 
 PROG = "garmin-fonts-preview"
 REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
@@ -27,6 +31,9 @@ TRUETYPE_SIZES_PX = (20, 56)
 # Grey for each 2-bit level, white on black like the watch.
 GREYS = (0, 85, 170, 255)
 LABEL_GREY = 150
+# Pixel size of a TrueType part's mark picture, and the black border around every one.
+MARK_PICTURE_PX = 24
+MARK_PICTURE_PADDING = 2
 
 
 def line(font, text):
@@ -118,6 +125,67 @@ def truetype_preview(font, label, margin=12):
     return image
 
 
+def bitmap_mark_picture(font, padding=MARK_PICTURE_PADDING):
+    """TEST_CAPS drawn from a bitmap font's glyph tiles at their native pixels, white on black."""
+    from PIL import Image
+
+    levels = line(font, TEST_CAPS)
+    glyphs = Image.new("L", (len(levels[0]), len(levels)))
+    glyphs.putdata([GREYS[level] for row in levels for level in row])
+    image = Image.new("L", (glyphs.width + 2 * padding, glyphs.height + 2 * padding))
+    image.paste(glyphs, (padding, padding))
+    return image
+
+
+def truetype_mark_picture(font, size=MARK_PICTURE_PX, padding=MARK_PICTURE_PADDING):
+    """TEST_CAPS drawn from a TrueType font `font` (plain bytes) at `size` px, white on black."""
+    import io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    pillow_font = ImageFont.truetype(io.BytesIO(font), size)
+    left, top, right, bottom = pillow_font.getbbox(TEST_CAPS, anchor="ls")
+    image = Image.new("L", (right - left + 2 * padding, bottom - top + 2 * padding))
+    ImageDraw.Draw(image).text(
+        (padding - left, padding - top), TEST_CAPS, font=pillow_font, anchor="ls", fill=GREYS[3]
+    )
+    return image
+
+
+def marks_sheet(fonts_dir, scale=3, columns=2, margin=12):
+    """A contact sheet of every mark picture in the asset directory `fonts_dir`, each scaled up
+    `scale` times (pixelated) under a label: part, kind, variant, style and marked capital.
+    Raises ValueError when the build has no test marks."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    fonts_dir = Path(fonts_dir)
+    manifest = json.loads((fonts_dir / "manifest.json").read_text())
+    if not manifest.get("test_marks"):
+        raise ValueError(f"{fonts_dir} is a build without test marks")
+    label_font = ImageFont.load_default(size=14)
+    label_height = 22
+    cells = []
+    for font in manifest["fonts"]:
+        mark = font["mark"]
+        kind = "bitmap" if "size_px" in font else "truetype"
+        picture = Image.open(fonts_dir / mark["picture"]).convert("L")
+        picture = picture.resize((picture.width * scale, picture.height * scale), Image.NEAREST)
+        label = (f"{font['part']}  {kind}  {mark['variant']}  {mark['style']}  "
+                 f"{mark['code_point']} (letter {mark['position'] + 1})")
+        cells.append((label, picture))
+    cell_width = max(max(p.width, label_font.getbbox(label)[2]) for label, p in cells) + margin
+    cell_height = max(p.height for _, p in cells) + label_height + margin
+    grid_rows = -(-len(cells) // columns)
+    image = Image.new("L", (columns * cell_width + margin, grid_rows * cell_height + margin))
+    draw = ImageDraw.Draw(image)
+    for i, (label, picture) in enumerate(cells):
+        row, column = divmod(i, columns)
+        x, y = margin + column * cell_width, margin + row * cell_height
+        draw.text((x, y), label, font=label_font, fill=LABEL_GREY)
+        image.paste(picture, (x, y + label_height))
+    return image
+
+
 def fail(as_json, message):
     if as_json:
         print(json.dumps({"error": {"code": "invalid_input", "message": message}}), file=sys.stderr)
@@ -131,8 +199,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         prog=PROG,
         description="Draw a part's stock Armenian letters and its Georgian build, from the 2-bit "
-        "glyph bitmaps scaled up, into a PNG. Defaults come from `nix develop`.",
-        epilog="example:\n  python -m garmin_fonts.preview --out ../docs/georgian-glyphs-27px.png",
+        "glyph bitmaps scaled up, into a PNG; or, with --marks, a contact sheet of a build's test "
+        "mark pictures. Defaults come from `nix develop`.",
+        epilog="examples:\n  python -m garmin_fonts.preview --out ../docs/georgian-glyphs-27px.png"
+        "\n  python -m garmin_fonts.preview --marks ../result --out marks.png",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"{PROG} {__version__}")
@@ -142,17 +212,30 @@ def main(argv=None):
     parser.add_argument("--noto", default=os.environ.get("GFG_NOTO_SANS_GEORGIAN"),
                         help="Noto Sans Georgian TTF (default: $GFG_NOTO_SANS_GEORGIAN)")
     parser.add_argument("--part", default="006-D9035-03", help="part number (default: %(default)s)")
+    parser.add_argument(
+        "--marks", nargs="?", const=os.environ.get("GEORGIAN_FOR_GARMIN_FONTS", ""), metavar="DIR",
+        help="draw the contact sheet of the test mark pictures in the font asset directory DIR, "
+        "a build with test marks (default: $GEORGIAN_FOR_GARMIN_FONTS)",
+    )
     parser.add_argument("--out", required=True, help="PNG to write")
     parser.add_argument("--json", action="store_true", help="print {\"out\": path} as JSON")
     args = parser.parse_args(argv)
-    if not args.stock_dir or not args.noto:
-        fail(args.json, "pass --stock-dir and --noto, or run inside `nix develop`")
-    try:
-        image = readme_image(args.registry, args.stock_dir, args.noto, args.part)
-    except StopIteration:
-        fail(args.json, f"part {args.part} is not in the registry")
-    except (OSError, ValueError) as error:
-        fail(args.json, str(error))
+    if args.marks is not None:
+        if not args.marks:
+            fail(args.json, "pass --marks DIR, or run inside `nix develop`")
+        try:
+            image = marks_sheet(args.marks)
+        except (OSError, ValueError, KeyError) as error:
+            fail(args.json, f"{args.marks}: {error}")
+    else:
+        if not args.stock_dir or not args.noto:
+            fail(args.json, "pass --stock-dir and --noto, or run inside `nix develop`")
+        try:
+            image = readme_image(args.registry, args.stock_dir, args.noto, args.part)
+        except StopIteration:
+            fail(args.json, f"part {args.part} is not in the registry")
+        except (OSError, ValueError) as error:
+            fail(args.json, str(error))
     image.save(args.out, optimize=True)
     print(json.dumps({"out": str(args.out)}) if args.json else args.out)
 

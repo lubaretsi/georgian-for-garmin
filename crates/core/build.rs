@@ -17,6 +17,9 @@ const FONTS_ENV: &str = "GEORGIAN_FOR_GARMIN_FONTS";
 struct Manifest {
     fonts: Vec<Entry>,
     packs: Vec<PackEntry>,
+    /// Beta builds: every Georgian font carries a test mark. Absent in older manifests.
+    #[serde(default)]
+    test_marks: bool,
 }
 
 #[derive(Deserialize)]
@@ -30,6 +33,18 @@ struct Entry {
     stock_sha256: String,
     georgian: String,
     georgian_sha256: String,
+    /// Present exactly when the manifest's `test_marks` is.
+    mark: Option<MarkEntry>,
+}
+
+#[derive(Deserialize)]
+struct MarkEntry {
+    variant: String,
+    code_point: String,
+    position: u8,
+    style: String,
+    picture: String,
+    picture_sha256: String,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +115,14 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
                 font.part, font.pack
             ));
         }
+        if font.mark.is_some() != manifest.test_marks {
+            fail(format!(
+                "{where_}: font part {} {} a test mark, but test_marks is {}",
+                font.part,
+                if font.mark.is_some() { "has" } else { "lacks" },
+                manifest.test_marks
+            ));
+        }
     }
     let mut code = String::from("&[\n");
     for pack in &manifest.packs {
@@ -160,10 +183,28 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
             }
             let stock = checked_file(dir, &font.stock, &font.stock_sha256);
             let georgian = checked_file(dir, &font.georgian, &font.georgian_sha256);
+            let mark = match &font.mark {
+                None => "None".to_owned(),
+                Some(m) => {
+                    if !matches!(m.style.as_str(), "below" | "above" | "both")
+                        || m.position >= 8
+                        || m.variant.len() != 1
+                    {
+                        fail(format!("{where_}: font part {} has an invalid mark", font.part));
+                    }
+                    let picture = checked_file(dir, &m.picture, &m.picture_sha256);
+                    format!(
+                        "Some(BundledMark {{ variant: {:?}, code_point: {:?}, position: {}, \
+                         style: {:?}, picture: include_bytes!({picture:?}) }})",
+                        m.variant, m.code_point, m.position, m.style
+                    )
+                }
+            };
             writeln!(
                 code,
                 "        BundledFont {{ part: {:?}, size_px: {:?}, version: {:?}, \
-                 stock: include_bytes!({stock:?}), georgian: include_bytes!({georgian:?}) }},",
+                 stock: include_bytes!({stock:?}), georgian: include_bytes!({georgian:?}), \
+                 mark: {mark} }},",
                 font.part, font.size_px, font.version,
             )
             .unwrap();

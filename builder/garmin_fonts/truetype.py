@@ -33,6 +33,8 @@ UNICODE_RANGE_GEORGIAN = 1 << 26
 # What the scale is matched to.
 LATIN_X_HEIGHT = "latin_x_height"
 UNITS_PER_EM = "units_per_em"
+# A test mark bar's thickness, and its gap to the letter, in ems.
+BAR_EM = Fraction(6, 100)
 
 
 def unmask(data):
@@ -153,14 +155,43 @@ def _round_half_up(value):
     return floor(value + Fraction(1, 2))
 
 
-def with_georgian(data, outlines, sizing):
+def add_bar(glyph, sides, upm, ascent, descent):
+    """Append a test mark's bar to the scaled `glyph` (bounds calculated) on each of `sides`:
+    a clockwise rectangle spanning xMin..xMax, "below" under the baseline and the glyph's lowest
+    point, "above" over its top. The bar and its gap to the letter are BAR_EM of the em thick,
+    both thinner when the host's `ascent` or `descent` (font units, descent positive) leaves
+    less room. Raises ValueError when no bar fits."""
+    x_min, x_max = glyph.xMin, glyph.xMax
+    for side in sides:
+        if side == "below":
+            edge = min(0, glyph.yMin)
+            thickness = min(_round_half_up(upm * BAR_EM), (edge + descent) // 2)
+            y_top = edge - thickness
+            y_bottom = y_top - thickness
+        else:
+            edge = glyph.yMax
+            thickness = min(_round_half_up(upm * BAR_EM), (ascent - edge) // 2)
+            y_bottom = edge + thickness
+            y_top = y_bottom + thickness
+        if thickness < 1:
+            raise ValueError(f"no room for a test mark {side} the glyph")
+        glyph.coordinates.extend(
+            [(x_min, y_bottom), (x_min, y_top), (x_max, y_top), (x_max, y_bottom)]
+        )
+        glyph.flags.extend(b"\x01" * 4)
+        glyph.endPtsOfContours.append(len(glyph.coordinates) - 1)
+        glyph.numberOfContours += 1
+
+
+def with_georgian(data, outlines, sizing, mark=None):
     """The masked host font `data` with GEORGIAN added from `outlines` at `sizing`, masked.
 
     New glyphs are named `uniXXXX` and appended after the host's; every existing glyph keeps
     its index, outline, instructions and metrics. They are mapped in each Unicode cmap subtable
     of format 4 or 12 (a legacy Mac Roman subtable can't hold them). Tables sized by glyph count
     get entries for them: `hdmx` (linear widths) and `LTSH` (linear at every size); `VDMX`
-    extremes grow to cover them. OS/2 gains the Georgian Unicode range bit.
+    extremes grow to cover them. OS/2 gains the Georgian Unicode range bit. A test `mark`
+    (marks.Mark) adds its bar to the marked capital, within the host's `limits` (`add_bar`).
     """
     font = open_host(data)
     upm = font["head"].unitsPerEm
@@ -184,6 +215,9 @@ def with_georgian(data, outlines, sizing):
         glyph = _glyph(source, sizing)
         glyf[name] = glyph
         glyph.recalcBounds(glyf)
+        if mark is not None and cp == mark.code_point:
+            add_bar(glyph, mark.sides, upm, *limits(font))
+            glyph.recalcBounds(glyf)
         if glyph.numberOfContours <= 0 or glyph.xMax <= glyph.xMin or glyph.yMax <= glyph.yMin:
             raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
         hmtx[name] = (round(source.advance * sizing.scale), glyph.xMin)

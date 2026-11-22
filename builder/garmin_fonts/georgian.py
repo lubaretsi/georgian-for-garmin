@@ -205,13 +205,46 @@ def choose_sizing(data, outlines, nominal):
     raise ValueError(f"Georgian does not fit the template at {size} px")
 
 
-def with_georgian(data, outlines, sizing):
+def bar_thickness(cap_height, room):
+    """A test mark bar's thickness, also its gap to the letter: a tenth of `cap_height`, at
+    least 1, at most half the `room` it is drawn in. Raises ValueError when `room` < 2."""
+    thickness = min(max(1, round(cap_height / 10)), room // 2)
+    if thickness < 1:
+        raise ValueError(f"a test mark needs 2 free rows, but only {room} are left")
+    return thickness
+
+
+def add_bar(inside, width, height, baseline, sides):
+    """The levels `inside` of a glyph drawn by `draw`, with a test mark's solid bar (level 3)
+    spanning its inked columns on each of `sides`: "below" in the rows under the baseline and
+    the glyph's lowest ink, "above" in the rows over its highest ink, with a gap as thick as
+    the bar (`bar_thickness`). Raises ValueError when a bar doesn't fit the row."""
+    levels = bytearray(inside)
+    inked = [(y, x) for y in range(height) for x in range(width) if levels[y * width + x]]
+    top, bottom = inked[0][0], inked[-1][0]
+    left, right = min(x for _, x in inked), max(x for _, x in inked)
+    cap_height = baseline - top
+    for side in sides:
+        if side == "below":
+            start = max(baseline, bottom + 1)
+            thickness = bar_thickness(cap_height, height - start)
+            bar = range(start + thickness, start + 2 * thickness)
+        else:
+            thickness = bar_thickness(cap_height, top)
+            bar = range(top - 2 * thickness, top - thickness)
+        for y in bar:
+            levels[y * width + left:y * width + right + 1] = b"\x03" * (right - left + 1)
+    return bytes(levels)
+
+
+def with_georgian(data, outlines, sizing, mark=None):
     """Return (`data` with GEORGIAN glyphs drawn from `outlines` at `sizing`, clipped pixels).
 
     Existing glyphs are kept. Glyphs are drawn on the template's own row height and baseline.
     Ink outside the row is dropped only when it is at most MAX_CLIPPED_PIXELS faintest (level 1)
     pixels; the second value maps each code point that lost pixels to how many. Any other
-    overflow raises ValueError.
+    overflow raises ValueError. A test `mark` (marks.Mark) adds its bar to the marked capital
+    (`add_bar`).
     """
     header, footer, cmap = decode(data)
     height, baseline = header[7:9]
@@ -223,12 +256,14 @@ def with_georgian(data, outlines, sizing):
             raise ValueError(f"Georgian glyph U+{cp:04X} does not fit the template")
         if lost:
             clipped[cp] = len(lost)
+        if not any(inside):
+            raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
+        if mark is not None and cp == mark.code_point:
+            inside = add_bar(inside, width, height, baseline, mark.sides)
         stride = (width + 3) // 4
         packed = bytearray(stride * height)
         for i, level in enumerate(inside):
             y, col = divmod(i, width)
             packed[y * stride + col // 4] |= level << (2 * (col % 4))
-        if not any(packed):
-            raise ValueError(f"Georgian glyph U+{cp:04X} is empty")
         cmap[cp] = (width, bytes(packed))
     return encode(header, footer, cmap), clipped

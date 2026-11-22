@@ -4,12 +4,12 @@
 use std::borrow::Cow;
 
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::garmin_device::GarminDevice;
 
 /// How a pack's fonts reach the watch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     /// Garmin's 2-bit bitmap fonts, one part per pixel size, staged as
@@ -26,6 +26,15 @@ struct BundledFont {
     version: &'static str,
     stock: &'static [u8],
     georgian: &'static [u8],
+    mark: Option<BundledMark>,
+}
+
+struct BundledMark {
+    variant: &'static str,
+    code_point: &'static str,
+    position: u8,
+    style: &'static str,
+    picture: &'static [u8],
 }
 
 struct BundledTested {
@@ -58,6 +67,28 @@ pub struct Font {
     pub version: String,
     pub stock: Cow<'static, [u8]>,
     pub georgian: Cow<'static, [u8]>,
+    /// The beta test mark drawn into `georgian`; `None` in stable builds, whose Georgian fonts
+    /// carry no marks.
+    pub mark: Option<Mark>,
+}
+
+/// Capitals of the test text a beta build's marks go on, in order: `Mark::position` indexes it.
+pub const MARKED_CAPITALS: &str = "ᲛᲗᲐᲕᲠᲣᲚᲘ";
+
+/// A beta build's test mark: one capital of [`MARKED_CAPITALS`] drawn with a bar, different in
+/// every part of a kind, so a notification shows which part rendered it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mark {
+    /// "A", "B", …, in registry order among the parts of one kind.
+    pub variant: String,
+    /// The marked capital, e.g. "U+1C90".
+    pub code_point: String,
+    /// Its index in the test word ᲛᲗᲐᲕᲠᲣᲚᲘ, from 0.
+    pub position: u8,
+    /// Where the bar is: "below", "above" or "both".
+    pub style: String,
+    /// PNG of the test word in this part's Georgian build, white on black like the watch.
+    pub picture: Cow<'static, [u8]>,
 }
 
 impl Font {
@@ -133,6 +164,13 @@ impl FontSet {
                             version: f.version.to_owned(),
                             stock: Cow::Borrowed(f.stock),
                             georgian: Cow::Borrowed(f.georgian),
+                            mark: f.mark.as_ref().map(|m| Mark {
+                                variant: m.variant.to_owned(),
+                                code_point: m.code_point.to_owned(),
+                                position: m.position,
+                                style: m.style.to_owned(),
+                                picture: Cow::Borrowed(m.picture),
+                            }),
                         })
                         .collect(),
                     tested: p
@@ -160,6 +198,11 @@ impl FontSet {
     /// Whether any pack has part `part`.
     pub fn has_part(&self, part: &str) -> bool {
         self.fonts().any(|(_, f)| f.part == part)
+    }
+
+    /// Whether this is a beta build whose Georgian fonts carry test marks.
+    pub fn test_marks(&self) -> bool {
+        self.fonts().any(|(_, f)| f.mark.is_some())
     }
 
     /// What `install` and `restore_stock` write on the watch `device` describes: the packs of

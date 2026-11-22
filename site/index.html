@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1e1e1e" media="(prefers-color-scheme: dark)">
+  <title>ქართული Garmin-ის საათზე: შემოწმება</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <span class="app-name" data-i18n="appName"></span>
+    <button type="button" id="lang" class="lang" data-i18n="switchLabel"></button>
+  </header>
+
+  <main>
+    <h1 data-i18n="heading"></h1>
+
+    <section id="send-section">
+      <p data-i18n="intro"></p>
+      <button type="button" id="send" class="big primary" data-i18n="send"></button>
+    </section>
+
+    <p id="status" class="status" role="status" aria-live="polite" hidden></p>
+
+    <figure class="sample">
+      <figcaption data-i18n="textLabel"></figcaption>
+      <p id="test-text" class="test-text" lang="ka"></p>
+    </figure>
+    <p data-i18n="expect"></p>
+    <p id="android-note" class="quiet" data-i18n="android"></p>
+
+    <section id="copy-section" class="fallback">
+      <h2 data-i18n="copyHeading"></h2>
+      <p id="ios-note" class="note" data-i18n="ios" hidden></p>
+      <p data-i18n="copyHow"></p>
+      <button type="button" id="copy" class="big secondary" data-i18n="copy"></button>
+      <p id="copy-status" class="status" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <noscript><p class="note">Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test</p></noscript>
+  </main>
+
+  <footer class="quiet">
+    <p data-i18n="privacy"></p>
+    <p><a href="https://github.com/lubaretsi/georgian-for-garmin" rel="noreferrer" data-i18n="source"></a></p>
+  </footer>
+</body>
+</html>

@@ -38,12 +38,16 @@ fn help_json_prints_mcp_tools() {
     let out = run(&["--help", "--json"], "");
     assert_eq!(out.status.code(), Some(0));
     let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(tools["tools"].as_array().unwrap().len(), 3);
+    assert_eq!(tools["tools"].as_array().unwrap().len(), 5);
 
     let out = run(&["restore-stock", "--json", "-h"], "");
     let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(tools["tools"][0]["name"], "restore_stock");
     assert_eq!(tools["tools"].as_array().unwrap().len(), 1);
+
+    let out = run(&["issue-link", "--help", "--json"], "");
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(tools["tools"][0]["name"], "issue_link");
 }
 
 #[test]
@@ -150,4 +154,47 @@ fn version_and_help_succeed() {
     let out = run(&["-h"], "");
     assert_eq!(out.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&out.stdout).contains("Examples:"));
+}
+
+/// A report as `inspect --report --json` prints it.
+const REPORT: &str = r#"{"app_version": "0.3.0", "platform": {"os": "Mac OS", "os_version": "15.6", "arch": "aarch64"},
+  "connection": "mtp", "model": "Venu 2", "model_part": "006-B3703-00", "software_version": "19.05",
+  "packs": [], "tested": "untested", "hosts": {"kind": null, "reason": "None."}, "parts": [],
+  "test_marks": false, "declared_files": [], "extdata_files": [], "extdata_listing": null,
+  "title": "t", "text": "x"}"#;
+
+#[test]
+fn issue_link_needs_no_watch() {
+    let input = format!(r#"{{"report": {REPORT}, "answers": {{"result": "boxes"}}}}"#);
+    let out = run(&["issue-link", "--input", "-", "--json"], &input);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let link: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let url = link["url"].as_str().unwrap();
+    assert!(url.starts_with("https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml&title=Watch+report"));
+    assert!(url.contains("&result=Boxes+instead+of+letters&"), "{url}");
+    assert_eq!(link["report_in_url"], true);
+
+    // A report with a field outside the allowlist is refused.
+    let leaky = REPORT.replace(r#""test_marks""#, r#""serial": "SN-1", "test_marks""#);
+    let out = run(
+        &["issue-link", "--input", "-", "--json"],
+        &format!(r#"{{"report": {leaky}}}"#),
+    );
+    assert_eq!(json_error(&out)["error"]["code"], "invalid_input");
+}
+
+#[test]
+fn inspect_drive_names_a_missing_volume() {
+    let out = run(
+        &["inspect-drive", "--path", "/nonexistent-gfg-volume", "--json"],
+        "",
+    );
+    assert_eq!(out.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&out.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "garmin_folder_not_found");
 }
