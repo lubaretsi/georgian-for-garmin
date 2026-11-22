@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The fenix 5 (software 25.00, #30, #29) in the support list as not working: it connects only as
+  a USB drive, and the app found no font on it that it can add Georgian to. Both reports are
+  replay fixtures.
+
+### Changed
+
+- The reason shown for watches that connect only as a USB drive (Forerunner 245, fenix 5) now
+  says only what their reports show: the app found no font on the watch it can add Georgian to.
+
 ## [0.3.2] - 2026-11-22
 
 ### Added

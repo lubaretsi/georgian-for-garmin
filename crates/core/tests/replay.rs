@@ -791,7 +791,8 @@ fn fixtures_hold_no_identifiers() {
             .unwrap()
             .keys()
             .map(String::as_str)
-            .filter(|&k| k != "composed_from")
+            // Optional: a hand-composed fixture's sources, and a note on the report.
+            .filter(|&k| k != "composed_from" && k != "note")
             .collect();
         found.sort_unstable();
         let mut expected = keys.to_vec();
