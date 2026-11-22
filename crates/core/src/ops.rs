@@ -22,8 +22,8 @@ use crate::garmin_device::{self, GarminDevice};
 use crate::mtp::{CreateError, Mtp, MtpError};
 use crate::ptp::{self, ObjectInfo, op};
 use crate::report::{
-    self, Connection, IssueLink, IssueLinkInput, ListedFile, ReportInput, ReportedHosts,
-    ReportedPart, WatchReport,
+    self, Connection, HiddenFile, HiddenListing, HiddenStatus, IssueLink, IssueLinkInput,
+    ListedFile, ReportInput, ReportedHosts, ReportedPart, WatchReport,
 };
 
 /// This program's version, as reported in the watch report.
@@ -290,6 +290,9 @@ pub struct InspectOutput {
     pub fonts: Vec<FontReport>,
     /// The staging folder, or null if it could not be found.
     pub extdata: Option<ExtDataReport>,
+    /// `ExtData`'s children the normal listing leaves out (Garmin's `GetObjectIds`). Report
+    /// only: install and restore never use them.
+    pub extdata_hidden: HiddenListing,
     pub report: WatchReport,
 }
 
@@ -743,6 +746,7 @@ fn report_of(
     reports: &[FontReport],
     connection: Connection,
     extdata_listing: Option<Vec<ListedFile>>,
+    extdata_hidden: HiddenListing,
 ) -> WatchReport {
     let parts = fonts
         .fonts()
@@ -770,6 +774,7 @@ fn report_of(
             parts,
             test_marks: fonts.test_marks(),
             extdata_listing,
+            extdata_hidden,
         },
     )
 }
@@ -850,6 +855,120 @@ fn chosen(hosts: &Hosts<'_>, font: &Font) -> bool {
         .any(|l| l.fonts.iter().any(|f| f.part == font.part))
 }
 
+/// A failure's message, short enough for the report's one line.
+fn short(message: impl std::fmt::Display) -> String {
+    let text = message.to_string();
+    match text.char_indices().nth(80) {
+        Some((end, _)) => format!("{}…", &text[..end]),
+        None => text,
+    }
+}
+
+/// `ExtData`'s children the normal listing leaves out, from Garmin's vendor `GetObjectIds`: on
+/// the Venu 2 exactly the read-only objects, such as imported fonts. Report-only: install and
+/// restore never see them. Only a file named for a part `restore` covers (every part install or
+/// restore writes on this watch; a bitmap part also as the `<part>.fnt` the watch imports its
+/// `.tmp` as), with a size this build knows, is read; any failure becomes a note and never fails
+/// `inspect`.
+fn hidden_listing(
+    dev: &mut dyn Mtp,
+    fonts: &FontSet,
+    storage: u32,
+    ext: Option<&ExtData>,
+    restore: &Hosts<'_>,
+) -> HiddenListing {
+    let failed = |note: String| HiddenListing {
+        status: HiddenStatus::Error,
+        files: Vec::new(),
+        note: Some(note),
+    };
+    let Some(ext) = ext else {
+        return HiddenListing::not_read();
+    };
+    match dev.device_info() {
+        Ok(info)
+            if info
+                .operations_supported
+                .contains(&op::GARMIN_GET_OBJECT_IDS) => {}
+        Ok(_) => {
+            return HiddenListing {
+                status: HiddenStatus::Unsupported,
+                files: Vec::new(),
+                note: None,
+            };
+        }
+        Err(e) => return failed(short(e)),
+    }
+    let handles = match dev.garmin_object_ids(storage, ext.handle) {
+        Ok(handles) => handles,
+        Err(e) => return failed(short(e)),
+    };
+    let listed: BTreeSet<u32> = ext.files.iter().map(|o| o.handle).collect();
+    let mut files = Vec::new();
+    let mut note = None;
+    for handle in handles.into_iter().collect::<BTreeSet<_>>() {
+        if listed.contains(&handle) {
+            continue;
+        }
+        let info = match dev.object_info(handle) {
+            Ok(info) => info,
+            Err(e) => {
+                note.get_or_insert_with(|| short(format!("{}: {e}", hex_handle(handle))));
+                continue;
+            }
+        };
+        // ExtData's own files only: never another folder's names.
+        if info.parent != ext.handle || info.storage_id != storage || info.is_folder() {
+            continue;
+        }
+        let size = info.compressed_size as usize;
+        let named = |f: &Font| {
+            info.filename.eq_ignore_ascii_case(&f.file_name())
+                || (f.kind == Kind::Bitmap
+                    && info
+                        .filename
+                        .eq_ignore_ascii_case(&format!("{}.fnt", f.part)))
+        };
+        let font = fonts
+            .fonts()
+            .map(|(_, f)| f)
+            .find(|f| chosen(restore, f) && named(f));
+        let file = match font {
+            None => None,
+            Some(font) if !font.known_size(size) => Some(FileState::Other),
+            Some(font) => match dev.get_object(handle) {
+                Ok(bytes) => Some(match font.identify(&bytes) {
+                    Content::Georgian => FileState::Georgian,
+                    Content::EarlierGeorgian => FileState::GeorgianBeta,
+                    Content::Stock => FileState::Stock,
+                    Content::Other => FileState::Other,
+                }),
+                Err(e) => {
+                    note.get_or_insert_with(|| short(format!("{}: {e}", info.filename)));
+                    None
+                }
+            },
+        };
+        let read_only = dev.read_only(handle, &info);
+        files.push(HiddenFile {
+            name: info.filename,
+            bytes: info.compressed_size.into(),
+            read_only,
+            file,
+        });
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    HiddenListing {
+        status: if note.is_some() {
+            HiddenStatus::Error
+        } else {
+            HiddenStatus::Listed
+        },
+        files,
+        note,
+    }
+}
+
 pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Error> {
     let writable = missing_write_operations(dev)?.is_empty();
     let layout = extdata::discover(dev)?;
@@ -885,6 +1004,13 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             mark: font.mark.as_ref().map(|m| m.variant.clone()),
         });
     }
+    let extdata_hidden = hidden_listing(
+        dev,
+        fonts,
+        layout.storage,
+        layout.extdata.as_ref(),
+        &restore,
+    );
     let extdata = layout.extdata.map(|ext| ExtDataReport {
         handle: hex_handle(ext.handle),
         storage_id: hex_handle(layout.storage),
@@ -931,6 +1057,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         &reports,
         Connection::Mtp,
         listing,
+        extdata_hidden.clone(),
     );
     Ok(InspectOutput {
         supported: writable && !packs.is_empty(),
@@ -941,6 +1068,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         packs,
         fonts: reports,
         extdata,
+        extdata_hidden,
         report,
         device: DeviceReport {
             model: device.description,
@@ -985,6 +1113,7 @@ pub fn inspect_drive(
         &reports,
         Connection::UsbDrive,
         listing,
+        HiddenListing::not_read(),
     );
     Ok(InspectDriveOutput {
         path: root.display().to_string(),

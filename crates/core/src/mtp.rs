@@ -164,6 +164,14 @@ pub trait Mtp {
             code: response::OPERATION_NOT_SUPPORTED,
         })
     }
+
+    /// Whether object `handle`, whose `object_info` is `info`, is read-only (MTP
+    /// ProtectionStatus other than No Protection); `None` when this backend can't tell. A
+    /// backend whose `object_info` doesn't carry ProtectionStatus overrides this.
+    fn read_only(&mut self, handle: u32, info: &ObjectInfo) -> Option<bool> {
+        let _ = handle;
+        Some(info.protection_status != 0)
+    }
 }
 
 /// The still-image class `Get Device Status` answer.

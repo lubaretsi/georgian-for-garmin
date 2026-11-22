@@ -33,7 +33,7 @@ use windows::core::{GUID, HSTRING, Interface, PWSTR, w};
 
 use super::{
     format_code, format_guid, is_garmin_device_id, mtp_error, object_id, open_error, parent_handle,
-    parse_object_id, parse_storage_id, storage_object_id,
+    parse_object_id, parse_storage_id, read_only_from_object_info, storage_object_id,
 };
 use crate::error::{Error, ErrorCode};
 use crate::mtp::{CreateError, Mtp, MtpError, NewObject};
@@ -609,6 +609,8 @@ impl Mtp for WpdMtp {
                 None => format::UNDEFINED,
             };
         let size = unsafe { values.GetUnsignedLargeIntegerValue(&WPD_OBJECT_SIZE) }.unwrap_or(0);
+        // Only the fields inspect and stage use; ProtectionStatus has no WPD property, see
+        // `read_only`, so it stays at the default here.
         Ok(ObjectInfo {
             storage_id,
             format,
@@ -734,5 +736,17 @@ impl Mtp for WpdMtp {
     fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         let data = self.mtp_read(op::GARMIN_GET_OBJECT_IDS, &[storage, parent])?;
         Ok(ptp::Reader::new(&data).u32_array()?)
+    }
+
+    /// ProtectionStatus from the watch's own ObjectInfo, through WPD's MTP extension command
+    /// (`read_only_from_object_info` says why); unknown if that fails.
+    fn read_only(&mut self, handle: u32, _info: &ObjectInfo) -> Option<bool> {
+        match self.mtp_read(op::GET_OBJECT_INFO, &[handle]) {
+            Ok(data) => read_only_from_object_info(&data),
+            Err(e) => {
+                trace!("ProtectionStatus of {}: {e}", object_id(handle));
+                None
+            }
+        }
     }
 }

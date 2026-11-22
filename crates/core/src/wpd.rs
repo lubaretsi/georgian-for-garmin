@@ -5,8 +5,9 @@
 //! storage `s` + its storage ID (`s20001`); WPD answers for an ID it never listed, which is
 //! how the handle probe in [`crate::extdata`] reaches an unlisted `ExtData`. Files are
 //! created, read and deleted with the standard WPD calls, so the driver's own listing stays
-//! current. MTP has two read-only queries WPD has no call for, `GetDeviceInfo` and the
-//! storage-wide `GetObjectHandles`; those go through WPD's MTP extension commands.
+//! current. MTP has read-only queries WPD has no call for, `GetDeviceInfo`, the storage-wide
+//! `GetObjectHandles` and an object's ProtectionStatus; those go through WPD's MTP extension
+//! commands.
 //!
 //! This module holds the parts that are plain data handling, tested on every host; the COM
 //! calls are in `device`, built on Windows only.
@@ -20,7 +21,7 @@ pub use device::{WpdMtp, connect};
 use crate::GARMIN_VENDOR_ID;
 use crate::error::{Error, ErrorCode};
 use crate::mtp::MtpError;
-use crate::ptp::response;
+use crate::ptp::{ObjectInfo, response};
 
 /// WPD's object ID for MTP object `handle`.
 pub fn object_id(handle: u32) -> String {
@@ -54,6 +55,21 @@ fn parse_hex_id(id: &str, prefix: &str) -> Option<u32> {
 /// MTP's ObjectInfo.
 pub fn parent_handle(id: &str) -> Option<u32> {
     parse_object_id(id).or_else(|| parse_storage_id(id).map(|_| 0))
+}
+
+/// Whether an object is read-only, from MTP's ObjectInfo dataset `data` (as `GetObjectInfo`
+/// returns it through WPD's MTP extension command): its ProtectionStatus is anything but
+/// 0x0000 (No Protection). `None` when `data` isn't a readable ObjectInfo, so callers report
+/// the protection as unknown rather than guess.
+///
+/// WPD has no documented property for ObjectProtectionStatus: its object properties
+/// (<https://learn.microsoft.com/en-us/windows/win32/wpd_sdk/object-properties>) offer
+/// `WPD_OBJECT_CAN_DELETE` and `WPD_OBJECT_ISSYSTEM` without saying how the MTP driver sets
+/// them, so the backend asks the watch for the ObjectInfo itself.
+pub fn read_only_from_object_info(data: &[u8]) -> Option<bool> {
+    ObjectInfo::decode(data)
+        .ok()
+        .map(|info| info.protection_status != 0)
 }
 
 /// WPD format GUIDs carry the MTP format code in their first 16 bits:
@@ -180,6 +196,20 @@ pub fn open_error(context: &str, hresult: u32, message: &str) -> Error {
 mod tests {
     use super::*;
     use crate::ptp::format;
+
+    #[test]
+    fn protection_comes_from_the_object_info_dataset() {
+        for (status, read_only) in [(0x0000, false), (0x0001, true), (0x8002, true)] {
+            let info = ObjectInfo {
+                protection_status: status,
+                filename: "006-D9971-09.bin".into(),
+                ..ObjectInfo::default()
+            };
+            let data = info.encode().unwrap();
+            assert_eq!(read_only_from_object_info(&data), Some(read_only));
+        }
+        assert_eq!(read_only_from_object_info(&[1, 2, 3]), None);
+    }
 
     #[test]
     fn object_ids_are_hex_handles_without_leading_zeros() {

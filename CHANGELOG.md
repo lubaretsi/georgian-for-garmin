@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The watch report lists `GARMIN/ExtData`'s hidden children: read-only objects the normal MTP
+  listing leaves out, which Garmin's vendor `GetObjectIds` (0x9002) returns (the Venu 2's
+  imported fonts; likely the `.bin` fonts the Forerunner 165 and fenix 6S Pro reports didn't
+  show). Each gets its name, size and read-only status, and a file named for one of this build's
+  parts what it holds (`georgian`, `georgian_beta`, `stock`, `other`). Report-only: install and
+  restore don't use them, and a failure is a note on the `hidden:` line, never an error.
+  `inspect` and the report gain `extdata_hidden`.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
