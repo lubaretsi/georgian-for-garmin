@@ -20,8 +20,9 @@
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
 //! importing every staged `.tmp` file as a hidden read-only `<part>.fnt` (replacing the earlier
 //! one), which only Garmin's `GetObjectIds` lists, as the Venu 2 does, and the next watch is
-//! attached. So the second visit to the Venu 2 shows Georgian installed, and the Venu 3 installs
-//! cleanly, as a real one would once restarted.
+//! attached. So the second visit to the Venu 2 shows Georgian installed, and the Venu 3, having
+//! imported its unknown file, shows a font in use that the app doesn't recognise, and install
+//! still refuses: the next restart would replace that font.
 //! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first.
 
 use std::collections::BTreeMap;
@@ -568,15 +569,13 @@ mod tests {
         assert_eq!(imported["state"], "installed");
         demo.swap();
 
-        // So did the Venu 3; now every part of both packs installs.
-        let installed = call(&demo, "install").unwrap();
-        assert_eq!(installed["status"], "staged_verified");
-        let parts: usize = installed["packs"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|p| p["parts"].as_array().unwrap().len())
-            .sum();
-        assert_eq!(parts, other_sizes);
+        // So did the Venu 3, including the unknown file: it now uses that font for its last
+        // part, which installing would replace at the next restart, so install refuses.
+        let venu3 = call(&demo, "inspect").unwrap();
+        assert_eq!(venu3["state"], "other");
+        assert_eq!(staged(&venu3).len(), other_sizes);
+        assert_eq!(staged(&venu3).last(), Some(&"other"));
+        assert_eq!(venu3["support"]["report_wanted"], true);
+        assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
     }
 }

@@ -198,23 +198,19 @@ pub struct TargetFile {
 /// The one rule behind [`GeorgianState`], from the target parts' files. A bitmap part's
 /// waiting `.tmp` is what the watch loads at the next restart; without one, its imported
 /// `<part>.fnt` is what it uses now, so imported Georgian is installed and imported stock is
-/// Garmin's font. An imported `.fnt` this build doesn't know blocks nothing (install writes a
-/// new `.tmp` beside it), so it counts as Garmin's font too.
+/// Garmin's font. A file this build doesn't know is `other` whether it waits or is imported:
+/// install would replace an imported one at the next restart, so it refuses either.
 pub fn georgian_state(kind: Option<Kind>, targets: &[TargetFile]) -> GeorgianState {
     use FileState as F;
     let Some(kind) = kind.filter(|_| !targets.is_empty()) else {
         return GeorgianState::Unsupported;
     };
-    let bitmap = kind == Kind::Bitmap;
     let any = |s: F| targets.iter().any(|t| t.file == s);
     let all = |s: F| targets.iter().all(|t| t.file == s);
-    let waiting = |s: F| bitmap && targets.iter().any(|t| !t.imported && t.file == s);
-    let blocking_other = targets
-        .iter()
-        .any(|t| t.file == F::Other && !(bitmap && t.imported));
+    let waiting = |s: F| kind == Kind::Bitmap && targets.iter().any(|t| !t.imported && t.file == s);
     if any(F::Unknown) {
         GeorgianState::Unknown
-    } else if blocking_other || (waiting(F::Georgian) && waiting(F::Stock)) {
+    } else if any(F::Other) || (waiting(F::Georgian) && waiting(F::Stock)) {
         GeorgianState::Other
     } else if any(F::GeorgianBeta) {
         GeorgianState::Beta
@@ -849,10 +845,7 @@ fn file_state(
         .iter()
         .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
         .collect();
-    let imported_name = match font.kind {
-        Kind::Bitmap => format!("{}.fnt", font.part),
-        Kind::Truetype => name.clone(),
-    };
+    let imported_name = imported_name(font);
     let hidden_state = || {
         let mut named = hidden
             .iter()
@@ -1115,7 +1108,11 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         .collect();
     let state = georgian_state(hosts.kind, &targets);
     let restorable = writable && !restore.listed.is_empty();
-    let support = support::support(fonts, &device, &hosts, tested.status);
+    let mut support = support::support(fonts, &device, &hosts, tested.status);
+    // A font this build doesn't recognise under a target's name is news, whatever the status.
+    if targets.iter().any(|t| t.file == FileState::Other) {
+        support.report_wanted = true;
+    }
     let hosts = host_choice(&hosts);
     let listing = extdata.as_ref().map(|ext| {
         ext.files
@@ -1501,15 +1498,27 @@ fn hidden_objects(
     Some(hidden)
 }
 
+/// The name of the font the watch imported for `font`, which only the hidden listing shows: a
+/// bitmap part's `.tmp` becomes `<part>.fnt` at a restart (the Venu 2); a TrueType part keeps
+/// `<part>.bin`.
+fn imported_name(font: &Font) -> String {
+    match font.kind {
+        Kind::Bitmap => format!("{}.fnt", font.part),
+        Kind::Truetype => font.file_name(),
+    }
+}
+
 /// Decides `font`'s Plan from what its file holds, by content: the file in the normal listing,
-/// else the hidden one (`hidden`, when the watch lists 0x9002). Garmin's original or one of
-/// this program's builds is replaced (a hidden one by writing a new file); anything else is
-/// refused. Only a file that can't be read (not shown, or a hidden one whose read fails) falls
-/// back to what the watch declares, for a TrueType part: install accepts only Garmin's version,
-/// restore also a version below 1.00 ([`below_one`]), since it only ever puts Garmin's own file
-/// back. A bitmap part's `.tmp` that isn't there is simply staged. A failed read of a file in
-/// the normal listing stops the call: replacing it would delete a file that couldn't be kept
-/// for rollback.
+/// else the imported one in the hidden listing (`hidden`, when the watch lists 0x9002; a bitmap
+/// part's `<part>.fnt`, a TrueType part's `<part>.bin`). Garmin's original or one of this
+/// program's builds is replaced (an imported one by writing a new file, which the watch imports
+/// over it at the next restart); anything else is refused, imported or not, since a new file
+/// would replace it one restart later. Only a file that can't be read (not shown, or an imported
+/// one whose read fails) falls back to what the watch declares, for a TrueType part: install
+/// accepts only Garmin's version, restore also a version below 1.00 ([`below_one`]), since it
+/// only ever puts Garmin's own file back. A bitmap part with no file to read is simply staged.
+/// A failed read of a file in the normal listing stops the call: replacing it would delete a
+/// file that couldn't be kept for rollback.
 fn plan(
     dev: &mut dyn Mtp,
     ext: &ExtData,
@@ -1540,7 +1549,8 @@ fn plan(
         [_, _, ..] => return Ok(Err(Refusal::Other(path))),
         [] => {}
     }
-    let name = font.file_name();
+    let name = imported_name(font);
+    let imported_path = format!("GARMIN/ExtData/{name}");
     let named: Vec<&(u32, ObjectInfo)> = hidden
         .into_iter()
         .flatten()
@@ -1549,20 +1559,22 @@ fn plan(
     match named.as_slice() {
         [(handle, info)] => {
             if !font.known_size(info.compressed_size as usize) {
-                return Ok(Err(Refusal::Other(path)));
+                return Ok(Err(Refusal::Other(imported_path)));
             }
-            // A failed read leaves the file unidentified: the fallback below decides.
+            // A failed read leaves the file unidentified: the fallback below decides. A bitmap
+            // part identical to its import is staged again as before; the watch imports the
+            // same bytes.
             if let Ok(current) = dev.get_object(*handle) {
-                return Ok(if current == target {
+                return Ok(if current == target && font.kind == Kind::Truetype {
                     Ok(Plan::Already(*handle))
                 } else if font.identify(&current) == Content::Other {
-                    Err(Refusal::Other(path))
+                    Err(Refusal::Other(imported_path))
                 } else {
                     Ok(Plan::Create)
                 });
             }
         }
-        [_, _, ..] => return Ok(Err(Refusal::Other(path))),
+        [_, _, ..] => return Ok(Err(Refusal::Other(imported_path))),
         [] => {}
     }
     if font.kind == Kind::Bitmap {
@@ -1738,11 +1750,17 @@ pub fn stage(
         } else {
             ""
         };
+        let imported = if others.iter().any(|p| p.ends_with(".fnt")) {
+            " A .fnt is the font the watch imported and uses for that part: a new .tmp would \
+             replace it at the next restart."
+        } else {
+            ""
+        };
         return Err(Error::new(
             ErrorCode::Conflict,
             format!(
                 "{} {} neither Garmin's original font nor a Georgian build of this program; this \
-                 build replaces only those, so nothing was written.{waiting}",
+                 build replaces only those, so nothing was written.{waiting}{imported}",
                 and_list(&others),
                 if others.len() == 1 { "holds" } else { "hold" }
             ),

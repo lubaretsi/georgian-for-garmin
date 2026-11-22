@@ -20,12 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as if Georgian weren't installed: the watch imports each staged `<part>.tmp` as a hidden
   read-only `<part>.fnt`, and `inspect` looked only at the `.tmp`. It now takes a bitmap part's
   file from its imported `.fnt` when no `.tmp` waits, so imported Georgian reads `installed`
-  (the app offers Restore only), an imported earlier build `beta`, and imported Garmin fonts
-  `not_installed`; the report's `parts:` lines say the same. `inspect --json`'s `fonts` gain
-  `imported`. Install and restore still never touch the `.fnt`. Found on our Venu 2 (19.05) with
-  0.3.1.
+  (the app offers Restore only), an imported earlier build `beta`, imported Garmin fonts
+  `not_installed`, and an imported font this build doesn't recognise `other`; the report's
+  `parts:` lines say the same. `inspect --json`'s `fonts` gain `imported`. Install and restore
+  never delete the `.fnt`, and they refuse (`conflict`, nothing written) when it is a font they
+  don't recognise, since the `.tmp` they stage would replace it at the next restart; the app
+  says the watch uses a font for that part it doesn't recognise and asks for the font list.
+  Found on our Venu 2 (19.05) with 0.3.1.
 - The demo watch imports staged fonts the same way, so its Venu 2 shows Georgian installed on
-  the next visit.
+  the next visit, and its Venu 3 then shows its unrecognised imported font.
 
 ## [0.3.1] - 2026-11-22
 

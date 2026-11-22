@@ -568,8 +568,9 @@ fn targets<'a>(inspect: &'a Value, key: &str) -> Vec<&'a str> {
         .collect()
 }
 
-/// Whether a file under one of `parts`' names (normal listing, or hidden for a `.bin`) is
-/// neither Garmin's original nor ours.
+/// Whether a file under one of `parts`' names is neither Garmin's original nor ours: in the
+/// normal listing, or the watch's import (a bitmap part's hidden `<part>.fnt`, a TrueType part's
+/// hidden `.bin`).
 fn other_under(watch: &Watch, fonts: &FontSet, parts: &[&str]) -> bool {
     let s = watch.0.borrow();
     parts.iter().any(|part| {
@@ -577,11 +578,18 @@ fn other_under(watch: &Watch, fonts: &FontSet, parts: &[&str]) -> bool {
             return false;
         };
         let name = font.file_name();
+        let imported = match font.kind {
+            Kind::Bitmap => format!("{}.fnt", font.part),
+            Kind::Truetype => name.clone(),
+        };
         s.objects.values().any(|o| {
             o.info.parent == EXTDATA
-                && o.info.filename.eq_ignore_ascii_case(&name)
-                && (!o.hidden || font.kind == Kind::Truetype)
                 && o.origin == Origin::Other
+                && if o.hidden {
+                    o.info.filename.eq_ignore_ascii_case(&imported)
+                } else {
+                    o.info.filename.eq_ignore_ascii_case(&name)
+                }
         })
     })
 }
@@ -918,4 +926,33 @@ fn the_venu_2_reads_its_imported_fonts() {
         assert_eq!(watch.call("inspect", &fonts).unwrap()["state"], "installed");
         assert!(watch.0.borrow().violations.is_empty(), "{name}");
     }
+}
+
+/// The Venu 2 with one imported `.fnt` this build doesn't recognise (a size none of its builds
+/// has): `other`, a report wanted, and install and restore write nothing, since the next restart
+/// would replace that font with whatever they staged.
+#[test]
+fn an_unrecognised_imported_font_is_never_written_over() {
+    let mut fixture = fixture("maintainer-venu2-georgian-imported.json");
+    for file in fixture["hidden"]["files"].as_array_mut().unwrap() {
+        if file["name"] == "006-D9035-03.fnt" {
+            file["bytes"] = json!(35000);
+            file["file"] = Value::Null;
+        }
+    }
+    let (watch, fonts) = Watch::from_fixture(&fixture);
+    let out = watch.call("inspect", &fonts).unwrap();
+    assert_eq!(out["state"], "other");
+    assert_eq!(out["support"]["report_wanted"], true);
+    for operation in ["install", "restore_stock"] {
+        let err = watch.call(operation, &fonts).unwrap_err();
+        assert_eq!(
+            err.code,
+            ErrorCode::Conflict,
+            "{operation}: {}",
+            err.message
+        );
+    }
+    assert!(watch.0.borrow().written.is_empty());
+    assert!(watch.0.borrow().violations.is_empty());
 }

@@ -108,8 +108,14 @@ function showWaiting(error) {
  * build installs on; `supportNote` covers the rest.
  */
 function stateNote(report) {
-  // A TrueType file this build doesn't know isn't waiting for a restart; it blocks install.
-  if (report.state === "other" && report.hosts.kind === "truetype") return T.unknownFont;
+  if (report.state === "other") {
+    // A font the watch imported (a bitmap part's `.fnt`) that this build doesn't know: it is in
+    // use, not waiting, and install would replace it at the next restart, so it refuses.
+    const imported = report.fonts.some((f) => f.target && f.imported && f.file === "other");
+    if (imported) return T.importedUnknownFont;
+    // A TrueType file this build doesn't know isn't waiting for a restart; it blocks install.
+    if (report.hosts.kind === "truetype") return T.unknownFont;
+  }
   return report.state === "not_installed" ? null : T.state[report.state];
 }
 

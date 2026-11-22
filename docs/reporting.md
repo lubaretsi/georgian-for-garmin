@@ -120,7 +120,9 @@ Forerunner 165 and fenix 6S Pro) or `unknown`. `state` sums up the parts install
 `installed`, `waiting` (bitmap, until the restart), `partly`, `beta`, `not_installed`,
 `not_visible`, `stock_waiting`, `other`, `unknown` or `unsupported`. A bitmap part's waiting
 `.tmp` decides what it holds; without one, the `<part>.fnt` the watch imported at its last
-restart does, so imported Georgian reads `installed` and imported Garmin fonts `not_installed`
+restart does, so imported Georgian reads `installed`, imported Garmin fonts `not_installed`, and
+an imported font this build doesn't recognise `other`: install and restore refuse it, since a
+new `.tmp` would replace it at the next restart, and the app asks for the font list
 (`inspect --json` marks such a part `imported`). With a last install or restore, the state and
 files are from just before it, and the lines say so.
 
@@ -142,9 +144,10 @@ drive.
 
 `inspect` takes a part's `file`, and so `state`, from it where the normal listing shows nothing:
 a TrueType part's hidden `.bin`, or the `<part>.fnt` the watch imported a bitmap part's `.tmp`
-as. Install and restore identify a TrueType part's hidden `.bin` the same way. A hidden object is
-never deleted: install and restore write a new file next to it (a bitmap part's new `.tmp`),
-which the watch takes up when it restarts ([How it works](how-it-works.md#truetype-fonts)).
+as. Install and restore identify those imports the same way and refuse one that is neither
+Garmin's nor ours. A hidden object is never deleted: install and restore write a new file next
+to it (a bitmap part's new `.tmp`), which the watch takes up when it restarts
+([How it works](how-it-works.md#truetype-fonts)).
 
 ## The phone test page
 
