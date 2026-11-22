@@ -159,7 +159,7 @@ fn version_and_help_succeed() {
 /// A report as `inspect --report --json` prints it.
 const REPORT: &str = r#"{"app_version": "0.3.0", "platform": {"os": "Mac OS", "os_version": "15.6", "arch": "aarch64"},
   "connection": "mtp", "model": "Venu 2", "model_part": "006-B3703-00", "software_version": "19.05",
-  "packs": [], "tested": "untested", "hosts": {"kind": null, "reason": "None."}, "parts": [],
+  "packs": [], "tested": "untested", "state": "unsupported", "hosts": {"kind": null, "reason": "None."}, "parts": [],
   "test_marks": false, "declared_files": [], "extdata_files": [], "extdata_listing": null,
   "title": "t", "text": "x"}"#;
 

@@ -22,6 +22,7 @@ body:
       options:
         - "Georgian letters"
         - "Boxes instead of letters"
+        - "Question marks (?) instead of letters"
         - "Some letters, some boxes"
         - "The notification didn't arrive"
         - "Georgian didn't install"

@@ -195,13 +195,14 @@ def manifest_view(entries):
     carry with their values (bitmap parts have a size, TrueType parts don't); per pack, all."""
     fonts = [
         {"part": part["part"], "pack": pack["id"], "version": part["version"],
-         "stock_sha256": part["sha256"]}
+         "stock_sha256": part["sha256"], "earlier_georgian": part.get("earlier_georgian", [])}
         | ({"size_px": part["size_px"]} if pack["kind"] == "bitmap" else {})
         for pack in entries["packs"]
         for part in pack["parts"]
     ]
     packs = [
         {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "weight": pack["weight"],
+         "install": pack.get("install", True) is True,
          "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]

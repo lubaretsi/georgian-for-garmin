@@ -42,6 +42,24 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
+    "earlier_georgian": {
+      "description": "Georgian builds of this part that earlier releases installed (the beta test marks), so a newer build recognizes them as its own: inspect reports them as georgian_beta, and install and restore replace them.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["build", "sha256", "bytes"],
+        "additionalProperties": false,
+        "properties": {
+          "build": {
+            "description": "The release that installed it (0.3.0-beta.2).",
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.]+)?$"
+          },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "bytes": { "description": "The file's size.", "type": "integer", "minimum": 1 }
+        }
+      }
+    },
     "part_number": {
       "description": "A Garmin part number, such as 006-D9035-03.",
       "type": "string",
@@ -69,6 +87,10 @@
         "weight": {
           "description": "The weight the pack's stock glyphs are drawn at; Georgian is drawn at it too.",
           "$ref": "#/$defs/weight"
+        },
+        "install": {
+          "description": "Which builds install this pack's Georgian: true (default) every build; \"beta\" only pre-release builds, for a pack that didn't render on a watch and is being retested; false none. Every build still restores Garmin's original and recognizes the pack's Georgian builds.",
+          "enum": [true, false, "beta"]
         },
         "parts": {
           "type": "array",
@@ -108,6 +130,7 @@
           "pattern": "^https://download\\.garmin\\.com/[^\\s]+\\.fnt$"
         },
         "sha256": { "$ref": "#/$defs/sha256" },
+        "earlier_georgian": { "$ref": "#/$defs/earlier_georgian" },
         "weight": {
           "description": "The weight this part's stock glyphs are drawn at, where it differs from the pack's.",
           "$ref": "#/$defs/weight"
@@ -132,6 +155,7 @@
           "pattern": "^https://download\\.garmin\\.com/[^\\s]+\\.bin$"
         },
         "sha256": { "$ref": "#/$defs/sha256" },
+        "earlier_georgian": { "$ref": "#/$defs/earlier_georgian" },
         "weight": {
           "description": "The weight this font's stock glyphs are drawn at, where it differs from the pack's.",
           "$ref": "#/$defs/weight"

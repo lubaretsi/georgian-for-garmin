@@ -86,9 +86,34 @@ def test_marked_manifest_otherwise_matches_stable(assets, marked_assets):
     changed = {"mark", "georgian_sha256"}
     assert [{k: v for k, v in f.items() if k not in changed} for f in marked["fonts"]] \
         == [{k: v for k, v in f.items() if k not in changed} for f in stable["fonts"]]
-    assert marked["packs"] == stable["packs"]
+    # Packs differ only in `install`: "beta" packs install in marked (pre-release) builds only.
+    without = lambda packs: [{k: v for k, v in p.items() if k != "install"} for p in packs]  # noqa: E731
+    assert without(marked["packs"]) == without(stable["packs"])
+    beta_only = {p["id"] for p in ENTRIES["packs"] if p.get("install") == "beta"}
+    assert beta_only == {"hebrew-swiss-721-truetype"}
+    for m, s in zip(marked["packs"], stable["packs"]):
+        assert (m["install"], s["install"]) == ((True, False) if m["id"] in beta_only else (True, True))
     assert all(m["georgian_sha256"] != s["georgian_sha256"]
                for m, s in zip(marked["fonts"], stable["fonts"]))
+
+
+def test_marked_builds_are_the_released_beta(marked_assets):
+    """The marked builds are pinned: 0.3.0-beta.2 installed exactly these (TrueType ones then
+    without Garmin's 16-byte trailer, which builds now keep), and the registry's
+    `earlier_georgian` lists them so later builds recognize and replace them."""
+    out, manifest = marked_assets
+    released = {
+        part["part"]: {(e["sha256"], e["bytes"]) for e in part["earlier_georgian"]
+                       if e["build"] == "0.3.0-beta.2"}
+        for pack in ENTRIES["packs"]
+        for part in pack["parts"]
+    }
+    for font in manifest["fonts"]:
+        data = (out / font["georgian"]).read_bytes()
+        if font["part"] in TRUETYPE_PART_IDS:
+            data = data[:-16]
+        released_now = {(hashlib.sha256(data).hexdigest(), len(data))}
+        assert released[font["part"]] == released_now, font["part"]
 
 
 def pictures_equal(path, image):

@@ -33,23 +33,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   show (#4).
 - Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
   every screen from download to the watch's restart.
-- Georgian for watches with TrueType fonts instead of bitmap Armenian ones, untested on a watch
-  so far: Noto Sans Armenian (`006-D9971-08/-09`), Noto Sans Hebrew (`006-D1053-98/-99`) and
-  Swiss 721 Hebrew (`006-D0952-07/-08`) get Mkhedruli and Mtavruli, sized to each font's letters.
-  This covers the Venu 3 and 3S, Forerunner 165 and 165 Music, fenix 6 Pro/6S Pro/6X Pro and
-  Instinct 3 AMOLED reported in issues #2 to #14. Only watches that list none of the bitmap
-  Armenian fonts get them; a watch that does, like the fenix 7 Pro, installs exactly as before.
-  Install replaces the watch's `GARMIN/ExtData/<part>.bin`, only when it is Garmin's original or
-  this build's Georgian font, reads it back, and writes every original back if any part fails;
-  restore puts Garmin's original back.
+- Georgian for watches with TrueType fonts instead of bitmap Armenian ones: Noto Sans Armenian
+  (`006-D9971-08/-09`) and Noto Sans Hebrew (`006-D1053-98/-99`) get Mkhedruli and Mtavruli,
+  sized to each font's letters, confirmed on the Forerunner 165. This covers the Venu 3 and 3S
+  and Forerunner 165 and 165 Music reported in issues #2 to #14. Only watches that list none of
+  the bitmap Armenian fonts get them; a watch that does, like the fenix 7 Pro, installs exactly as
+  before. Install replaces the watch's `GARMIN/ExtData/<part>.bin`, only when it is Garmin's
+  original or a Georgian build of this program, reads it back, and writes every original back if
+  any part fails; restore puts Garmin's original back.
+- Swiss 721 Hebrew (`006-D0952-07/-08`, fenix 6 and Instinct 3 family) installs in beta builds
+  only: Georgian in it showed question marks on a fenix 6S Pro (#6). Stable builds show those
+  watches as unsupported, as before TrueType support, but still offer **Restore original font**
+  so a beta tester can put Garmin's fonts back.
+- Upgrading from a beta: install and restore replace the Georgian builds 0.3.0-beta.1 and beta.2
+  installed (beta.2's test-marked `.tmp` and `.bin` files, beta.1's TrueType `.bin` files), which
+  the registry lists by SHA-256 under `earlier_georgian`; `inspect` reports them as
+  `georgian_beta`.
+- `inspect`, the report and the app show what each part's file holds by one rule (`file`:
+  `georgian`, `georgian_beta`, `stock`, `other`, `none`, `not_visible`, `unknown`) and sum it up as
+  `state`. TrueType watches like the Forerunner 165 and fenix 6S Pro show no `.bin` files over
+  MTP; their parts are `not_visible` and the app says it can't tell whether Georgian is installed,
+  instead of offering to install as if nothing were there. Where it can see Georgian is installed,
+  the main screen says so and offers only **Restore original font**.
+- A "Question marks (?) instead of letters" answer, in the app and the issue form (#6).
+- The report always says `marks beta` or `marks off`.
 - `inspect` reports `hosts`: which kind of font (`bitmap` or `truetype`) gets Georgian on the
   watch, why, and the parts of the other kind it leaves alone.
 - Venu 2 Plus (19.05) and fenix 7 Pro Solar / Pro Sapphire Solar (26.09) as tested watches, from
   user reports (#4, #11, #15). A model and software version now count as tested once someone
   confirms Georgian in a real notification; the entry lists the parts the app installed.
 
+### Fixed
+
+- TrueType Georgian builds keep the 16-byte trailer Garmin ends every `.bin` with (the version and
+  part number). Without it watches listed the part as version 0.01, and restore stopped with
+  `unsupported_device` on every Forerunner 165 and fenix 6S Pro that had installed a beta (#5, #6).
+  Install and restore now treat a part listed at 0.01 as an earlier Georgian build and replace
+  it. The TrueType builds' bytes change only by the added trailer.
+
 ### Changed
 
+- JSON, ahead of 1.0: `inspect`'s `fonts[].staged` is now `fonts[].file` (values above), and
+  `inspect` gains `state`, `restorable`, `fonts[].restore` and `hosts.restore_only_parts`; the
+  report's `parts[].staged` is `parts[].file`, and it gains `state`.
 - The watch report is now compact text for the issue form's report field, and lists every file
   `GarminDevice.xml` declares (path, file name, part, version), the `ExtData` listing, the host
   choice, each listed part's state, the OS and CPU architecture. JSON, ahead of 1.0: `report`

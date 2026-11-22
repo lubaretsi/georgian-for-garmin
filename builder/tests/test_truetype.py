@@ -4,7 +4,7 @@ from fractions import Fraction
 from statistics import median
 
 import pytest
-from registry_data import REGISTRY, TRUETYPE_PART_IDS, TRUETYPE_PARTS
+from registry_data import ENTRIES, REGISTRY, TRUETYPE_PART_IDS, TRUETYPE_PARTS
 
 from garmin_fonts import truetype
 from garmin_fonts.codec import GEORGIAN
@@ -20,19 +20,24 @@ from garmin_fonts.truetype import (
     limits,
     mask,
     open_host,
+    trailer,
+    version_of,
     unmask,
     with_georgian,
 )
 
-# Georgian added to Garmin's TrueType fonts (fonts/README.md, TrueType). None is tested on a
-# watch yet; a change to these bytes needs one (AGENTS.md).
+# Georgian added to Garmin's TrueType fonts (fonts/README.md, TrueType), with Garmin's version
+# trailer. The Forerunner 165 (29.52) rendered the Noto Sans Armenian and Hebrew builds without
+# the trailer, 0.3.0-beta.1's (see test_truetype_builds_keep_garmins_trailer); Swiss 721 Hebrew
+# didn't render on the fenix 6S Pro without it. A change to these bytes needs a watch test
+# (AGENTS.md).
 TRUETYPE_SHA256 = {
-    "006-D9971-09": "26cf9fcc77680145f06230831d5d9a4a32afd65bc386e9f2db71c38251cd8abd",
-    "006-D9971-08": "d9c050799fee0813279da0270af3dcd768c8c85156cd7462d82107053ae8d823",
-    "006-D1053-98": "a1ee9e8f0e20de9a86051c0101a7487e034e776dfea812aaa7c97b31a6933417",
-    "006-D1053-99": "9d8af8a385e697957f0250c3113ce7d070ff85bc4e5813635d2505d4304c35ba",
-    "006-D0952-08": "5b3ebd006d3dc55dde31399478c505ada844caf6f9c8870a0769d9350de79b4d",
-    "006-D0952-07": "b431730787de63ef43fbe97046f4d154e555e415e54ed8e60f10dd885f8ea80a",
+    "006-D9971-09": "372a605beb46cebcd95b43e7a1cffeb478e8737ae2f277491fe48417eabb327a",
+    "006-D9971-08": "7235705adc12f0da0c91ed76cd487a662fe2d939cfad8c199d40a9e50ee63c11",
+    "006-D1053-98": "c81f5d9922dfd8f7f6db10c2c6ef89e9fec9f943c722a9bf762452cb646a7891",
+    "006-D1053-99": "c00423c699333fe081691904aa43f5686404e9c748020751c58a0d744c73f211",
+    "006-D0952-08": "8637fc049a2116bfe6f5e2c95c3f325ace2712351c591d1728d8a1b4d39a294b",
+    "006-D0952-07": "e6274f30befbf026cc536205acc3071706309e0ae2898288e2c181f7e2d6d0c3",
 }
 # Tables the builder rewrites; every other table must stay byte for byte.
 REWRITTEN = {"glyf", "loca", "hmtx", "hhea", "maxp", "head", "cmap", "post", "OS/2", "hdmx",
@@ -57,6 +62,32 @@ def test_every_truetype_part_is_pinned():
 @pytest.mark.parametrize("part", TRUETYPE_SHA256)
 def test_truetype_builds_match_pinned_bytes(assets, part):
     assert hashlib.sha256(built(assets, part)).hexdigest() == TRUETYPE_SHA256[part]
+
+
+def earlier(number, build):
+    part = next(p for pack in ENTRIES["packs"] for p in pack["parts"] if p["part"] == number)
+    return [(e["sha256"], e["bytes"]) for e in part["earlier_georgian"] if e["build"] == build]
+
+
+@pytest.mark.parametrize("part", TRUETYPE_PART_IDS)
+def test_truetype_builds_keep_garmins_trailer(assets, truetype_stock, part):
+    data, stock = built(assets, part), truetype_stock[part]
+    assert trailer(data) == trailer(stock) == data[-16:]
+    version = next(p for _, p in TRUETYPE_PARTS if p["part"] == part)["version"]
+    assert version_of(data) == (version, part)
+    body = data[:-16]
+    assert len(body) % 4 == 0
+    # The font still parses, and before the trailer it is exactly 0.3.0-beta.1's build, which
+    # lacked it: only the trailer was added.
+    assert font(body)["head"].unitsPerEm > 0
+    assert earlier(part, "0.3.0-beta.1") == [(hashlib.sha256(body).hexdigest(), len(body))]
+
+
+def test_a_bin_without_a_trailer_is_rejected(truetype_stock):
+    stock = truetype_stock["006-D9971-09"]
+    with pytest.raises(ValueError, match="trailer"):
+        trailer(stock[:-16])
+    assert version_of(stock) == ("2.00", "006-D9971-09")
 
 
 @pytest.mark.parametrize("pack, part", TRUETYPE_PARTS, ids=TRUETYPE_PART_IDS)

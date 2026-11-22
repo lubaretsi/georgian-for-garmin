@@ -386,6 +386,10 @@ mod tests {
             ("results", schemars::schema_for!(report::Seen).to_value()),
             ("views", schemars::schema_for!(report::View).to_value()),
             ("phones", schemars::schema_for!(report::Phone).to_value()),
+            (
+                "state",
+                schemars::schema_for!(ops::GeorgianState).to_value(),
+            ),
         ];
         for (key, schema) in tables {
             let mut values = BTreeSet::new();
@@ -397,14 +401,23 @@ mod tests {
                 assert!(missing.is_empty(), "{language}.{key} lacks {missing:?}");
             }
         }
-        for (language, table) in strings() {
-            for staged in ["georgian", "stock", "other"] {
-                assert!(
-                    table["stagedNow"].get(staged).is_some(),
-                    "{language}.stagedNow.{staged}"
-                );
-            }
-        }
+        // The app's answer list is the core's, in the form's order.
+        let js = include_str!("../ui/app.js");
+        let results: Vec<String> = report::Seen::ALL
+            .iter()
+            .map(|s| {
+                serde_json::to_value(s)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+        let listed = format!(
+            "const RESULTS = [\n  \"{}\",\n];",
+            results.join("\",\n  \"")
+        );
+        assert!(js.contains(&listed), "app.js RESULTS should be:\n{listed}");
     }
 
     /// Identifiers that follow `prefix` in `source`, e.g. `T.` → `install`.

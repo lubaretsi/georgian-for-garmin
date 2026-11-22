@@ -93,22 +93,30 @@ Running `install` again after it succeeded changes nothing and reports `already_
 `inspect --json` returns:
 
 - `device`: `model`, `part_number`, `software_version`;
-- `supported`: the watch lists a bundled part and accepts the needed MTP writes;
+- `supported`: the watch lists a bundled part this build installs and accepts the needed MTP
+  writes; `restorable`: `restore-stock` has parts to write, including packs this build only
+  restores (Swiss 721 Hebrew in stable builds);
+- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`,
+  `waiting` (bitmap, until the restart), `partly`, `beta` (an earlier release's build),
+  `not_installed`, `not_visible` (the watch doesn't show its `.bin` files), `stock_waiting`,
+  `other`, `unknown` or `unsupported`;
 - `tested`: `status` for the whole install and `verified_software`, the software versions this
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
 - `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
   bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
-  choice in a sentence) and `skipped_parts` (parts of the other kind it lists, left alone; the
-  fenix 7 Pro's Hebrew TrueType fonts, for example);
+  choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the
+  fenix 7 Pro's Hebrew TrueType fonts, for example) and `restore_only_parts` (parts of packs this
+  build only restores);
 - `packs`: every bundled pack of that kind the watch lists, in registry order, with `id`, `name`,
   `kind`, `weight` and `parts`: the parts the watch lists, each with `size_px` (null for
   TrueType parts, which scale) and its own `tested` status;
 - `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, whether
-  `install` writes it (`target`), and `staged` (what the part's file in the folder holds,
-  `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType parts: `none`, `georgian`,
-  `stock`, `other`, or `unknown` without the folder);
+  `install` writes it (`target`), whether `restore-stock` does (`restore`), and `file` (what the
+  part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType
+  parts: `none`, `georgian`, `georgian_beta`, `stock`, `other`, `not_visible` for a TrueType part
+  the watch declares but doesn't show, or `unknown` without the folder);
 - `extdata`: the hidden folder's handle, how it was found, and every file in it with its `name`,
   `handle` and size in `bytes`. `sha256` is the file's SHA-256 only for a file named for a
   bundled part with the size of its original or Georgian version; it is `null` for every other

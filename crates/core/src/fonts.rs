@@ -5,6 +5,7 @@ use std::borrow::Cow;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::garmin_device::GarminDevice;
 
@@ -27,6 +28,13 @@ struct BundledFont {
     stock: &'static [u8],
     georgian: &'static [u8],
     mark: Option<BundledMark>,
+    earlier: &'static [BundledEarlier],
+}
+
+struct BundledEarlier {
+    build: &'static str,
+    sha256: &'static str,
+    bytes: u64,
 }
 
 struct BundledMark {
@@ -49,6 +57,7 @@ struct BundledPack {
     name: &'static str,
     kind: Kind,
     weight: u16,
+    install: bool,
     fonts: &'static [BundledFont],
     tested: &'static [BundledTested],
 }
@@ -70,6 +79,32 @@ pub struct Font {
     /// The beta test mark drawn into `georgian`; `None` in stable builds, whose Georgian fonts
     /// carry no marks.
     pub mark: Option<Mark>,
+    /// Georgian builds of this part that earlier releases installed (beta test marks), which
+    /// this build recognizes as its own and replaces.
+    pub earlier: Vec<Earlier>,
+}
+
+/// A Georgian build an earlier release installed, known by size and SHA-256.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Earlier {
+    /// The release, e.g. "0.3.0-beta.2".
+    pub build: String,
+    /// Lowercase hex.
+    pub sha256: String,
+    pub bytes: u64,
+}
+
+/// What a file named for a part holds, by its content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Content {
+    /// This build's Georgian font.
+    Georgian,
+    /// A Georgian build an earlier release installed.
+    EarlierGeorgian,
+    /// Garmin's original.
+    Stock,
+    /// Anything else.
+    Other,
 }
 
 /// Capitals of the test text a beta build's marks go on, in order: `Mark::position` indexes it.
@@ -100,6 +135,40 @@ impl Font {
             Kind::Truetype => format!("{}.bin", self.part),
         }
     }
+
+    /// Whether a file of `size` bytes may be one this build knows (stock, Georgian or an
+    /// earlier Georgian build), so it is worth reading.
+    pub fn known_size(&self, size: usize) -> bool {
+        size == self.stock.len()
+            || size == self.georgian.len()
+            || self.earlier.iter().any(|e| e.bytes == size as u64)
+    }
+
+    /// What `bytes`, a file named for this part, holds.
+    pub fn identify(&self, bytes: &[u8]) -> Content {
+        if *bytes == *self.georgian {
+            Content::Georgian
+        } else if *bytes == *self.stock {
+            Content::Stock
+        } else if self.earlier.iter().any(|e| e.bytes == bytes.len() as u64) && {
+            let hash = sha256_hex(bytes);
+            self.earlier
+                .iter()
+                .any(|e| e.bytes == bytes.len() as u64 && e.sha256 == hash)
+        } {
+            Content::EarlierGeorgian
+        } else {
+            Content::Other
+        }
+    }
+}
+
+/// Lowercase hex SHA-256.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// A watch on which a pack's Georgian build was seen rendering.
@@ -124,6 +193,10 @@ pub struct Pack {
     /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too (a part
     /// may override it in the registry).
     pub weight: u16,
+    /// Whether `install` writes this pack's Georgian build. A pack whose Georgian didn't render
+    /// on a watch is restore-only: `restore_stock` still writes Garmin's original, and its
+    /// Georgian builds are still recognized.
+    pub install: bool,
     /// Every part, in manifest order; each has the pack's kind.
     pub fonts: Vec<Font>,
     pub tested: Vec<Tested>,
@@ -154,6 +227,7 @@ impl FontSet {
                     name: p.name.to_owned(),
                     kind: p.kind,
                     weight: p.weight,
+                    install: p.install,
                     fonts: p
                         .fonts
                         .iter()
@@ -171,6 +245,15 @@ impl FontSet {
                                 style: m.style.to_owned(),
                                 picture: Cow::Borrowed(m.picture),
                             }),
+                            earlier: f
+                                .earlier
+                                .iter()
+                                .map(|e| Earlier {
+                                    build: e.build.to_owned(),
+                                    sha256: e.sha256.to_owned(),
+                                    bytes: e.bytes,
+                                })
+                                .collect(),
                         })
                         .collect(),
                     tested: p
@@ -205,26 +288,41 @@ impl FontSet {
         self.fonts().any(|(_, f)| f.mark.is_some())
     }
 
-    /// What `install` and `restore_stock` write on the watch `device` describes: the packs of
-    /// one kind with a part the watch lists under `Garmin/ExtData`, and the parts of the other
-    /// kind it lists that are left alone.
+    /// What `install` writes on the watch `device` describes: the installable packs of one kind
+    /// with a part the watch lists under `Garmin/ExtData`, the parts of the other kind it lists
+    /// that are left alone, and the restore-only parts it lists.
     ///
     /// Bitmap packs win: a watch that lists any bitmap part gets Georgian there, as before
     /// TrueType support, and its TrueType fonts stay Garmin's. Only a watch that lists no bitmap
     /// part gets Georgian in its TrueType fonts.
     pub fn hosts(&self, device: &GarminDevice) -> Hosts<'_> {
-        let all: Vec<Listed<'_>> = self
-            .packs
-            .iter()
-            .filter_map(|pack| {
-                let fonts: Vec<&Font> = pack
-                    .fonts
-                    .iter()
-                    .filter(|f| device.declares_extdata_part(&f.part))
-                    .collect();
-                (!fonts.is_empty()).then_some(Listed { pack, fonts })
-            })
-            .collect();
+        self.hosts_of(device, false)
+    }
+
+    /// What `restore_stock` writes: as [`FontSet::hosts`], with restore-only packs too, so
+    /// Garmin's originals can go back where an earlier release installed Georgian.
+    pub fn restore_hosts(&self, device: &GarminDevice) -> Hosts<'_> {
+        self.hosts_of(device, true)
+    }
+
+    fn hosts_of(&self, device: &GarminDevice, restore: bool) -> Hosts<'_> {
+        let mut restore_only = Vec::new();
+        let mut all: Vec<Listed<'_>> = Vec::new();
+        for pack in &self.packs {
+            let fonts: Vec<&Font> = pack
+                .fonts
+                .iter()
+                .filter(|f| device.declares_extdata_part(&f.part))
+                .collect();
+            if fonts.is_empty() {
+                continue;
+            }
+            if pack.install || restore {
+                all.push(Listed { pack, fonts });
+            } else {
+                restore_only.extend(fonts);
+            }
+        }
         let kind = if all.iter().any(|l| l.pack.kind == Kind::Bitmap) {
             Some(Kind::Bitmap)
         } else if all.is_empty() {
@@ -234,10 +332,19 @@ impl FontSet {
         };
         let (listed, other): (Vec<_>, Vec<_>) =
             all.into_iter().partition(|l| Some(l.pack.kind) == kind);
+        // Restore-only parts of the other kind than the one chosen are left alone like any.
+        let (left_alone, restore_only): (Vec<&Font>, Vec<&Font>) = restore_only
+            .into_iter()
+            .partition(|f| kind.is_some_and(|k| k != f.kind));
         Hosts {
             kind,
             listed,
-            skipped: other.into_iter().flat_map(|l| l.fonts).collect(),
+            skipped: other
+                .into_iter()
+                .flat_map(|l| l.fonts)
+                .chain(left_alone)
+                .collect(),
+            restore_only,
         }
     }
 }
@@ -251,4 +358,7 @@ pub struct Hosts<'a> {
     pub listed: Vec<Listed<'a>>,
     /// Parts of the other kind that the watch lists, in registry order; left alone.
     pub skipped: Vec<&'a Font>,
+    /// Parts of restore-only packs the watch lists (empty for [`FontSet::restore_hosts`]):
+    /// install leaves them alone; restore writes Garmin's originals.
+    pub restore_only: Vec<&'a Font>,
 }

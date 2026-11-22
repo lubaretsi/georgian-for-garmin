@@ -252,6 +252,10 @@ fn print_human(operation: &str, out: &Value) {
         text(&device["software_version"])
     );
     println!("{}", text(&out["hosts"]["reason"]));
+    println!(
+        "Georgian on the watch: {}",
+        state_words(text(&out["state"]))
+    );
     let packs = items(&out["packs"]);
     if packs.is_empty() {
         println!("Font packs: none; this watch lists none of the packs in this build.");
@@ -319,21 +323,45 @@ fn print_human(operation: &str, out: &Value) {
             text(&font["pack"]),
             if font["target"] == true {
                 "installs"
+            } else if font["restore"] == true {
+                "restores"
             } else if font["listed"] == true {
                 "listed"
             } else {
                 "not listed"
             },
-            text(&font["staged"])
+            text(&font["file"]).replace('_', " ")
         );
     }
     if out["supported"] != true {
         println!("Nothing in this build can be installed on this watch.");
+        if out["restorable"] == true {
+            println!("restore-stock still puts Garmin's original fonts back.");
+        }
     }
     if out["tested"]["status"] != "tested" {
         println!(
             "To help add this watch, share its font list: georgian-for-garmin inspect --report"
         );
+    }
+}
+
+/// `inspect`'s `state` in a sentence.
+fn state_words(state: &str) -> &'static str {
+    match state {
+        "unsupported" => "nothing to install on this watch.",
+        "not_installed" => "not installed.",
+        "waiting" => "waiting on the watch; unplug it and restart it to finish.",
+        "installed" => "installed.",
+        "partly" => "in some fonts; install adds the rest.",
+        "beta" => "an earlier test version; install replaces it.",
+        "stock_waiting" => "Garmin's original fonts are waiting; unplug and restart to finish.",
+        "not_visible" => {
+            "can't be seen: the watch doesn't show its font files over USB. Installing again is \
+             harmless."
+        }
+        "other" => "a font file this build doesn't know is on the watch; nothing can be changed.",
+        _ => "unknown: the font folder wasn't found.",
     }
 }
 

@@ -13,7 +13,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
 from .codec import decode, identity
-from .truetype import open_host
+from .truetype import open_host, version_of
 
 SCHEMA_NAME = "registry.schema.json"
 # The stock file's extension, by pack kind: Garmin's download names and the build's file names.
@@ -153,7 +153,8 @@ def check_pack(pack, stock):
 
 def check_truetype_pack(pack, stock):
     """Check a TrueType pack's entries against its stock files: each must have the listed
-    SHA-256 and unmask to a TrueType font with glyf outlines and no Georgian."""
+    SHA-256, end with Garmin's trailer naming the listed part and version, and unmask to a
+    TrueType font with glyf outlines and no Georgian."""
     problems = []
     for part in pack["parts"]:
         number, data = part["part"], stock[part["part"]]
@@ -165,7 +166,14 @@ def check_truetype_pack(pack, stock):
             continue
         try:
             open_host(data)
+            file_version, file_part = version_of(data)
         except ValueError as error:
             problems.append(f"{number}: stock file: {error}")
+            continue
+        if (file_part, file_version) != (number, part["version"]):
+            problems.append(
+                f"{number}: stock file's trailer names {file_part} version {file_version}, but "
+                f"the registry lists version {part['version']}"
+            )
     if problems:
         raise RegistryError("\n".join(f"pack {pack['id']}: {problem}" for problem in problems))

@@ -18,7 +18,14 @@ const { invoke } = window.__TAURI__.core;
 const POLL_MS = 2000;
 const DEFAULT_LANGUAGE = "ka";
 // Answer values, as the core's `issue_link` takes them.
-const RESULTS = ["georgian", "boxes", "some_letters", "no_notification", "not_installed"];
+const RESULTS = [
+  "georgian",
+  "boxes",
+  "question_marks",
+  "some_letters",
+  "no_notification",
+  "not_installed",
+];
 const VIEWS = ["popup", "list", "opened"];
 const PHONES = ["android", "iphone"];
 const NO_MARKER = "none";
@@ -95,15 +102,19 @@ function showWaiting(error) {
   });
 }
 
-/** What the watch's target sizes hold now, as one note, or null when nothing needs saying. */
-function stagedNote(report) {
-  const staged = report.fonts.filter((f) => f.target).map((f) => f.staged);
-  const all = (state) => staged.length > 0 && staged.every((s) => s === state);
-  if (all("georgian")) return T.stagedNow.georgian;
-  if (all("stock")) return T.stagedNow.stock;
-  const mixed = staged.includes("georgian") && staged.includes("stock");
-  return staged.includes("other") || mixed ? T.stagedNow.other : null;
+/**
+ * What the main screen says about Georgian on the watch, from the core's `state` (the one rule
+ * the CLI and the report use too), or null when nothing needs saying.
+ */
+function stateNote(report) {
+  if (!report.supported) return report.restorable ? T.restoreOnly : T.unsupportedWatch;
+  // A TrueType file this build doesn't know isn't waiting for a restart; it blocks install.
+  if (report.state === "other" && report.hosts.kind === "truetype") return T.unknownFont;
+  return report.state === "not_installed" ? null : T.state[report.state];
 }
+
+/** States in which Install Georgian would change nothing, so it isn't offered. */
+const NOTHING_TO_INSTALL = ["installed", "waiting"];
 
 // Sharing
 
@@ -177,10 +188,12 @@ function showReady(report) {
       });
     }
     $("ready-untested").hidden = !tested || tested.status === "tested";
-    const note = report.supported ? stagedNote(report) : T.unsupportedWatch;
+    const note = stateNote(report);
     $("ready-note").hidden = !note;
     $("ready-note").textContent = note || "";
-    $("ready-actions").hidden = !report.supported;
+    // A watch whose fonts only an earlier test version installed into can still restore.
+    $("ready-actions").hidden = !report.supported && !report.restorable;
+    $("install").hidden = !report.supported || NOTHING_TO_INSTALL.includes(report.state);
     $("share").hidden = Boolean(tested && tested.status === "tested");
     // Once shared, the result takes the explanation's place.
     $("share-why").hidden = drawShared(report.report, "share-text", "share-result");

@@ -65,16 +65,30 @@ for every part are in [the font registry](../fonts/README.md#size).
 
 ![Garmin's Armenian letters and the Georgian added to the same 27 px font, from their 2-bit bitmaps](georgian-glyphs-27px.png)
 
-## TrueType fonts (untested)
+## TrueType fonts
 
 Many newer watches (Venu 3, Forerunner 165, fenix 6, Instinct 3) have no bitmap Armenian font,
 but list TrueType fonts in `Garmin/ExtData` as `<part>.bin` files: Armenian, Hebrew, Arabic,
 Chinese, Japanese, Korean, Thai. A `.bin` is an ordinary TrueType font with every byte XOR-ed
-with `0x76`. The builder unmasks Garmin's file, appends Noto Sans Georgian's outlines, scaled to
-the host's letters, keeps every original glyph, table and name, and masks it again. It adds
-Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts and to the Swiss 721 Hebrew fonts
-the fenix 6 and Instinct 3 list; [the font registry](../fonts/README.md#truetype-packs) says
-why and how each is sized.
+with `0x76`, followed by a 16-byte trailer with Garmin's version and part number
+([Version trailer](../fonts/README.md#version-trailer)). The builder unmasks Garmin's file,
+appends Noto Sans Georgian's outlines, scaled to the host's letters, keeps every original glyph,
+table and name, masks it again and puts the trailer back. Without the trailer, as in builds up
+to 0.3.0-beta.2, the watch lists the part as version 0.01.
+
+Stable builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Forerunner
+165 (29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the
+fenix 6 and Instinct 3 showed question marks on a fenix 6S Pro (#6), so only beta builds install
+them, for a retest with the trailer; stable builds treat those watches as unsupported but still
+restore Garmin's originals. [The font registry](../fonts/README.md#truetype-packs) says why and
+how each is sized.
+
+These watches show no `.bin` files over MTP (the `ExtData` listing in #6's and #19's reports is
+empty), so whether a part holds Garmin's font or Georgian can't be seen: `inspect` reports such a
+part as `not_visible` and the app says it can't tell, rather than offering to install as if
+nothing were there. Where the files are visible, `inspect` names each one by its content:
+`georgian`, `georgian_beta` (an earlier release's build), `stock` or `other`; the app, the CLI
+and the report all show that one result, summed up as `state`.
 
 Only watches that list none of the registry's bitmap fonts get the TrueType ones. A watch with
 bitmap Armenian fonts, such as the fenix 7 Pro, gets Georgian in those, as before, and its
@@ -89,9 +103,11 @@ no restart. MTP has no way to overwrite a file in place, so the installer delete
 safe:
 
 - It replaces a `.bin` only when it holds Garmin's original byte for byte (the same file the
-  registry pins by SHA-256) or this build's Georgian font, and only when `GarminDevice.xml`
-  lists the part at the version and file name the build carries. Anything else, or two files
-  under the name, stops the whole install before anything is written.
+  registry pins by SHA-256), this build's Georgian font, or a Georgian build an earlier release
+  installed (also pinned), and only when `GarminDevice.xml` lists the part at the version and
+  file name the build carries, or at 0.01 (an earlier build without the trailer). Anything else,
+  or two files under the name, stops the whole install before anything is written. A beta's
+  waiting bitmap `.tmp` is replaced the same way.
 - Where the watch shows no `.bin` for a part it lists, the file is created, as Garmin's
   updater would.
 - The original bytes are read from the watch before anything is written. If any part fails,
@@ -100,8 +116,7 @@ safe:
 - Restoring writes Garmin's original, bundled in the app, the same way.
 
 Unplugging and restarting the watch afterwards is still the instruction: the watch may only
-reload its fonts then. Whether these watches draw Georgian from these fonts hasn't been seen on
-a watch yet; each part counts as untested until a report says it does.
+reload its fonts then.
 
 ## The hidden folder
 

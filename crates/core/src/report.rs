@@ -22,7 +22,7 @@ use url::Url;
 use crate::error::{Error, ErrorCode};
 use crate::fonts::Kind;
 use crate::garmin_device::GarminDevice;
-use crate::ops::{APP_VERSION, StageStatus, Staged, TestStatus};
+use crate::ops::{APP_VERSION, FileState, GeorgianState, StageStatus, TestStatus};
 
 /// Where watch reports are filed.
 pub const NEW_ISSUE: &str = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
@@ -122,8 +122,8 @@ pub struct ReportedPart {
     pub part: String,
     /// `install` writes it.
     pub target: bool,
-    /// What its file in `GARMIN/ExtData` held when the report was made.
-    pub staged: Staged,
+    /// What its file in `GARMIN/ExtData` held when the report was made (`inspect`'s rule).
+    pub file: FileState,
     pub tested: TestStatus,
     /// Beta builds: the test mark's variant ("A", "B", …) in this part's Georgian build.
     pub mark: Option<String>,
@@ -145,6 +145,8 @@ pub struct WatchReport {
     pub packs: Vec<String>,
     /// The overall status, as in `inspect`'s `tested`.
     pub tested: TestStatus,
+    /// Georgian on the watch, as in `inspect`'s `state`.
+    pub state: GeorgianState,
     pub hosts: ReportedHosts,
     /// Every part of this build the watch lists, in registry order.
     pub parts: Vec<ReportedPart>,
@@ -168,6 +170,7 @@ pub struct ReportInput {
     pub connection: Connection,
     pub packs: Vec<String>,
     pub tested: TestStatus,
+    pub state: GeorgianState,
     pub hosts: ReportedHosts,
     pub parts: Vec<ReportedPart>,
     pub test_marks: bool,
@@ -203,6 +206,7 @@ pub fn watch_report(device: &GarminDevice, input: ReportInput) -> WatchReport {
         software_version: device.software_version.clone(),
         packs: input.packs,
         tested: input.tested,
+        state: input.state,
         hosts: input.hosts,
         parts: input.parts,
         test_marks: input.test_marks,
@@ -250,6 +254,8 @@ pub enum Seen {
     Georgian,
     /// Boxes instead of letters.
     Boxes,
+    /// Question marks instead of letters (the fenix 6S Pro, #6).
+    QuestionMarks,
     /// Some letters, some boxes.
     SomeLetters,
     /// The notification didn't reach the watch.
@@ -259,11 +265,22 @@ pub enum Seen {
 }
 
 impl Seen {
+    /// Every answer, in the form's order.
+    pub const ALL: [Seen; 6] = [
+        Seen::Georgian,
+        Seen::Boxes,
+        Seen::QuestionMarks,
+        Seen::SomeLetters,
+        Seen::NoNotification,
+        Seen::NotInstalled,
+    ];
+
     /// The option's label in the issue form.
     pub fn label(self) -> &'static str {
         match self {
             Seen::Georgian => "Georgian letters",
             Seen::Boxes => "Boxes instead of letters",
+            Seen::QuestionMarks => "Question marks (?) instead of letters",
             Seen::SomeLetters => "Some letters, some boxes",
             Seen::NoNotification => "The notification didn't arrive",
             Seen::NotInstalled => "Georgian didn't install",
@@ -535,6 +552,11 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
         )
         .unwrap();
     }
+    // With an outcome, the state and files are from the inspect before that operation.
+    let before = outcome
+        .map(|o| format!(" (before {})", snake(&o.operation)))
+        .unwrap_or_default();
+    writeln!(out, "state {}{before}", snake(&report.state)).unwrap();
     if let Some(o) = outcome {
         let result = match (o.status, o.error) {
             (Some(status), _) => snake(&status),
@@ -572,16 +594,15 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
             writeln!(out, "{line}").unwrap();
         }
     }
-    if report.test_marks {
-        out.push_str("marks beta\n");
-    }
-    out.push_str("parts: part staged target tested mark\n");
+    let marks = if report.test_marks { "beta" } else { "off" };
+    writeln!(out, "marks {marks}").unwrap();
+    writeln!(out, "parts{before}: part file target tested mark").unwrap();
     for part in &report.parts {
         writeln!(
             out,
             "{} {} {} {} {}",
             column(&part.part),
-            snake(&part.staged),
+            snake(&part.file),
             if part.target { "yes" } else { "no" },
             snake(&part.tested),
             column(part.mark.as_deref().unwrap_or(""))
@@ -637,6 +658,7 @@ mod tests {
             software_version: "19.05".into(),
             packs: vec!["armenian-noto-sans-regular".into()],
             tested: TestStatus::Tested,
+            state: GeorgianState::NotInstalled,
             hosts: ReportedHosts {
                 kind: Some(Kind::Bitmap),
                 reason: "Bitmap fonts.".into(),
@@ -644,7 +666,7 @@ mod tests {
             parts: vec![ReportedPart {
                 part: "006-D9035-01".into(),
                 target: true,
-                staged: Staged::None,
+                file: FileState::None,
                 tested: TestStatus::Tested,
                 mark: Some("B".into()),
             }],
@@ -722,8 +744,11 @@ mod tests {
         for line in [
             "app 0.3.0-beta.1 \"Mac OS\" 15.6.1 aarch64",
             "watch \"Venu 2\" 006-B3703-00 19.05",
+            "state not_installed (before install)",
             "last install staged_verified 006-D9035-01",
             "answers result=georgian views=popup,opened phone=android marker=B connect=5.10",
+            "marks beta",
+            "parts (before install): part file target tested mark",
             "006-D9035-01 none yes tested B",
             "Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10",
             "\"a b\\u0060.bin\" 12 -",
@@ -780,14 +805,7 @@ mod tests {
         ] {
             assert!(form.contains(&format!("id: {id}\n")), "form lacks id {id}");
         }
-        let seen = [
-            Seen::Georgian,
-            Seen::Boxes,
-            Seen::SomeLetters,
-            Seen::NoNotification,
-            Seen::NotInstalled,
-        ];
-        let labels = seen
+        let labels = Seen::ALL
             .iter()
             .map(|s| s.label())
             .chain([View::Popup, View::List, View::Opened].map(View::label))
@@ -804,5 +822,42 @@ mod tests {
         for variant in 'A'..='T' {
             assert!(form.contains(&format!("- \"{variant}\"\n")), "{variant}");
         }
+    }
+}
+
+#[cfg(test)]
+mod marks_off {
+    use super::*;
+
+    #[test]
+    fn a_stable_report_says_marks_off() {
+        let device = crate::garmin_device::parse(
+            b"<Device><Model><PartNumber>006-B3703-00</PartNumber>\
+              <SoftwareVersion>1905</SoftwareVersion><Description>Venu 2</Description></Model>\
+              </Device>",
+        )
+        .unwrap();
+        let report = watch_report(
+            &device,
+            ReportInput {
+                connection: Connection::Mtp,
+                packs: vec![],
+                tested: TestStatus::Untested,
+                state: GeorgianState::Unsupported,
+                hosts: ReportedHosts {
+                    kind: None,
+                    reason: "None.".into(),
+                },
+                parts: vec![],
+                test_marks: false,
+                extdata_listing: None,
+            },
+        );
+        assert!(
+            report.text.lines().any(|l| l == "marks off"),
+            "{}",
+            report.text
+        );
+        assert!(report.text.lines().any(|l| l == "state unsupported"));
     }
 }

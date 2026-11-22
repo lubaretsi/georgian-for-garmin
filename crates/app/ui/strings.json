@@ -29,11 +29,20 @@
     "sharePasteAhead": "ტექსტი ბმულში არ ეტევა: დაკოპირდება და GitHub-ის გვერდზე „Watch report“ ველში ჩასვამთ.",
     "driveBody": "საათი კომპიუტერთან USB დისკად არის შეერთებული, ასე ქართულს ვერ დავაყენებთ. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP. ზოგ საათს მხოლოდ დისკის რეჟიმი აქვს.",
     "driveShareWhy": "გაგვიზიარეთ ამ საათის შრიფტების სია GitHub-ზე, რომ მისთვისაც ვეძებოთ გზა. სიაში სერიული ნომერი არ არის.",
-    "stagedNow": {
-      "georgian": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
-      "stock": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
-      "other": "საათზე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას. გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ."
+    "state": {
+      "unsupported": "ამ საათისთვის შრიფტი ჯერ არ გვაქვს.",
+      "not_installed": "ქართული ჯერ არ არის დაყენებული.",
+      "waiting": "ქართული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "installed": "ქართული ამ საათზე უკვე დაყენებულია.",
+      "partly": "ქართული ზოგ შრიფტში უკვე არის. „ქართულის დაყენება“ დანარჩენებსაც დაამატებს.",
+      "beta": "საათზე ქართულის სატესტო ვერსიაა. „ქართულის დაყენება“ მას ახლით შეცვლის.",
+      "stock_waiting": "ქარხნული შრიფტი უკვე ჩაწერილია საათზე. დასასრულებლად გამოაერთეთ საათი და გადატვირთეთ.",
+      "not_visible": "ეს საათი შრიფტის ფაილებს კომპიუტერს არ აჩვენებს, ამიტომ ვერ ვხედავთ, დაყენებულია თუ არა ქართული. თუ შეტყობინებებში ქართული ჩანს, არაფერია გასაკეთებელი. თავიდან დაყენება არაფერს აფუჭებს.",
+      "other": "საათზე სხვა შრიფტის ფაილი ელოდება ჩატვირთვას. გამოაერთეთ საათი, გადატვირთეთ და ისევ შეაერთეთ.",
+      "unknown": "საათზე შრიფტების საქაღალდე ვერ ვიპოვეთ, ამიტომ ვერ ვხედავთ, რა არის დაყენებული."
     },
+    "unknownFont": "საათზე ისეთი შრიფტის ფაილია, რომელსაც პროგრამა არ იცნობს, ამიტომ არაფერს შევცვლით. გაგვიზიარეთ საათის შრიფტების სია GitHub-ზე.",
+    "restoreOnly": "ამ საათის შრიფტებში ქართული შემოწმებისას არ გამოჩნდა, ამიტომ პროგრამა მას არ აყენებს. თუ ადრე სატესტო ვერსია დააყენეთ, „ქარხნული შრიფტის დაბრუნება“ Garmin-ის შრიფტებს დააბრუნებს.",
 
     "workingInstall": "ქართულ შრიფტს საათზე ვწერთ…",
     "workingRestore": "ქარხნულ შრიფტს საათზე ვწერთ…",
@@ -62,6 +71,7 @@
     "results": {
       "georgian": "ქართული ასოები",
       "boxes": "კვადრატები",
+      "question_marks": "კითხვის ნიშნები (?)",
       "some_letters": "ზოგი ასო, ზოგი კვადრატი",
       "no_notification": "შეტყობინება საათზე არ მოვიდა",
       "not_installed": "ქართული ვერ დაყენდა"
@@ -132,11 +142,20 @@
     "sharePasteAhead": "This is too long for the link: it gets copied, and you paste it into the form’s Watch report field.",
     "driveBody": "Your watch is connected as a USB drive, so Georgian can’t be installed. If the watch asks how to connect, choose MTP. Some watches only have drive mode.",
     "driveShareWhy": "Share this watch’s font list on GitHub so we can look for a way for it too. The list has no serial number.",
-    "stagedNow": {
-      "georgian": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
-      "stock": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
-      "other": "A different font file is waiting on this watch. Unplug the watch and restart it, then connect it again."
+    "state": {
+      "unsupported": "There’s no font for this watch yet.",
+      "not_installed": "Georgian isn’t installed yet.",
+      "waiting": "The Georgian font is already waiting on this watch. Unplug the watch and restart it to finish.",
+      "installed": "Georgian is already installed on this watch.",
+      "partly": "Some fonts already have Georgian. Install Georgian adds the rest.",
+      "beta": "A test version of Georgian is on this watch. Install Georgian replaces it with this one.",
+      "stock_waiting": "The original font is waiting on this watch. Unplug the watch and restart it to finish.",
+      "not_visible": "This watch doesn’t show its font files to the computer, so the app can’t tell whether Georgian is installed. If notifications show Georgian, there’s nothing to do; installing again does no harm.",
+      "other": "A different font file is waiting on this watch. Unplug the watch and restart it, then connect it again.",
+      "unknown": "The watch’s font folder couldn’t be found, so the app can’t tell what’s installed."
     },
+    "unknownFont": "A font file on the watch isn’t one this app knows, so nothing can be changed. Please share the watch’s font list on GitHub.",
+    "restoreOnly": "Georgian didn’t show in this watch’s fonts in testing, so the app doesn’t install it. If you installed a test version earlier, Restore original font puts Garmin’s fonts back.",
 
     "workingInstall": "Copying the Georgian font to your watch…",
     "workingRestore": "Copying the original font to your watch…",
@@ -165,6 +184,7 @@
     "results": {
       "georgian": "Georgian letters",
       "boxes": "Boxes",
+      "question_marks": "Question marks (?)",
       "some_letters": "Some letters, some boxes",
       "no_notification": "The notification didn’t arrive",
       "not_installed": "Georgian didn’t install"

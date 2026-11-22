@@ -60,6 +60,11 @@ takes a minute and only a GitHub account: after installing, click **Check on the
 what you saw, and **Share on GitHub** opens the issue form already filled in
 ([Reporting](docs/reporting.md)).
 
+Watches without Garmin's Armenian bitmap fonts get Georgian in their TrueType Armenian or Hebrew
+fonts (Noto Sans Armenian, Noto Sans Hebrew) instead; the Forerunner 165 is the first confirmed
+one. On the fenix 6 and Instinct 3 family (Swiss 721 Hebrew) it hasn't worked yet, so the stable
+app doesn't install there; beta builds retest it ([How it works](docs/how-it-works.md#truetype-fonts)).
+
 ## Install
 
 You need your watch's USB data cable. Download the app for your computer from

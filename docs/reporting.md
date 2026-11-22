@@ -10,7 +10,7 @@ it and submits it.
 1. After **Install Georgian** the restart screen has **Check on the watch**.
 2. The check screen shows a QR code for the [phone test page](#the-phone-test-page) (drawn in the
    app, without the network) and the test text to send yourself instead.
-3. One tap per question: what the watch showed (Georgian letters, boxes, some of each, the
+3. One tap per question: what the watch showed (Georgian letters, boxes, question marks, some of each, the
    notification didn't arrive, Georgian didn't install), where Georgian showed (pop-up,
    notification list, opened notification), the phone (Android or iPhone), and in beta builds
    which [test mark](#beta-test-marks) the watch showed, from pictures of the marks the app
@@ -62,9 +62,9 @@ appear):
 | `declared_files` (`path`, `file_name`, `part_number`, `version`) | Every `MassStorageMode/UpdateFile` |
 | `extdata_files` | The same, for `Garmin/ExtData` only |
 | `extdata_listing` (`name`, `bytes`, `sha256`) | The `GARMIN/ExtData` folder; `sha256` only for files `inspect` already reads (named for a bundled part, with one of its sizes) |
-| `hosts` (`kind`, `reason`), `packs`, `tested` | This build's choice of fonts for the watch |
-| `parts` (`part`, `target`, `staged`, `tested`, `mark`) | Each bundled part the watch lists |
-| `test_marks` | Whether this is a beta build with test marks |
+| `hosts` (`kind`, `reason`), `packs`, `tested`, `state` | This build's choice of fonts for the watch, and Georgian on it |
+| `parts` (`part`, `target`, `file`, `tested`, `mark`) | Each bundled part the watch lists |
+| `test_marks` | Whether this is a beta build with test marks (`marks beta` or `marks off`) |
 
 The link adds the last install or restore on this watch (`last`: its status and parts, or its
 error code) and the answers.
@@ -72,14 +72,15 @@ error code) and the answers.
 An example (`inspect --report`, a Venu 2 before installing):
 
 ```text
-app 0.3.0-beta.2 macOS 15.6.1 aarch64
+app 0.3.0 "Mac OS" 15.6.1 aarch64
 connection mtp
 watch "Venu 2" 006-B3703-00 19.05
 hosts bitmap: This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those.
 packs armenian-noto-sans-regular (tested)
-marks beta
-parts: part staged target tested mark
-006-D9035-01 none yes tested B
+state not_installed
+marks off
+parts: part file target tested mark
+006-D9035-01 none yes tested -
 …
 declared: path file part version
 Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10
@@ -87,6 +88,14 @@ Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10
 extdata: name bytes sha256
 …
 ```
+
+`state` and each part's `file` follow one rule, the same in the app and the CLI. `file` is what
+the part's file holds: `georgian`, `georgian_beta` (an earlier release's build), `stock`, `other`,
+`none`, `not_visible` (a TrueType part the watch declares but doesn't show over MTP, as on the
+Forerunner 165 and fenix 6S Pro) or `unknown`. `state` sums up the parts install writes:
+`installed`, `waiting` (bitmap, until the restart), `partly`, `beta`, `not_installed`,
+`not_visible`, `stock_waiting`, `other`, `unknown` or `unsupported`. With a last install or
+restore, the state and files are from just before it, and the lines say so.
 
 ## The phone test page
 

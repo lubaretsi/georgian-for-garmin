@@ -164,6 +164,33 @@ identical to the ones the builder takes from the variable font at weight 400. Th
 a preview of each part, `previews/<part>.png`, showing the host's own text beside
 `მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ`.
 
+### Version trailer
+
+Every Garmin `.bin` ends with 16 bytes after the masked font: raw (unmasked) `0x89`, the release
+version as a little-endian u16 (`200` is 2.00, `210` is 2.10), the part number in ASCII and a
+NUL; the table data before it is padded with masked zero bytes (`0x76`) to a 4-byte boundary.
+Stock `006-D0952-08` ends `89 d2 00 "006-D0952-08" 00`. Watches read the version there; a file
+without it is listed in `GarminDevice.xml` as version 0.01. Each build pads the same way and
+keeps the stock trailer byte for byte, and the builder checks every stock trailer against the
+registry's part and version. Builds up to 0.3.0-beta.2 left it out; the installer treats a
+part listed at 0.01 as one of those and replaces it.
+
+### Which builds install a pack
+
+A pack's `install` decides: `true` (the default) in every build, `false` in none, `"beta"` only in
+pre-release builds. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `"beta"`: its Georgian
+showed question marks on a fenix 6S Pro (#6) with the trailer-less beta.2 build, and beta.3
+retests it with the trailer. Every build still restores a pack it doesn't install, and
+recognizes its Georgian builds, so a beta tester can put Garmin's originals back.
+
+### Earlier builds
+
+A part's `earlier_georgian` lists, by SHA-256 and size, the Georgian builds earlier releases
+installed: 0.3.0-beta.2's marked builds, and for TrueType parts 0.3.0-beta.1's (both without
+the trailer). `inspect` reports such a file as `georgian_beta`; install and restore replace it.
+The builder tests pin the marked builds to the beta.2 entries (TrueType ones with the trailer
+removed) and the stable TrueType builds, without their trailer, to the beta.1 entries.
+
 ### Hosts
 
 TrueType hosts are only for watches that list none of the registry's bitmap parts. A watch that
@@ -253,7 +280,7 @@ order of packs in `inspect` and install output, and the order files are written 
 
 ## Test marks
 
-Pre-release builds (a Cargo workspace version with a `-`, such as `0.3.0-beta.1`) mark each
+Pre-release builds (a Cargo workspace version with a `-`, such as `0.3.0-beta.3`) mark each
 part, so a photo of the test notification `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test` tells which part the watch
 rendered. Each part's Georgian draws a solid bar under, over or on both sides of one capital of
 `ᲛᲗᲐᲕᲠᲣᲚᲘ`; every other glyph is the release build's. Variants are assigned per kind, in

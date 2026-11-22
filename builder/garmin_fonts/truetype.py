@@ -8,6 +8,12 @@ size comes from `choose_sizing`: Mkhedruli x-height matches the host's Latin x-h
 host has Latin letters, otherwise Noto's own proportions; descenders are shortened as in the
 bitmap builds when they would reach below the host's descent.
 
+Garmin ends every `.bin` with a 16-byte trailer after the masked font: raw (unmasked) 0x89,
+the release version as a little-endian u16 (200 is 2.00), the part number in ASCII, and a NUL.
+The table data before it is padded with masked zero bytes to a 4-byte boundary. Watches read
+the version there: without it they list the part as version 0.01. Each build keeps the stock
+trailer verbatim (`trailer`).
+
 The output is deterministic: no timestamps are touched, every coordinate is rounded from an
 exact fraction, and table data fontTools doesn't need to change is copied as it was.
 """
@@ -35,6 +41,9 @@ LATIN_X_HEIGHT = "latin_x_height"
 UNITS_PER_EM = "units_per_em"
 # A test mark bar's thickness, and its gap to the letter, in ems.
 BAR_EM = Fraction(6, 100)
+# Garmin's `.bin` trailer: its length and first byte.
+TRAILER_SIZE = 16
+TRAILER_MARK = 0x89
 
 
 def unmask(data):
@@ -43,6 +52,29 @@ def unmask(data):
 
 
 mask = unmask
+
+
+def trailer(data):
+    """The 16-byte version trailer at the end of a Garmin `.bin` font `data`: 0x89, the version
+    as a little-endian u16, the 12-character part number in ASCII, NUL. Raises ValueError when
+    `data` doesn't end with one."""
+    tail = bytes(data[-TRAILER_SIZE:])
+    part = tail[3:-1]
+    if (
+        len(tail) != TRAILER_SIZE
+        or tail[0] != TRAILER_MARK
+        or tail[-1] != 0
+        or not (part[:4] == b"006-" and part.isascii() and len(part) == 12)
+    ):
+        raise ValueError("no Garmin version trailer at the end of the .bin")
+    return tail
+
+
+def version_of(data):
+    """("2.00", "006-D9971-09"): the release version and part number in `data`'s trailer."""
+    tail = trailer(data)
+    version = struct.unpack_from("<H", tail, 1)[0]
+    return "%d.%02d" % divmod(version, 100), tail[3:-1].decode("ascii")
 
 
 @dataclass(frozen=True)
@@ -194,6 +226,7 @@ def with_georgian(data, outlines, sizing, mark=None):
     (marks.Mark) adds its bar to the marked capital, within the host's `limits` (`add_bar`).
     """
     font = open_host(data)
+    stock_trailer = trailer(data)
     upm = font["head"].unitsPerEm
     glyf, hmtx = font["glyf"], font["hmtx"]
     # Load every table that lists glyphs while the glyph count still matches; the rest (GSUB,
@@ -260,4 +293,6 @@ def with_georgian(data, outlines, sizing, mark=None):
         font.save(buffer)
     finally:
         os2_log.setLevel(level)
-    return mask(buffer.getvalue())
+    # Masked zero padding to 4 bytes, then Garmin's trailer, as in the stock file.
+    body = mask(buffer.getvalue())
+    return body + bytes([MASK]) * (-len(body) % 4) + stock_trailer

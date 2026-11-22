@@ -67,6 +67,8 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
     for pack, part, georgian, details in built:
         number = part["part"]
         entry = {"part": number, "pack": pack["id"], "version": part["version"], **details}
+        # Georgian builds earlier releases installed, which the installer recognizes as its own.
+        entry["earlier_georgian"] = part.get("earlier_georgian", [])
         name = font_registry.file_name(pack, part)
         for kind, data in (("stock", stock[number]), ("georgian", georgian)):
             path = f"{kind}/{name}"
@@ -100,6 +102,9 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
                 "name": pack["name"],
                 "kind": pack["kind"],
                 "weight": pack["weight"],
+                # Whether the installer writes this pack's Georgian: "beta" resolves to whether
+                # this is a pre-release build (`test_marks`); false packs are restore-only.
+                "install": installs(pack, test_marks),
                 "parts": [part["part"] for part in pack["parts"]],
                 "tested": pack["tested"],
             }
@@ -108,6 +113,13 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
+
+
+def installs(pack, beta):
+    """Whether a build installs `pack`'s Georgian: the registry's `install` (true when absent),
+    with "beta" meaning pre-release builds only."""
+    value = pack.get("install", True)
+    return bool(beta) if value == "beta" else value
 
 
 def bitmap_entry(part, sizing, clipped):

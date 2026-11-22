@@ -13,12 +13,11 @@ use std::path::PathBuf;
 use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
 use crate::drive;
 use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
-use crate::fonts::{Font, FontSet, Hosts, Kind, Listed, Pack};
+use crate::fonts::{Content, Font, FontSet, Hosts, Kind, Listed, Pack, sha256_hex};
 use crate::garmin_device::{self, GarminDevice};
 use crate::mtp::{CreateError, Mtp, MtpError};
 use crate::ptp::{self, ObjectInfo, op};
@@ -29,6 +28,10 @@ use crate::report::{
 
 /// This program's version, as reported in the watch report.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The version a watch declares for a TrueType part holding one of this program's Georgian
+/// builds from before 0.3.0, which lacked Garmin's version trailer.
+pub const TRAILERLESS_VERSION: &str = "0.01";
 
 /// `inspect` takes no parameters.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -118,21 +121,89 @@ pub struct PackReport {
     pub parts: Vec<ListedPart>,
 }
 
-/// What the part's file in `GARMIN/ExtData` holds now: `<part>.tmp` for a bitmap part,
-/// `<part>.bin` for a TrueType part.
+/// What a part's file in `GARMIN/ExtData` holds: `<part>.tmp` for a bitmap part (waiting to be
+/// imported at the next restart; none afterwards), `<part>.bin` for a TrueType part (the font
+/// the watch loads). Install, restore, inspect, the app and the report all use this one rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum Staged {
+pub enum FileState {
     /// No file has this name.
     None,
     /// This build's Georgian font.
     Georgian,
+    /// A Georgian build an earlier release installed (a beta's test marks); install and
+    /// restore replace it.
+    GeorgianBeta,
     /// Garmin's stock font.
     Stock,
-    /// Some other file.
+    /// A file this build doesn't know.
     Other,
-    /// `ExtData` was not found, so its contents are unknown.
+    /// A TrueType part the watch declares, whose `.bin` it doesn't show over MTP: whether it is
+    /// Garmin's or Georgian can't be seen (the Forerunner 165 and fenix 6S Pro show no files in
+    /// `ExtData`).
+    NotVisible,
+    /// `ExtData` wasn't found or wasn't read (a watch mounted as a USB drive).
     Unknown,
+}
+
+/// Georgian on the watch, from the files of the parts `install` writes, summed up in one word.
+/// The app's main screen, the CLI and the report all show this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GeorgianState {
+    /// `install` writes nothing on this watch.
+    Unsupported,
+    /// None of the target parts holds Georgian: install it.
+    NotInstalled,
+    /// Bitmap: every target's `.tmp` is this build's Georgian, waiting for a restart.
+    Waiting,
+    /// TrueType: every target's `.bin` is this build's Georgian.
+    Installed,
+    /// Some targets hold this build's Georgian, the rest Garmin's or nothing: install adds the
+    /// rest.
+    Partly,
+    /// A target holds a Georgian build from an earlier release: install replaces it.
+    Beta,
+    /// Bitmap: every target's `.tmp` is Garmin's original, waiting for a restart.
+    StockWaiting,
+    /// The watch doesn't show a target's `.bin`, so whether Georgian is installed can't be
+    /// seen; installing again is harmless.
+    NotVisible,
+    /// A target holds a file this build doesn't know, or bitmap targets wait with different
+    /// fonts: install refuses until that is sorted out.
+    Other,
+    /// `ExtData` wasn't found or read.
+    Unknown,
+}
+
+/// The one rule behind [`GeorgianState`], from the target parts' files.
+pub fn georgian_state(kind: Option<Kind>, files: &[FileState]) -> GeorgianState {
+    use FileState as F;
+    let Some(kind) = kind.filter(|_| !files.is_empty()) else {
+        return GeorgianState::Unsupported;
+    };
+    let any = |s: F| files.contains(&s);
+    let all = |s: F| files.iter().all(|f| *f == s);
+    if any(F::Unknown) {
+        GeorgianState::Unknown
+    } else if any(F::Other) || (kind == Kind::Bitmap && any(F::Georgian) && any(F::Stock)) {
+        GeorgianState::Other
+    } else if any(F::GeorgianBeta) {
+        GeorgianState::Beta
+    } else if any(F::NotVisible) {
+        GeorgianState::NotVisible
+    } else if all(F::Georgian) {
+        match kind {
+            Kind::Bitmap => GeorgianState::Waiting,
+            Kind::Truetype => GeorgianState::Installed,
+        }
+    } else if kind == Kind::Bitmap && all(F::Stock) {
+        GeorgianState::StockWaiting
+    } else if any(F::Georgian) {
+        GeorgianState::Partly
+    } else {
+        GeorgianState::NotInstalled
+    }
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -146,10 +217,12 @@ pub struct FontReport {
     pub size_px: Option<u16>,
     /// The watch lists this part under `Garmin/ExtData`.
     pub listed: bool,
-    /// `install` and `restore_stock` write this part: the watch lists it, it is of the kind
-    /// `hosts` chose, and the watch supports the MTP writes needed.
+    /// `install` writes this part: the watch lists it, it is of the kind `hosts` chose, its pack
+    /// is installable, and the watch supports the MTP writes needed.
     pub target: bool,
-    pub staged: Staged,
+    /// `restore_stock` writes this part: as `target`, restore-only packs included.
+    pub restore: bool,
+    pub file: FileState,
     /// Beta builds: the test mark's variant ("A", "B", …) drawn into this part's Georgian
     /// build; null in stable builds.
     pub mark: Option<String>,
@@ -162,9 +235,9 @@ pub struct StagedFile {
     pub handle: String,
     pub bytes: u32,
     /// SHA-256 of the file as read back from the watch. Only a file named for a part of this
-    /// build, with the size of its stock or Georgian version, is read; any other file (a
-    /// multi-megabyte Chinese font, say) is null and never transferred, so inspecting stays
-    /// fast.
+    /// build, with the size of its stock, Georgian or an earlier Georgian build, is read; any
+    /// other file (a multi-megabyte Chinese font, say) is null and never transferred, so
+    /// inspecting stays fast.
     pub sha256: Option<String>,
 }
 
@@ -191,13 +264,21 @@ pub struct HostChoice {
     pub reason: String,
     /// Parts of the other kind the watch lists, which `install` leaves alone, in registry order.
     pub skipped_parts: Vec<String>,
+    /// Parts of restore-only packs the watch lists: `install` leaves them alone because their
+    /// Georgian didn't render on a watch; `restore_stock` writes Garmin's originals.
+    pub restore_only_parts: Vec<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InspectOutput {
     pub device: DeviceReport,
-    /// The watch lists a part of this build's packs and supports the MTP writes needed.
+    /// The watch lists a part this build installs and supports the MTP writes needed.
     pub supported: bool,
+    /// `restore_stock` has parts to write (restore-only packs included) and the watch supports
+    /// the MTP writes needed.
+    pub restorable: bool,
+    /// Georgian on the watch, from the files of the parts `install` writes.
+    pub state: GeorgianState,
     /// Whether every part `install` writes was verified on this model and software.
     pub tested: TestReport,
     /// Which kind of font gets Georgian on this watch, and why.
@@ -220,8 +301,7 @@ pub struct InspectDriveOutput {
     pub device: DeviceReport,
     /// Which kind of font would get Georgian on this watch over MTP, and why.
     pub hosts: HostChoice,
-    /// Its report; `connection` is `usb_drive`, no part is a target and staged states are
-    /// `unknown`.
+    /// Its report; `connection` is `usb_drive`, no part is a target and files are `unknown`.
     pub report: WatchReport,
 }
 
@@ -248,14 +328,6 @@ impl Variant {
         match self {
             Variant::Georgian => &font.georgian,
             Variant::Stock => &font.stock,
-        }
-    }
-
-    /// The bytes of the other variant: what a TrueType part may be replacing.
-    fn other_bytes(self, font: &Font) -> &[u8] {
-        match self {
-            Variant::Georgian => &font.stock,
-            Variant::Stock => &font.georgian,
         }
     }
 }
@@ -540,13 +612,6 @@ fn hex_handle(handle: u32) -> String {
     format!("{handle:#010x}")
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
-}
-
 /// MTP operations a watch must support for staging.
 const WRITE_OPERATIONS: [u16; 4] = [
     op::GET_OBJECT,
@@ -674,6 +739,7 @@ fn report_of(
     hosts: &HostChoice,
     packs: &[PackReport],
     tested: TestStatus,
+    state: GeorgianState,
     reports: &[FontReport],
     connection: Connection,
     extdata_listing: Option<Vec<ListedFile>>,
@@ -685,7 +751,7 @@ fn report_of(
         .map(|((pack, font), r)| ReportedPart {
             part: r.part.clone(),
             target: r.target,
-            staged: r.staged,
+            file: r.file,
             tested: part_tested(pack, &font.part, device),
             mark: r.mark.clone(),
         })
@@ -696,6 +762,7 @@ fn report_of(
             connection,
             packs: packs.iter().map(|p| p.id.clone()).collect(),
             tested,
+            state,
             hosts: ReportedHosts {
                 kind: hosts.kind,
                 reason: hosts.reason.clone(),
@@ -707,10 +774,43 @@ fn report_of(
     )
 }
 
+/// What the file named for `font` holds, by the one rule in [`FileState`]: `files` is the
+/// `ExtData` listing (`None` when it wasn't found or read) and `contents` the files read.
+fn file_state(
+    font: &Font,
+    device: &GarminDevice,
+    files: Option<&[Object]>,
+    contents: &HashMap<u32, Vec<u8>>,
+) -> FileState {
+    let Some(files) = files else {
+        return FileState::Unknown;
+    };
+    let name = font.file_name();
+    let found: Vec<&Object> = files
+        .iter()
+        .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
+        .collect();
+    match found.as_slice() {
+        [] if font.kind == Kind::Truetype && device.declares_extdata_part(&font.part) => {
+            FileState::NotVisible
+        }
+        [] => FileState::None,
+        [one] => match contents.get(&one.handle).map(|bytes| font.identify(bytes)) {
+            Some(Content::Georgian) => FileState::Georgian,
+            Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
+            Some(Content::Stock) => FileState::Stock,
+            Some(Content::Other) | None => FileState::Other,
+        },
+        _ => FileState::Other,
+    }
+}
+
 /// `inspect`'s `hosts`: the choice `FontSet::hosts` made, in words.
 fn host_choice(hosts: &Hosts<'_>) -> HostChoice {
     let skipped_parts: Vec<String> = hosts.skipped.iter().map(|f| f.part.clone()).collect();
-    let reason = match hosts.kind {
+    let restore_only_parts: Vec<String> =
+        hosts.restore_only.iter().map(|f| f.part.clone()).collect();
+    let mut reason = match hosts.kind {
         Some(Kind::Bitmap) if skipped_parts.is_empty() => {
             "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
              those."
@@ -725,13 +825,29 @@ fn host_choice(hosts: &Hosts<'_>) -> HostChoice {
         Some(Kind::Truetype) => "This watch lists none of this build's bitmap fonts, so Georgian \
                                  goes into the TrueType fonts it lists."
             .to_owned(),
-        None => "This watch lists none of this build's fonts.".to_owned(),
+        None => "This watch lists none of the fonts this build adds Georgian to.".to_owned(),
     };
+    if !restore_only_parts.is_empty() {
+        reason.push_str(&format!(
+            " Its fonts {} didn't show Georgian on a watch, so this build only restores \
+             Garmin's originals there.",
+            and_list(&restore_only_parts)
+        ));
+    }
     HostChoice {
         kind: hosts.kind,
         reason,
         skipped_parts,
+        restore_only_parts,
     }
+}
+
+/// Whether `font` is among `hosts`' parts.
+fn chosen(hosts: &Hosts<'_>, font: &Font) -> bool {
+    hosts
+        .listed
+        .iter()
+        .any(|l| l.fonts.iter().any(|f| f.part == font.part))
 }
 
 pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Error> {
@@ -739,47 +855,33 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
     let hosts = fonts.hosts(&device);
+    let restore = fonts.restore_hosts(&device);
     // Read only the files that may be this build's: named for one of its parts, with the size
-    // of that part's stock or Georgian version. Everything else (multi-megabyte Chinese fonts
-    // on TrueType watches) is listed without being transferred; the app polls inspect.
+    // of that part's stock, Georgian or earlier Georgian build. Everything else (multi-megabyte
+    // Chinese fonts on TrueType watches) is listed without being transferred; the app polls
+    // inspect.
     let mut contents: HashMap<u32, Vec<u8>> = HashMap::new();
     for o in layout.extdata.iter().flat_map(|ext| &ext.files) {
         let size = o.info.compressed_size as usize;
         let ours = fonts.fonts().any(|(_, f)| {
-            o.info.filename.eq_ignore_ascii_case(&f.file_name())
-                && (size == f.stock.len() || size == f.georgian.len())
+            o.info.filename.eq_ignore_ascii_case(&f.file_name()) && f.known_size(size)
         });
         if ours {
             contents.insert(o.handle, dev.get_object(o.handle)?);
         }
     }
+    let files = layout.extdata.as_ref().map(|ext| ext.files.as_slice());
     let mut reports = Vec::new();
     for (pack, font) in fonts.fonts() {
-        let staged = match layout.extdata.as_ref().map(|ext| staged_in(ext, font)) {
-            None => Staged::Unknown,
-            Some(found) => match found.as_slice() {
-                [] => Staged::None,
-                [one] => match contents.get(&one.handle) {
-                    Some(bytes) if *bytes == *font.georgian => Staged::Georgian,
-                    Some(bytes) if *bytes == *font.stock => Staged::Stock,
-                    _ => Staged::Other,
-                },
-                _ => Staged::Other,
-            },
-        };
-        let listed = device.declares_extdata_part(&font.part);
-        let chosen = hosts
-            .listed
-            .iter()
-            .any(|l| l.fonts.iter().any(|f| f.part == font.part));
         reports.push(FontReport {
             pack: pack.id.clone(),
             part: font.part.clone(),
             kind: font.kind,
             size_px: font.size_px,
-            listed,
-            target: writable && chosen,
-            staged,
+            listed: device.declares_extdata_part(&font.part),
+            target: writable && chosen(&hosts, font),
+            restore: writable && chosen(&restore, font),
+            file: file_state(font, &device, files, &contents),
             mark: font.mark.as_ref().map(|m| m.variant.clone()),
         });
     }
@@ -801,6 +903,13 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     });
     let packs = pack_reports(&hosts.listed, &device);
     let tested = test_report(&hosts.listed, &packs, &device);
+    let targets: Vec<FileState> = reports
+        .iter()
+        .filter(|r| r.target)
+        .map(|r| r.file)
+        .collect();
+    let state = georgian_state(hosts.kind, &targets);
+    let restorable = writable && !restore.listed.is_empty();
     let hosts = host_choice(&hosts);
     let listing = extdata.as_ref().map(|ext| {
         ext.files
@@ -818,12 +927,15 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
         &hosts,
         &packs,
         tested.status,
+        state,
         &reports,
         Connection::Mtp,
         listing,
     );
     Ok(InspectOutput {
         supported: writable && !packs.is_empty(),
+        restorable,
+        state,
         tested,
         hosts,
         packs,
@@ -855,7 +967,8 @@ pub fn inspect_drive(
             size_px: font.size_px,
             listed: device.declares_extdata_part(&font.part),
             target: false,
-            staged: Staged::Unknown,
+            restore: false,
+            file: FileState::Unknown,
             mark: font.mark.as_ref().map(|m| m.variant.clone()),
         })
         .collect();
@@ -868,6 +981,7 @@ pub fn inspect_drive(
         &hosts,
         &packs,
         tested.status,
+        GeorgianState::Unknown,
         &reports,
         Connection::UsbDrive,
         listing,
@@ -1133,8 +1247,7 @@ enum Plan {
 }
 
 /// Decides `font`'s Plan from what `ExtData` holds under its name, or `None` for a conflict: a
-/// different staged `.tmp`, more than one file, or a `.bin` that is neither Garmin's original
-/// nor this build's Georgian font.
+/// different staged `.tmp`, more than one file, or a file [`replaceable`] refuses.
 fn plan(
     dev: &mut dyn Mtp,
     ext: &ExtData,
@@ -1142,8 +1255,6 @@ fn plan(
     variant: Variant,
 ) -> Result<Option<Plan>, Error> {
     let bytes = variant.bytes(font);
-    // Only a TrueType file may be replaced, and only by the other variant.
-    let replaceable = (font.kind == Kind::Truetype).then(|| variant.other_bytes(font));
     Ok(match staged_in(ext, font).as_slice() {
         [] => Some(match font.kind {
             Kind::Bitmap => Plan::Stage,
@@ -1152,26 +1263,34 @@ fn plan(
                 original: None,
             },
         }),
-        [one] => {
-            let size = one.info.compressed_size as usize;
-            if size != bytes.len() && replaceable.is_none_or(|other| size != other.len()) {
-                None
+        [one] if font.known_size(one.info.compressed_size as usize) => {
+            let current = dev.get_object(one.handle)?;
+            if current == bytes {
+                Some(Plan::Already(one.handle))
+            } else if replaceable(font, variant, &current) {
+                Some(Plan::Replace {
+                    existing: Some(one.handle),
+                    original: Some(current),
+                })
             } else {
-                let current = dev.get_object(one.handle)?;
-                if current == bytes {
-                    Some(Plan::Already(one.handle))
-                } else if replaceable.is_some_and(|other| current == other) {
-                    Some(Plan::Replace {
-                        existing: Some(one.handle),
-                        original: Some(current),
-                    })
-                } else {
-                    None
-                }
+                None
             }
         }
         _ => None,
     })
+}
+
+/// Whether writing `variant` may replace `current`, the file under `font`'s name: a Georgian
+/// build an earlier release installed, always (a beta tester upgrading or restoring); for a
+/// TrueType part, also the other variant. A different bitmap `.tmp` waiting to be imported is
+/// never replaced.
+fn replaceable(font: &Font, variant: Variant, current: &[u8]) -> bool {
+    match font.identify(current) {
+        Content::EarlierGeorgian => true,
+        Content::Stock => font.kind == Kind::Truetype && variant == Variant::Georgian,
+        Content::Georgian => font.kind == Kind::Truetype && variant == Variant::Stock,
+        Content::Other => false,
+    }
 }
 
 /// "a, b and c" from a list of names.
@@ -1204,16 +1323,40 @@ pub fn stage(
     let layout = extdata::discover(dev)?;
     let device = read_garmin_device(dev, &layout)?;
     let watch = format!("{} ({})", device.description, device.part_number);
-    let hosts = fonts.hosts(&device);
-    let listed = hosts.listed;
-    if listed.is_empty() {
+    // Restore also covers restore-only packs, so an earlier release's Georgian can go back.
+    let hosts = match variant {
+        Variant::Georgian => fonts.hosts(&device),
+        Variant::Stock => fonts.restore_hosts(&device),
+    };
+    if let Some(part) = parts
+        .into_iter()
+        .flatten()
+        .find(|&p| hosts.restore_only.iter().any(|f| &f.part == p))
+    {
         return Err(Error::new(
             ErrorCode::UnsupportedDevice,
             format!(
-                "{watch} lists none of this build's font packs under {}; nothing was written.",
-                garmin_device::EXTDATA_PATH
+                "This build only restores part {part}: Georgian in it didn't show on a watch. \
+                 Nothing was written."
             ),
         ));
+    }
+    let listed = hosts.listed;
+    if listed.is_empty() {
+        let message = if hosts.restore_only.is_empty() {
+            format!(
+                "{watch} lists none of this build's font packs under {}; nothing was written.",
+                garmin_device::EXTDATA_PATH
+            )
+        } else {
+            let parts: Vec<String> = hosts.restore_only.iter().map(|f| f.part.clone()).collect();
+            format!(
+                "{watch} lists only fonts this build no longer adds Georgian to ({}), because \
+                 Georgian in them didn't show on a watch; nothing was written.",
+                and_list(&parts)
+            )
+        };
+        return Err(Error::new(ErrorCode::UnsupportedDevice, message));
     }
     let mut targets: Vec<(&Pack, &Font)> = listed
         .iter()
@@ -1250,7 +1393,9 @@ pub fn stage(
     }
 
     // A TrueType file is replaced only where the watch lists the version and file name this
-    // build's original has: another version may be a newer Garmin font.
+    // build's original has: another version may be a newer Garmin font. Version 0.01 is what
+    // a watch declares for this program's earlier Georgian builds, which lacked the 16-byte
+    // trailer that carries Garmin's version (fonts/README.md, TrueType); those are replaced.
     let mismatched: Vec<String> = targets
         .iter()
         .filter(|(_, f)| f.kind == Kind::Truetype)
@@ -1258,7 +1403,9 @@ pub fn stage(
             let declared = device
                 .extdata_files()
                 .find(|d| d.part_number == font.part)?;
-            let same = declared.version.as_deref() == Some(font.version.as_str())
+            let version = declared.version.as_deref();
+            let same = (version == Some(font.version.as_str())
+                || version == Some(TRAILERLESS_VERSION))
                 && declared.file_name.eq_ignore_ascii_case(&font.file_name());
             (!same).then(|| {
                 format!(
@@ -1310,8 +1457,8 @@ pub fn stage(
         }
         if !unknown.is_empty() {
             sentences.push(format!(
-                "{} {} neither Garmin's original font nor this build's Georgian one; this build \
-                 replaces only those, so nothing was written.",
+                "{} {} neither Garmin's original font nor a Georgian build of this program; \
+                 this build replaces only those, so nothing was written.",
                 and_list(&unknown),
                 if unknown.len() == 1 { "holds" } else { "hold" }
             ));

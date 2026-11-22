@@ -5,7 +5,9 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use georgian_for_garmin_core::fonts::{Font, FontSet, Kind, Mark, Pack, Tested};
+use georgian_for_garmin_core::fonts::{
+    Earlier, Font, FontSet, Kind, Mark, Pack, Tested, sha256_hex,
+};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
@@ -411,12 +413,30 @@ fn stock(part: &str) -> Vec<u8> {
     bytes_for(part, 20_700, 13)
 }
 
+/// The Georgian build an earlier (beta) release installed: as long as this build's, one byte
+/// different, as a bitmap test mark is.
+fn beta(part: &str) -> Vec<u8> {
+    let mut bytes = georgian(part);
+    bytes[10] ^= 0xff;
+    bytes
+}
+
+fn earlier(part: &str) -> Vec<Earlier> {
+    let bytes = beta(part);
+    vec![Earlier {
+        build: "0.3.0-beta.2".into(),
+        sha256: sha256_hex(&bytes),
+        bytes: bytes.len() as u64,
+    }]
+}
+
 fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
     Pack {
         id: id.into(),
         name: format!("{id} pack"),
         kind: Kind::Bitmap,
         weight: 400,
+        install: true,
         fonts: parts
             .iter()
             .map(|&(part, size_px)| Font {
@@ -427,6 +447,7 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
                 stock: Cow::Owned(stock(part)),
                 georgian: Cow::Owned(georgian(part)),
                 mark: None,
+                earlier: earlier(part),
             })
             .collect(),
         tested,
@@ -440,6 +461,7 @@ fn truetype_pack() -> Pack {
         name: "hebrew pack".into(),
         kind: Kind::Truetype,
         weight: 400,
+        install: true,
         fonts: HEBREW
             .iter()
             .map(|&part| Font {
@@ -450,6 +472,7 @@ fn truetype_pack() -> Pack {
                 stock: Cow::Owned(stock(part)),
                 georgian: Cow::Owned(georgian(part)),
                 mark: None,
+                earlier: earlier(part),
             })
             .collect(),
         tested: vec![],
@@ -572,7 +595,7 @@ fn finds_unlisted_empty_extdata_by_probe() {
     assert_eq!(
         out["fonts"][2],
         json!({"pack": "armenian", "part": PART, "kind": "bitmap", "size_px": 27, "listed": true,
-               "target": true, "staged": "none", "mark": null})
+               "target": true, "restore": true, "file": "none", "mark": null})
     );
     assert_eq!(out["fonts"].as_array().unwrap().len(), 6);
 }
@@ -618,7 +641,7 @@ fn probe_rejects_wrong_name_type_parent_and_storage() {
     let fake = Fake::new(s);
     let out = fake.call("inspect", json!({}), &fonts()).unwrap();
     assert!(out["extdata"].is_null());
-    assert_eq!(out["fonts"][0]["staged"], "unknown");
+    assert_eq!(out["fonts"][0]["file"], "unknown");
     assert_eq!(
         error_code(fake.call("install", json!({}), &fonts())),
         ErrorCode::ExtdataNotFound
@@ -636,7 +659,7 @@ fn finds_extdata_past_the_probe_window_by_garmin_object_ids() {
         json!({"handle": "0x01000021", "storage_id": "0x00020001", "listed_under_garmin": false,
                "found_by": "garmin_object_ids", "files": []})
     );
-    assert_eq!(out["fonts"][2]["staged"], "none");
+    assert_eq!(out["fonts"][2]["file"], "none");
 }
 
 #[test]
@@ -1031,7 +1054,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
     );
     assert_eq!(
         report["parts"],
-        json!([{"part": "006-D9035-03", "target": true, "staged": "none", "tested": "tested", "mark": null}])
+        json!([{"part": "006-D9035-03", "target": true, "file": "none", "tested": "tested", "mark": null}])
     );
     assert_eq!(report["extdata_listing"], json!([]));
     let text = report["text"].as_str().unwrap();
@@ -1076,6 +1099,7 @@ fn report_lists_the_font_list_and_excludes_ids() {
         "parts",
         "platform",
         "software_version",
+        "state",
         "test_marks",
         "tested",
         "text",
@@ -1158,7 +1182,7 @@ fn a_watch_mounted_as_a_drive_gets_the_same_report() {
     assert_eq!(report["model"], "Venu 2");
     assert_eq!(
         report["parts"],
-        json!([{"part": "006-D9035-03", "target": false, "staged": "unknown", "tested": "tested", "mark": null}])
+        json!([{"part": "006-D9035-03", "target": false, "file": "unknown", "tested": "tested", "mark": null}])
     );
     assert_eq!(report["extdata_listing"], Value::Null);
     assert!(
@@ -1204,7 +1228,7 @@ fn install_stages_every_listed_size_and_verifies() {
     let after = fake.call("inspect", json!({}), &fonts()).unwrap();
     assert_eq!(after["extdata"]["found_by"], "font_parent");
     for font in &after["fonts"].as_array().unwrap()[..4] {
-        assert_eq!(font["staged"], "georgian");
+        assert_eq!(font["file"], "georgian");
     }
 
     // Running it again changes nothing.
@@ -1350,7 +1374,7 @@ fn install_stages_every_listed_part_of_every_pack() {
             .as_array()
             .unwrap()
             .iter()
-            .all(|f| f["staged"] == "georgian")
+            .all(|f| f["file"] == "georgian")
     );
 
     // Running it again changes nothing.
@@ -1583,7 +1607,7 @@ fn restore_stock_stages_every_original() {
     }
     let inspect = fake.call("inspect", json!({}), &fonts()).unwrap();
     for font in &inspect["fonts"].as_array().unwrap()[..4] {
-        assert_eq!(font["staged"], "stock");
+        assert_eq!(font["file"], "stock");
     }
     assert_eq!(
         fake.call("restore_stock", json!({}), &fonts()).unwrap()["status"],
@@ -1748,7 +1772,7 @@ fn truetype_staged(fake: &Fake) -> Vec<String> {
         .filter(|f| f["kind"] == "truetype")
         .map(|f| {
             assert!(f["size_px"].is_null(), "{f}");
-            f["staged"].as_str().unwrap().to_owned()
+            f["file"].as_str().unwrap().to_owned()
         })
         .collect()
 }
@@ -1820,7 +1844,10 @@ fn install_replaces_garmins_truetype_files_and_restore_puts_them_back() {
 #[test]
 fn a_truetype_file_the_watch_does_not_show_is_created() {
     let fake = Fake::new(truetype_watch(&[]));
-    assert_eq!(truetype_staged(&fake), ["none", "none"]);
+    // The watch declares both parts but shows no file: whether they are Garmin's can't be seen.
+    assert_eq!(truetype_staged(&fake), ["not_visible", "not_visible"]);
+    let inspect = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(inspect["state"], "not_visible");
     let out = fake.call("install", json!({}), &fonts_tt()).unwrap();
     assert_eq!(
         statuses(&out),
@@ -1845,8 +1872,9 @@ fn a_truetype_file_the_watch_does_not_show_is_created() {
 fn an_unknown_truetype_file_is_never_replaced() {
     let mut altered = stock(HEBREW[0]);
     altered[100] ^= 1;
-    let one = "GARMIN/ExtData/006-D0952-08.bin holds neither Garmin's original font nor this \
-               build's Georgian one; this build replaces only those, so nothing was written.";
+    let one = "GARMIN/ExtData/006-D0952-08.bin holds neither Garmin's original font nor a \
+               Georgian build of this program; this build replaces only those, so nothing was \
+               written.";
     for (existing, message) in [
         (vec![(BIN, altered.clone())], one.to_owned()),
         (vec![(BIN, b"newer Garmin font".to_vec())], one.to_owned()),
@@ -1864,8 +1892,8 @@ fn an_unknown_truetype_file_is_never_replaced() {
                 ("006-D0952-07.bin", altered.clone()),
             ],
             "GARMIN/ExtData/006-D0952-08.bin and GARMIN/ExtData/006-D0952-07.bin hold neither \
-             Garmin's original font nor this build's Georgian one; this build replaces only \
-             those, so nothing was written."
+             Garmin's original font nor a Georgian build of this program; this build replaces \
+             only those, so nothing was written."
                 .to_owned(),
         ),
     ] {
@@ -2168,7 +2196,7 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
                 (font["listed"].as_bool(), font["target"].as_bool()),
                 (Some(true), Some(false))
             );
-            assert_eq!(font["staged"], "stock");
+            assert_eq!(font["file"], "stock");
         }
     }
 
@@ -2190,10 +2218,25 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
 }
 
 #[test]
-fn the_instinct_3_gets_georgian_in_its_hebrew_truetype_fonts() {
+fn the_instinct_3_gets_georgian_in_its_hebrew_truetype_fonts_only_in_beta_builds() {
     let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
+    if !ops::APP_VERSION.contains('-') {
+        // Stable: Swiss 721 Hebrew didn't show Georgian on the fenix 6S Pro (#6).
+        assert_eq!(inspect["supported"], false);
+        assert_eq!(inspect["restorable"], true);
+        assert_eq!(inspect["state"], "unsupported");
+        assert_eq!(
+            inspect["hosts"]["restore_only_parts"],
+            json!(["006-D0952-08", "006-D0952-07"])
+        );
+        assert_eq!(
+            error_code(fake.call("install", json!({}), &fonts)),
+            ErrorCode::UnsupportedDevice
+        );
+        return;
+    }
     assert_eq!(inspect["hosts"]["kind"], "truetype");
     assert_eq!(inspect["hosts"]["skipped_parts"], json!([]));
     assert_eq!(pack_ids(&inspect), ["hebrew-swiss-721-truetype"]);
@@ -2206,6 +2249,189 @@ fn the_instinct_3_gets_georgian_in_its_hebrew_truetype_fonts() {
             ("006-D0952-07", "staged_verified")
         ])
     );
+}
+
+/// The bundled registry: the beta channel installs every pack; stable leaves out Swiss 721
+/// Hebrew, which didn't show Georgian on the fenix 6S Pro (#6), and its builds carry no test
+/// marks. Every part knows the 0.3.0-beta.2 build it replaces.
+#[test]
+fn the_bundled_fonts_follow_the_release_channel() {
+    let fonts = FontSet::bundled();
+    let beta = ops::APP_VERSION.contains('-');
+    assert_eq!(
+        fonts.test_marks(),
+        beta,
+        "marks exactly in pre-release builds"
+    );
+    for pack in &fonts.packs {
+        let installs = beta || pack.id != "hebrew-swiss-721-truetype";
+        assert_eq!(pack.install, installs, "{}", pack.id);
+        for font in &pack.fonts {
+            assert!(
+                font.earlier.iter().any(|e| e.build == "0.3.0-beta.2"),
+                "{}",
+                font.part
+            );
+        }
+    }
+}
+
+/// A test registry whose TrueType pack is restore-only, as Swiss 721 Hebrew is in stable.
+fn fonts_restore_only() -> FontSet {
+    let mut pack = truetype_pack();
+    pack.install = false;
+    FontSet { packs: vec![pack] }
+}
+
+#[test]
+fn a_restore_only_pack_installs_nothing_but_restores() {
+    // #6's fenix 6S Pro: both parts declared, and MTP shows no `.bin` at all.
+    let fake = Fake::new(truetype_watch(&[]));
+    let fonts = fonts_restore_only();
+    let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
+    assert_eq!(inspect["supported"], false);
+    assert_eq!(inspect["restorable"], true);
+    assert_eq!(inspect["state"], "unsupported");
+    assert_eq!(inspect["packs"], json!([]));
+    assert_eq!(inspect["hosts"]["kind"], Value::Null);
+    assert_eq!(inspect["hosts"]["restore_only_parts"], json!(HEBREW));
+    assert!(
+        inspect["fonts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["target"] == false && f["restore"] == true && f["file"] == "not_visible")
+    );
+    let err = fake.call("install", json!({}), &fonts).unwrap_err();
+    assert_eq!(err.code, ErrorCode::UnsupportedDevice);
+    assert!(
+        err.message.contains("no longer adds Georgian to"),
+        "{}",
+        err.message
+    );
+    let err = fake
+        .call("install", json!({"parts": [HEBREW[0]]}), &fonts)
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::UnsupportedDevice);
+    assert!(fake.writes().is_empty());
+
+    let out = fake.call("restore_stock", json!({}), &fonts).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&HEBREW.map(|p| (p, "staged_verified")))
+    );
+    assert_eq!(bin(&fake, HEBREW[0]), [(0x0100_0100, stock(HEBREW[0]))]);
+    assert_eq!(bin(&fake, HEBREW[1]), [(0x0100_0101, stock(HEBREW[1]))]);
+
+    // Where the watch does show an earlier Georgian build, restore replaces it too.
+    let fake = Fake::new(truetype_watch(&[
+        (BIN, beta(HEBREW[0])),
+        ("006-D0952-07.bin", georgian(HEBREW[1])),
+    ]));
+    let out = fake.call("restore_stock", json!({}), &fonts).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&HEBREW.map(|p| (p, "staged_verified")))
+    );
+    assert_eq!(bin(&fake, HEBREW[0]), [(0x0100_0100, stock(HEBREW[0]))]);
+}
+
+#[test]
+fn earlier_georgian_builds_are_upgraded_and_restored() {
+    // TrueType `.bin` files from a beta.
+    let beta_bins = || {
+        vec![
+            (BIN, beta(HEBREW[0])),
+            ("006-D0952-07.bin", beta(HEBREW[1])),
+        ]
+    };
+    let fake = Fake::new(truetype_watch(&beta_bins()));
+    assert_eq!(truetype_staged(&fake), ["georgian_beta", "georgian_beta"]);
+    let inspect = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(inspect["state"], "beta");
+    assert!(
+        inspect["report"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\n006-D0952-08 georgian_beta yes untested -\n")
+    );
+    let out = fake.call("install", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(
+        statuses(&out),
+        pairs(&HEBREW.map(|p| (p, "staged_verified")))
+    );
+    assert_eq!(truetype_staged(&fake), ["georgian", "georgian"]);
+    let inspect = fake.call("inspect", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(inspect["state"], "installed");
+    let fake = Fake::new(truetype_watch(&beta_bins()));
+    fake.call("restore_stock", json!({}), &fonts_tt()).unwrap();
+    assert_eq!(truetype_staged(&fake), ["stock", "stock"]);
+
+    // A bitmap `.tmp` from a beta, still waiting to be imported.
+    for (operation, expected) in [("install", georgian(PART)), ("restore_stock", stock(PART))] {
+        let mut s = venu2(&[PART]);
+        s.file(0x0100_0050, EXTDATA, STAGED, &beta(PART));
+        let fake = Fake::new(s);
+        let inspect = fake.call("inspect", json!({}), &fonts()).unwrap();
+        assert_eq!(inspect["fonts"][2]["file"], "georgian_beta");
+        assert_eq!(inspect["state"], "beta");
+        let out = fake.call(operation, json!({}), &fonts()).unwrap();
+        assert_eq!(out["status"], "staged_verified", "{operation}");
+        let files = staged(&fake, PART);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].1, expected, "{operation}");
+    }
+}
+
+/// #5's Forerunner 165 after a beta install: the watch declares every TrueType part at version
+/// 0.01, since the beta's builds lacked Garmin's version trailer.
+#[test]
+fn parts_a_watch_declares_at_0_01_are_restored_and_reinstalled() {
+    let files: String = HEBREW
+        .iter()
+        .map(|p| {
+            format!(
+                "<UpdateFile><PartNumber>{p}</PartNumber><Version><Major>0</Major><Minor>1</Minor>\
+                 </Version><Path>Garmin/ExtData</Path><FileName>{p}.bin</FileName></UpdateFile>"
+            )
+        })
+        .collect();
+    for operation in ["restore_stock", "install"] {
+        let fake = Fake::new(venu2_with(device_xml_with("006-B4432-00", "2952", &files)));
+        let out = fake.call(operation, json!({}), &fonts_tt()).unwrap();
+        assert_eq!(
+            statuses(&out),
+            pairs(&HEBREW.map(|p| (p, "staged_verified"))),
+            "{operation}"
+        );
+    }
+    // Any other version is still refused (a_truetype_part_listed_at_another_version...).
+}
+
+#[test]
+fn the_state_follows_one_rule() {
+    use ops::{FileState as F, GeorgianState as G, georgian_state};
+    let tt = Some(Kind::Truetype);
+    let bm = Some(Kind::Bitmap);
+    for (kind, files, state) in [
+        (None, vec![], G::Unsupported),
+        (tt, vec![], G::Unsupported),
+        (tt, vec![F::Georgian, F::Georgian], G::Installed),
+        (bm, vec![F::Georgian, F::Georgian], G::Waiting),
+        (bm, vec![F::Stock], G::StockWaiting),
+        (tt, vec![F::Stock, F::Stock], G::NotInstalled),
+        (bm, vec![F::None, F::None], G::NotInstalled),
+        (tt, vec![F::Georgian, F::Stock], G::Partly),
+        (bm, vec![F::Georgian, F::None], G::Partly),
+        (bm, vec![F::Georgian, F::Stock], G::Other),
+        (tt, vec![F::Georgian, F::GeorgianBeta], G::Beta),
+        (tt, vec![F::NotVisible, F::Georgian], G::NotVisible),
+        (tt, vec![F::NotVisible, F::GeorgianBeta], G::Beta),
+        (tt, vec![F::Other, F::GeorgianBeta], G::Other),
+        (bm, vec![F::Unknown], G::Unknown),
+    ] {
+        assert_eq!(georgian_state(kind, &files), state, "{kind:?} {files:?}");
+    }
 }
 
 #[test]
@@ -2246,7 +2472,7 @@ fn inspect_never_reads_files_that_cannot_be_this_builds() {
         .find(|f| f["part"] == PART)
         .unwrap()
         .clone();
-    assert_eq!(staged_03["staged"], "other");
+    assert_eq!(staged_03["file"], "other");
 }
 
 #[test]
