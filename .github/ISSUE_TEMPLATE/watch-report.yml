@@ -1,0 +1,87 @@
+# The app's "Share on GitHub" fills this form through the new-issue URL: each field's `id` is
+# its query parameter, and option labels must match `crates/core/src/report.rs` (a core test
+# checks). Only text fields are documented as prefillable, so the report field repeats every
+# answer on its `answers` line; none of the answer fields is required.
+name: Watch report
+description: How Georgian worked on your watch, or a watch's font list so it can be added.
+title: "Watch report: "
+labels: ["watch-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The Georgian for Garmin app (0.3.0-beta.2 and later) fills this in for you: after installing, click **Check on the watch**, answer its questions and click **Share on GitHub**. Then check the form and submit it. With an older version, click **Share my watch's font list** and paste the list into **Watch report**.
+
+        Without the app, run `georgian-for-garmin inspect --report` and paste its output into **Watch report**. Please never add the watch's unit ID or serial number.
+
+        To test, send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`, or open https://lubaretsi.github.io/georgian-for-garmin/ on your phone and tap **Send test notification**.
+  - type: dropdown
+    id: result
+    attributes:
+      label: What did the test notification show on the watch?
+      options:
+        - "Georgian letters"
+        - "Boxes instead of letters"
+        - "Some letters, some boxes"
+        - "The notification didn't arrive"
+        - "Georgian didn't install"
+  - type: checkboxes
+    id: views
+    attributes:
+      label: Where did Georgian letters show?
+      options:
+        - label: "Pop-up when it arrives"
+        - label: "Notification list"
+        - label: "Opened notification"
+  - type: dropdown
+    id: marker
+    attributes:
+      label: Beta builds only, which picture matched the marked letter?
+      description: In beta builds one capital of ᲛᲗᲐᲕᲠᲣᲚᲘ has a bar, different in each font file, and the app shows a picture of each. Leave empty for other builds.
+      options:
+        - "A"
+        - "B"
+        - "C"
+        - "D"
+        - "E"
+        - "F"
+        - "G"
+        - "H"
+        - "I"
+        - "J"
+        - "K"
+        - "L"
+        - "M"
+        - "N"
+        - "O"
+        - "P"
+        - "Q"
+        - "R"
+        - "S"
+        - "T"
+        - "None of the pictures"
+  - type: dropdown
+    id: phone
+    attributes:
+      label: Phone
+      options:
+        - "Android"
+        - "iPhone"
+  - type: input
+    id: connect
+    attributes:
+      label: Garmin Connect version (optional)
+      description: The Garmin Connect app shows it in its settings, under About.
+  - type: textarea
+    id: report
+    attributes:
+      label: Watch report
+      description: Filled in by the app, or the output of `georgian-for-garmin inspect --report`. It has no unit ID or serial number.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      description: Anything else, such as a photo of the notification on the watch.

@@ -1,0 +1,198 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f7;
+  --fg: #1d1d1f;
+  --quiet: #6e6e73;
+  --accent: #c8102e;
+  --accent-fg: #ffffff;
+  --surface: #ffffff;
+  --border: #d2d2d7;
+  --note: #fff4e5;
+  --note-fg: #6b4200;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #f5f5f7;
+    --quiet: #a1a1a6;
+    --accent: #e0344f;
+    --surface: #2c2c2e;
+    --border: #3a3a3c;
+    --note: #3a2c14;
+    --note-fg: #ffd9a0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 36rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  background: var(--bg);
+  color: var(--fg);
+  font: 1.0625rem/1.5 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-name {
+  color: var(--quiet);
+  font-weight: 600;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  order: -2;
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0.5rem 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lang {
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.big {
+  display: block;
+  width: 100%;
+  min-height: 3.75rem;
+  margin: 0.75rem 0;
+  padding: 0.875rem 1.25rem;
+  border-radius: 0.875rem;
+  font-size: 1.1875rem;
+  font-weight: 600;
+}
+
+.primary {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.secondary {
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+}
+
+.big:active {
+  transform: scale(0.98);
+}
+
+.big:disabled {
+  opacity: 0.6;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.status {
+  margin: 0.25rem 0 0.75rem;
+  font-weight: 600;
+}
+
+.sample {
+  margin: 1rem 0 0.5rem;
+  padding: 1rem;
+  border-radius: 0.875rem;
+  background: #000;
+  color: #fff;
+}
+
+.sample figcaption {
+  color: #a1a1a6;
+  font-size: 0.875rem;
+}
+
+.test-text {
+  margin: 0.25rem 0 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.quiet {
+  color: var(--quiet);
+  font-size: 0.9375rem;
+}
+
+.note {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--note);
+  color: var(--note-fg);
+}
+
+.fallback {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  background: var(--surface);
+}
+
+/* No notifications here: the copy fallback comes right after the heading and the reason. */
+.fallback-first #status,
+.fallback-first #copy-section {
+  order: -1;
+}
+
+.fallback-first #copy-section {
+  margin-top: 0.5rem;
+}
+
+footer {
+  margin-top: 2rem;
+}
+
+a {
+  color: var(--accent);
+}
