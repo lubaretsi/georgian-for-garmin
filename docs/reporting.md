@@ -118,8 +118,11 @@ the part's file holds: `georgian`, `georgian_beta` (an earlier release's build),
 `none`, `not_visible` (a TrueType part the watch declares but doesn't show over MTP, as on the
 Forerunner 165 and fenix 6S Pro) or `unknown`. `state` sums up the parts install writes:
 `installed`, `waiting` (bitmap, until the restart), `partly`, `beta`, `not_installed`,
-`not_visible`, `stock_waiting`, `other`, `unknown` or `unsupported`. With a last install or
-restore, the state and files are from just before it, and the lines say so.
+`not_visible`, `stock_waiting`, `other`, `unknown` or `unsupported`. A bitmap part's waiting
+`.tmp` decides what it holds; without one, the `<part>.fnt` the watch imported at its last
+restart does, so imported Georgian reads `installed` and imported Garmin fonts `not_installed`
+(`inspect --json` marks such a part `imported`). With a last install or restore, the state and
+files are from just before it, and the lines say so.
 
 ### Hidden files
 
@@ -137,10 +140,11 @@ doesn't list the operation, `hidden: error …` that listing or a read failed (t
 report is unaffected), and `hidden: not read` that `ExtData` wasn't found or the watch is a USB
 drive.
 
-Install and restore use it too: a part's file that only the hidden listing shows is identified
-by the same rule, so `file` and `state` come from it where the normal listing shows nothing. A
-hidden object is never deleted; install and restore write a new file next to it, which the watch
-takes up when it restarts ([How it works](how-it-works.md#truetype-fonts)).
+`inspect` takes a part's `file`, and so `state`, from it where the normal listing shows nothing:
+a TrueType part's hidden `.bin`, or the `<part>.fnt` the watch imported a bitmap part's `.tmp`
+as. Install and restore identify a TrueType part's hidden `.bin` the same way. A hidden object is
+never deleted: install and restore write a new file next to it (a bitmap part's new `.tmp`),
+which the watch takes up when it restarts ([How it works](how-it-works.md#truetype-fonts)).
 
 ## The phone test page
 

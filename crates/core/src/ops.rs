@@ -162,16 +162,18 @@ pub enum GeorgianState {
     Unsupported,
     /// None of the target parts holds Georgian: install it.
     NotInstalled,
-    /// Bitmap: every target's `.tmp` is this build's Georgian, waiting for a restart.
+    /// Bitmap: every target holds this build's Georgian and at least one `.tmp` waits for a
+    /// restart.
     Waiting,
-    /// TrueType: every target's `.bin` is this build's Georgian.
+    /// Every target holds this build's Georgian in the font the watch uses: a TrueType part's
+    /// `.bin`, or the `<part>.fnt` a bitmap part's `.tmp` was imported as.
     Installed,
     /// Some targets hold this build's Georgian, the rest Garmin's or nothing: install adds the
     /// rest.
     Partly,
     /// A target holds a Georgian build from an earlier release: install replaces it.
     Beta,
-    /// Bitmap: every target's `.tmp` is Garmin's original, waiting for a restart.
+    /// Bitmap: Garmin's original waits as a `.tmp` for a restart, and no target holds Georgian.
     StockWaiting,
     /// The watch doesn't show a target's `.bin`, so whether Georgian is installed can't be
     /// seen; installing again is harmless.
@@ -183,28 +185,48 @@ pub enum GeorgianState {
     Unknown,
 }
 
-/// The one rule behind [`GeorgianState`], from the target parts' files.
-pub fn georgian_state(kind: Option<Kind>, files: &[FileState]) -> GeorgianState {
+/// A target part's file for [`georgian_state`]: what it holds, and whether it is the font the
+/// watch imported (from the hidden listing: a bitmap part's read-only `<part>.fnt`, a TrueType
+/// part's hidden `.bin`) rather than one in the normal listing, where a bitmap part's `.tmp`
+/// waits for the next restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetFile {
+    pub file: FileState,
+    pub imported: bool,
+}
+
+/// The one rule behind [`GeorgianState`], from the target parts' files. A bitmap part's
+/// waiting `.tmp` is what the watch loads at the next restart; without one, its imported
+/// `<part>.fnt` is what it uses now, so imported Georgian is installed and imported stock is
+/// Garmin's font. An imported `.fnt` this build doesn't know blocks nothing (install writes a
+/// new `.tmp` beside it), so it counts as Garmin's font too.
+pub fn georgian_state(kind: Option<Kind>, targets: &[TargetFile]) -> GeorgianState {
     use FileState as F;
-    let Some(kind) = kind.filter(|_| !files.is_empty()) else {
+    let Some(kind) = kind.filter(|_| !targets.is_empty()) else {
         return GeorgianState::Unsupported;
     };
-    let any = |s: F| files.contains(&s);
-    let all = |s: F| files.iter().all(|f| *f == s);
+    let bitmap = kind == Kind::Bitmap;
+    let any = |s: F| targets.iter().any(|t| t.file == s);
+    let all = |s: F| targets.iter().all(|t| t.file == s);
+    let waiting = |s: F| bitmap && targets.iter().any(|t| !t.imported && t.file == s);
+    let blocking_other = targets
+        .iter()
+        .any(|t| t.file == F::Other && !(bitmap && t.imported));
     if any(F::Unknown) {
         GeorgianState::Unknown
-    } else if any(F::Other) || (kind == Kind::Bitmap && any(F::Georgian) && any(F::Stock)) {
+    } else if blocking_other || (waiting(F::Georgian) && waiting(F::Stock)) {
         GeorgianState::Other
     } else if any(F::GeorgianBeta) {
         GeorgianState::Beta
     } else if any(F::NotVisible) {
         GeorgianState::NotVisible
     } else if all(F::Georgian) {
-        match kind {
-            Kind::Bitmap => GeorgianState::Waiting,
-            Kind::Truetype => GeorgianState::Installed,
+        if waiting(F::Georgian) {
+            GeorgianState::Waiting
+        } else {
+            GeorgianState::Installed
         }
-    } else if kind == Kind::Bitmap && all(F::Stock) {
+    } else if waiting(F::Stock) && !any(F::Georgian) {
         GeorgianState::StockWaiting
     } else if any(F::Georgian) {
         GeorgianState::Partly
@@ -230,6 +252,10 @@ pub struct FontReport {
     /// `restore_stock` writes this part: as `target`, restore-only packs included.
     pub restore: bool,
     pub file: FileState,
+    /// `file` is the font the watch imported, from the hidden listing: a bitmap part's
+    /// read-only `<part>.fnt` (its `.tmp` after a restart) or a TrueType part's hidden `.bin`.
+    /// False for a file in the normal listing, such as a `.tmp` waiting for a restart.
+    pub imported: bool,
     /// Beta builds: the test mark's variant ("A", "B", …) drawn into this part's Georgian
     /// build; null in stable builds.
     pub mark: Option<String>,
@@ -802,27 +828,35 @@ fn report_of(
     )
 }
 
-/// What the file named for `font` holds, by the one rule in [`FileState`]: `files` is the
-/// `ExtData` listing (`None` when it wasn't found or read), `contents` the files read, and
-/// `hidden` the children the normal listing leaves out: a file only there is identified from
-/// it, as install and restore do.
+/// What the file named for `font` holds, by the one rule in [`FileState`], and whether it is
+/// the imported one: `files` is the `ExtData` listing (`None` when it wasn't found or read),
+/// `contents` the files read, and `hidden` the children the normal listing leaves out. Without
+/// a file in the normal listing, the part's file is identified from the hidden one: a TrueType
+/// part's `<part>.bin`, or the `<part>.fnt` the watch imported a bitmap part's `.tmp` as (the
+/// Venu 2 keeps every import there, read-only).
 fn file_state(
     font: &Font,
     device: &GarminDevice,
     files: Option<&[Object]>,
     contents: &HashMap<u32, Vec<u8>>,
     hidden: &[HiddenFile],
-) -> FileState {
+) -> (FileState, bool) {
     let Some(files) = files else {
-        return FileState::Unknown;
+        return (FileState::Unknown, false);
     };
     let name = font.file_name();
     let found: Vec<&Object> = files
         .iter()
         .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
         .collect();
+    let imported_name = match font.kind {
+        Kind::Bitmap => format!("{}.fnt", font.part),
+        Kind::Truetype => name.clone(),
+    };
     let hidden_state = || {
-        let mut named = hidden.iter().filter(|h| h.name.eq_ignore_ascii_case(&name));
+        let mut named = hidden
+            .iter()
+            .filter(|h| h.name.eq_ignore_ascii_case(&imported_name));
         match (named.next(), named.next()) {
             (Some(one), None) => one.file,
             (Some(_), Some(_)) => Some(FileState::Other),
@@ -831,19 +865,22 @@ fn file_state(
     };
     match found.as_slice() {
         [] => match hidden_state() {
-            Some(state) => state,
+            Some(state) => (state, true),
             None if font.kind == Kind::Truetype && device.declares_extdata_part(&font.part) => {
-                FileState::NotVisible
+                (FileState::NotVisible, false)
             }
-            None => FileState::None,
+            None => (FileState::None, false),
         },
-        [one] => match contents.get(&one.handle).map(|bytes| font.identify(bytes)) {
-            Some(Content::Georgian) => FileState::Georgian,
-            Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
-            Some(Content::Stock) => FileState::Stock,
-            Some(Content::Other) | None => FileState::Other,
-        },
-        _ => FileState::Other,
+        [one] => {
+            let state = match contents.get(&one.handle).map(|bytes| font.identify(bytes)) {
+                Some(Content::Georgian) => FileState::Georgian,
+                Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
+                Some(Content::Stock) => FileState::Stock,
+                Some(Content::Other) | None => FileState::Other,
+            };
+            (state, false)
+        }
+        _ => (FileState::Other, false),
     }
 }
 
@@ -1036,6 +1073,7 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     );
     let mut reports = Vec::new();
     for (pack, font) in fonts.fonts() {
+        let (file, imported) = file_state(font, &device, files, &contents, &extdata_hidden.files);
         reports.push(FontReport {
             pack: pack.id.clone(),
             part: font.part.clone(),
@@ -1044,7 +1082,8 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
             listed: device.declares_extdata_part(&font.part),
             target: writable && chosen(&hosts, font),
             restore: writable && chosen(&restore, font),
-            file: file_state(font, &device, files, &contents, &extdata_hidden.files),
+            file,
+            imported,
             mark: font.mark.as_ref().map(|m| m.variant.clone()),
         });
     }
@@ -1066,10 +1105,13 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     });
     let packs = pack_reports(&hosts.listed, &device);
     let tested = test_report(&hosts.listed, &packs, &device);
-    let targets: Vec<FileState> = reports
+    let targets: Vec<TargetFile> = reports
         .iter()
         .filter(|r| r.target)
-        .map(|r| r.file)
+        .map(|r| TargetFile {
+            file: r.file,
+            imported: r.imported,
+        })
         .collect();
     let state = georgian_state(hosts.kind, &targets);
     let restorable = writable && !restore.listed.is_empty();
@@ -1137,6 +1179,7 @@ pub fn inspect_drive(
             target: false,
             restore: false,
             file: FileState::Unknown,
+            imported: false,
             mark: font.mark.as_ref().map(|m| m.variant.clone()),
         })
         .collect();

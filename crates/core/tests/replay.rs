@@ -527,6 +527,21 @@ impl Mtp for Watch {
     }
 }
 
+/// Where a fixture comes from: a report in the repository's issues, or the maintainer's own
+/// watch.
+fn known_source(source: &str) -> bool {
+    source.starts_with("https://github.com/lubaretsi/georgian-for-garmin/issues/")
+        || source.starts_with("maintainer's ")
+}
+
+fn fixture(name: &str) -> Value {
+    fixtures()
+        .into_iter()
+        .find(|(p, _)| p.ends_with(name))
+        .unwrap_or_else(|| panic!("fixture {name}"))
+        .1
+}
+
 fn fixtures() -> Vec<(PathBuf, Value)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/reports");
     let mut out: Vec<(PathBuf, Value)> = std::fs::read_dir(&dir)
@@ -624,7 +639,7 @@ fn every_posted_report_replays_safely() {
     let mut restored = 0;
     for (path, fixture) in &fixtures {
         let source = fixture["source"].as_str().unwrap();
-        assert!(source.starts_with("https://github.com/lubaretsi/georgian-for-garmin/issues/"));
+        assert!(known_source(source), "{source}");
         let (watch, fonts) = Watch::from_fixture(fixture);
         if fixture["connection"] == "usb_drive" {
             let root = std::env::temp_dir().join(format!(
@@ -659,6 +674,14 @@ fn every_posted_report_replays_safely() {
             .call("inspect", &fonts)
             .unwrap_or_else(|e| panic!("{source}: inspect after install: {e}"));
         let reinstall = watch.call("install", &fonts);
+        // Where the watch shows its imports (0x9002), the font install wrote and the restart
+        // imported reads as installed, as on the maintainer's Venu 2.
+        if first && watch.0.borrow().get_object_ids && !watch.0.borrow().get_object_ids_fails {
+            assert_eq!(
+                again["state"], "installed",
+                "{source}: after install and a restart"
+            );
+        }
         if first {
             let out = reinstall
                 .as_ref()
@@ -766,13 +789,8 @@ fn fixtures_hold_no_identifiers() {
         let mut expected = keys.to_vec();
         expected.sort_unstable();
         assert_eq!(found, expected, "{source}");
-        for url in fixture["composed_from"].as_array().into_iter().flatten() {
-            assert!(
-                url.as_str()
-                    .unwrap()
-                    .starts_with("https://github.com/lubaretsi/georgian-for-garmin/issues/"),
-                "{source}: {url}"
-            );
+        for from in fixture["composed_from"].as_array().into_iter().flatten() {
+            assert!(known_source(from.as_str().unwrap()), "{source}: {from}");
         }
         scan(&fixture, "", &source);
     }
@@ -830,4 +848,74 @@ fn the_0_01_state_restores_and_then_installs() {
     let installed = watch.call("install", &fonts).unwrap();
     assert_eq!(installed["status"], "staged_verified");
     assert!(watch.0.borrow().violations.is_empty());
+}
+
+/// The maintainer's Venu 2 with the 0.3.1 CLI: after install and a restart its Georgian `.tmp`
+/// files are the hidden read-only `.fnt` imports, and inspect says Georgian is installed (0.3.1
+/// said `not_installed` with every part `file none`). After restore-stock and a restart the
+/// imports are Garmin's, and Georgian isn't installed. Install then stages Georgian again
+/// beside the imports, without touching them.
+#[test]
+fn the_venu_2_reads_its_imported_fonts() {
+    let parts = [
+        "006-D9035-01",
+        "006-D9035-02",
+        "006-D9035-03",
+        "006-D9035-04",
+    ];
+    let targets = |out: &Value| -> Vec<(String, String, bool)> {
+        out["fonts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["target"] == true)
+            .map(|f| {
+                (
+                    f["part"].as_str().unwrap().to_owned(),
+                    f["file"].as_str().unwrap().to_owned(),
+                    f["imported"] == true,
+                )
+            })
+            .collect()
+    };
+    for (name, file, state) in [
+        (
+            "maintainer-venu2-georgian-imported.json",
+            "georgian",
+            "installed",
+        ),
+        (
+            "maintainer-venu2-stock-imported.json",
+            "stock",
+            "not_installed",
+        ),
+    ] {
+        let (watch, fonts) = Watch::from_fixture(&fixture(name));
+        let out = watch.call("inspect", &fonts).unwrap();
+        assert_eq!(out["state"], state, "{name}");
+        assert_eq!(out["support"]["status"], "tested", "{name}");
+        assert_eq!(
+            targets(&out),
+            parts.map(|p| (p.to_owned(), file.to_owned(), true)),
+            "{name}"
+        );
+        let text = out["report"]["text"].as_str().unwrap();
+        assert!(
+            text.contains(&format!("\nstate {state}\n")),
+            "{name}: {text}"
+        );
+        for part in parts {
+            assert!(
+                text.contains(&format!("\n{part} {file} yes tested -\n")),
+                "{name}: {text}"
+            );
+        }
+
+        let installed = watch.call("install", &fonts).unwrap();
+        assert_eq!(installed["status"], "staged_verified", "{name}");
+        assert_eq!(watch.call("inspect", &fonts).unwrap()["state"], "waiting");
+        watch.restart(&fonts);
+        assert_eq!(watch.call("inspect", &fonts).unwrap()["state"], "installed");
+        assert!(watch.0.borrow().violations.is_empty(), "{name}");
+    }
 }

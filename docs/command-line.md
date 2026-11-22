@@ -96,10 +96,10 @@ Running `install` again after it succeeded changes nothing and reports `already_
 - `supported`: the watch lists a bundled part this build installs and accepts the needed MTP
   writes; `restorable`: `restore-stock` has parts to write, including packs this build only
   restores (Swiss 721 Hebrew);
-- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`,
-  `waiting` (bitmap, until the restart), `partly`, `beta` (an earlier release's build),
-  `not_installed`, `not_visible` (the watch shows its `.bin` files in neither listing),
-  `stock_waiting`, `other`, `unknown` or `unsupported`;
+- `state`: Georgian on the watch, from the files of the parts `install` writes: `installed`
+  (also a bitmap part imported at the last restart), `waiting` (bitmap, until the restart),
+  `partly`, `beta` (an earlier release's build), `not_installed`, `not_visible` (the watch shows
+  its `.bin` files in neither listing), `stock_waiting`, `other`, `unknown` or `unsupported`;
 - `tested`: `status` for the whole install and `verified_software`, the software versions this
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
@@ -118,10 +118,12 @@ Running `install` again after it succeeded changes nothing and reports `already_
   `kind`, `weight` and `parts`: the parts the watch lists, each with `size_px` (null for
   TrueType parts, which scale) and its own `tested` status;
 - `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, whether
-  `install` writes it (`target`), whether `restore-stock` does (`restore`), and `file` (what the
+  `install` writes it (`target`), whether `restore-stock` does (`restore`), `file` (what the
   part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for TrueType
   parts: `none`, `georgian`, `georgian_beta`, `stock`, `other`, `not_visible` for a TrueType part
-  the watch declares but doesn't show, or `unknown` without the folder);
+  the watch declares but doesn't show, or `unknown` without the folder) and `imported` (`file`
+  is from the hidden listing: the `<part>.fnt` the watch imported a bitmap part's `.tmp` as at
+  its last restart, or a TrueType part's hidden `.bin`);
 - `extdata`: the hidden folder's handle, how it was found, and every file in it with its `name`,
   `handle` and size in `bytes`. `sha256` is the file's SHA-256 only for a file named for a
   bundled part with the size of its original or Georgian version; it is `null` for every other

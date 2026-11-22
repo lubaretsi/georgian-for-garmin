@@ -23,8 +23,12 @@ flowchart LR
   `MassStorageMode/UpdateFile` entries with `Path` `Garmin/ExtData`. A Venu 2 lists 21 of them;
   the Armenian font comes in four sizes, parts `006-D9035-01` to `-04` (21, 24, 27 and 31 px).
 - **How a font gets onto the watch.** Garmin's updater copies a new font to
-  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`.
-  This project uses the same path; it doesn't modify firmware or any other file.
+  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`;
+  the Venu 2 keeps what it loaded as a read-only `<part>.fnt`, byte for byte the `.tmp`, which
+  only Garmin's vendor `GetObjectIds` lists ([Hidden files](reporting.md#hidden-files)).
+  `inspect` reads that `.fnt` to tell whether Georgian is installed after the restart; install
+  and restore never touch it, and the next restart replaces it with the next `.tmp`. This
+  project uses the same path; it doesn't modify firmware or any other file.
 - **Which fonts get Georgian.** Every font part in [the registry](../fonts/README.md) that the
   watch lists, across all packs: Garmin ships its Armenian font as several products (NotoSans
   Regular, NotoSans Armenian Regular and Bold) in many sizes, and a watch may use parts of more

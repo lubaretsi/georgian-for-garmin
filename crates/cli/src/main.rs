@@ -323,7 +323,7 @@ fn print_human(operation: &str, out: &Value) {
     println!("Fonts in this build:");
     for font in items(&out["fonts"]) {
         println!(
-            "  {:>8}  {}  {:<36}  {:<10}  file: {}",
+            "  {:>8}  {}  {:<36}  {:<10}  file: {}{}",
             size(font),
             text(&font["part"]),
             text(&font["pack"]),
@@ -336,7 +336,12 @@ fn print_human(operation: &str, out: &Value) {
             } else {
                 "not listed"
             },
-            text(&font["file"]).replace('_', " ")
+            text(&font["file"]).replace('_', " "),
+            if font["imported"] == true {
+                " (imported by the watch)"
+            } else {
+                ""
+            }
         );
     }
     if out["supported"] != true {

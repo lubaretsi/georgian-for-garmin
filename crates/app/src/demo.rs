@@ -18,8 +18,10 @@
 //! 5. a Venu listing none of this build's fonts: `unsupported`.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
-//! importing (removing) every staged `.tmp` file, and the next watch is attached. So the
-//! second visit to the Venu 3 installs cleanly, as a real one would once restarted.
+//! importing every staged `.tmp` file as a hidden read-only `<part>.fnt` (replacing the earlier
+//! one), which only Garmin's `GetObjectIds` lists, as the Venu 2 does, and the next watch is
+//! attached. So the second visit to the Venu 2 shows Georgian installed, and the Venu 3 installs
+//! cleanly, as a real one would once restarted.
 //! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first.
 
 use std::collections::BTreeMap;
@@ -251,9 +253,26 @@ impl Demo {
     /// The attached watch restarts, importing its staged files, and the other one is attached.
     pub fn swap(&self) {
         let mut s = self.state();
-        s.objects().retain(|_, (info, _)| {
-            !(info.parent == EXTDATA && info.filename.to_ascii_lowercase().ends_with(".tmp"))
-        });
+        let objects = s.objects();
+        let waiting: Vec<u32> = objects
+            .iter()
+            .filter(|(_, (info, _))| {
+                info.parent == EXTDATA
+                    && info.protection_status == 0
+                    && info.filename.to_ascii_lowercase().ends_with(".tmp")
+            })
+            .map(|(&h, _)| h)
+            .collect();
+        for handle in waiting {
+            let (mut info, data) = objects.remove(&handle).expect("listed above");
+            let stem = info.filename.len() - ".tmp".len();
+            info.filename = format!("{}.fnt", &info.filename[..stem]);
+            info.protection_status = 1;
+            objects.retain(|_, (old, _)| {
+                !(old.parent == EXTDATA && old.filename.eq_ignore_ascii_case(&info.filename))
+            });
+            objects.insert(handle, (info, data));
+        }
         s.current = (s.current + 1) % s.watches.len();
     }
 
@@ -342,6 +361,7 @@ impl Mtp for Demo {
                 op::DELETE_OBJECT,
                 op::SEND_OBJECT_INFO,
                 op::SEND_OBJECT,
+                op::GARMIN_GET_OBJECT_IDS,
             ],
             ..DeviceInfo::default()
         })
@@ -357,7 +377,9 @@ impl Mtp for Demo {
             .objects()
             .iter()
             .filter(|(_, (i, _))| {
-                i.storage_id == storage
+                // Imports are read-only and left out, as on the Venu 2.
+                i.protection_status == 0
+                    && i.storage_id == storage
                     && match parent {
                         ALL_OBJECTS => true,
                         ROOT => i.parent == 0,
@@ -416,6 +438,19 @@ impl Mtp for Demo {
             .remove(&handle)
             .map(drop)
             .ok_or(invalid_handle(op::DELETE_OBJECT))
+    }
+
+    /// The children the normal listing leaves out: the imports.
+    fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
+        Ok(self
+            .state()
+            .objects()
+            .iter()
+            .filter(|(_, (i, _))| {
+                i.protection_status != 0 && i.storage_id == storage && i.parent == parent
+            })
+            .map(|(&h, _)| h)
+            .collect())
     }
 }
 
@@ -527,11 +562,10 @@ mod tests {
         assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
         demo.swap();
 
-        // The Venu 2 imported its files on restart.
-        assert_eq!(
-            staged(&call(&demo, "inspect").unwrap()),
-            vec!["none"; sizes]
-        );
+        // The Venu 2 imported its files on restart: Georgian is installed.
+        let imported = call(&demo, "inspect").unwrap();
+        assert_eq!(staged(&imported), vec!["georgian"; sizes]);
+        assert_eq!(imported["state"], "installed");
         demo.swap();
 
         // So did the Venu 3; now every part of both packs installs.
