@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "georgian-for-garmin"
-version = "0.3.0"
+version = "0.3.1-beta.1"
 dependencies = [
  "clap",
  "georgian-for-garmin-core",
@@ -1541,7 +1541,7 @@ dependencies = [
 
 [[package]]
 name = "georgian-for-garmin-app"
-version = "0.3.0"
+version = "0.3.1-beta.1"
 dependencies = [
  "base64 0.23.1",
  "georgian-for-garmin-core",
@@ -1557,7 +1557,7 @@ dependencies = [
 
 [[package]]
 name = "georgian-for-garmin-core"
-version = "0.3.0"
+version = "0.3.1-beta.1"
 dependencies = [
  "jsonschema",
  "nusb",
