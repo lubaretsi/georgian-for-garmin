@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The README's **Help us test** section lists the watch groups we need a test watch for, with
+  which ones we have, for donating or lending one in Tbilisi.
+
 ## [0.3.1] - 2026-11-22
 
 ### Added
