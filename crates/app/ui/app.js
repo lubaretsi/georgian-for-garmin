@@ -160,10 +160,17 @@ function showStaged(output) {
     $("staged-packs").replaceChildren(
       ...output.packs.map((pack) => {
         const item = document.createElement("li");
-        item.textContent = fill(T.stagedPack, {
-          pack: pack.name,
-          sizes: pack.parts.map((p) => p.size_px).join(", "),
-        });
+        // Bitmap parts by pixel size; TrueType parts scale, so by part number.
+        item.textContent =
+          pack.kind === "truetype"
+            ? fill(T.stagedTrueTypePack, {
+                pack: pack.name,
+                parts: pack.parts.map((p) => p.part).join(", "),
+              })
+            : fill(T.stagedPack, {
+                pack: pack.name,
+                sizes: pack.parts.map((p) => p.size_px).join(", "),
+              });
         return item;
       }),
     );

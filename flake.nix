@@ -12,9 +12,13 @@
       systems = [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ];
       forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # Every stock font pack that gets Georgian, and the font the glyphs come from.
+      # Every stock font pack that gets Georgian, and the font the glyphs come from. Bitmap
+      # parts are `<part>.fnt`, TrueType parts `<part>.bin`, as Garmin names the downloads.
       registry = builtins.fromJSON (builtins.readFile ./fonts/registry.json);
-      stockParts = lib.concatMap (pack: pack.parts) registry.packs;
+      suffix = { bitmap = "fnt"; truetype = "bin"; };
+      stockParts = lib.concatMap
+        (pack: map (part: part // { file = "${part.part}.${suffix.${pack.kind}}"; }) pack.parts)
+        registry.packs;
 
       builderFiles = lib.fileset.unions [
         ./builder
@@ -31,7 +35,7 @@
       fontInputs = pkgs: {
         GFG_STOCK_DIR = pkgs.linkFarm "garmin-stock-fonts" (map
           (part: {
-            name = "${part.part}.fnt";
+            name = part.file;
             path = pkgs.fetchurl { inherit (part) url sha256; };
           })
           stockParts);

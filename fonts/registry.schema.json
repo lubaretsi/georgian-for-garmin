@@ -48,9 +48,9 @@
       "pattern": "^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$"
     },
     "pack": {
-      "description": "One stock font family in all the sizes Garmin publishes it in.",
+      "description": "One stock font family: a bitmap pack in all the sizes Garmin publishes it in, or a TrueType family in its weights.",
       "type": "object",
-      "required": ["id", "name", "weight", "parts", "tested"],
+      "required": ["id", "name", "kind", "weight", "parts", "tested"],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -62,24 +62,30 @@
           "description": "Garmin's product name for the pack, as its update catalog shows it.",
           "$ref": "#/$defs/text"
         },
+        "kind": {
+          "description": "bitmap: Garmin's 2-bit .fnt fonts, staged on the watch as <part>.tmp. truetype: Garmin's masked TrueType .bin fonts, which the watch keeps as GARMIN/ExtData/<part>.bin.",
+          "enum": ["bitmap", "truetype"]
+        },
         "weight": {
           "description": "The weight the pack's stock glyphs are drawn at; Georgian is drawn at it too.",
           "$ref": "#/$defs/weight"
         },
         "parts": {
           "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/part" }
+          "minItems": 1
         },
         "tested": {
           "description": "Watches on which the Georgian build was installed and rendered Georgian.",
           "type": "array",
           "items": { "$ref": "#/$defs/tested" }
         }
-      }
+      },
+      "if": { "properties": { "kind": { "const": "truetype" } }, "required": ["kind"] },
+      "then": { "properties": { "parts": { "items": { "$ref": "#/$defs/truetype_part" } } } },
+      "else": { "properties": { "parts": { "items": { "$ref": "#/$defs/part" } } } }
     },
     "part": {
-      "description": "One size of a pack: a stock .fnt file on Garmin's download server.",
+      "description": "One size of a bitmap pack: a stock .fnt file on Garmin's download server.",
       "type": "object",
       "required": ["part", "size_px", "version", "url", "sha256"],
       "additionalProperties": false,
@@ -104,6 +110,30 @@
         "sha256": { "$ref": "#/$defs/sha256" },
         "weight": {
           "description": "The weight this part's stock glyphs are drawn at, where it differs from the pack's.",
+          "$ref": "#/$defs/weight"
+        }
+      }
+    },
+    "truetype_part": {
+      "description": "One font of a TrueType pack: a stock masked TrueType .bin file on Garmin's download server.",
+      "type": "object",
+      "required": ["part", "version", "url", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "part": { "$ref": "#/$defs/part_number" },
+        "version": {
+          "description": "Garmin's release version of the file, as its update catalog and the watch's GarminDevice.xml list it (2.00).",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "url": {
+          "description": "The official download URL from Garmin's update catalog.",
+          "type": "string",
+          "pattern": "^https://download\\.garmin\\.com/[^\\s]+\\.bin$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "weight": {
+          "description": "The weight this font's stock glyphs are drawn at, where it differs from the pack's.",
           "$ref": "#/$defs/weight"
         }
       }

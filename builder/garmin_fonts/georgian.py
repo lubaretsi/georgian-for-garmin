@@ -60,10 +60,26 @@ def measure(cmap, height, letters):
     return median(letter_height(rows(cmap[ord(letter)], height)) for letter in letters)
 
 
+def shorten(y, descender):
+    """Font-unit `y` with the part of an outline below OVERSHOOT `descender`% as long."""
+    return y if y >= -OVERSHOOT else -OVERSHOOT + round((y + OVERSHOOT) * descender / 100)
+
+
+@dataclass(frozen=True)
+class SourceGlyph:
+    """A Noto Sans Georgian glyph as designed, in Noto's font units."""
+
+    coordinates: tuple
+    end_points: tuple
+    flags: bytes
+    advance: int
+
+
 class Outlines:
     """Noto Sans Georgian at one weight, drawable at any size with shortened descenders."""
 
     def __init__(self, font_path, weight):
+        from fontTools.misc.roundTools import otRound
         from fontTools.ttLib import TTFont
         from fontTools.varLib import instancer
 
@@ -81,11 +97,27 @@ class Outlines:
             location = {tag: None for tag in axes} | {"wght": weight}
             self._ttf = instancer.instantiateVariableFont(ttf, location)
         glyf = self._ttf["glyf"]
-        names = {cmap[cp] for cp in GEORGIAN}
+        self._names = {cp: cmap[cp] for cp in GEORGIAN}
+        names = set(self._names.values())
         if any(glyf[name].isComposite() for name in names):
             raise ValueError("Georgian glyphs built from components are not supported")
         self._coordinates = {name: list(glyf[name].coordinates) for name in names}
+        # Instancing can leave fractional coordinates; saving rounds them, as these do.
+        self._glyphs = {
+            cp: SourceGlyph(
+                coordinates=tuple((otRound(x), otRound(y)) for x, y in self._coordinates[name]),
+                end_points=tuple(glyf[name].endPtsOfContours),
+                flags=bytes(glyf[name].flags),
+                advance=otRound(self._ttf["hmtx"][name][0]),
+            )
+            for cp, name in self._names.items()
+        }
         self._fonts = {}
+        self.units_per_em = self._ttf["head"].unitsPerEm
+
+    def glyph(self, cp):
+        """The SourceGlyph for Georgian code point `cp`, as designed (no shortening)."""
+        return self._glyphs[cp]
 
     def font(self, size, descender=100):
         """A Pillow font at `size` pixels, its outlines below the overshoot `descender`% long."""
@@ -96,8 +128,7 @@ class Outlines:
             for name, points in self._coordinates.items():
                 glyph = glyf[name]
                 glyph.coordinates = type(glyph.coordinates)(
-                    (x, y if y >= -OVERSHOOT else -OVERSHOOT + round((y + OVERSHOOT) * descender / 100))
-                    for x, y in points
+                    (x, shorten(y, descender)) for x, y in points
                 )
                 glyph.recalcBounds(glyf)
             buffer = io.BytesIO()

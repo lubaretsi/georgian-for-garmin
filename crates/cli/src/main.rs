@@ -136,6 +136,14 @@ fn items(value: &Value) -> &[Value] {
     value.as_array().map(Vec::as_slice).unwrap_or_default()
 }
 
+/// A part's size column: "27 px" for a bitmap part, "TrueType" for a TrueType part.
+fn size(part: &Value) -> String {
+    match part["size_px"].as_u64() {
+        Some(px) => format!("{px:>2} px"),
+        None => "TrueType".into(),
+    }
+}
+
 fn print_human(operation: &str, out: &Value) {
     if operation != "inspect" {
         println!(
@@ -150,13 +158,13 @@ fn print_human(operation: &str, out: &Value) {
             println!("  {} ({})", text(&pack["name"]), text(&pack["id"]));
             for part in items(&pack["parts"]) {
                 println!(
-                    "    {:>2} px  {}  {}  ({} bytes, SHA-256 {})",
-                    part["size_px"],
+                    "    {:>8}  {}  {}  ({} bytes, SHA-256 {})",
+                    size(part),
                     text(&part["path"]),
                     if part["status"] == "already_staged" {
-                        "already staged"
+                        "already there"
                     } else {
-                        "staged and verified"
+                        "written and verified"
                     },
                     part["bytes"],
                     text(&part["sha256"])
@@ -188,8 +196,8 @@ fn print_human(operation: &str, out: &Value) {
         );
         for part in items(&pack["parts"]) {
             println!(
-                "    {:>2} px  {}  {}",
-                part["size_px"],
+                "    {:>8}  {}  {}",
+                size(part),
                 text(&part["part"]),
                 text(&part["tested"]).replace('_', " ")
             );
@@ -211,11 +219,11 @@ fn print_human(operation: &str, out: &Value) {
         }
     }
     match out["extdata"].as_object() {
-        None => println!("ExtData staging folder: not found"),
+        None => println!("ExtData folder: not found"),
         Some(ext) => {
             let files = items(&ext["files"]);
             println!(
-                "ExtData staging folder: {} on storage {}, {} the GARMIN listing (found by {}); {} staged file(s)",
+                "ExtData folder: {} on storage {}, {} the GARMIN listing (found by {}); {} file(s)",
                 text(&ext["handle"]),
                 text(&ext["storage_id"]),
                 if ext["listed_under_garmin"] == true {
@@ -234,8 +242,8 @@ fn print_human(operation: &str, out: &Value) {
     println!("Fonts in this build:");
     for font in items(&out["fonts"]) {
         println!(
-            "  {:>2} px  {}  {:<35}  {:<10}  staged: {}",
-            font["size_px"],
+            "  {:>8}  {}  {:<36}  {:<10}  file: {}",
+            size(font),
             text(&font["part"]),
             text(&font["pack"]),
             if font["target"] == true {

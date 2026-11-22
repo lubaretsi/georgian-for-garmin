@@ -3,11 +3,27 @@
 
 use std::borrow::Cow;
 
+use schemars::JsonSchema;
+use serde::Serialize;
+
 use crate::garmin_device::GarminDevice;
+
+/// How a pack's fonts reach the watch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Kind {
+    /// Garmin's 2-bit bitmap fonts, one part per pixel size, staged as
+    /// `GARMIN/ExtData/<part>.tmp` and imported when the watch restarts.
+    Bitmap,
+    /// Garmin's TrueType fonts, one part per weight, which the watch keeps as
+    /// `GARMIN/ExtData/<part>.bin`; installing replaces that file.
+    Truetype,
+}
 
 struct BundledFont {
     part: &'static str,
-    size_px: u16,
+    size_px: Option<u16>,
+    version: &'static str,
     stock: &'static [u8],
     georgian: &'static [u8],
 }
@@ -22,6 +38,7 @@ struct BundledTested {
 struct BundledPack {
     id: &'static str,
     name: &'static str,
+    kind: Kind,
     weight: u16,
     fonts: &'static [BundledFont],
     tested: &'static [BundledTested],
@@ -29,19 +46,28 @@ struct BundledPack {
 
 static BUNDLED: &[BundledPack] = include!(concat!(env!("OUT_DIR"), "/bundled_fonts.rs"));
 
-/// One size of a pack.
+/// One size (bitmap) or weight (TrueType) of a pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Font {
     pub part: String,
-    pub size_px: u16,
+    /// The pack's kind.
+    pub kind: Kind,
+    /// Nominal pixel size of a bitmap part; `None` for TrueType parts, which scale.
+    pub size_px: Option<u16>,
+    /// Garmin's release version of the stock file, e.g. "2.00".
+    pub version: String,
     pub stock: Cow<'static, [u8]>,
     pub georgian: Cow<'static, [u8]>,
 }
 
 impl Font {
-    /// The file name the watch imports from `GARMIN/ExtData`.
-    pub fn staged_name(&self) -> String {
-        format!("{}.tmp", self.part)
+    /// The file name in `GARMIN/ExtData`: `<part>.tmp`, which the watch imports, for a bitmap
+    /// part; `<part>.bin`, which the watch loads, for a TrueType part.
+    pub fn file_name(&self) -> String {
+        match self.kind {
+            Kind::Bitmap => format!("{}.tmp", self.part),
+            Kind::Truetype => format!("{}.bin", self.part),
+        }
     }
 }
 
@@ -58,15 +84,16 @@ pub struct Tested {
     pub parts: Vec<String>,
 }
 
-/// One Garmin font product in all its sizes.
+/// One Garmin font product in all its sizes or weights.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pack {
     pub id: String,
     pub name: String,
+    pub kind: Kind,
     /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too (a part
     /// may override it in the registry).
     pub weight: u16,
-    /// Every size, in manifest order.
+    /// Every part, in manifest order; each has the pack's kind.
     pub fonts: Vec<Font>,
     pub tested: Vec<Tested>,
 }
@@ -94,13 +121,16 @@ impl FontSet {
                 .map(|p| Pack {
                     id: p.id.to_owned(),
                     name: p.name.to_owned(),
+                    kind: p.kind,
                     weight: p.weight,
                     fonts: p
                         .fonts
                         .iter()
                         .map(|f| Font {
                             part: f.part.to_owned(),
+                            kind: p.kind,
                             size_px: f.size_px,
+                            version: f.version.to_owned(),
                             stock: Cow::Borrowed(f.stock),
                             georgian: Cow::Borrowed(f.georgian),
                         })

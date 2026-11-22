@@ -371,7 +371,13 @@ mod tests {
         results.remove("_report");
         assert!(results.contains("Failed"), "{results:?}");
         used.extend(results.iter().map(|k| format!("share{k}")));
-        for key in ["untestedBody", "stagedFiles", "stagedOneFile", "stagedPack"] {
+        for key in [
+            "untestedBody",
+            "stagedFiles",
+            "stagedOneFile",
+            "stagedPack",
+            "stagedTrueTypePack",
+        ] {
             assert!(used.contains(key), "{key} not found in the UI");
         }
         for (language, table) in strings() {

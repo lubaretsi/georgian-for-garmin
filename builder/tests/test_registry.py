@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from registry_data import ENTRIES, REGISTRY, SCHEMA
 
 from garmin_fonts.registry import RegistryError, check_pack, validate
+from garmin_fonts.truetype import unmask
 
 SCHEMA_JSON = json.loads(SCHEMA.read_text())
 PACK_ID = ENTRIES["packs"][0]["id"]
@@ -107,6 +108,41 @@ MALFORMED = {
     ),
 }
 
+# The first TrueType pack's index, for the schema's error paths.
+TT = next(i for i, p in enumerate(ENTRIES["packs"]) if p["kind"] == "truetype")
+
+
+def tt_part(entries, index=0):
+    return entries["packs"][TT]["parts"][index]
+
+
+MALFORMED |= {
+    "missing kind": (
+        lambda e: pack(e).pop("kind"),
+        "packs/0: 'kind' is a required property",
+    ),
+    "unknown kind": (
+        lambda e: pack(e).__setitem__("kind", "vector"),
+        "packs/0/kind: 'vector' is not one of",
+    ),
+    "size on a TrueType part": (
+        lambda e: tt_part(e).__setitem__("size_px", 20),
+        f"packs/{TT}/parts/0: Additional properties are not allowed \\('size_px'",
+    ),
+    "bitmap URL on a TrueType part": (
+        lambda e: tt_part(e).__setitem__("url", tt_part(e)["url"][:-4] + ".fnt"),
+        f"packs/{TT}/parts/0/url: ",
+    ),
+    "TrueType part in a bitmap pack": (
+        lambda e: pack(e)["parts"].append(dict(tt_part(e))),
+        "packs/0/parts/5: 'size_px' is a required property",
+    ),
+    "duplicate weight in a TrueType pack": (
+        lambda e: tt_part(e, 1).pop("weight"),
+        f"pack {ENTRIES['packs'][TT]['id']}: weight 400 is listed more than once",
+    ),
+}
+
 
 @pytest.mark.parametrize("mutate, message", MALFORMED.values(), ids=MALFORMED.keys())
 def test_malformed_registry_is_rejected(mutate, message):
@@ -123,9 +159,31 @@ def test_registry_error_names_the_file():
         validate(entries, SCHEMA_JSON, source="registry.json")
 
 
-def test_stock_files_match_the_registry(stock):
+def test_stock_files_match_the_registry(stock, truetype_stock):
     for entry in ENTRIES["packs"]:
-        check_pack(entry, stock)
+        check_pack(entry, stock | truetype_stock)
+
+
+TRUETYPE_MISMATCH = {
+    "hash of another file": (
+        lambda e, s: tt_part(e).__setitem__("sha256", tt_part(e, 1)["sha256"]),
+        "006-D9971-09: stock file has SHA-256 d0fc",
+    ),
+    "unmasked file": (
+        lambda e, s: s.__setitem__("006-D9971-09", unmask(s["006-D9971-09"]))
+        or tt_part(e).__setitem__("sha256", sha256(s["006-D9971-09"])),
+        "006-D9971-09: stock file: not a masked TrueType font",
+    ),
+}
+
+
+@pytest.mark.parametrize("mutate, message", TRUETYPE_MISMATCH.values(), ids=TRUETYPE_MISMATCH.keys())
+def test_registry_mismatching_truetype_file_is_rejected(truetype_stock, mutate, message):
+    entries, files = copy.deepcopy(ENTRIES), dict(truetype_stock)
+    mutate(entries, files)
+    pack_entry = entries["packs"][TT]
+    with pytest.raises(RegistryError, match=f"^pack {pack_entry['id']}: .*{message}"):
+        check_pack(pack_entry, files)
 
 
 def sha256(data):

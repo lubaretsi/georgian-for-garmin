@@ -38,7 +38,8 @@ def main(argv=None):
     parser = Parser(
         prog=PROG,
         description="Add Georgian glyphs to every Garmin stock ExtData font in the font registry "
-        "and write the asset directory (stock/, georgian/, LICENSES/OFL.txt, manifest.json).",
+        "and write the asset directory (stock/, georgian/, previews/, LICENSES/OFL.txt, "
+        "manifest.json).",
         epilog="example:\n  python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "
         "stock --noto NotoSansGeorgian.ttf --license OFL.txt --out assets --json",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -49,7 +50,8 @@ def main(argv=None):
         "--registry", required=True, help="registry.json, with registry.schema.json beside it"
     )
     parser.add_argument(
-        "--stock-dir", required=True, help="directory with <part>.fnt for every registry part"
+        "--stock-dir", required=True,
+        help="directory with every registry part as <part>.fnt (bitmap) or <part>.bin (TrueType)",
     )
     parser.add_argument("--noto", required=True, help="Noto Sans Georgian TTF")
     parser.add_argument("--license", required=True, help="the font's OFL.txt")

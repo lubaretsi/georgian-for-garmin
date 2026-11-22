@@ -65,6 +65,37 @@ for every part are in [the font registry](../fonts/README.md#size).
 
 ![Garmin's Armenian letters and the Georgian added to the same 27 px font, from their 2-bit bitmaps](georgian-glyphs-27px.png)
 
+## TrueType fonts (untested)
+
+Many newer watches (Venu 3, Forerunner 165, fenix 6, Instinct 3) have no bitmap Armenian font,
+but list TrueType fonts in `Garmin/ExtData` as `<part>.bin` files: Armenian, Hebrew, Arabic,
+Chinese, Japanese, Korean, Thai. A `.bin` is an ordinary TrueType font with every byte XOR-ed
+with `0x76`. The builder unmasks Garmin's file, appends Noto Sans Georgian's outlines, scaled to
+the host's letters, keeps every original glyph, table and name, and masks it again. It adds
+Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts and to the Swiss 721 Hebrew fonts
+the fenix 6 and Instinct 3 list; [the font registry](../fonts/README.md#truetype-packs) says
+why and how each is sized.
+
+Garmin's update catalog installs these as `GARMIN/ExtData/<part>.bin` and marks them as needing
+no restart. MTP has no way to overwrite a file in place, so the installer deletes the watch's
+`.bin` and writes the new one under the same name, then reads it back. The steps that keep this
+safe:
+
+- It replaces a `.bin` only when it holds Garmin's original byte for byte (the same file the
+  registry pins by SHA-256) or this build's Georgian font, and only when `GarminDevice.xml`
+  lists the part at the version and file name the build carries. Anything else, or two files
+  under the name, stops the whole install before anything is written.
+- Where the watch shows no `.bin` for a part it lists, the file is created, as Garmin's
+  updater would.
+- The original bytes are read from the watch before anything is written. If any part fails,
+  in any pack, each replaced `.bin` is written back from them and read back, and new `.tmp`
+  files are deleted; the error says what happened to each file.
+- Restoring writes Garmin's original, bundled in the app, the same way.
+
+Unplugging and restarting the watch afterwards is still the instruction: the watch may only
+reload its fonts then. Whether these watches draw Georgian from these fonts hasn't been seen on
+a watch yet; each part counts as untested until a report says it does.
+
 ## The hidden folder
 
 When `GARMIN/ExtData` is empty, the watch leaves it out of its folder listing, and asking the

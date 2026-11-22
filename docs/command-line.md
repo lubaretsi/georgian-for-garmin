@@ -96,16 +96,19 @@ Running `install` again after it succeeded changes nothing and reports `already_
   model was verified on with any of its parts. `status` is `tested` when every target part is,
   `tested_other_software` when every part was verified on this model but some only on other
   software, and `untested` when any part (or every part) wasn't verified on this model;
-- `packs`: every bundled pack the watch lists, in registry order, with `id`, `name`, `weight` and
-  `parts`: the parts the watch lists, each with `size_px` and its own `tested` status;
-- `fonts`: one entry per part, with `size_px`, whether the watch lists it, and `staged` (what's
-  waiting in the folder: `none`, `georgian`, `stock`, `other`, or `unknown` without the folder);
+- `packs`: every bundled pack the watch lists, in registry order, with `id`, `name`, `kind`
+  (`bitmap` or `truetype`), `weight` and `parts`: the parts the watch lists, each with
+  `size_px` (null for TrueType parts, which scale) and its own `tested` status;
+- `fonts`: one entry per part, with `kind`, `size_px`, whether the watch lists it, and `staged`
+  (what the part's file in the folder holds, `<part>.tmp` for bitmap parts and `<part>.bin` for
+  TrueType parts: `none`, `georgian`, `stock`, `other`, or `unknown` without the folder);
 - `extdata`: the hidden folder's handle, how it was found, and the files in it with their SHA-256;
 - `report`: the same data as `--report`.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
-`already_staged`) and `packs`: each pack written to, with its parts' paths on the watch, sizes in
-bytes, SHA-256s and statuses.
+`already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
+watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
+TrueType part replaces the watch's `<part>.bin`, and a failed run writes the original back.
 
 ## Exit codes and errors
 
@@ -117,9 +120,9 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
-| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part | Share `inspect --report` in an issue. |
-| `conflict` | A different file is already waiting on the watch; nothing was written | Unplug and restart the watch so it loads that file, then run again. |
-| `verification_failed` | A copied file read back differently; it was deleted | Run again. |
+| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or a TrueType part at another version than the bundled one | Share `inspect --report` in an issue. |
+| `conflict` | A different `.tmp` file is already waiting on the watch, or a `.bin` font is neither Garmin's original nor this build's; nothing was written | For a `.tmp`, unplug and restart the watch so it loads that file, then run again. For a `.bin`, share `inspect --report` in an issue. |
+| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |

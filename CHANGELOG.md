@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Step-by-step Windows install guide in Georgian (`docs/install-windows.md`), with a screenshot of
   every screen from download to the watch's restart.
+- Georgian for watches with TrueType fonts instead of bitmap Armenian ones, untested on a watch
+  so far: Noto Sans Armenian (`006-D9971-08/-09`), Noto Sans Hebrew (`006-D1053-98/-99`) and
+  Swiss 721 Hebrew (`006-D0952-07/-08`) get Mkhedruli and Mtavruli, sized to each font's letters.
+  This covers the Venu 3 and 3S, Forerunner 165 and 165 Music, fenix 6 Pro/6S Pro/6X Pro and
+  Instinct 3 AMOLED reported in issues #2 to #14. Install replaces the watch's
+  `GARMIN/ExtData/<part>.bin`, only when it is Garmin's original or this build's Georgian font,
+  reads it back, and writes every original back if any part fails; restore puts Garmin's
+  original back. `inspect` and install output give each pack's `kind` (`bitmap` or `truetype`);
+  TrueType parts have no `size_px` (null). Install and restore are now declared destructive.
 
 ### Changed
 

@@ -36,6 +36,7 @@
     "stagedFiles": "საათზე ჩაიწერა შრიფტის {count} ფაილი:",
     "stagedOneFile": "საათზე ჩაიწერა შრიფტის ერთი ფაილი:",
     "stagedPack": "{pack}: {sizes} px",
+    "stagedTrueTypePack": "{pack} (TrueType): {parts}",
     "unplugRestart": "გამოაერთეთ საათი და გადატვირთეთ: ზედა ღილაკს ხანგრძლივად დააჭირეთ, აირჩიეთ Power Off, მერე ისევ ჩართეთ.",
     "afterRestart": {
       "georgian": "გადატვირთვის შემდეგ შეტყობინებებში ქართული ასოები გამოჩნდება.",
@@ -102,6 +103,7 @@
     "stagedFiles": "{count} font files are on the watch:",
     "stagedOneFile": "One font file is on the watch:",
     "stagedPack": "{pack}: {sizes} px",
+    "stagedTrueTypePack": "{pack} (TrueType): {parts}",
     "unplugRestart": "Unplug the watch, then restart it (hold the top button, Power Off, then turn it on).",
     "afterRestart": {
       "georgian": "Georgian notifications will show after the restart.",

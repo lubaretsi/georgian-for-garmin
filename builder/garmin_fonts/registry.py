@@ -1,4 +1,8 @@
-"""The font registry (`fonts/registry.json`): the Garmin packs that get Georgian, and its checks."""
+"""The font registry (`fonts/registry.json`): the Garmin packs that get Georgian, and its checks.
+
+A pack is `bitmap` (2-bit `.fnt` files, one per size) or `truetype` (masked TrueType `.bin`
+files, one per weight).
+"""
 
 import hashlib
 import json
@@ -9,8 +13,11 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
 from .codec import decode, identity
+from .truetype import open_host
 
 SCHEMA_NAME = "registry.schema.json"
+# The stock file's extension, by pack kind: Garmin's download names and the build's file names.
+SUFFIX = {"bitmap": ".fnt", "truetype": ".bin"}
 
 
 class RegistryError(ValueError):
@@ -47,8 +54,12 @@ def validate(registry, schema, source="registry"):
     problems += [f"part {part} is listed more than once" for part in _repeated(all_parts)]
     for pack in packs:
         name = f"pack {pack['id']}"
-        for size in _repeated(part["size_px"] for part in pack["parts"]):
-            problems.append(f"{name}: size {size} px is listed more than once")
+        if pack["kind"] == "bitmap":
+            for size in _repeated(part["size_px"] for part in pack["parts"]):
+                problems.append(f"{name}: size {size} px is listed more than once")
+        else:
+            for repeated in _repeated(weight(pack, part) for part in pack["parts"]):
+                problems.append(f"{name}: weight {repeated} is listed more than once")
         for model_part, software in _repeated((t["model_part"], t["software"]) for t in pack["tested"]):
             problems.append(f"{name}: {model_part} with software {software} is listed more than once")
         known = {part["part"] for part in pack["parts"]}
@@ -72,6 +83,11 @@ def weight(pack, part):
     return part.get("weight", pack["weight"])
 
 
+def file_name(pack, part):
+    """The stock file's name: `<part>.fnt` or `<part>.bin`."""
+    return part["part"] + SUFFIX[pack["kind"]]
+
+
 def check_file(path, expected_sha256):
     """Return the bytes at `path` after checking them against the registry's SHA-256."""
     data = Path(path).read_bytes()
@@ -84,11 +100,15 @@ def check_file(path, expected_sha256):
 def check_pack(pack, stock):
     """Check a pack's entries against its stock files (`stock[part number]` is the file's bytes).
 
-    Each file must have the listed SHA-256 and carry the listed part number and version in its
-    footer. Sizes are checked where the header allows: a part's line height must exceed its
-    size and stay within twice it, and line heights must not shrink as size grows across the pack
-    (Garmin's 19 and 21 px NotoSans Regular parts share a 28 px line).
+    A TrueType pack's files must have the listed SHA-256 and be masked TrueType fonts without
+    Georgian (`check_truetype_pack`). A bitmap pack's files must have the listed SHA-256 and
+    carry the listed part number and version in their footer. Sizes are checked where the header
+    allows: a part's line height must exceed its size and stay within twice it, and line heights
+    must not shrink as size grows across the pack (Garmin's 19 and 21 px NotoSans Regular parts
+    share a 28 px line).
     """
+    if pack["kind"] == "truetype":
+        return check_truetype_pack(pack, stock)
     problems = []
     metrics = []
     for part in pack["parts"]:
@@ -127,5 +147,25 @@ def check_pack(pack, stock):
                 f"{number} at {size} px has line height {height} px, but {next_number} at "
                 f"{next_size} px has {next_height} px; larger sizes need lines at least as tall"
             )
+    if problems:
+        raise RegistryError("\n".join(f"pack {pack['id']}: {problem}" for problem in problems))
+
+
+def check_truetype_pack(pack, stock):
+    """Check a TrueType pack's entries against its stock files: each must have the listed
+    SHA-256 and unmask to a TrueType font with glyf outlines and no Georgian."""
+    problems = []
+    for part in pack["parts"]:
+        number, data = part["part"], stock[part["part"]]
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != part["sha256"]:
+            problems.append(
+                f"{number}: stock file has SHA-256 {actual}, but the registry lists {part['sha256']}"
+            )
+            continue
+        try:
+            open_host(data)
+        except ValueError as error:
+            problems.append(f"{number}: stock file: {error}")
     if problems:
         raise RegistryError("\n".join(f"pack {pack['id']}: {problem}" for problem in problems))

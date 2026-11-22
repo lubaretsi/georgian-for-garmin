@@ -23,7 +23,9 @@ struct Manifest {
 struct Entry {
     pack: String,
     part: String,
-    size_px: u16,
+    version: String,
+    /// Bitmap parts only.
+    size_px: Option<u16>,
     stock: String,
     stock_sha256: String,
     georgian: String,
@@ -34,6 +36,7 @@ struct Entry {
 struct PackEntry {
     id: String,
     name: String,
+    kind: String,
     weight: u16,
     parts: Vec<String>,
     tested: Vec<TestedEntry>,
@@ -119,28 +122,49 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
                 pack.id, pack.parts, carried
             ));
         }
+        let kind = match pack.kind.as_str() {
+            "bitmap" => "Bitmap",
+            "truetype" => "Truetype",
+            other => fail(format!(
+                "{where_}: pack {:?} has unknown kind {other:?}",
+                pack.id
+            )),
+        };
         let mut sizes = BTreeSet::new();
         writeln!(
             code,
-            "    BundledPack {{ id: {:?}, name: {:?}, weight: {}, fonts: &[",
+            "    BundledPack {{ id: {:?}, name: {:?}, kind: Kind::{kind}, weight: {}, fonts: &[",
             pack.id, pack.name, pack.weight
         )
         .unwrap();
         for part in &pack.parts {
             let font = fonts.iter().find(|f| &f.part == part).expect("checked");
-            if !sizes.insert(font.size_px) {
-                fail(format!(
-                    "{where_}: pack {:?} has two {} px fonts",
-                    pack.id, font.size_px
-                ));
+            match (kind, font.size_px) {
+                ("Bitmap", Some(size)) => {
+                    if !sizes.insert(size) {
+                        fail(format!(
+                            "{where_}: pack {:?} has two {size} px fonts",
+                            pack.id
+                        ));
+                    }
+                }
+                ("Bitmap", None) => fail(format!(
+                    "{where_}: bitmap font part {} has no size_px",
+                    font.part
+                )),
+                (_, Some(_)) => fail(format!(
+                    "{where_}: TrueType font part {} has a size_px",
+                    font.part
+                )),
+                (_, None) => {}
             }
             let stock = checked_file(dir, &font.stock, &font.stock_sha256);
             let georgian = checked_file(dir, &font.georgian, &font.georgian_sha256);
             writeln!(
                 code,
-                "        BundledFont {{ part: {:?}, size_px: {}, stock: include_bytes!({stock:?}), \
-                 georgian: include_bytes!({georgian:?}) }},",
-                font.part, font.size_px,
+                "        BundledFont {{ part: {:?}, size_px: {:?}, version: {:?}, \
+                 stock: include_bytes!({stock:?}), georgian: include_bytes!({georgian:?}) }},",
+                font.part, font.size_px, font.version,
             )
             .unwrap();
         }

@@ -6,7 +6,8 @@ from pathlib import Path
 from registry_data import REGISTRY
 
 from garmin_fonts.codec import decode
-from garmin_fonts.preview import ARMENIAN_SAMPLE, GREYS, line, readme_image, sheet
+from garmin_fonts.preview import ARMENIAN_SAMPLE, GREYS, line, readme_image, sheet, truetype_preview
+from garmin_fonts.truetype import unmask
 
 
 def test_line_is_drawn_from_the_glyph_bitmaps(stock):
@@ -46,3 +47,13 @@ def test_cli_rejects_unknown_part_as_json(inputs, tmp_path):
     assert result.returncode == 2
     assert json.loads(result.stderr)["error"]["code"] == "invalid_input"
     assert not (tmp_path / "x.png").exists()
+
+
+def test_truetype_preview_draws_host_text_and_georgian(assets):
+    out, _ = assets
+    image = truetype_preview(unmask((out / "georgian" / "006-D0952-08.bin").read_bytes()), "label")
+    assert image.mode == "L"
+    # Three rows of ink: the label and the line at each size.
+    inked = [y for y in range(image.height) if any(image.getpixel((x, y)) for x in range(image.width))]
+    bands = sum(1 for a, b in zip([-2, *inked], inked) if b - a > 1)
+    assert bands == 3

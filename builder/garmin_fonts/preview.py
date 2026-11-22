@@ -1,4 +1,5 @@
-"""Render a part's Armenian and Georgian letters from their 2-bit bitmaps into a PNG.
+"""Render a part's Armenian and Georgian letters from their 2-bit bitmaps into a PNG, and
+preview a TrueType build (`truetype_preview`; the font build writes one per TrueType part).
 
 The README image is `python -m garmin_fonts.preview --out ../docs/georgian-glyphs-27px.png`,
 run from `builder/` in `nix develop`.
@@ -19,6 +20,10 @@ PROG = "garmin-fonts-preview"
 REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
 ARMENIAN_SAMPLE = "Հայերեն ՀԱՅԵՐԵՆ"
 GEORGIAN_SAMPLE = "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ"
+# Host text shown beside Georgian in a TrueType preview, each sample when the font maps all of it.
+HOST_SAMPLES = ("Garmin xo", ARMENIAN_SAMPLE, "עברית")
+# Pixel sizes of a TrueType preview's lines: about a watch's notification text, and large.
+TRUETYPE_SIZES_PX = (20, 56)
 # Grey for each 2-bit level, white on black like the watch.
 GREYS = (0, 85, 170, 255)
 LABEL_GREY = 150
@@ -70,7 +75,7 @@ def readme_image(registry, stock_dir, noto, part_number):
     entries = font_registry.load(registry)
     pack, part = next(
         (pack, part) for pack in entries["packs"] for part in pack["parts"]
-        if part["part"] == part_number
+        if part["part"] == part_number and pack["kind"] == "bitmap"
     )
     stock = font_registry.check_file(Path(stock_dir) / f"{part_number}.fnt", part["sha256"])
     font_registry.check_file(noto, entries["georgian_font"]["sha256"])
@@ -82,6 +87,35 @@ def readme_image(registry, stock_dir, noto, part_number):
         (f"Garmin's Armenian letters ({size})", line(stock, ARMENIAN_SAMPLE)),
         (f"Georgian added to the same font ({size})", line(georgian, GEORGIAN_SAMPLE)),
     ])
+
+
+def truetype_preview(font, label, margin=12):
+    """A PNG image of a TrueType font `font` (plain bytes, not masked): `label`, then the host
+    samples it maps beside GEORGIAN_SAMPLE, on one line at each of TRUETYPE_SIZES_PX."""
+    import io
+
+    from fontTools.ttLib import TTFont
+    from PIL import Image, ImageDraw, ImageFont, features
+
+    cmap = TTFont(io.BytesIO(font)).getBestCmap()
+    samples = [s for s in HOST_SAMPLES if all(ord(c) in cmap for c in s)]
+    text = "  ".join([*samples, GEORGIAN_SAMPLE])
+    # Left to right, host text first, even when the line starts with Hebrew (needs libraqm).
+    direction = "ltr" if features.check("raqm") else None
+    label_font = ImageFont.load_default(size=14)
+    fonts = [ImageFont.truetype(io.BytesIO(font), size) for size in TRUETYPE_SIZES_PX]
+    boxes = [f.getbbox(text, anchor="ls", direction=direction) for f in fonts]
+    heights = [bottom - top for _, top, _, bottom in boxes]
+    width = max(right for _, _, right, _ in boxes) + 2 * margin
+    image = Image.new("L", (max(width, 400), 22 + sum(heights) + margin * (len(fonts) + 2)))
+    draw = ImageDraw.Draw(image)
+    draw.text((margin, margin), label, font=label_font, fill=LABEL_GREY)
+    y = margin + 22
+    for f, (_, top, _, _), h in zip(fonts, boxes, heights):
+        y += margin
+        draw.text((margin, y - top), text, font=f, anchor="ls", fill=GREYS[3], direction=direction)
+        y += h
+    return image
 
 
 def fail(as_json, message):
