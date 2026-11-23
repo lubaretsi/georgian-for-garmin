@@ -608,7 +608,7 @@ static DEV_OPERATIONS: [Operation; 13] = [
         description: "Copy one file from the watch's GARMIN/ExtData folder (normal or hidden \
                       listing, by name) to a new local file at path; an existing local file is \
                       never overwritten. Returns its size and SHA-256. A file named \
-                      GarminDevice.xml has its unit ID (<Id>) masked with asterisks unless \
+                      GarminDevice.xml has its <Id>, <Ifix> and <AppId> values masked unless \
                       reveal_identifiers; never share an unmasked copy. Development builds only. \
                       Reads the watch only.",
         read_only: true,
@@ -729,7 +729,7 @@ static DEV_OPERATIONS: [Operation; 13] = [
                       (GetPartialObject when the watch lists it, else the whole object cut to \
                       the range). Returned as base64 up to max_bytes (default 1 MiB), or written \
                       to a new local file at path, which must not exist; with the size and \
-                      SHA-256 of what is returned. GarminDevice.xml's unit ID (<Id>) is masked \
+                      SHA-256 of what is returned. GarminDevice.xml's <Id>, <Ifix> and <AppId> are masked \
                       with asterisks unless reveal_identifiers (that file is read whole and \
                       then cut); never paste an unmasked result anywhere shared. Other files are \
                       returned as they are. Development builds only. Reads the watch only.",
@@ -755,7 +755,7 @@ static DEV_OPERATIONS: [Operation; 13] = [
                       mtp_create and mtp_delete. Identifiers in the data read as asterisks, \
                       keeping its length, unless reveal_identifiers: the serial number in \
                       GetDeviceInfo, the owner's names in GetDevicePropDesc/GetDevicePropValue of \
-                      0xD401 and 0xD402, the unit ID in GetObject/GetPartialObject of \
+                      0xD401 and 0xD402, the <Id>, <Ifix> and <AppId> in GetObject/GetPartialObject of \
                       GarminDevice.xml; never paste an unmasked result anywhere shared. USB only: \
                       on Windows (WPD) it is unsupported_device. Development builds only. Reads \
                       the watch only.",

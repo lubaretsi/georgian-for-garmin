@@ -145,6 +145,9 @@ const DEVICE_FRIENDLY_NAME: u32 = 0xD402;
 const STR: u16 = 0xFFFF;
 /// The file whose `<Id>` is the watch's unit ID.
 const GARMIN_DEVICE_XML: &str = "GarminDevice.xml";
+/// The GarminDevice.xml elements whose values are masked: `<Id>`, the unit ID, and `<Ifix>` and
+/// `<AppId>`, whose values no second sample shows aren't per watch.
+const MASKED_ELEMENTS: [&str; 3] = ["Id", "Ifix", "AppId"];
 
 /// Masks the characters of the PTP string at `at` (its count byte), keeping its length;
 /// returns the offset after it, or `None` when the bytes end first.
@@ -159,9 +162,8 @@ fn mask_ptp_string(data: &mut [u8], at: usize) -> Option<usize> {
     Some(end)
 }
 
-/// The byte ranges of every `<Id>` element's text in GarminDevice.xml: the unit ID.
+/// The byte ranges of the values of every [`MASKED_ELEMENTS`] element in GarminDevice.xml.
 fn unit_id_spans(xml: &[u8]) -> Vec<std::ops::Range<usize>> {
-    let (open, close) = (b"<Id>".as_slice(), b"</Id>".as_slice());
     let find = |from: usize, what: &[u8]| {
         xml.get(from..)?
             .windows(what.len())
@@ -169,11 +171,14 @@ fn unit_id_spans(xml: &[u8]) -> Vec<std::ops::Range<usize>> {
             .map(|i| from + i)
     };
     let mut spans = Vec::new();
-    let mut at = 0;
-    while let Some(start) = find(at, open).map(|i| i + open.len()) {
-        let end = find(start, close).unwrap_or(xml.len());
-        spans.push(start..end);
-        at = end;
+    for element in MASKED_ELEMENTS {
+        let (open, close) = (format!("<{element}>"), format!("</{element}>"));
+        let mut at = 0;
+        while let Some(start) = find(at, open.as_bytes()).map(|i| i + open.len()) {
+            let end = find(start, close.as_bytes()).unwrap_or(xml.len());
+            spans.push(start..end);
+            at = end;
+        }
     }
     spans
 }
@@ -193,7 +198,7 @@ fn holds_unit_id(dev: &mut dyn Mtp, handle: u32) -> Result<bool, Error> {
     Ok(name.eq_ignore_ascii_case(GARMIN_DEVICE_XML))
 }
 
-/// Masks the unit ID (every `<Id>` value) in `bytes`, the whole object, when `name` is
+/// Masks the identifiers ([`MASKED_ELEMENTS`]) in `bytes`, the whole object, when `name` is
 /// GarminDevice.xml (any case); the rest stays byte for byte.
 pub(crate) fn mask_unit_id(name: &str, bytes: &mut [u8]) {
     if name.eq_ignore_ascii_case(GARMIN_DEVICE_XML) {
@@ -359,7 +364,7 @@ pub struct ReadInput {
     /// Default 1048576.
     #[schemars(range(max = 16_777_216))]
     pub max_bytes: Option<u64>,
-    /// Return GarminDevice.xml's unit ID (its <Id>) instead of asterisks. Never paste such a
+    /// Return GarminDevice.xml's <Id>, <Ifix> and <AppId> instead of asterisks. Never paste such a
     /// result anywhere shared (issues, pull requests, lab records). Default false.
     pub reveal_identifiers: Option<bool>,
 }
@@ -461,7 +466,7 @@ pub struct PtpTransactionInput {
     pub max_bytes: Option<u64>,
     /// Return identifiers unmasked: the serial number in GetDeviceInfo, the owner's names in
     /// GetDevicePropDesc/GetDevicePropValue of SynchronizationPartner (0xD401) and
-    /// DeviceFriendlyName (0xD402), and the unit ID in GetObject/GetPartialObject of
+    /// DeviceFriendlyName (0xD402), and the <Id>, <Ifix> and <AppId> in GetObject/GetPartialObject of
     /// GarminDevice.xml. By default their characters read as asterisks, keeping the data's
     /// length. Never paste such a result anywhere shared (issues, pull requests, lab records).
     /// Default false.

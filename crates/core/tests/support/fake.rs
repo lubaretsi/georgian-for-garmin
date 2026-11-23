@@ -31,9 +31,12 @@ pub const ARMENIAN: [&str; 4] = [
 /// downloads.
 pub const CJK: &str = "006-D8448-70";
 /// The watch's identifiers, which outputs mask unless asked: its MTP serial number, its unit ID
-/// in GarminDevice.xml, and the owner's name in its DeviceFriendlyName property.
+/// and its `<Ifix>` and `<AppId>` values in GarminDevice.xml (`<AppId>` twice), and the owner's
+/// name in its DeviceFriendlyName property.
 pub const SERIAL: &str = "FAKESERIAL0042";
 pub const UNIT_ID: &str = "3999999999";
+pub const IFIX: &str = "1888888888";
+pub const APP_ID: &str = "2777777777";
 pub const OWNER_NAME: &str = "Ann's Venu";
 
 fn bytes_for(part: &str, base: usize, step: u32) -> Vec<u8> {
@@ -99,7 +102,7 @@ fn device_xml() -> Vec<u8> {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
          <Model><PartNumber>006-B3703-00</PartNumber><SoftwareVersion>1905</SoftwareVersion><Description>Venu 2</Description></Model>\
-         <Id>{UNIT_ID}</Id>\
+         <Id>{UNIT_ID}</Id><Ifix>{IFIX}</Ifix><AppId>{APP_ID}</AppId><AppId>{APP_ID}</AppId>\
          <MassStorageMode>{files}</MassStorageMode></Device>"
     )
     .into_bytes()

@@ -15,8 +15,8 @@ use std::time::Duration;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use fake::{
-    EXTDATA, GARMIN, IMPORTED_ARMENIAN, IMPORTED_CJK, OWNER_NAME, SERIAL, STORAGE, UNIT_ID, Watch,
-    XML,
+    APP_ID, EXTDATA, GARMIN, IFIX, IMPORTED_ARMENIAN, IMPORTED_CJK, OWNER_NAME, SERIAL, STORAGE,
+    UNIT_ID, Watch, XML,
 };
 use georgian_for_garmin_core::fonts::sha256_hex;
 use georgian_for_garmin_core::session::{Control, Session, Worker};
@@ -418,17 +418,34 @@ fn mtp_delete_deletes_only_identified_files_in_extdata() {
     assert_eq!(listed, ["006-D9035-01.tmp", "notes.txt"]);
 }
 
-/// `bytes` with every byte of `UNIT_ID` replaced by `*`: what masking must leave.
+/// The masked elements of the fake's GarminDevice.xml, their values and how often each occurs.
+const XML_IDS: [(&str, &str, usize); 3] =
+    [("Id", UNIT_ID, 1), ("Ifix", IFIX, 1), ("AppId", APP_ID, 2)];
+
+/// `bytes` with every masked element's value replaced by `*`: what masking must leave.
 fn masked_xml(bytes: &[u8]) -> Vec<u8> {
-    let text = String::from_utf8(bytes.to_vec()).unwrap();
-    let id = format!("<Id>{UNIT_ID}</Id>");
-    assert_eq!(
-        text.matches(&id).count(),
-        1,
-        "the fake's GarminDevice.xml holds the unit ID"
-    );
-    text.replace(&id, &format!("<Id>{}</Id>", "*".repeat(UNIT_ID.len())))
-        .into_bytes()
+    let mut text = String::from_utf8(bytes.to_vec()).unwrap();
+    for (element, value, count) in XML_IDS {
+        let tagged = format!("<{element}>{value}</{element}>");
+        assert_eq!(
+            text.matches(&tagged).count(),
+            count,
+            "the fake's GarminDevice.xml: {element}"
+        );
+        let masked = format!("<{element}>{}</{element}>", "*".repeat(value.len()));
+        text = text.replace(&tagged, &masked);
+    }
+    text.into_bytes()
+}
+
+/// Where `<element>`'s first value starts in `xml`, plus `skip` bytes.
+fn value_at(xml: &[u8], element: &str, skip: usize) -> usize {
+    let open = format!("<{element}>");
+    xml.windows(open.len())
+        .position(|w| w == open.as_bytes())
+        .unwrap()
+        + open.len()
+        + skip
 }
 
 fn contains(haystack: &[u8], needle: &str) -> bool {
@@ -499,20 +516,42 @@ fn identifiers_are_masked_unless_revealed() {
         );
     }
 
-    // GarminDevice.xml through mtp_read: whole, and a range cutting through the Id.
+    // GarminDevice.xml through mtp_read: whole, and ranges cutting through the Id, the Ifix and
+    // the AppIds.
     let raw = base64(&call(&mut s, "mtp_read", reveal(json!({"handle": XML}))).unwrap()["data"]);
-    assert!(contains(&raw, UNIT_ID));
+    assert!(XML_IDS.iter().all(|(_, value, _)| contains(&raw, value)));
     let expected = masked_xml(&raw);
     let whole = base64(&call(&mut s, "mtp_read", json!({"handle": XML})).unwrap()["data"]);
-    assert_eq!(whole, expected, "only the Id changes, byte for byte");
-    let start = raw.windows(4).position(|w| w == b"<Id>").unwrap() + 4 + 3;
-    let input = json!({"handle": XML, "offset": start, "length": 12});
-    let range = base64(&call(&mut s, "mtp_read", input).unwrap()["data"]);
-    assert_eq!(range, &expected[start..start + 12]);
+    assert_eq!(
+        whole, expected,
+        "only the masked values change, byte for byte"
+    );
+    let ranges = [
+        (value_at(&raw, "Id", 3), 12),
+        (value_at(&raw, "Ifix", 5), 20),
+        (value_at(&raw, "AppId", 8), 30),
+    ];
+    for (start, len) in ranges {
+        let input = json!({"handle": XML, "offset": start, "length": len});
+        let range = base64(&call(&mut s, "mtp_read", input).unwrap()["data"]);
+        assert_eq!(range, &expected[start..start + len]);
+        assert!(
+            range.starts_with(b"**"),
+            "{}",
+            String::from_utf8_lossy(&range)
+        );
+    }
+    let (start, _) = ranges[0];
     assert!(
-        range.starts_with(b"*******</Id>"),
-        "{}",
-        String::from_utf8_lossy(&range)
+        base64(
+            &call(
+                &mut s,
+                "mtp_read",
+                json!({"handle": XML, "offset": start, "length": 12})
+            )
+            .unwrap()["data"]
+        )
+        .starts_with(b"*******</Id>")
     );
 
     // A raw GetObject and GetPartialObject of it.
@@ -521,11 +560,13 @@ fn identifiers_are_masked_unless_revealed() {
         base64(&call(&mut s, "ptp_transaction", input).unwrap()["data"]),
         expected
     );
-    let input = json!({"opcode": 0x101B, "params": [XML, start, 12]});
-    let partial = base64(&call(&mut s, "ptp_transaction", input.clone()).unwrap()["data"]);
-    assert_eq!(partial, &expected[start..start + 12]);
-    let partial = base64(&call(&mut s, "ptp_transaction", reveal(input)).unwrap()["data"]);
-    assert_eq!(partial, &raw[start..start + 12]);
+    for (start, len) in ranges {
+        let input = json!({"opcode": 0x101B, "params": [XML, start, len]});
+        let partial = base64(&call(&mut s, "ptp_transaction", input.clone()).unwrap()["data"]);
+        assert_eq!(partial, &expected[start..start + len]);
+        let partial = base64(&call(&mut s, "ptp_transaction", reveal(input)).unwrap()["data"]);
+        assert_eq!(partial, &raw[start..start + len]);
+    }
 
     // read_file, for a file of that name (any case) in ExtData.
     watch.add_file("garmindevice.xml", raw.clone());
@@ -569,7 +610,7 @@ fn identifiers_are_masked_unless_revealed() {
     assert!(seen.len() > 5, "{seen:?}");
     let log = std::fs::read_to_string(&log).unwrap();
     for text in seen.iter().chain([&log]) {
-        for id in [SERIAL, UNIT_ID, OWNER_NAME] {
+        for id in [SERIAL, UNIT_ID, IFIX, APP_ID, OWNER_NAME] {
             assert!(!text.contains(id), "{id} in {text}");
         }
     }

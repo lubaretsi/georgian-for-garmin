@@ -299,7 +299,7 @@ pub struct ReadFileInput {
     pub name: String,
     /// The local file to create; it must not exist.
     pub path: String,
-    /// Copy GarminDevice.xml's unit ID (its <Id>) instead of asterisks. Never share such a
+    /// Copy GarminDevice.xml's <Id>, <Ifix> and <AppId> instead of asterisks. Never share such a
     /// copy (issues, pull requests, lab records). Default false.
     pub reveal_identifiers: Option<bool>,
 }
