@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fonts don't include. The app's fonts are byte for byte the same.
 - `nix flake check` round-trips every pinned stock font and renders the test notification over
   every watch report fixture; CI uploads the PNGs and per-character states as `render-report`.
+  CI also checks every request the `Watch` client builds against the input schemas a dev build
+  of the CLI declares, that every operation has a method, and the client against the real
+  `rpc`.
 - When no watch has turned up 10 seconds after the waiting screen comes up, it shows a short
   help card under the spinner: quit Garmin Express, which can keep the app from seeing the watch
   (from its menu-bar icon on macOS, its notification-area icon on Windows; on Linux, eject the

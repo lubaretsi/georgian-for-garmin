@@ -174,6 +174,18 @@ class Watch:
         """`restore_stock`: write Garmin's original fonts back (only `parts`, when given)."""
         return self.call("restore_stock", {} if parts is None else {"parts": list(parts)}, progress)
 
+    def inspect_drive(self, path=None):
+        """`inspect_drive`: read a watch connected as a USB drive (the mounted volume found, or
+        `path`)."""
+        return self.call("inspect_drive", {} if path is None else {"path": str(path)})
+
+    def issue_link(self, report=None, *, busy=None, outcome=None, answers=None):
+        """`issue_link`: the GitHub new-issue link for a report (from `summary` or
+        `inspect_drive`), the last install or restore `outcome`, the owner's `answers`, and/or a
+        `device_busy` error's `busy`."""
+        given = {"report": report, "busy": busy, "outcome": outcome, "answers": answers}
+        return self.call("issue_link", {k: v for k, v in given.items() if v is not None})
+
     def read_file(self, name, path):
         """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist."""
         return self.call("read_file", {"name": name, "path": str(path)})

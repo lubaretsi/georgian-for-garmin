@@ -85,9 +85,17 @@ python -m garmin_fonts roundtrip 006-D8448-70 006-D9035-03
 python -m garmin_fonts build --out assets          # the asset folder, as nix build .#fonts
 ```
 
-`builder/tests/test_watch.py` drives the `Watch` client against a stand-in for the rpc process;
-with `GEORGIAN_FOR_GARMIN_CLI` set to a dev build of the CLI it also checks the real one, with
-calls the core refuses before it touches a watch.
+`builder/tests/test_watch.py` drives the `Watch` client against a stand-in for the rpc process.
+With `GEORGIAN_FOR_GARMIN_CLI` set to a dev build of the CLI, it also checks the real one with
+calls the core refuses before it touches a watch, and `test_rpc_contract.py` checks every request
+a `Watch` method builds against the input schema the CLI declares (`--help --json`), and that
+every declared operation has a method. CI runs both against its dev build:
+
+```sh
+cargo build -p georgian-for-garmin --features dev
+cd builder && GEORGIAN_FOR_GARMIN_CLI=$PWD/../target/debug/georgian-for-garmin \
+  pytest tests/test_rpc_contract.py tests/test_watch.py
+```
 
 ## Rust
 
