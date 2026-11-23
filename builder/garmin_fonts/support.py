@@ -15,7 +15,7 @@ from . import __version__
 from . import registry as font_registry
 
 PROG = "garmin-fonts-support"
-REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
+REGISTRY = font_registry.REGISTRY
 README = REGISTRY.parents[1] / "README.md"
 ISSUES = "https://github.com/lubaretsi/georgian-for-garmin/issues"
 BEGIN = (

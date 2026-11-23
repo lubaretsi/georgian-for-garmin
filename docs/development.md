@@ -4,8 +4,9 @@
 
 | Path | What it is |
 |---|---|
-| `fonts/registry.json` | Garmin font packs that get Georgian: parts, download URLs, SHA-256s, tested watches, and the support list of every known watch model ([how to add one](../fonts/README.md)) |
-| `builder/` | Python font builder: decodes Garmin's font format, adds Georgian, writes the asset folder |
+| `fonts/registry.json` | Garmin font packs that get Georgian, their host families, other pinned stock fonts: parts, download URLs, SHA-256s, tested watches, and the support list of every known watch model ([how to add one](../fonts/README.md)) |
+| `fonts/fallback-models.json` | Which font a watch view draws a character from, as far as recorded observations show, with citations ([Fallback models](../fonts/README.md#fallback-models)) |
+| `builder/` | Python font toolkit (`garmin_fonts`): Garmin's font formats, the stock font catalog, adding Georgian, rendering as a watch would, the watch over `rpc`; writes the asset folder |
 | `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`), the watch's font list, the hidden-folder search, and MTP over USB |
 | `crates/cli` | The `georgian-for-garmin` command |
 | `crates/app` | The desktop app (Tauri 2; plain HTML, CSS and JavaScript in `ui/`, strings in `ui/strings.json`) |
@@ -33,7 +34,60 @@ nix flake check       # registry schema, builder tests, pinned SHA-256 of every 
 
 The build downloads every stock font and Noto Sans Georgian by its pinned hash, so the output is
 the same everywhere. A change that alters any Georgian font's bytes fails the tests; update the
-pinned hashes only after testing the new fonts on a watch.
+pinned hashes only after testing the new fonts on a watch. The builder tests also round-trip
+every pinned stock font through the codec (plain and "Compressed") and render the app's test
+text over every watch report fixture, with Garmin's fonts and with ours; the flake check's
+output, `render/`, holds those PNGs and `report.json` (each character `confirmed`,
+`coverage_only` or `unknown`), which CI uploads as the `render-report` artifact. The report
+fails only on what is knowable: a confirmed step that doesn't hold, or one of our installed
+fonts lacking a Georgian letter.
+
+### Font toolkit
+
+Experiments on fonts and watches run as steps through `garmin_fonts`, from `builder/` in
+`nix develop`, in Python (omp's eval, a REPL) or on the command line:
+
+```python
+from garmin_fonts.catalog import fetch_stock
+from garmin_fonts.build import add_georgian
+from garmin_fonts.render import render, render_report
+from garmin_fonts.watch import Watch
+
+thai = add_georgian("006-D8947-22", markers={"ჰ": "გ", "ก": "ข"})   # fetched, sized like Thai
+rendering = render_report("../crates/core/tests/reports/maintainer-venu2-stock-imported.json",
+                          builds=[thai])
+rendering.counts(), rendering.trace[5], rendering.save("venu2.png")
+
+with Watch("../target/debug/georgian-for-garmin") as watch:   # a `--features dev` build
+    watch.summary(); watch.hash("006-D8947-22.fnt")
+    staged = watch.stage(thai)                # GARMIN/ExtData/006-D8947-22.tmp, read back
+    watch.remove_staged(staged["id"])
+```
+
+| Module | What it does |
+|---|---|
+| `codec` | Garmin's 2-bit bitmap `.fnt`, plain and "Compressed" (per-glyph RLE): `decode`, `encode`, byte for byte |
+| `truetype` | Garmin's masked TrueType `.bin` |
+| `catalog` | `fetch_stock(part)`: pinned parts from `GFG_STOCK_DIR`/`GFG_CATALOG_DIR`, the cache (`~/.cache/georgian-garmin/catalog`) or their pinned URL, checked by SHA-256; other parts from Garmin's update catalog. `GFG_OFFLINE=1` (as in the flake check) never downloads |
+| `hosts` | The registry's host families |
+| `build` | `add_georgian(font, size_like=…, markers=…)`, deterministic; `build` writes the asset folder |
+| `render` | `render(fonts, text, replace=[…], family=…)`: a PNG and a per-character trace from the fallback models |
+| `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods; errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
+
+The same as commands, each with `--json`, `--input <file|->` and examples in `--help`
+(`--help --json` prints them as MCP tools):
+
+```sh
+python -m garmin_fonts fetch 006-D8448-70 --out stock
+python -m garmin_fonts build 006-D8947-22 --markers ჰ=გ ก=ข --out builds
+python -m garmin_fonts render --report ../crates/core/tests/reports/issue-12.json --with-our-fonts --out venu.png
+python -m garmin_fonts roundtrip 006-D8448-70 006-D9035-03
+python -m garmin_fonts build --out assets          # the asset folder, as nix build .#fonts
+```
+
+`builder/tests/test_watch.py` drives the `Watch` client against a stand-in for the rpc process;
+with `GEORGIAN_FOR_GARMIN_CLI` set to a dev build of the CLI it also checks the real one, with
+calls the core refuses before it touches a watch.
 
 ## Rust
 

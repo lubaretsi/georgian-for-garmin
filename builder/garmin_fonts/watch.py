@@ -1,0 +1,226 @@
+"""The watch, from Python: a `georgian-for-garmin rpc` session.
+
+`Watch()` starts `georgian-for-garmin rpc` (JSON-RPC 2.0, one message per line; method =
+operation name, params = its input, result = its output) and keeps it for its lifetime, so the
+watch connection stays open between calls. Device work stays in the Rust core: its pre-write
+checks, readback and identification apply to every call. The dev operations (`read_file`,
+`stage_file`, `remove_staged`) exist only in a dev build of the CLI (`cargo build -p
+georgian-for-garmin --features dev`); pass its path as `command`.
+
+    with Watch() as watch:
+        watch.summary()["model"]
+        watch.hash("006-D9035-03.fnt")
+        staged = watch.stage(add_georgian("006-D8947-22", markers={"ჰ": "გ"}))
+        watch.remove_staged(staged["id"])
+
+Errors become WatchError with the core's code (`no_device`, `device_busy`, `conflict`, …; the
+busy holder in `data`). Ctrl-C during a call cancels it in the core (`notifications/cancelled`)
+and raises KeyboardInterrupt once the core has answered.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+from . import registry as font_registry
+
+# The CLI to run when `command` isn't given: $GEORGIAN_FOR_GARMIN_CLI, else on PATH.
+CLI_ENV = "GEORGIAN_FOR_GARMIN_CLI"
+CLI = "georgian-for-garmin"
+# How long `close` waits for the rpc process to finish after its input closes.
+CLOSE_TIMEOUT = 10
+
+
+class WatchError(Exception):
+    """An operation failed: `code` is the core's error code, `data` the error's other fields
+    (such as `busy`), `rpc_code` the JSON-RPC code."""
+
+    def __init__(self, code, message, data=None, rpc_code=None):
+        super().__init__(f"{code}: {message}")
+        self.code, self.message, self.data, self.rpc_code = code, message, data or {}, rpc_code
+
+
+class Watch:
+    """A long-lived `georgian-for-garmin rpc` session; a context manager.
+
+    `command` is the CLI (a path or a list of arguments before `rpc`); `env` adds environment
+    variables for it (e.g. GEORGIAN_FOR_GARMIN_STATE_DIR, where staged ids are logged).
+    """
+
+    def __init__(self, command=None, *, env=None):
+        if command is None:
+            command = os.environ.get(CLI_ENV) or shutil.which(CLI)
+            if command is None:
+                raise WatchError(
+                    "invalid_input",
+                    f"{CLI} is not on PATH: pass command=<path to the CLI> or set {CLI_ENV}",
+                )
+        args = [*command, "rpc"] if isinstance(command, (list, tuple)) else [str(command), "rpc"]
+        self._process = subprocess.Popen(
+            args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            env={**os.environ, **(env or {})},
+        )
+        self._next_id = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+    def close(self):
+        """End the session: close the rpc process's input and wait for it to exit."""
+        process = self._process
+        if process.stdin and not process.stdin.closed:
+            process.stdin.close()
+        try:
+            process.wait(timeout=CLOSE_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+            process.wait()
+        if process.stdout:
+            process.stdout.close()
+
+    def _send(self, message):
+        try:
+            self._process.stdin.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
+            self._process.stdin.flush()
+        except (BrokenPipeError, ValueError):
+            raise self._exited() from None
+
+    def _exited(self):
+        return WatchError("internal", f"the rpc process exited (status {self._process.poll()})")
+
+    def _read(self):
+        line = self._process.stdout.readline()
+        if not line:
+            raise self._exited()
+        return json.loads(line)
+
+    def call(self, method, params=None, progress=None):
+        """Run operation `method` with `params` (its input) and return its output.
+
+        `progress` is called with each `notifications/progress` params ({progress, total?,
+        message}) the operation sends. Raises WatchError.
+        """
+        self._next_id += 1
+        request_id = self._next_id
+        params = dict(params or {})
+        if progress is not None:
+            params["_meta"] = {"progressToken": request_id}
+        self._send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        interrupted = False
+        while True:
+            try:
+                message = self._read()
+            except KeyboardInterrupt:
+                if interrupted:
+                    raise
+                interrupted = True
+                self._send({"jsonrpc": "2.0", "method": "notifications/cancelled",
+                            "params": {"requestId": request_id}})
+                continue
+            if "id" not in message:
+                if message.get("method") == "notifications/progress" and progress is not None:
+                    progress(message["params"])
+                continue
+            if message["id"] != request_id:
+                continue
+            if interrupted:
+                raise KeyboardInterrupt
+            if "error" in message:
+                error = message["error"]
+                data = dict(error.get("data") or {})
+                code = data.pop("code", None) or _RPC_CODES.get(error.get("code"), "internal")
+                raise WatchError(code, error.get("message", ""), data, error.get("code"))
+            return message["result"]
+
+    # Operations, as the core declares them (crates/core/src/ops.rs).
+
+    def summary(self):
+        """`inspect`: the watch's model, software, fonts, support status and report."""
+        return self.call("inspect")
+
+    def extdata_list(self, hash=None, offset=0, limit=200, output_file=None):
+        """`extdata_list`: one page of GARMIN/ExtData (normal and hidden listing), with the
+        SHA-256 of the files named in `hash`; with `output_file`, the whole listing goes there."""
+        params = {"offset": offset, "limit": limit}
+        if hash:
+            params["hash"] = list(hash)
+        if output_file is not None:
+            params["output_file"] = str(output_file)
+        return self.call("extdata_list", params)
+
+    def hash(self, *names):
+        """{name: SHA-256} of the named ExtData files, every page read; None for a name the
+        watch doesn't have."""
+        found, offset = {}, 0
+        while offset is not None:
+            page = self.extdata_list(hash=names, offset=offset, limit=1000)
+            for file in page["files"]:
+                if file.get("sha256"):
+                    found[file["name"].lower()] = file["sha256"]
+            offset = page["next_offset"]
+        return {name: found.get(name.lower()) for name in names}
+
+    def install(self, parts=None, progress=None):
+        """`install`: write this build's Georgian fonts (only `parts`, when given)."""
+        return self.call("install", {} if parts is None else {"parts": list(parts)}, progress)
+
+    def restore_stock(self, parts=None, progress=None):
+        """`restore_stock`: write Garmin's original fonts back (only `parts`, when given)."""
+        return self.call("restore_stock", {} if parts is None else {"parts": list(parts)}, progress)
+
+    def read_file(self, name, path):
+        """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist."""
+        return self.call("read_file", {"name": name, "path": str(path)})
+
+    def stage(self, source, name=None, *, dry_run=False, garmin_sha256=None, progress=None):
+        """`stage_file` (dev): stage `source` as GARMIN/ExtData/`name`.
+
+        `source` is a local path, bytes, or a build (build.Built); `name` defaults to a build's
+        `<part>.tmp`. `garmin_sha256` (hashes vouched to be Garmin's own file for the part)
+        defaults to the registry's pin for that part, so Garmin's original may be replaced.
+        Returns the core's output, with the staged `id` for `remove_staged`.
+        """
+        part = getattr(source, "part", None)
+        if name is None:
+            if part is None:
+                raise WatchError("invalid_input", "pass name, e.g. 006-D8448-70.tmp or D844870.tmp")
+            name = f"{part}.tmp"
+        if garmin_sha256 is None:
+            pin = font_registry.parts(font_registry.default()).get(part or _part_of(name))
+            garmin_sha256 = [pin.sha256] if pin is not None else []
+        params = {"name": name, "dry_run": dry_run, "garmin_sha256": list(garmin_sha256)}
+        data = getattr(source, "data", source)
+        if isinstance(data, (bytes, bytearray)):
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / name
+                path.write_bytes(data)
+                return self.call("stage_file", params | {"source": str(path)}, progress)
+        return self.call("stage_file", params | {"source": str(source)}, progress)
+
+    def remove_staged(self, staged_id):
+        """`remove_staged` (dev): delete a file this tool staged, by its id."""
+        return self.call("remove_staged", {"id": staged_id})
+
+    def wait_for_watch(self, timeout_seconds=60, progress=None):
+        """`wait_for_watch`: wait until a watch is connected; {model, waited_seconds}."""
+        return self.call("wait_for_watch", {"timeout_seconds": timeout_seconds}, progress)
+
+
+# The core's code for a JSON-RPC error without data.code.
+_RPC_CODES = {-32700: "invalid_input", -32600: "invalid_input", -32601: "invalid_input",
+              -32602: "invalid_input", -32800: "cancelled"}
+
+
+def _part_of(name):
+    """The part number a staging name stands for: `006-D8448-70.tmp`, or the short form
+    `D844870.tmp` (006- and the dash dropped)."""
+    stem = Path(name).stem.upper()
+    if len(stem) == 7 and stem[0].isalpha() and stem[1:].isdigit():
+        return f"006-{stem[:5]}-{stem[5:]}"
+    return stem

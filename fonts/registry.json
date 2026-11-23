@@ -10,11 +10,70 @@
       "sha256": "8c02263c5d73d40544f9ed91e30c4e947407057a3cc430d7b786189aeceff6df"
     }
   },
+  "hosts": [
+    {
+      "id": "armenian",
+      "kind": "bitmap",
+      "script": "Armenian",
+      "size_like": {"x_height": "աոսռւ", "capitals": "ԱԲԳԴԵԶԷԸԹԺԻԼԽԾԿՀՁՂՃՄՅՆՇՈՉՊՋՌՍՎՏՐՑՒՓՔՕՖ"},
+      "marker": {"glyph": "Հ", "drawn_as": "Ա"}
+    },
+    {
+      "id": "thai",
+      "kind": "bitmap",
+      "script": "Thai",
+      "size_like": {"x_height": "กขคงจฉชซดตถทธนบผพภมยรลวสหอฮ", "capitals": "0"},
+      "marker": {"glyph": "ก", "drawn_as": "ข"}
+    },
+    {
+      "id": "japanese",
+      "kind": "bitmap",
+      "script": "Japanese",
+      "size_like": {"x_height": "acemnorsuvwxz", "capitals": "ABCDEFGHIJKLMNOPRSTUVWXYZ"},
+      "marker": {"glyph": "あ", "drawn_as": "い"}
+    },
+    {
+      "id": "korean",
+      "kind": "bitmap",
+      "script": "Korean",
+      "size_like": {"x_height": "acemnorsuvwxz", "capitals": "ABCDEFGHIJKLMNOPRSTUVWXYZ"},
+      "marker": {"glyph": "가", "drawn_as": "나"}
+    },
+    {
+      "id": "chinese",
+      "kind": "bitmap",
+      "script": "Chinese",
+      "size_like": {"x_height": "acemnorsuvwxz", "capitals": "ABCDEFGHIJKLMNOPRSTUVWXYZ"},
+      "marker": {"glyph": "中", "drawn_as": "国"}
+    },
+    {
+      "id": "noto-armenian-truetype",
+      "kind": "truetype",
+      "script": "Armenian",
+      "size_like": {"x_height": "oces"},
+      "marker": {"glyph": "Հ", "drawn_as": "Ա"}
+    },
+    {
+      "id": "noto-hebrew-truetype",
+      "kind": "truetype",
+      "script": "Hebrew",
+      "size_like": {"x_height": "oces"},
+      "marker": {"glyph": "א", "drawn_as": "ב"}
+    },
+    {
+      "id": "swiss-721-hebrew-truetype",
+      "kind": "truetype",
+      "script": "Hebrew",
+      "size_like": {"x_height": "oces"},
+      "marker": {"glyph": "א", "drawn_as": "ב"}
+    }
+  ],
   "packs": [
     {
       "id": "armenian-noto-sans-regular",
       "name": "Armenian Font, NotoSans Regular",
       "kind": "bitmap",
+      "host": "armenian",
       "weight": 400,
       "parts": [
         {
@@ -100,6 +159,7 @@
       "id": "armenian-noto-sans-armenian-regular",
       "name": "Armenian Font, NotoSans Armenian Regular",
       "kind": "bitmap",
+      "host": "armenian",
       "weight": 400,
       "parts": [
         {
@@ -195,6 +255,7 @@
       "id": "armenian-noto-sans-armenian-bold",
       "name": "Armenian Font, NotoSans Armenian Bold",
       "kind": "bitmap",
+      "host": "armenian",
       "weight": 700,
       "parts": [
         {
@@ -295,6 +356,7 @@
       "id": "armenian-noto-sans-armenian-truetype",
       "name": "NotoSansArmenian, Armenian",
       "kind": "truetype",
+      "host": "noto-armenian-truetype",
       "weight": 400,
       "parts": [
         {
@@ -331,6 +393,7 @@
       "id": "hebrew-noto-sans-hebrew-truetype",
       "name": "NotoSansHebrew, Hebrew",
       "kind": "truetype",
+      "host": "noto-hebrew-truetype",
       "weight": 400,
       "parts": [
         {
@@ -367,6 +430,7 @@
       "id": "hebrew-swiss-721-truetype",
       "name": "Font, binary data, Hebrew",
       "kind": "truetype",
+      "host": "swiss-721-hebrew-truetype",
       "weight": 400,
       "install": false,
       "parts": [
@@ -394,6 +458,74 @@
       ],
       "tested": []
     }
+  ],
+  "stock": [
+    {"part": "006-D8448-25", "name": "APAC Font, NotoSans Sc Medium 21px, CHN", "size_px": 21, "weight": 500, "host": "chinese", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8448-25/2.10/full/rel/fb67d053-026d-492a-9509-433760c8c5ca/006-D8448-25.fnt",
+     "sha256": "7329fca4189b68af9fdaa125c1c5e79213ed68f1cf9c53f385ec1e2e0ece07e3"},
+    {"part": "006-D8448-26", "name": "APAC Font, NotoSans Sc Medium 24px, CHN", "size_px": 24, "weight": 500, "host": "chinese", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8448-26/2.10/full/rel/13a66321-f3e5-420f-ab3d-5f7e66c8483c/006-D8448-26.fnt",
+     "sha256": "2d4d5af7da9108c3b416e17ea158a3bbc763411eb8edefd46b5f107d9fd26df0"},
+    {"part": "006-D8448-27", "name": "APAC Font, NotoSans Sc Medium 27px, CHN", "size_px": 27, "weight": 500, "host": "chinese", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8448-27/2.10/full/rel/6fd97d47-fa9c-4faf-8ea2-6ca76c7ed867/006-D8448-27.fnt",
+     "sha256": "36eb0e25e456d3a575ee9f5775714edf3f3bc9e685468e67819862bc910e949e"},
+    {"part": "006-D8448-28", "name": "APAC Font, NotoSans Sc Medium 31px, CHN", "size_px": 31, "weight": 500, "host": "chinese", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8448-28/2.10/full/rel/f3ec64a5-02ed-41df-bbe3-f5f5a103f32e/006-D8448-28.fnt",
+     "sha256": "8f33d4e0ba2daa07ddf00a25470f65e4da13ce3a7dd20a74dc24a6e08ef9b635"},
+    {"part": "006-D8448-70", "name": "APAC Font, NotoSans Sc Bold 17px, CHN, Compressed", "size_px": 17, "weight": 700, "host": "chinese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8448-70/2.00/full/rel/64edde45-dc9b-47ad-8c27-203e07d955ed/006-D8448-70.fnt",
+     "sha256": "e45b41206fa05832241972e017f21bc38a2eba665b8e8be0067d42bf0b9e4e3f"},
+    {"part": "006-D8448-71", "name": "APAC Font, NotoSans Sc Bold 22px, CHN, Compressed", "size_px": 22, "weight": 700, "host": "chinese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8448-71/2.00/full/rel/aef49905-846f-4c11-a2f9-e863202e42eb/006-D8448-71.fnt",
+     "sha256": "3a8d3dae77f70d9f6912a665bb36081922c316f1385a52c21e2776f699b67957"},
+    {"part": "006-D8944-20", "name": "APAC Font, Kosugi Medium 21px, JPN", "size_px": 21, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-20/2.00/full/rel/6a7c0d1b-aa10-481d-a4f6-d8addf3becb7/006-D8944-20.fnt",
+     "sha256": "fa63923bd4384ce8e88dbacf3e3ef0a28702241e6d08baddb82dd846ce03d73d"},
+    {"part": "006-D8944-21", "name": "APAC Font, Kosugi Medium 24px, JPN", "size_px": 24, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-21/2.00/full/rel/8e69302d-a2ba-4495-9f71-50b674487483/006-D8944-21.fnt",
+     "sha256": "9bd6ba83fe1a4eba3b57064534147aa6eda2c8fe61ba83d00db25f906721ccd9"},
+    {"part": "006-D8944-22", "name": "APAC Font, Kosugi Medium 27px, JPN", "size_px": 27, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-22/2.00/full/rel/ec8b2e5f-2511-4a08-913b-a0ef83fef161/006-D8944-22.fnt",
+     "sha256": "bb42eeb91a06cb68effc0c5e2ed5911e15876616008703d04a39d6a99d26f620"},
+    {"part": "006-D8944-23", "name": "APAC Font, Kosugi Medium 31px, JPN", "size_px": 31, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-23/2.00/full/rel/562c5eeb-9c3d-46a3-bf81-a25aedab3ea1/006-D8944-23.fnt",
+     "sha256": "b665936e9fb85ec23e59245dac1978033ccd42fa1dfff9d79b4835f6af95153c"},
+    {"part": "006-D8944-66", "name": "APAC Font, Kosugi Medium 17px, JPN, Compressed", "size_px": 17, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-66/2.00/full/rel/fd968331-78df-4d0c-b422-de7dcf6173cc/006-D8944-66.fnt",
+     "sha256": "67c4c480ec17dacc3f3de3b0368958f1c227eab437df13c4b5c8ff9b54a41732"},
+    {"part": "006-D8944-67", "name": "APAC Font, Kosugi Medium 22px, JPN, Compressed", "size_px": 22, "weight": 500, "host": "japanese", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8944-67/2.00/full/rel/ad58e2fe-630b-4e0f-8346-c27feb79215b/006-D8944-67.fnt",
+     "sha256": "457f1facdca55b1c276fbaf1fa77d205a20d1e1607bbc0f543f6426dc34cd863"},
+    {"part": "006-D8945-20", "name": "APAC Font, Nanum Gothic Medium 21px, KOR", "size_px": 21, "weight": 500, "host": "korean", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8945-20/2.10/full/rel/badaaea1-7282-4d86-bf8d-059147081f09/006-D8945-20.fnt",
+     "sha256": "75e518c1bdf06d379c445c9b1c3c87a70d579fd36133094b3bbf1e52896c0e81"},
+    {"part": "006-D8945-21", "name": "APAC Font, Nanum Gothic Medium 24px, KOR", "size_px": 24, "weight": 500, "host": "korean", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8945-21/2.10/full/rel/091fb2a2-11d4-4716-8583-7bec010b0f19/006-D8945-21.fnt",
+     "sha256": "d94e315a88696af0c3cbd0e2a224b0ff83a16d802803356b3c3c0c5a5e9d636a"},
+    {"part": "006-D8945-22", "name": "APAC Font, Nanum Gothic Medium 27px, KOR", "size_px": 27, "weight": 500, "host": "korean", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8945-22/2.10/full/rel/59cd1225-0959-472c-9adb-e2bf80437511/006-D8945-22.fnt",
+     "sha256": "2497ba9fed3c6124291d204f0bcb7958804110497dfacc24c1a8301f0180b935"},
+    {"part": "006-D8945-23", "name": "APAC Font, Nanum Gothic Medium 31px, KOR", "size_px": 31, "weight": 500, "host": "korean", "version": "2.10",
+     "url": "https://download.garmin.com/gsup/006-D8945-23/2.10/full/rel/d1de9666-0d98-453a-9534-83de70820184/006-D8945-23.fnt",
+     "sha256": "9723687a7f0b1dacc142c8d863876320fe7488f855baf4ca0f9555eefff7ad06"},
+    {"part": "006-D8945-67", "name": "APAC Font, Nanum Gothic Medium 17px, KOR, Compressed", "size_px": 17, "weight": 500, "host": "korean", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8945-67/2.00/full/rel/f111f1a4-13ae-471f-b848-63288be2c027/006-D8945-67.fnt",
+     "sha256": "168171062bc327abab6d457dcaacf2b80203a9120e5a991c93211897a099b3d7"},
+    {"part": "006-D8945-68", "name": "APAC Font, Nanum Gothic Medium 22px, KOR, Compressed", "size_px": 22, "weight": 500, "host": "korean", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8945-68/2.00/full/rel/61100aaf-52bd-4913-ab14-7db7024ac429/006-D8945-68.fnt",
+     "sha256": "930ecd63027b002c0b36ea1a917e3826b4abae89e3ee625813d1daf72e163933"},
+    {"part": "006-D8947-20", "name": "APAC Font, Pridi Medium 21px, THAI", "size_px": 21, "weight": 500, "host": "thai", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8947-20/2.00/full/rel/362f0b7a-8d10-4055-93a7-9f18e16616ec/006-D8947-20.fnt",
+     "sha256": "b8812e7d2de13e2e4f3d95de2061195062cb8e0879e7af1929e29ddd4fe9447f"},
+    {"part": "006-D8947-21", "name": "APAC Font, Pridi Medium 24px, THAI", "size_px": 24, "weight": 500, "host": "thai", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8947-21/2.00/full/rel/4d4b281c-7257-4129-afb6-66b3dac0b963/006-D8947-21.fnt",
+     "sha256": "13d7b15bc445ae420c640e9a811329587719ef93ba9ab10492dfda12c507bf71"},
+    {"part": "006-D8947-22", "name": "APAC Font, Pridi Medium 27px, THAI", "size_px": 27, "weight": 500, "host": "thai", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8947-22/2.00/full/rel/fa20fe6e-7b86-44b9-96f5-8b7f7658785b/006-D8947-22.fnt",
+     "sha256": "bd4d51709b688feb1e4701d95e24803abdb51704c98f8eff3af59e96593f6948"},
+    {"part": "006-D8947-23", "name": "APAC Font, Pridi Medium 31px, THAI", "size_px": 31, "weight": 500, "host": "thai", "version": "2.00",
+     "url": "https://download.garmin.com/gsup/006-D8947-23/2.00/full/rel/fbf804a6-d8ec-4697-80fa-054f32568b29/006-D8947-23.fnt",
+     "sha256": "074edb933c43b92a1cc3f6cce08bcea2729502b8f192b2886dccf55880b47d51"}
   ],
   "watches": [
     {"model": "Venu 2", "model_part": "006-B3703-00", "issues": []},

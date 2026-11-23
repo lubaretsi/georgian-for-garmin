@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Georgian for Garmin fallback models",
+  "description": "How a watch view picks the font that draws a character, as far as recorded observations show, for the builder's render (builder/garmin_fonts/render.py). Every step cites the observations it rests on; anything a model doesn't cover renders as unknown or coverage_only, never confirmed.",
+  "type": "object",
+  "required": ["models", "evidence"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" }
+    },
+    "evidence": {
+      "description": "Observations the models cite, by id.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "part_number": { "type": "string", "pattern": "^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$" },
+    "cites": {
+      "description": "Ids of entries in evidence.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "code_point": { "type": "string", "pattern": "^U\\+[0-9A-F]{4,6}$" },
+    "model": {
+      "description": "One watch view's font fallback, for the watch models and software it was observed on.",
+      "type": "object",
+      "required": ["id", "watch", "model_parts", "software", "view", "kind", "system_lacks", "order", "unused", "stock_without_effect", "missing", "caveats"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "watch": { "description": "The watch's name for people.", "$ref": "#/$defs/text" },
+        "model_parts": {
+          "description": "GarminDevice.xml Model/PartNumber values the observations were made on.",
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/part_number" }
+        },
+        "software": {
+          "description": "Software versions the observations were made on (19.05).",
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2}$" }
+        },
+        "view": { "description": "The screen the observations were made in.", "$ref": "#/$defs/text" },
+        "kind": { "description": "The kind of ExtData font the steps name.", "enum": ["bitmap", "truetype"] },
+        "system_lacks": {
+          "description": "Code point ranges the watch's built-in font was seen not to draw. Only these characters are modelled; any other may come from the built-in font, whose bytes are unavailable, so it renders as unknown.",
+          "type": "object",
+          "required": ["ranges", "evidence"],
+          "additionalProperties": false,
+          "properties": {
+            "ranges": {
+              "type": "array", "minItems": 1,
+              "items": {
+                "type": "array", "minItems": 2, "maxItems": 2,
+                "prefixItems": [{ "$ref": "#/$defs/code_point" }, { "$ref": "#/$defs/code_point" }]
+              }
+            },
+            "evidence": { "$ref": "#/$defs/cites" }
+          }
+        },
+        "order": {
+          "description": "ExtData parts the view takes such a character from, first match first.",
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["part", "evidence"],
+            "additionalProperties": false,
+            "properties": {
+              "part": { "$ref": "#/$defs/part_number" },
+              "evidence": { "$ref": "#/$defs/cites" }
+            }
+          }
+        },
+        "unused": {
+          "description": "Parts the view was seen not to take such characters from, whatever they hold (other sizes).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["parts", "evidence"],
+            "additionalProperties": false,
+            "properties": {
+              "parts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/part_number" } },
+              "evidence": { "$ref": "#/$defs/cites" }
+            }
+          }
+        },
+        "stock_without_effect": {
+          "description": "Fonts that, as Garmin's originals at these versions, were present while such characters drew as boxes: they don't supply them. Another version, or a font the render replaces, gets no such pass.",
+          "type": "object",
+          "required": ["fonts", "evidence"],
+          "additionalProperties": false,
+          "properties": {
+            "fonts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["part", "version"],
+                "additionalProperties": false,
+                "properties": {
+                  "part": { "$ref": "#/$defs/part_number" },
+                  "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2}$" }
+                }
+              }
+            },
+            "evidence": { "$ref": "#/$defs/cites" }
+          }
+        },
+        "missing": {
+          "description": "What backs drawing a box when no considered font has the character.",
+          "type": "object",
+          "required": ["evidence"],
+          "additionalProperties": false,
+          "properties": { "evidence": { "$ref": "#/$defs/cites" } }
+        },
+        "caveats": {
+          "description": "Recorded observations the model doesn't explain.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["note", "evidence"],
+            "additionalProperties": false,
+            "properties": {
+              "note": { "$ref": "#/$defs/text" },
+              "evidence": { "$ref": "#/$defs/cites" }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "description": "One recorded observation: what was seen, and where it is recorded. sources are paths in this repository (checked to exist) or lab record names with a section.",
+      "type": "object",
+      "required": ["id", "observed", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "observed": { "$ref": "#/$defs/text" },
+        "sources": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object", "required": ["repo"], "additionalProperties": false,
+                "properties": { "repo": { "$ref": "#/$defs/text" } }
+              },
+              {
+                "type": "object", "required": ["lab", "section"], "additionalProperties": false,
+                "properties": {
+                  "lab": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+$" },
+                  "section": { "$ref": "#/$defs/text" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

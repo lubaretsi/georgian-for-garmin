@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from registry_data import ENTRIES, PART_IDS, TRUETYPE_PART_IDS
+from registry_data import ENTRIES, HOSTS, PART_IDS, PINS, TRUETYPE_PART_IDS
 from test_build import cli_args, run_cli
 
 from garmin_fonts import truetype
@@ -247,7 +247,7 @@ def test_truetype_mark_is_a_bar_within_the_limits(assets, marked_assets, part):
 
 def test_truetype_bar_fails_without_room(truetype_stock, outlines):
     data = truetype_stock[TRUETYPE_PART_IDS[0]]
-    sizing = truetype.choose_sizing(data, outlines(400))
+    sizing = truetype.choose_sizing(data, outlines(400), HOSTS[PINS[TRUETYPE_PART_IDS[0]].host])
     font = ttfont(truetype.with_georgian(data, outlines(400), sizing))
     glyph = font["glyf"][f"uni{ord(TEST_CAPS[0]):04X}"]
     upm = font["head"].unitsPerEm

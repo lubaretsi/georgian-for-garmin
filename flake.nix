@@ -19,6 +19,9 @@
       stockParts = lib.concatMap
         (pack: map (part: part // { file = "${part.part}.${suffix.${pack.kind}}"; }) pack.parts)
         registry.packs;
+      # Other pinned stock fonts (the registry's `stock`): the codec's round-trip tests and the
+      # toolkit's experiments use them; the app's fonts don't.
+      catalogParts = map (part: part // { file = "${part.part}.fnt"; }) registry.stock;
 
       builderFiles = lib.fileset.unions [
         ./builder
@@ -27,21 +30,35 @@
       ];
       src = lib.fileset.toSource { root = ./.; fileset = builderFiles; };
       # The builder tests also check the per-part size table in fonts/README.md and the watch
-      # table in README.md.
+      # table in README.md, and render the test text over every watch report fixture with the
+      # fallback models.
       testSrc = lib.fileset.toSource {
         root = ./.;
-        fileset = lib.fileset.unions [ builderFiles ./fonts/README.md ./README.md ];
+        fileset = lib.fileset.unions [
+          builderFiles
+          ./fonts/README.md
+          ./fonts/fallback-models.json
+          ./fonts/fallback-models.schema.json
+          ./README.md
+          ./crates/core/tests/reports
+        ];
       };
 
+      farm = pkgs: name: parts: pkgs.linkFarm name (map
+        (part: {
+          name = part.file;
+          path = pkgs.fetchurl { inherit (part) url sha256; };
+        })
+        parts);
+
       fontInputs = pkgs: {
-        GFG_STOCK_DIR = pkgs.linkFarm "garmin-stock-fonts" (map
-          (part: {
-            name = part.file;
-            path = pkgs.fetchurl { inherit (part) url sha256; };
-          })
-          stockParts);
+        GFG_STOCK_DIR = farm pkgs "garmin-stock-fonts" stockParts;
         GFG_NOTO_SANS_GEORGIAN = pkgs.fetchurl { inherit (registry.georgian_font) url sha256; };
         GFG_NOTO_OFL = pkgs.fetchurl { inherit (registry.georgian_font.license) url sha256; };
+      };
+      # For the builder tests and the dev shell (python -m garmin_fonts fetch finds them here).
+      catalogInputs = pkgs: (fontInputs pkgs) // {
+        GFG_CATALOG_DIR = farm pkgs "garmin-catalog-fonts" catalogParts;
       };
 
       python = pkgs: pkgs.python3.withPackages (ps: with ps; [ fonttools jsonschema pillow pytest ]);
@@ -59,7 +76,7 @@
         })
         ''
           cd ${src}/builder
-          python -m garmin_fonts --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
+          python -m garmin_fonts build --registry ../fonts/registry.json --stock-dir "$GFG_STOCK_DIR" \
             --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out" \
             ${lib.optionalString testMarks "--test-marks"}
         '';
@@ -74,20 +91,22 @@
 
       checks = forAllSystems (pkgs: {
         inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) fonts;
+        # Its output holds the render report's PNGs (render/), which CI uploads.
         builder = pkgs.runCommand "georgian-garmin-fonts-tests"
-          ((fontInputs pkgs) // {
+          ((catalogInputs pkgs) // {
             nativeBuildInputs = [ (python pkgs) ];
             PYTHONDONTWRITEBYTECODE = 1;
+            GFG_OFFLINE = 1;
           })
           ''
+            mkdir -p "$out/render"
             cd ${testSrc}/builder
-            pytest -q
-            touch "$out"
+            GFG_RENDER_OUT="$out/render" pytest -q
           '';
       });
 
       devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell ((fontInputs pkgs) // {
+        default = pkgs.mkShell ((catalogInputs pkgs) // {
           GEORGIAN_FOR_GARMIN_FONTS = self.packages.${pkgs.stdenv.hostPlatform.system}.fonts;
           packages = with pkgs; [
             (python pkgs)

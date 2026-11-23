@@ -1,12 +1,17 @@
-"""The font registry (`fonts/registry.json`): the Garmin packs that get Georgian, and its checks.
+"""The font registry (`fonts/registry.json`): host families, the Garmin packs that get Georgian,
+other pinned stock fonts, the support list, and its checks.
 
 A pack is `bitmap` (2-bit `.fnt` files, one per size) or `truetype` (masked TrueType `.bin`
-files, one per weight).
+files, one per weight) and belongs to a host family (`hosts`), which says what its Georgian is
+sized by. `stock` pins other Garmin bitmap fonts for experiments and the codec's tests; they are
+never built into the app's fonts.
 """
 
 import hashlib
 import json
 from collections import Counter
+from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -16,6 +21,8 @@ from .codec import decode, identity
 from .truetype import open_host, version_of
 
 SCHEMA_NAME = "registry.schema.json"
+# The repository's registry, beside the builder.
+REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
 # The stock file's extension, by pack kind: Garmin's download names and the build's file names.
 SUFFIX = {"bitmap": ".fnt", "truetype": ".bin"}
 
@@ -31,6 +38,12 @@ def load(path, schema_path=None):
     registry, schema = (_read_json(p) for p in (path, schema_path))
     validate(registry, schema, source=path)
     return registry
+
+
+@cache
+def default():
+    """The repository's registry (REGISTRY), loaded and validated once."""
+    return load(REGISTRY)
 
 
 def _read_json(path):
@@ -51,8 +64,20 @@ def validate(registry, schema, source="registry"):
     packs = registry["packs"]
     watches = {watch["model_part"]: watch for watch in registry["watches"]}
     problems = [f"pack id {i} is listed more than once" for i in _repeated(p["id"] for p in packs)]
-    all_parts = (part["part"] for pack in packs for part in pack["parts"])
+    hosts = {host["id"]: host for host in registry["hosts"]}
+    problems += [
+        f"host id {i} is listed more than once" for i in _repeated(h["id"] for h in registry["hosts"])
+    ]
+    all_parts = [part["part"] for pack in packs for part in pack["parts"]]
+    all_parts += [part["part"] for part in registry["stock"]]
     problems += [f"part {part} is listed more than once" for part in _repeated(all_parts)]
+    for entry, kind in [(p, p["kind"]) for p in packs] + [(s, "bitmap") for s in registry["stock"]]:
+        name = f"pack {entry['id']}" if "id" in entry else f"stock part {entry['part']}"
+        host = hosts.get(entry["host"])
+        if host is None:
+            problems.append(f"{name}: host {entry['host']} is not in hosts")
+        elif host["kind"] != kind:
+            problems.append(f"{name}: host {entry['host']} is a {host['kind']} host, not {kind}")
     for pack in packs:
         name = f"pack {pack['id']}"
         if pack["kind"] == "bitmap":
@@ -130,6 +155,46 @@ def resolved_watches(registry):
 
 def _repeated(values):
     return [value for value, count in Counter(values).items() if count > 1]
+
+
+@dataclass(frozen=True)
+class Part:
+    """A stock part the registry pins: from a pack (`pack` is its id) or from `stock` (None)."""
+
+    part: str
+    version: str
+    url: str
+    sha256: str
+    kind: str
+    host: str
+    weight: int
+    size_px: int | None
+    name: str
+    pack: str | None
+
+    @property
+    def file_name(self):
+        """`<part>.fnt` or `<part>.bin`, as Garmin names the download."""
+        return self.part + SUFFIX[self.kind]
+
+
+def parts(registry):
+    """{part number: Part} for every part the registry pins, packs first, in registry order."""
+    out = {}
+    for pack in registry["packs"]:
+        for part in pack["parts"]:
+            out[part["part"]] = Part(
+                part["part"], part["version"], part["url"], part["sha256"], pack["kind"],
+                pack["host"], weight(pack, part), part.get("size_px"),
+                f"{pack['name']}{' %d px' % part['size_px'] if 'size_px' in part else ''}",
+                pack["id"],
+            )
+    for part in registry["stock"]:
+        out[part["part"]] = Part(
+            part["part"], part["version"], part["url"], part["sha256"], "bitmap", part["host"],
+            part["weight"], part["size_px"], part["name"], None,
+        )
+    return out
 
 
 def weight(pack, part):
