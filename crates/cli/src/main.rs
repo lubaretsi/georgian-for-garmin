@@ -78,7 +78,7 @@ enum Command {
     RemoveStaged(RemoveStagedArgs),
     /// Print the watch's MTP GetDeviceInfo (development builds; reads the watch only)
     #[cfg(feature = "dev")]
-    MtpDeviceInfo(InputArgs),
+    MtpDeviceInfo(DeviceInfoArgs),
     /// Print the watch's MTP storage IDs (development builds; reads the watch only)
     #[cfg(feature = "dev")]
     MtpStorageIds(InputArgs),
@@ -250,6 +250,21 @@ struct ReadFileArgs {
     #[arg(long)]
     path: Option<String>,
 
+    /// Copy GarminDevice.xml's unit ID unmasked; never share such a copy
+    #[arg(long)]
+    reveal_identifiers: bool,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct DeviceInfoArgs {
+    /// Print the serial number instead of <redacted>; never paste the result anywhere shared
+    #[arg(long)]
+    reveal_identifiers: bool,
+
     #[command(flatten)]
     input: InputArgs,
 }
@@ -364,6 +379,10 @@ struct MtpReadArgs {
     #[arg(long)]
     max_bytes: Option<u64>,
 
+    /// Return GarminDevice.xml's unit ID unmasked; never paste the result anywhere shared
+    #[arg(long)]
+    reveal_identifiers: bool,
+
     #[command(flatten)]
     input: InputArgs,
 }
@@ -386,6 +405,11 @@ struct PtpTransactionArgs {
     /// The most bytes printed as base64 [default: 1048576]
     #[arg(long)]
     max_bytes: Option<u64>,
+
+    /// Return serial numbers, owner names and unit IDs unmasked; never paste the result
+    /// anywhere shared
+    #[arg(long)]
+    reveal_identifiers: bool,
 
     #[command(flatten)]
     input: InputArgs,
@@ -463,6 +487,16 @@ fn flag(flags: &mut Map<String, Value>, name: &str, value: Option<Value>) {
     }
 }
 
+/// `reveal_identifiers: true` when `--reveal-identifiers` is given.
+#[cfg(feature = "dev")]
+fn reveal(flags: &mut Map<String, Value>, reveal: bool) {
+    flag(
+        flags,
+        "reveal_identifiers",
+        reveal.then_some(Value::Bool(true)),
+    );
+}
+
 fn request(command: &Command) -> Result<Value, Error> {
     let mut flags = Map::new();
     let input = match command {
@@ -501,6 +535,7 @@ fn request(command: &Command) -> Result<Value, Error> {
         Command::ReadFile(args) => {
             flag(&mut flags, "name", args.name.as_ref().map(|n| json!(n)));
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
+            reveal(&mut flags, args.reveal_identifiers);
             &args.input
         }
         #[cfg(feature = "dev")]
@@ -522,7 +557,12 @@ fn request(command: &Command) -> Result<Value, Error> {
             &args.input
         }
         #[cfg(feature = "dev")]
-        Command::MtpDeviceInfo(input) | Command::MtpStorageIds(input) => input,
+        Command::MtpDeviceInfo(args) => {
+            reveal(&mut flags, args.reveal_identifiers);
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpStorageIds(input) => input,
         #[cfg(feature = "dev")]
         Command::MtpStorageInfo(args) => {
             flag(&mut flags, "storage", args.storage.map(|n| json!(n)));
@@ -551,6 +591,7 @@ fn request(command: &Command) -> Result<Value, Error> {
             flag(&mut flags, "length", args.length.map(|n| json!(n)));
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
             flag(&mut flags, "max_bytes", args.max_bytes.map(|n| json!(n)));
+            reveal(&mut flags, args.reveal_identifiers);
             &args.input
         }
         #[cfg(feature = "dev")]
@@ -560,6 +601,7 @@ fn request(command: &Command) -> Result<Value, Error> {
             flag(&mut flags, "params", params);
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
             flag(&mut flags, "max_bytes", args.max_bytes.map(|n| json!(n)));
+            reveal(&mut flags, args.reveal_identifiers);
             &args.input
         }
         #[cfg(feature = "dev")]

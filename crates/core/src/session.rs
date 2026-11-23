@@ -277,8 +277,8 @@ impl<'a> Session<'a> {
             }
             #[cfg(feature = "dev")]
             "mtp_device_info" => {
-                let crate::raw::NoInput {} = parse(input)?;
-                to_value(watch.run(|dev, _| crate::raw::device_info(dev))?)
+                let input: crate::raw::DeviceInfoInput = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::device_info(dev, &input))?)
             }
             #[cfg(feature = "dev")]
             "mtp_storage_ids" => {

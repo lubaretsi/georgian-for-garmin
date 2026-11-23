@@ -607,7 +607,9 @@ static DEV_OPERATIONS: [Operation; 13] = [
         title: "Read a file from ExtData (dev)",
         description: "Copy one file from the watch's GARMIN/ExtData folder (normal or hidden \
                       listing, by name) to a new local file at path; an existing local file is \
-                      never overwritten. Returns its size and SHA-256. Development builds only. \
+                      never overwritten. Returns its size and SHA-256. A file named \
+                      GarminDevice.xml has its unit ID (<Id>) masked with asterisks unless \
+                      reveal_identifiers; never share an unmasked copy. Development builds only. \
                       Reads the watch only.",
         read_only: true,
         destructive: false,
@@ -657,14 +659,16 @@ static DEV_OPERATIONS: [Operation; 13] = [
         name: "mtp_device_info",
         title: "MTP device info (dev)",
         description: "The watch's MTP GetDeviceInfo dataset, as the session read it when it \
-                      opened: model, versions, serial number, and the operation, event, \
-                      property and format codes it lists. Development builds only. Reads the \
+                      opened: model, versions, and the operation, event, property and format \
+                      codes it lists. The serial number reads \"<redacted>\" unless \
+                      reveal_identifiers; never paste an unredacted result anywhere shared \
+                      (issues, pull requests, lab records). Development builds only. Reads the \
                       watch only.",
         read_only: true,
         destructive: false,
         idempotent: true,
         open_world: false,
-        input: || schema_for!(crate::raw::NoInput),
+        input: || schema_for!(crate::raw::DeviceInfoInput),
         output: || schema_for!(crate::raw::DeviceInfoOutput),
     },
     Operation {
@@ -725,7 +729,10 @@ static DEV_OPERATIONS: [Operation; 13] = [
                       (GetPartialObject when the watch lists it, else the whole object cut to \
                       the range). Returned as base64 up to max_bytes (default 1 MiB), or written \
                       to a new local file at path, which must not exist; with the size and \
-                      SHA-256. Development builds only. Reads the watch only.",
+                      SHA-256 of what is returned. GarminDevice.xml's unit ID (<Id>) is masked \
+                      with asterisks unless reveal_identifiers (that file is read whole and \
+                      then cut); never paste an unmasked result anywhere shared. Other files are \
+                      returned as they are. Development builds only. Reads the watch only.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -745,8 +752,13 @@ static DEV_OPERATIONS: [Operation; 13] = [
                       GetObjectPropValue, GetObjectPropList and GetObjectReferences, and Garmin's \
                       GetObjectIds (0x9002). Every other code, unknown vendor codes included, is \
                       refused as invalid_input before anything is sent; writes go through \
-                      mtp_create and mtp_delete. USB only: on Windows (WPD) it is \
-                      unsupported_device. Development builds only. Reads the watch only.",
+                      mtp_create and mtp_delete. Identifiers in the data read as asterisks, \
+                      keeping its length, unless reveal_identifiers: the serial number in \
+                      GetDeviceInfo, the owner's names in GetDevicePropDesc/GetDevicePropValue of \
+                      0xD401 and 0xD402, the unit ID in GetObject/GetPartialObject of \
+                      GarminDevice.xml; never paste an unmasked result anywhere shared. USB only: \
+                      on Windows (WPD) it is unsupported_device. Development builds only. Reads \
+                      the watch only.",
         read_only: true,
         destructive: false,
         idempotent: true,

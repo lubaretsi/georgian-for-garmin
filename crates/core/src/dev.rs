@@ -299,6 +299,9 @@ pub struct ReadFileInput {
     pub name: String,
     /// The local file to create; it must not exist.
     pub path: String,
+    /// Copy GarminDevice.xml's unit ID (its <Id>) instead of asterisks. Never share such a
+    /// copy (issues, pull requests, lab records). Default false.
+    pub reveal_identifiers: Option<bool>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -335,7 +338,10 @@ pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOut
             ));
         }
     };
-    let bytes = dev.get_object(*handle)?;
+    let mut bytes = dev.get_object(*handle)?;
+    if input.reveal_identifiers != Some(true) {
+        crate::raw::mask_unit_id(&info.filename, &mut bytes);
+    }
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)

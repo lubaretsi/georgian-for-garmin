@@ -116,6 +116,19 @@ checked):
   the deleted file's name, handle, SHA-256 and what it was identified as. Nothing undoes a delete;
   `remove_staged` refuses its id.
 
+Identifiers are masked by default, since dev output ends up in lab records, pull requests and
+issues: `mtp_device_info`'s `serial_number` reads `"<redacted>"`; in `ptp_transaction` data the
+serial number of GetDeviceInfo and the owner's names in GetDevicePropDesc/GetDevicePropValue of
+SynchronizationPartner (0xD401) and DeviceFriendlyName (0xD402) read as asterisks, keeping the
+data's length so it still parses; and in any object named `GarminDevice.xml` (any case) the
+`<Id>` value, the unit ID, reads as asterisks in `mtp_read`, `read_file` and a raw
+GetObject/GetPartialObject (masked in the whole file, then cut to the range, so a range through
+the Id is masked too). Data in which an identifier can't be found is withheld. Returned
+SHA-256s are of what is returned. `reveal_identifiers: true` returns them unmasked; never paste
+such a result anywhere shared. The trace carries codes, parameters and sizes, and
+`staged.jsonl` names and hashes of font files; neither holds an identifier. Other files read with
+`mtp_read` come back as they are.
+
 While the trace is on, every PTP transaction of every call is sent before the call's result as
 `notifications/trace` in both `rpc` and `mcp` (in `mcp` a custom notification, since MCP's
 logging is deprecated): `opcode`, `operation` (its name, or null), `params`, `response_code`,

@@ -14,7 +14,10 @@ use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use fake::{EXTDATA, GARMIN, IMPORTED_ARMENIAN, IMPORTED_CJK, STORAGE, Watch, XML};
+use fake::{
+    EXTDATA, GARMIN, IMPORTED_ARMENIAN, IMPORTED_CJK, OWNER_NAME, SERIAL, STORAGE, UNIT_ID, Watch,
+    XML,
+};
 use georgian_for_garmin_core::fonts::sha256_hex;
 use georgian_for_garmin_core::session::{Control, Session, Worker};
 use georgian_for_garmin_core::{Error, ErrorCode, rpc};
@@ -413,6 +416,163 @@ fn mtp_delete_deletes_only_identified_files_in_extdata() {
     let mut listed: Vec<String> = watch.listed().into_iter().map(|f| f.0).collect();
     listed.sort();
     assert_eq!(listed, ["006-D9035-01.tmp", "notes.txt"]);
+}
+
+/// `bytes` with every byte of `UNIT_ID` replaced by `*`: what masking must leave.
+fn masked_xml(bytes: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    let id = format!("<Id>{UNIT_ID}</Id>");
+    assert_eq!(
+        text.matches(&id).count(),
+        1,
+        "the fake's GarminDevice.xml holds the unit ID"
+    );
+    text.replace(&id, &format!("<Id>{}</Id>", "*".repeat(UNIT_ID.len())))
+        .into_bytes()
+}
+
+fn contains(haystack: &[u8], needle: &str) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|w| w == needle.as_bytes())
+}
+
+/// A PTP string's units as bytes, to look for it in raw data.
+fn ucs2(s: &str) -> Vec<u8> {
+    s.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+
+#[test]
+fn identifiers_are_masked_unless_revealed() {
+    let watch = Watch::venu2();
+    let (mut s, log) = session(&watch);
+    let reveal = |mut input: Value| {
+        input["reveal_identifiers"] = json!(true);
+        input
+    };
+
+    // mtp_device_info: the serial number.
+    let info = call(&mut s, "mtp_device_info", json!({})).unwrap();
+    assert_eq!(info["serial_number"], "<redacted>");
+    assert_eq!(info["model"], "Venu 2");
+    let info = call(&mut s, "mtp_device_info", reveal(json!({}))).unwrap();
+    assert_eq!(info["serial_number"], SERIAL);
+
+    // A raw GetDeviceInfo: the serial masked in place; the dataset still parses.
+    let out = call(&mut s, "ptp_transaction", json!({"opcode": 0x1001})).unwrap();
+    let masked = base64(&out["data"]);
+    let revealed = call(&mut s, "ptp_transaction", reveal(json!({"opcode": 0x1001}))).unwrap();
+    let revealed = base64(&revealed["data"]);
+    assert_eq!(masked.len(), revealed.len());
+    let parsed = georgian_for_garmin_core::ptp::DeviceInfo::decode(&masked).unwrap();
+    assert_eq!(parsed.serial_number, "*".repeat(SERIAL.len()));
+    assert_eq!(parsed.model, "Venu 2");
+    let parsed = georgian_for_garmin_core::ptp::DeviceInfo::decode(&revealed).unwrap();
+    assert_eq!(parsed.serial_number, SERIAL);
+    let serial = ucs2(SERIAL);
+    assert!(!masked.windows(serial.len()).any(|w| w == serial));
+    assert_eq!(
+        out["data"]["sha256"],
+        sha256_hex(&masked),
+        "the hash is of what's returned"
+    );
+
+    // DeviceFriendlyName (0xD402), its value and its description.
+    for opcode in [0x1015, 0x1014] {
+        let input = json!({"opcode": opcode, "params": [0xD402]});
+        let masked = base64(&call(&mut s, "ptp_transaction", input.clone()).unwrap()["data"]);
+        let revealed = base64(&call(&mut s, "ptp_transaction", reveal(input)).unwrap()["data"]);
+        assert_eq!(masked.len(), revealed.len(), "{opcode:#x}");
+        let name = ucs2(OWNER_NAME);
+        assert!(
+            revealed.windows(name.len()).any(|w| w == name),
+            "{opcode:#x}"
+        );
+        assert!(
+            !masked.windows(name.len()).any(|w| w == name),
+            "{opcode:#x}"
+        );
+        assert!(
+            masked
+                .windows(2 * OWNER_NAME.len())
+                .any(|w| w == ucs2(&"*".repeat(OWNER_NAME.len())))
+        );
+    }
+
+    // GarminDevice.xml through mtp_read: whole, and a range cutting through the Id.
+    let raw = base64(&call(&mut s, "mtp_read", reveal(json!({"handle": XML}))).unwrap()["data"]);
+    assert!(contains(&raw, UNIT_ID));
+    let expected = masked_xml(&raw);
+    let whole = base64(&call(&mut s, "mtp_read", json!({"handle": XML})).unwrap()["data"]);
+    assert_eq!(whole, expected, "only the Id changes, byte for byte");
+    let start = raw.windows(4).position(|w| w == b"<Id>").unwrap() + 4 + 3;
+    let input = json!({"handle": XML, "offset": start, "length": 12});
+    let range = base64(&call(&mut s, "mtp_read", input).unwrap()["data"]);
+    assert_eq!(range, &expected[start..start + 12]);
+    assert!(
+        range.starts_with(b"*******</Id>"),
+        "{}",
+        String::from_utf8_lossy(&range)
+    );
+
+    // A raw GetObject and GetPartialObject of it.
+    let input = json!({"opcode": 0x1009, "params": [XML]});
+    assert_eq!(
+        base64(&call(&mut s, "ptp_transaction", input).unwrap()["data"]),
+        expected
+    );
+    let input = json!({"opcode": 0x101B, "params": [XML, start, 12]});
+    let partial = base64(&call(&mut s, "ptp_transaction", input.clone()).unwrap()["data"]);
+    assert_eq!(partial, &expected[start..start + 12]);
+    let partial = base64(&call(&mut s, "ptp_transaction", reveal(input)).unwrap()["data"]);
+    assert_eq!(partial, &raw[start..start + 12]);
+
+    // read_file, for a file of that name (any case) in ExtData.
+    watch.add_file("garmindevice.xml", raw.clone());
+    let path = temp_path("device.xml");
+    let out = call(
+        &mut s,
+        "read_file",
+        json!({"name": "GARMINDEVICE.XML", "path": path}),
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), expected);
+    assert_eq!(out["sha256"], sha256_hex(&expected));
+    let path = temp_path("device.xml");
+    let input = json!({"name": "garmindevice.xml", "path": path, "reveal_identifiers": true});
+    call(&mut s, "read_file", input).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), raw);
+
+    // The live trace carries codes and sizes, and the log names and hashes: neither carries an
+    // identifier.
+    call(&mut s, "mtp_trace", json!({"enabled": true})).unwrap();
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink: georgian_for_garmin_core::trace::Sink = {
+        let seen = seen.clone();
+        std::sync::Arc::new(move |t: &georgian_for_garmin_core::trace::Transaction| {
+            seen.lock().unwrap().push(serde_json::to_string(t).unwrap());
+        })
+    };
+    let control = Control::NONE.with_trace(Some(&sink));
+    for (name, input) in [
+        ("ptp_transaction", reveal(json!({"opcode": 0x1001}))),
+        ("mtp_read", reveal(json!({"handle": XML}))),
+        (
+            "mtp_create",
+            json!({"name": "006-D9035-04.tmp", "data_base64": STANDARD.encode(b"x"),
+                              "allow_write": true}),
+        ),
+    ] {
+        s.call(name, input, &control).unwrap();
+    }
+    let seen = seen.lock().unwrap();
+    assert!(seen.len() > 5, "{seen:?}");
+    let log = std::fs::read_to_string(&log).unwrap();
+    for text in seen.iter().chain([&log]) {
+        for id in [SERIAL, UNIT_ID, OWNER_NAME] {
+            assert!(!text.contains(id), "{id} in {text}");
+        }
+    }
 }
 
 struct Rpc {

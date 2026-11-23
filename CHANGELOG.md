@@ -60,7 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only writes, `mtp_create` and `mtp_delete`, need `allow_write` and make `stage_file`'s checks
   with no override: only in `GARMIN/ExtData`, only over files identified as Garmin's, this
   program's or this tool's, never a hidden import; each is logged in `staged.jsonl`, and
-  `remove_staged` removes what `mtp_create` wrote.
+  `remove_staged` removes what `mtp_create` wrote. Identifiers are masked unless
+  `reveal_identifiers`: the serial number in `mtp_device_info` and a raw GetDeviceInfo, the
+  owner's names in the 0xD401/0xD402 device properties, and the unit ID in `GarminDevice.xml`
+  (also in `read_file`).
 - Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
 - Errors after a failed or cancelled write carry `rollback`: `complete` or `incomplete`, with each
   file it tried to delete or put back and whether that worked. An incomplete rollback now says

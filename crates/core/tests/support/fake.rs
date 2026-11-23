@@ -30,6 +30,11 @@ pub const ARMENIAN: [&str; 4] = [
 /// A part this build doesn't carry, declared under its short name, as Garmin names some
 /// downloads.
 pub const CJK: &str = "006-D8448-70";
+/// The watch's identifiers, which outputs mask unless asked: its MTP serial number, its unit ID
+/// in GarminDevice.xml, and the owner's name in its DeviceFriendlyName property.
+pub const SERIAL: &str = "FAKESERIAL0042";
+pub const UNIT_ID: &str = "3999999999";
+pub const OWNER_NAME: &str = "Ann's Venu";
 
 fn bytes_for(part: &str, base: usize, step: u32) -> Vec<u8> {
     let seed: usize = part.bytes().map(usize::from).sum();
@@ -94,6 +99,7 @@ fn device_xml() -> Vec<u8> {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
          <Model><PartNumber>006-B3703-00</PartNumber><SoftwareVersion>1905</SoftwareVersion><Description>Venu 2</Description></Model>\
+         <Id>{UNIT_ID}</Id>\
          <MassStorageMode>{files}</MassStorageMode></Device>"
     )
     .into_bytes()
@@ -297,6 +303,7 @@ impl Mtp for Connection {
         drop(self.live(op::GET_DEVICE_INFO)?);
         let info = DeviceInfo {
             model: "Venu 2".into(),
+            serial_number: SERIAL.into(),
             operations_supported: vec![
                 op::GET_DEVICE_INFO,
                 op::OPEN_SESSION,
@@ -462,6 +469,56 @@ impl Mtp for Connection {
                 .object_info(p(0))
                 .and_then(|i| Ok((vec![], i.encode()?))),
             op::GET_OBJECT => self.get_object(p(0)).map(|d| (vec![], d)),
+            op::GET_PARTIAL_OBJECT => self.get_object(p(0)).map(|d| {
+                (
+                    vec![],
+                    georgian_for_garmin_core::mtp::byte_range(d, p(1), p(2)),
+                )
+            }),
+            op::GET_DEVICE_INFO => self.device_info().and_then(|i| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.u16(i.standard_version)
+                    .u32(i.vendor_extension_id)
+                    .u16(i.vendor_extension_version);
+                w.string(&i.vendor_extension_desc)?;
+                w.u16(i.functional_mode);
+                for list in [
+                    &i.operations_supported,
+                    &i.events_supported,
+                    &i.device_properties_supported,
+                    &i.capture_formats,
+                    &i.playback_formats,
+                ] {
+                    w.u32(list.len() as u32);
+                    for &code in list {
+                        w.u16(code);
+                    }
+                }
+                for s in [
+                    &i.manufacturer,
+                    &i.model,
+                    &i.device_version,
+                    &i.serial_number,
+                ] {
+                    w.string(s)?;
+                }
+                Ok((vec![], w.0))
+            }),
+            // DeviceFriendlyName: its value, and its description (code, string type, get-set,
+            // factory default, current value, no form).
+            0x1015 if p(0) == 0xD402 => self.live(code).map(|_| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.string(OWNER_NAME).unwrap();
+                (vec![], w.0)
+            }),
+            0x1014 if p(0) == 0xD402 => self.live(code).map(|_| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.u16(0xD402).u16(0xFFFF);
+                w.0.push(1);
+                w.string("Venu 2").unwrap().string(OWNER_NAME).unwrap();
+                w.0.push(0);
+                (vec![], w.0)
+            }),
             op::GARMIN_GET_OBJECT_IDS => self
                 .garmin_object_ids(p(0), p(1))
                 .map(|h| (vec![], array(h))),

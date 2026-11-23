@@ -78,6 +78,18 @@ fn deliver(bytes: Vec<u8>, path: Option<&str>, max_bytes: Option<u64>) -> Result
 #[serde(deny_unknown_fields)]
 pub struct NoInput {}
 
+/// What a masked identifier reads as.
+pub const REDACTED: &str = "<redacted>";
+
+/// Whether to return the watch's identifiers unmasked.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceInfoInput {
+    /// Return the serial number instead of "<redacted>". Never paste such a result anywhere
+    /// shared (issues, pull requests, lab records). Default false.
+    pub reveal_identifiers: Option<bool>,
+}
+
 /// The `GetDeviceInfo` dataset, as the session read it when it opened.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct DeviceInfoOutput {
@@ -94,11 +106,17 @@ pub struct DeviceInfoOutput {
     pub manufacturer: String,
     pub model: String,
     pub device_version: String,
+    /// "<redacted>" unless reveal_identifiers.
     pub serial_number: String,
 }
 
-pub fn device_info(dev: &mut dyn Mtp) -> Result<DeviceInfoOutput, Error> {
+pub fn device_info(dev: &mut dyn Mtp, input: &DeviceInfoInput) -> Result<DeviceInfoOutput, Error> {
     let i = dev.device_info()?;
+    let serial_number = if input.reveal_identifiers == Some(true) {
+        i.serial_number
+    } else {
+        REDACTED.to_owned()
+    };
     Ok(DeviceInfoOutput {
         standard_version: i.standard_version,
         vendor_extension_id: i.vendor_extension_id,
@@ -113,8 +131,85 @@ pub fn device_info(dev: &mut dyn Mtp) -> Result<DeviceInfoOutput, Error> {
         manufacturer: i.manufacturer,
         model: i.model,
         device_version: i.device_version,
-        serial_number: i.serial_number,
+        serial_number,
     })
+}
+
+/// The byte that replaces an identifier's characters: `*`, as one byte in XML and one UCS-2
+/// unit in a PTP string, so the data keeps its length and still parses.
+const MASK: u8 = b'*';
+/// MTP device properties that can hold the owner's name.
+const SYNCHRONIZATION_PARTNER: u32 = 0xD401;
+const DEVICE_FRIENDLY_NAME: u32 = 0xD402;
+/// The PTP datatype code of a string.
+const STR: u16 = 0xFFFF;
+/// The file whose `<Id>` is the watch's unit ID.
+const GARMIN_DEVICE_XML: &str = "GarminDevice.xml";
+
+/// Masks the characters of the PTP string at `at` (its count byte), keeping its length;
+/// returns the offset after it, or `None` when the bytes end first.
+fn mask_ptp_string(data: &mut [u8], at: usize) -> Option<usize> {
+    let count = usize::from(*data.get(at)?);
+    let end = at + 1 + 2 * count;
+    for unit in data.get_mut(at + 1..end)?.chunks_exact_mut(2) {
+        if unit != [0, 0] {
+            unit.copy_from_slice(&u16::from(MASK).to_le_bytes());
+        }
+    }
+    Some(end)
+}
+
+/// The byte ranges of every `<Id>` element's text in GarminDevice.xml: the unit ID.
+fn unit_id_spans(xml: &[u8]) -> Vec<std::ops::Range<usize>> {
+    let (open, close) = (b"<Id>".as_slice(), b"</Id>".as_slice());
+    let find = |from: usize, what: &[u8]| {
+        xml.get(from..)?
+            .windows(what.len())
+            .position(|w| w == what)
+            .map(|i| from + i)
+    };
+    let mut spans = Vec::new();
+    let mut at = 0;
+    while let Some(start) = find(at, open).map(|i| i + open.len()) {
+        let end = find(start, close).unwrap_or(xml.len());
+        spans.push(start..end);
+        at = end;
+    }
+    spans
+}
+
+/// Masks `spans` (offsets in the whole object) in `data`, which starts at `offset` of it.
+fn mask_spans(data: &mut [u8], offset: usize, spans: &[std::ops::Range<usize>]) {
+    for span in spans {
+        let start = span.start.saturating_sub(offset).min(data.len());
+        let end = span.end.saturating_sub(offset).min(data.len());
+        data[start..end].fill(MASK);
+    }
+}
+
+/// Whether object `handle` is GarminDevice.xml.
+fn holds_unit_id(dev: &mut dyn Mtp, handle: u32) -> Result<bool, Error> {
+    let name = dev.object_info(handle)?.filename;
+    Ok(name.eq_ignore_ascii_case(GARMIN_DEVICE_XML))
+}
+
+/// Masks the unit ID (every `<Id>` value) in `bytes`, the whole object, when `name` is
+/// GarminDevice.xml (any case); the rest stays byte for byte.
+pub(crate) fn mask_unit_id(name: &str, bytes: &mut [u8]) {
+    if name.eq_ignore_ascii_case(GARMIN_DEVICE_XML) {
+        let spans = unit_id_spans(bytes);
+        mask_spans(bytes, 0, &spans);
+    }
+}
+
+fn unmaskable(what: &str) -> Error {
+    Error::new(
+        ErrorCode::DeviceError,
+        format!(
+            "Could not find the {what} in the watch's data to mask it, so nothing is returned; \
+             reveal_identifiers returns the data as it is."
+        ),
+    )
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -264,6 +359,9 @@ pub struct ReadInput {
     /// Default 1048576.
     #[schemars(range(max = 16_777_216))]
     pub max_bytes: Option<u64>,
+    /// Return GarminDevice.xml's unit ID (its <Id>) instead of asterisks. Never paste such a
+    /// result anywhere shared (issues, pull requests, lab records). Default false.
+    pub reveal_identifiers: Option<bool>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -274,17 +372,23 @@ pub struct ReadOutput {
 }
 
 /// The whole object, or with `offset` or `length` a range: GetPartialObject when the watch
-/// lists it (USB), else the whole object cut to the range.
+/// lists it (USB), else the whole object cut to the range. GarminDevice.xml's unit ID is masked
+/// unless `reveal_identifiers`; that file is always read whole to find it.
 pub fn read(dev: &mut dyn Mtp, input: &ReadInput) -> Result<ReadOutput, Error> {
-    let bytes = if input.offset.is_none() && input.length.is_none() {
+    let whole = input.offset.is_none() && input.length.is_none();
+    let (offset, length) = (input.offset.unwrap_or(0), input.length.unwrap_or(u32::MAX));
+    let bytes = if input.reveal_identifiers != Some(true) && holds_unit_id(dev, input.handle)? {
+        let mut xml = dev.get_object(input.handle)?;
+        mask_unit_id(GARMIN_DEVICE_XML, &mut xml);
+        crate::mtp::byte_range(xml, offset, length)
+    } else if whole {
         dev.get_object(input.handle)?
     } else {
-        let (offset, length) = (input.offset.unwrap_or(0), input.length.unwrap_or(u32::MAX));
         dev.get_partial_object(input.handle, offset, length)?
     };
     Ok(ReadOutput {
         handle: input.handle,
-        offset: input.offset.unwrap_or(0),
+        offset,
         data: deliver(bytes, input.path.as_deref(), input.max_bytes)?,
     })
 }
@@ -355,6 +459,13 @@ pub struct PtpTransactionInput {
     /// 1048576.
     #[schemars(range(max = 16_777_216))]
     pub max_bytes: Option<u64>,
+    /// Return identifiers unmasked: the serial number in GetDeviceInfo, the owner's names in
+    /// GetDevicePropDesc/GetDevicePropValue of SynchronizationPartner (0xD401) and
+    /// DeviceFriendlyName (0xD402), and the unit ID in GetObject/GetPartialObject of
+    /// GarminDevice.xml. By default their characters read as asterisks, keeping the data's
+    /// length. Never paste such a result anywhere shared (issues, pull requests, lab records).
+    /// Default false.
+    pub reveal_identifiers: Option<bool>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -385,7 +496,10 @@ pub fn ptp_transaction(
 ) -> Result<PtpTransactionOutput, Error> {
     check_read(input)?;
     let params = input.params.as_deref().unwrap_or_default();
-    let response = dev.ptp_transaction(input.opcode, params)?;
+    let mut response = dev.ptp_transaction(input.opcode, params)?;
+    if input.reveal_identifiers != Some(true) && !response.data.is_empty() {
+        mask_identifiers(dev, input.opcode, params, &mut response.data)?;
+    }
     Ok(PtpTransactionOutput {
         opcode: input.opcode,
         operation: ptp::known_operation_name(input.opcode).map(str::to_owned),
@@ -394,6 +508,54 @@ pub fn ptp_transaction(
         response_params: response.params,
         data: deliver(response.data, input.path.as_deref(), input.max_bytes)?,
     })
+}
+
+/// Masks the identifiers a read can return, in place and keeping the data's length: the
+/// serial number in GetDeviceInfo, the owner's names in the SynchronizationPartner and
+/// DeviceFriendlyName properties, the unit ID in GarminDevice.xml. Data in which one can't be
+/// found is withheld.
+fn mask_identifiers(
+    dev: &mut dyn Mtp,
+    opcode: u16,
+    params: &[u32],
+    data: &mut [u8],
+) -> Result<(), Error> {
+    let param = |i: usize| params.get(i).copied().unwrap_or(0);
+    match opcode {
+        op::GET_DEVICE_INFO => {
+            let at = ptp::DeviceInfo::decode_with_serial_offset(data)
+                .map_err(|_| unmaskable("serial number"))?
+                .1;
+            mask_ptp_string(data, at).ok_or_else(|| unmaskable("serial number"))?;
+        }
+        op::GET_DEVICE_PROP_VALUE
+            if matches!(param(0), SYNCHRONIZATION_PARTNER | DEVICE_FRIENDLY_NAME) =>
+        {
+            mask_ptp_string(data, 0).ok_or_else(|| unmaskable("owner's name"))?;
+        }
+        op::GET_DEVICE_PROP_DESC
+            if matches!(param(0), SYNCHRONIZATION_PARTNER | DEVICE_FRIENDLY_NAME) =>
+        {
+            // Property code (u16), datatype (u16), get/set (u8), then the factory default
+            // and current values.
+            let string = data.get(2..4) == Some(STR.to_le_bytes().as_slice());
+            let masked = string
+                .then(|| mask_ptp_string(data, 5).and_then(|next| mask_ptp_string(data, next)))
+                .flatten();
+            masked.ok_or_else(|| unmaskable("owner's name"))?;
+        }
+        op::GET_OBJECT | op::GET_PARTIAL_OBJECT if holds_unit_id(dev, param(0))? => {
+            let spans = unit_id_spans(&dev.get_object(param(0))?);
+            let offset = if opcode == op::GET_PARTIAL_OBJECT {
+                param(1) as usize
+            } else {
+                0
+            };
+            mask_spans(data, offset, &spans);
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Whether the session sends every PTP transaction as `notifications/trace`.

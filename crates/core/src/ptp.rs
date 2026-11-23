@@ -440,8 +440,14 @@ pub struct DeviceInfo {
 
 impl DeviceInfo {
     pub fn decode(bytes: &[u8]) -> Result<DeviceInfo, ProtocolError> {
+        Ok(DeviceInfo::decode_with_serial_offset(bytes)?.0)
+    }
+
+    /// The dataset, and the byte offset of its SerialNumber string (the count byte), so a copy
+    /// of the bytes can be masked.
+    pub fn decode_with_serial_offset(bytes: &[u8]) -> Result<(DeviceInfo, usize), ProtocolError> {
         let mut r = Reader::new(bytes);
-        Ok(DeviceInfo {
+        let mut info = DeviceInfo {
             standard_version: r.u16()?,
             vendor_extension_id: r.u32()?,
             vendor_extension_version: r.u16()?,
@@ -455,8 +461,11 @@ impl DeviceInfo {
             manufacturer: r.string()?,
             model: r.string()?,
             device_version: r.string()?,
-            serial_number: r.string()?,
-        })
+            serial_number: String::new(),
+        };
+        let serial = r.pos;
+        info.serial_number = r.string()?;
+        Ok((info, serial))
     }
 }
 
