@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The redesigned app UI's first phase, for developers: `crates/app/frontend` (React, TypeScript,
+  Vite) with Storybook, where every screen and the Connect → Install → Restart → Check flows run
+  over a simulated watch built from the core's real results
+  ([development](docs/development.md#frontend-and-storybook)). The shipped app is unchanged.
+  `nix develop` has Node and pnpm; `crates/core/tests/ui_fixtures.rs` writes and checks the
+  fixtures; CI generates the core's TypeScript types, typechecks, and runs the flow and story
+  tests in Chromium and WebKit with axe.
+
 ## [0.3.4] - 2026-11-24
 
 ### Added

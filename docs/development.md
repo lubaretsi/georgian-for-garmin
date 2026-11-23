@@ -306,6 +306,35 @@ tests check that.
 `tests/replay.rs` in `crates/core` replays every watch report posted in the issues against a fake
 watch; add a new report with `scripts/report_fixture.py` ([fixtures](../crates/core/tests/reports/README.md)).
 
+### Frontend and Storybook
+
+The redesigned UI lives in `crates/app/frontend` (React, TypeScript, Vite), with its contract in
+[CONTRACT.md](../crates/app/frontend/CONTRACT.md). In phase 1 it runs only in Storybook and the
+tests, over a simulated watch; the shipped app still uses `ui/`. Node and pnpm come with
+`nix develop`:
+
+```sh
+cd crates/app/frontend
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium webkit   # once: the story tests' browsers
+pnpm storybook        # http://localhost:6006: Screens/… and the clickable Flows/…
+pnpm typecheck
+pnpm test             # Vitest: flow, copy and component tests, and every story in Chromium and WebKit, with axe
+pnpm test:unit        # only the tests that need no browser
+pnpm gen:types        # src/core/types.gen.ts from the CLI's --help --json
+```
+
+Each `Flows/…` story is the whole app beside a watch simulator (plug in over MTP or as a drive,
+unplug, restart, Garmin Express holding the watch, a failing write, what the next test
+notification shows); its play function walks the flow end to end. Nothing opens a device.
+
+The core's types are generated: after changing an operation's input or output, run
+`pnpm gen:types` and commit `src/core/types.gen.ts` (CI fails on a diff). The stories and tests
+read the core's real results from `fixtures/core/<scenario>/<step>.json`, written by
+`crates/core/tests/ui_fixtures.rs` on fake watches built from the replay reports. That test fails
+when the core's output drifts; regenerate with
+`GFG_WRITE_UI_FIXTURES=1 cargo test -p georgian-for-garmin-core --test ui_fixtures`.
+
 ## Release
 
 Releases are built with each platform's own toolchain and rustup's Rust, outside `nix develop`, so
