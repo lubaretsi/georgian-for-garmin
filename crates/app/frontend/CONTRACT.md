@@ -220,7 +220,7 @@ Pure and table-tested against every fixture. The first matching rule wins:
 
 | # | When | Verdict |
 |---|---|---|
-| 1 | `support.status = unsupported` | `unsupported`, with `reason = support.reason` and `restorable = restorable` |
+| 1 | `support.status = unsupported` | `unsupported`, with `reason = support.reason`; `restorable` only if `restorable` and a part restore writes is seen holding our Georgian or an earlier build (`georgian`, `georgian_beta`). Otherwise Restore stays in More (`MoreModel.restorable = restorable`) without being the main action. |
 | 2 | `state = unknown` | `unreadable` |
 | 3 | `state = unsupported` (install writes nothing) | `no_font` |
 | 4 | `state = waiting` / `stock_waiting` | `restart_pending` `georgian` / `stock` |
