@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import sys
+import subprocess
 import threading
 from pathlib import Path
 
@@ -152,6 +153,66 @@ def test_close_ends_the_process(tmp_path):
     session = Watch(FAKE)
     session.close()
     assert session._process.returncode == 0
+    session.close()  # again: nothing to do
+
+
+def test_a_dropped_session_ends_the_process():
+    session = Watch(FAKE)
+    process = session._process
+    del session
+    assert process.poll() is not None
+
+
+# A terminal's Ctrl-C: SIGINT to the whole foreground process group, during a call. Run in its own
+# session so the signal reaches nothing but this script and what shares its group.
+GROUP_SIGINT = r"""
+import json, os, signal, sys, threading
+sys.path.insert(0, sys.argv[1])
+from garmin_fonts.watch import Watch, WatchError
+method, params, command = sys.argv[2], json.loads(sys.argv[3]), sys.argv[4:]
+watch = Watch(command)
+threading.Timer(1.0, os.killpg, (os.getpgid(0), signal.SIGINT)).start()
+try:
+    watch.call(method, params)
+    sys.exit("the call wasn't interrupted")
+except KeyboardInterrupt:
+    pass
+alive = watch._process.poll() is None
+try:
+    after = watch.summary() if method == "slow" else watch.extdata_list(limit=0)
+except WatchError as error:
+    after = error.code
+process = watch._process
+watch.close()
+print(json.dumps({"alive": alive, "after": after, "exit": process.returncode}))
+"""
+
+
+def group_sigint(method, params, command):
+    result = subprocess.run(
+        [sys.executable, "-c", GROUP_SIGINT, str(Path(__file__).parents[1]), method,
+         json.dumps(params), *command],
+        capture_output=True, text=True, start_new_session=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
+def test_ctrl_c_in_a_terminal_cancels_and_keeps_the_session():
+    outcome = group_sigint("slow", {}, FAKE)
+    assert outcome == {"alive": True, "after": {"model": "Venu 2", "model_part": "006-B3703-00",
+                                                "software": "19.05"}, "exit": 0}
+
+
+@pytest.mark.skipif(not (os.environ.get("GEORGIAN_FOR_GARMIN_CLI")
+                         and os.environ.get("GFG_TEST_NO_WATCH") == "1"),
+                    reason="needs a dev CLI and no watch attached (GFG_TEST_NO_WATCH=1, as in CI): "
+                           "wait_for_watch looks for one over USB")
+def test_ctrl_c_in_a_terminal_cancels_the_real_rpc():
+    outcome = group_sigint("wait_for_watch", {"timeout_seconds": 60},
+                           [os.environ["GEORGIAN_FOR_GARMIN_CLI"]])
+    assert outcome == {"alive": True, "after": "invalid_input", "exit": 0}
 
 
 @pytest.mark.skipif(not os.environ.get("GEORGIAN_FOR_GARMIN_CLI"),

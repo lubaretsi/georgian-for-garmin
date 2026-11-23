@@ -87,10 +87,13 @@ nix run .#omp-venv
 It writes `.venv/` (ignored by Git; it refuses to replace a `.venv` it didn't write): a
 `bin/python` that runs the builder's pinned Python, the one the fonts derivation uses, with
 `builder/` on the path and the pinned font inputs (`GFG_STOCK_DIR`, `GFG_CATALOG_DIR`, Noto Sans
-Georgian) set, plus a garbage-collector root for them. omp picks the interpreter when a session
-first runs Python in that directory and keeps it, so run the command before that, or start a new
-session after. A session whose directory is elsewhere can point omp's `python.interpreter`
-setting at that `.venv/bin/python`. Run it again after the flake's inputs change.
+Georgian) set, plus a garbage-collector root for them. Run it again after the flake's inputs
+change.
+
+omp picks the interpreter when a session first runs Python in a directory and keeps it: run
+`nix run .#omp-venv` before the first eval cell, or start a new session after. For a session
+started elsewhere, either launch omp with `VIRTUAL_ENV=<checkout>/.venv` (omp checks it before
+`<cwd>/.venv`), or point omp's `python.interpreter` setting at `<checkout>/.venv/bin/python`.
 
 ```python
 from garmin_fonts.build import add_georgian

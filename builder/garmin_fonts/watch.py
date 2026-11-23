@@ -15,14 +15,19 @@ georgian-for-garmin --features dev`); pass its path as `command`.
 
 Errors become WatchError with the core's code (`no_device`, `device_busy`, `conflict`, …; the
 busy holder in `data`). Ctrl-C during a call cancels it in the core (`notifications/cancelled`)
-and raises KeyboardInterrupt once the core has answered.
+and raises KeyboardInterrupt once the core has answered. The rpc process runs in its own
+process group, so a terminal's Ctrl-C reaches only Python, which forwards it; `close()`, the
+`with` block's end, garbage collection and interpreter exit end the process, and it also exits
+by itself when its input closes (if Python is killed).
 """
 
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import weakref
 from pathlib import Path
 
 from . import registry as font_registry
@@ -30,8 +35,37 @@ from . import registry as font_registry
 # The CLI to run when `command` isn't given: $GEORGIAN_FOR_GARMIN_CLI, else on PATH.
 CLI_ENV = "GEORGIAN_FOR_GARMIN_CLI"
 CLI = "georgian-for-garmin"
-# How long `close` waits for the rpc process to finish after its input closes.
+# How long ending a session waits for the rpc process at each step: after its input closes, then
+# after SIGTERM, before SIGKILL.
 CLOSE_TIMEOUT = 10
+
+
+def _end(process):
+    """End an rpc process: close its input (it answers what it has read, then exits), then
+    terminate it, then kill it, waiting CLOSE_TIMEOUT between steps."""
+    if process.stdin and not process.stdin.closed:
+        try:
+            process.stdin.close()
+        except OSError:
+            pass
+    for stop in (None, process.terminate, process.kill):
+        if stop is not None and process.poll() is None:
+            stop()
+        try:
+            process.wait(timeout=CLOSE_TIMEOUT)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    if process.stdout:
+        process.stdout.close()
+
+
+# Start the rpc process outside the terminal's foreground process group, so Ctrl-C (SIGINT to
+# the whole group) doesn't kill it mid-call: Python gets it and cancels through JSON-RPC.
+if sys.platform == "win32":
+    _ISOLATED = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+else:
+    _ISOLATED = {"start_new_session": True}
 
 
 class WatchError(Exception):
@@ -62,10 +96,12 @@ class Watch:
         try:
             self._process = subprocess.Popen(
                 args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                env={**os.environ, **(env or {})},
+                env={**os.environ, **(env or {})}, **_ISOLATED,
             )
         except OSError as error:
             raise WatchError("invalid_input", f"can't run {args[0]}: {error}") from None
+        # Runs once: on close(), when the Watch is collected, or at interpreter exit.
+        self._end = weakref.finalize(self, _end, self._process)
         self._next_id = 0
 
     def __enter__(self):
@@ -75,17 +111,9 @@ class Watch:
         self.close()
 
     def close(self):
-        """End the session: close the rpc process's input and wait for it to exit."""
-        process = self._process
-        if process.stdin and not process.stdin.closed:
-            process.stdin.close()
-        try:
-            process.wait(timeout=CLOSE_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            process.terminate()
-            process.wait()
-        if process.stdout:
-            process.stdout.close()
+        """End the session: close the rpc process's input and wait for it to exit (terminating
+        it if it doesn't). Calling it again does nothing."""
+        self._end()
 
     def _send(self, message):
         try:
