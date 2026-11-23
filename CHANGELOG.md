@@ -32,10 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `issue_link` takes `busy`: alone (no `report`) it makes a report with the `app` and `busy`
   lines, titled `Busy watch: …`; with a report, the `busy` line follows `connection`.
   `GEORGIAN_FOR_GARMIN_DEMO_BUSY` shows each case in the demo build.
+- The epix Pro (Gen 2) 51mm (`006-B4314-00`) is tested on software 27.18
+  ([#46](https://github.com/lubaretsi/georgian-for-garmin/issues/46)): with the bitmap Armenian
+  fonts NotoSans Armenian Regular and Bold, Georgian showed in the pop-up, the notification list
+  and the opened notification. It was the first predicted model a report confirmed; the two other
+  parts under that Connect IQ name stay predicted.
 
 ### Changed
 
 - `issue_link`'s `report` is optional when `busy` is given (JSON input change ahead of 1.0).
+- When the report is too long for the link, the issue form's Watch report box is left empty
+  instead of holding a line to paste over, and the app says to paste into that empty box. GitHub
+  then asks for the paste if it's missed; before, the instructions could be posted as the report
+  (#35, #46). `issue_link`'s `fields` no longer lists `report` when it didn't fit.
 
 ## [0.3.3] - 2026-11-23
 
