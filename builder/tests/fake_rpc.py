@@ -144,8 +144,14 @@ def main():
                         transaction(request_id, f"poll {step}")
             result(request_id, {"model": "Venu 2", "waited_seconds": 1})
         elif method == "slow":
-            if tracing:
-                transaction(request_id, "GetObject")
+            # Two traces and two progress steps, then it waits: a callback that fails at the
+            # first must not be called for the second.
+            for step in (1, 2):
+                if tracing:
+                    transaction(request_id, f"GetObject {step}")
+                if token is not None:
+                    send({"jsonrpc": "2.0", "method": "notifications/progress",
+                          "params": {"progressToken": token, "progress": step}})
             # Answers only once cancelled, as a long operation does.
             for following in sys.stdin:
                 cancel = json.loads(following)

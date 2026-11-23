@@ -147,12 +147,66 @@ def test_trace_is_turned_off_after_ctrl_c_and_the_session_goes_on(watch):
     with pytest.raises(KeyboardInterrupt):
         with watch.trace() as transactions:
             watch.call("slow")
-    assert [t["operation"] for t in transactions] == ["GetStorageIDs", "GetObject"]
+    assert [t["operation"] for t in transactions] == ["GetStorageIDs", "GetObject 1",
+                                                      "GetObject 2"]
     sent = [m["params"] for m in received(watch) if m.get("method") == "mtp_trace"]
     assert sent == [{"enabled": True}, {"enabled": False}]
     with watch.trace() as again:
         watch.mtp.read(0x01000032)
     assert [t["operation"] for t in again] == ["GetStorageIDs", "GetObject"]
+
+
+class Boom(Exception):
+    pass
+
+
+def boom(_):
+    raise Boom
+
+
+def ctrl_c(_):
+    """Ctrl-C while the callback runs, as a terminal sends it."""
+    os.kill(os.getpid(), signal.SIGINT)
+    time.sleep(5)
+
+
+@pytest.mark.parametrize("where", ["trace", "progress"])
+@pytest.mark.parametrize("callback, raised", [(boom, Boom), (ctrl_c, KeyboardInterrupt)])
+def test_a_failing_callback_cancels_the_call_and_leaves_the_session_idle(
+        watch, where, callback, raised):
+    """A callback that raises (Ctrl-C inside it too) during the long `slow` call: the call is
+    cancelled in the core and its answer awaited, the callback isn't called again, the error is
+    raised, the trace is turned off behind it, and the session goes on. If the client waited on
+    the running call instead, the watchdog ends the rpc and the test fails."""
+    calls = []
+
+    def counted(notified):
+        calls.append(notified)
+        callback(notified)
+
+    watchdog = threading.Timer(10, watch._process.kill)
+    watchdog.start()
+    try:
+        with pytest.raises(raised):
+            if where == "trace":
+                with watch.trace(on_transaction=counted) as transactions:
+                    watch.call("slow")
+            else:
+                watch.call("slow", progress=counted)
+    finally:
+        watchdog.cancel()
+    assert len(calls) == 1, "not called again after it raised"
+    if where == "trace":
+        # The record stays whole; only the callback stops.
+        assert [t["operation"] for t in transactions] == ["GetStorageIDs", "GetObject 1",
+                                                          "GetObject 2"]
+    sent = received(watch)
+    slow = next(m["id"] for m in sent if m.get("method") == "slow")
+    assert {"jsonrpc": "2.0", "method": "notifications/cancelled",
+            "params": {"requestId": slow}} in sent
+    assert [m["params"] for m in sent if m.get("method") == "mtp_trace"] == (
+        [{"enabled": True}, {"enabled": False}] if where == "trace" else [])
+    assert watch.summary()["model"] == "Venu 2"
 
 
 def test_raw_reads_return_checked_bytes_and_refusals_are_the_cores(watch):

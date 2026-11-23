@@ -160,6 +160,11 @@ class Watch:
 
         `progress` is called with each `notifications/progress` params ({progress, total?,
         message}) the operation sends. Raises WatchError.
+
+        When a callback (`progress`, or a trace's `on_transaction`) raises, Ctrl-C inside it
+        included, the operation is cancelled in the core and its answer awaited, so the session
+        is idle again; no callback is called after that, and its exception is raised. A second
+        Ctrl-C while waiting gives up waiting.
         """
         self._next_id += 1
         request_id = self._next_id
@@ -167,28 +172,46 @@ class Watch:
         if progress is not None:
             params["_meta"] = {"progressToken": request_id}
         self._send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-        interrupted = False
+        # What stops the call once the core has answered: Ctrl-C while reading, or a callback's
+        # exception. Either cancels the operation first.
+        cancelled, failed = False, None
+
+        def cancel():
+            nonlocal cancelled
+            if not cancelled:
+                cancelled = True
+                self._send({"jsonrpc": "2.0", "method": "notifications/cancelled",
+                            "params": {"requestId": request_id}})
+
         while True:
             try:
                 message = self._read()
             except KeyboardInterrupt:
-                if interrupted:
+                if cancelled:
                     raise
-                interrupted = True
-                self._send({"jsonrpc": "2.0", "method": "notifications/cancelled",
-                            "params": {"requestId": request_id}})
+                if failed is None:
+                    failed = KeyboardInterrupt()
+                cancel()
                 continue
             if "id" not in message:
-                method = message.get("method")
-                if method == "notifications/progress" and progress is not None:
-                    progress(message["params"])
-                elif method == "notifications/trace" and self._trace is not None:
-                    self._trace._add(message["params"])
+                kind, notified = message.get("method"), message.get("params")
+                try:
+                    if kind == "notifications/progress" and progress is not None:
+                        if failed is None:
+                            progress(notified)
+                    elif kind == "notifications/trace" and self._trace is not None:
+                        if failed is not None:
+                            self._trace.append(notified)
+                        else:
+                            self._trace._add(notified)
+                except BaseException as error:  # Ctrl-C inside the callback too
+                    failed = error
+                    cancel()
                 continue
             if message["id"] != request_id:
                 continue
-            if interrupted:
-                raise KeyboardInterrupt
+            if failed is not None:
+                raise failed
             if "error" in message:
                 error = message["error"]
                 data = dict(error.get("data") or {})
