@@ -7,7 +7,11 @@ it and submits it.
 
 ## In the app
 
-1. After **Install Georgian** the restart screen has **Check on the watch**.
+1. After **Install Georgian** the restart screen has **Check on the watch**. Connecting a watch
+   that already has Georgian brings it back: on a model and software no one has confirmed yet
+   it is the main screen's main action (after the restart, while Georgian still waits for one),
+   and on a confirmed one a quiet **Didn't work? Check on the watch**. On a watch not confirmed
+   yet, the restart and check screens say why a check matters, naming the model.
 2. The check screen shows a QR code for the [phone test page](#the-phone-test-page) (drawn in the
    app, without the network) and the test text to send yourself instead.
 3. One tap per question: what the watch showed (Georgian letters, boxes, question marks, some of each, the
@@ -18,7 +22,10 @@ it and submits it.
 4. **What's shared** shows the exact report text before anything opens. **Share on GitHub** opens
    the form with every field filled in. On a watch already confirmed on its model and software
    (`tested`), the screen says so and the button becomes the secondary **Didn't work? Share on
-   GitHub**: only a failure is news there.
+   GitHub**: only a failure is news there. Once the form is open, the screen says what happens
+   next: when Georgian showed on a watch not confirmed yet, that the next version lists it as
+   tested once the report is posted; otherwise, that the maintainer looks into it and replies on
+   GitHub.
 
 The same form is used by:
 

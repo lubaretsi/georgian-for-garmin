@@ -100,6 +100,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   watch; these models stay "not yet confirmed", and restoring the original fonts on them is
   untested too. Each part is Garmin's file at the version the watch declares and Garmin's
   catalog serves; Instinct 3 parts declared at a version the catalog doesn't serve are left out.
+- The app's check on the watch is no longer only on the restart screen right after installing.
+  Connecting a watch that already has Georgian on a model and software no one has confirmed yet
+  makes **Check on the watch** the main screen's main action (after the restart while Georgian
+  still waits for one), and a confirmed watch gets a quiet **Didn't work? Check on the watch**.
+  Before, clicking Done or closing the app during the restart left no way back to the check. On
+  such a watch the restart and check screens say, with the model's name, that no one has
+  confirmed Georgian on it yet and that a minute's check tells every owner of that model whether
+  it works (or, confirmed on other software, that the answer tells whether it works on theirs).
+  After sharing a check, the app says what happens next: when Georgian showed, that once posted
+  the next version lists the watch as tested; otherwise, that the maintainer will look into it
+  and reply on GitHub. The main screen no longer asks a watch with Georgian installed to share
+  its font list "to help add this watch"; the check replaces it. The demo build adds a Lily 2
+  Active with Georgian installed, an Instinct 3 AMOLED 50mm with it waiting, and a tested
+  tactix 7 with it installed.
 
 ### Changed
 

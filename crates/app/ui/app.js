@@ -1,13 +1,14 @@
 // Screens: waiting → ready → working → staged → checking, or error; drive when the watch is
-// mounted as a USB drive instead of MTP. While waiting, ready or on the drive screen the app
+// mounted as a USB drive instead of MTP. The ready screen also opens the check screen directly
+// for a watch that already has Georgian. While waiting, ready or on the drive screen the app
 // polls the read-only `inspect` command (and `inspect_drive` when no MTP watch is found); the
 // backend runs one watch operation at a time, and a result that arrives after the screen has
 // moved on is ignored. When the waiting screen has found no watch for WAITING_HELP_MS, it shows
 // tips for finding it; the wait starts over each time the screen comes up.
 //
 // Sharing goes through the core's `issue_link`: the GitHub issue form, filled in from the watch
-// report, the last install or restore, and the answers on the check screen. Every screen that
-// shares shows the exact report text first.
+// report, the last install or restore (if the check follows one), and the answers on the check
+// screen. Every screen that shares shows the exact report text first.
 //
 // Every user-facing string is in strings.json, one table per language with the same keys
 // (`{name}` placeholders are filled in here). Georgian is the default; the language switch's
@@ -226,8 +227,11 @@ function drawFollow(id, support) {
   button.onclick = () => invoke("open_issue", { issue }).catch(() => {});
 }
 
-/** States in which Install Georgian would change nothing, so it isn't offered. */
-const NOTHING_TO_INSTALL = ["installed", "waiting"];
+/**
+ * States in which every target holds this build's Georgian, in use or waiting for a restart:
+ * Install Georgian would change nothing, so it isn't offered, and the check screen is.
+ */
+const HAS_GEORGIAN = ["installed", "waiting"];
 
 // Sharing
 
@@ -314,9 +318,19 @@ function showReady(report) {
     $("install").hidden =
       !report.supported ||
       support.status === "unsupported" ||
-      NOTHING_TO_INSTALL.includes(report.state);
-    // Asked only when a report adds information (the core's rule).
-    $("share").hidden = !support.report_wanted;
+      HAS_GEORGIAN.includes(report.state);
+    // Georgian already on the watch: checking it is what's left to do. Where no one has
+    // confirmed it on this model and software, the check is the main action once Georgian is in
+    // use, and comes after the note's restart while it waits; where it's confirmed, a report
+    // helps only if it didn't work.
+    const georgian = HAS_GEORGIAN.includes(report.state);
+    const confirmed = support.status === "tested";
+    $("ready-check").hidden = !georgian || confirmed;
+    $("ready-check").className = report.state === "installed" ? "primary" : "secondary";
+    $("ready-check-link").hidden = !confirmed || report.state !== "installed";
+    // Asked only when a report adds information (the core's rule); on a watch with Georgian the
+    // check screen asks instead, with what the watch showed.
+    $("share").hidden = !support.report_wanted || georgian;
     // Once shared, the result takes the explanation's place.
     $("share-why").hidden = drawShared(report.report, "share-text", "share-result");
   });
@@ -374,6 +388,9 @@ function showStaged(output) {
     const georgian = output.variant === "georgian";
     $("staged-test").hidden = !georgian;
     $("check").hidden = !georgian;
+    const why = georgian && lastRun ? checkWhy(lastRun.inspected) : null;
+    $("staged-why").hidden = !why;
+    $("staged-why").textContent = why || "";
   });
 }
 
@@ -388,11 +405,36 @@ function showError(f) {
 
 // The check screen
 
-/** The last install or restore: the report from before it and its outcome. */
+/**
+ * The last install or restore: the watch as inspected before it (`inspected`, and its
+ * `report`) and its outcome.
+ */
 let lastRun = null;
-/** The check screen's answers, and the phone page by language. */
+/**
+ * What the check screen is about: the last install or restore, or the ready screen's watch as
+ * it is (`outcome` null). Its answers, and the phone page by language.
+ */
+let checking = null;
 let answers = null;
 const phonePages = new Map();
+
+/**
+ * Why checking matters on a watch where Georgian isn't confirmed on its model and software, or
+ * null where it is. Named by the watch's own model name (the report carries no other).
+ */
+function checkWhy(inspected) {
+  if (inspected.support.status === "tested") return null;
+  const model = inspected.device.model;
+  const tested = inspected.tested;
+  const versions = tested.verified_software.join(", ");
+  if (tested.status === "tested_other_software") {
+    const software = inspected.device.software_version;
+    return fill(T.checkWhyOtherSoftware, { model, versions, software });
+  }
+  // Some target parts confirmed (on any software), not all of them.
+  if (versions) return fill(T.checkWhySomeFonts, { model });
+  return fill(T.checkWhy, { model });
+}
 
 function choice(label, pressed, onClick, picture) {
   const button = document.createElement("button");
@@ -417,7 +459,7 @@ function choice(label, pressed, onClick, picture) {
 
 /** Target parts' test marks, for the marker question; empty in stable builds. */
 function targetMarks() {
-  return lastRun.report.parts
+  return checking.report.parts
     .filter((p) => p.target && marks.has(p.part))
     .map((p) => marks.get(p.part));
 }
@@ -434,15 +476,31 @@ async function drawPhone() {
   $("check-qr").title = page.url;
 }
 
+/** The install or restore the check follows failed: the answer is that it didn't install. */
+const checkFailed = () => Boolean(checking.outcome && checking.outcome.error);
+/** Already confirmed on this model and software: a report helps only if it didn't work. */
+const checkConfirmed = () => !checkFailed() && checking.report.support.status === "tested";
+
+/**
+ * What happens once a check is shared, by the answer at the time: a strings key, or null when
+ * there's nothing to add (Georgian showed on a watch already confirmed).
+ */
+function nextStep(result) {
+  if (result !== "georgian") return "shareNextLook";
+  return checkConfirmed() ? null : "shareNextTested";
+}
+
 function drawCheck() {
   drawPhone().catch(() => {
     $("check-qr").hidden = true;
   });
-  const failed = Boolean(lastRun.outcome.error);
+  const failed = checkFailed();
   $("check-phone").hidden = failed;
-  // Already confirmed on this model and software: a report helps only if it didn't work.
-  const confirmed = !failed && lastRun.report.support.status === "tested";
+  const confirmed = checkConfirmed();
   $("check-confirmed").hidden = !confirmed;
+  const why = failed ? null : checkWhy(checking.inspected);
+  $("check-why").hidden = !why;
+  $("check-why").textContent = why || "";
   $("check-share").textContent = confirmed ? T.checkShareFailed : T.shareGithub;
   $("check-share").className = confirmed ? "secondary" : "primary";
   $("check-done").className = confirmed ? "primary" : "secondary";
@@ -491,8 +549,16 @@ function drawCheck() {
       }),
     ),
   );
-  $("check-result").hidden = !answers.shared;
-  $("check-result").textContent = answers.shared ? sharedText(answers.shared) : "";
+  const shared = answers.shared;
+  $("check-result").hidden = !shared;
+  $("check-result").textContent = shared ? checkSharedText(shared) : "";
+}
+
+/** A check's share result, with what happens next once the form opened. */
+function checkSharedText(s) {
+  const text = sharedText(s);
+  const opened = s.result !== "shareFailed";
+  return opened && s.next ? `${text} ${T[s.next]}` : text;
 }
 
 /** Shows exactly what will be shared, as the core builds it. */
@@ -501,7 +567,7 @@ async function preview() {
   const asked = answers;
   try {
     const link = await invoke("issue_link", {
-      input: linkInput(lastRun.report, lastRun.outcome, asked, lastRun.busy),
+      input: linkInput(checking.report, checking.outcome, asked, checking.busy),
     });
     if (asked !== answers) return;
     $("check-text").textContent = link.report_text;
@@ -511,19 +577,29 @@ async function preview() {
   }
 }
 
-function showCheck(result) {
+/** Opens the check screen for `run` (`{inspected, report, outcome, busy}`), `result` picked. */
+function showCheck(run, result) {
   stopPolling();
+  checking = run;
   answers = { result, views: [], marker: null, phone: null, shared: null };
   show("checking", drawCheck);
   window.scrollTo(0, 0);
   preview();
 }
 
+/** The ready screen's watch as it is, for the check screen: no install or restore before it. */
+function checkReady() {
+  if (!readyReport) return;
+  showCheck({ inspected: readyReport, report: readyReport.report, outcome: null }, null);
+}
+
 async function shareCheck() {
   const asked = answers;
-  asked.shared = await openIssue(
-    linkInput(lastRun.report, lastRun.outcome, asked, lastRun.busy),
+  const next = nextStep(asked.result);
+  const done = await openIssue(
+    linkInput(checking.report, checking.outcome, asked, checking.busy),
   );
+  asked.shared = { ...done, next };
   if (!$("checking").hidden && asked === answers) redraw();
 }
 
@@ -564,17 +640,18 @@ function stopPolling() {
 
 async function stage(command) {
   stopPolling();
-  const report = readyReport && readyReport.report;
+  const inspected = readyReport;
+  const report = inspected && inspected.report;
   showWorking(command);
   try {
     const output = await invoke(command);
     const parts = output.packs.flatMap((pack) => pack.parts.map((p) => p.part));
-    lastRun = { report, outcome: { operation: command, status: output.status, parts } };
+    lastRun = { inspected, report, outcome: { operation: command, status: output.status, parts } };
     showStaged(output);
   } catch (e) {
     const f = failure(e);
     lastRun = report
-      ? { report, outcome: { operation: command, error: f.code }, busy: f.busy }
+      ? { inspected, report, outcome: { operation: command, error: f.code }, busy: f.busy }
       : null;
     showError(f);
   }
@@ -592,8 +669,10 @@ $("install").addEventListener("click", () => stage("install"));
 $("restore").addEventListener("click", () => stage("restore_stock"));
 $("share-button").addEventListener("click", () => readyReport && shareWatch(readyReport.report, "ready"));
 $("drive-share").addEventListener("click", () => driveReport && shareWatch(driveReport.report, "drive"));
-$("check").addEventListener("click", () => showCheck(null));
-$("error-report").addEventListener("click", () => showCheck("not_installed"));
+$("check").addEventListener("click", () => lastRun && showCheck(lastRun, null));
+$("error-report").addEventListener("click", () => lastRun && showCheck(lastRun, "not_installed"));
+$("ready-check").addEventListener("click", checkReady);
+$("ready-check-link").addEventListener("click", checkReady);
 $("check-share").addEventListener("click", shareCheck);
 $("check-done").addEventListener("click", backToStart);
 $("done").addEventListener("click", backToStart);
