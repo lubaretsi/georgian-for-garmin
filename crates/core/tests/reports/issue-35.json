@@ -1,0 +1,670 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/35",
+  "app_version": "0.3.2",
+  "connection": "mtp",
+  "model": "Forerunner 255",
+  "model_part": "006-B3992-00",
+  "software": "29.52",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-18.tmp",
+      "part": "006-D9035-18",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-06.tmp",
+      "part": "006-D8448-06",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-01.tmp",
+      "part": "006-D8944-01",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-01.tmp",
+      "part": "006-D8945-01",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-01.tmp",
+      "part": "006-D8947-01",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-01.tmp",
+      "part": "006-D8946-01",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-05.tmp",
+      "part": "006-D9035-05",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-07.tmp",
+      "part": "006-D8448-07",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-02.tmp",
+      "part": "006-D8944-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-02.tmp",
+      "part": "006-D8945-02",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-02.tmp",
+      "part": "006-D8947-02",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-02.tmp",
+      "part": "006-D8946-02",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-17.tmp",
+      "part": "006-D9035-17",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-08.tmp",
+      "part": "006-D8448-08",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-03.tmp",
+      "part": "006-D8944-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-03.tmp",
+      "part": "006-D8945-03",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-03.tmp",
+      "part": "006-D8947-03",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-03.tmp",
+      "part": "006-D8946-03",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-06.tmp",
+      "part": "006-D9035-06",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-11.tmp",
+      "part": "006-D8448-11",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-06.tmp",
+      "part": "006-D8944-06",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-06.tmp",
+      "part": "006-D8945-06",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-06.tmp",
+      "part": "006-D8947-06",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-06.tmp",
+      "part": "006-D8946-06",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-00.tmp",
+      "part": "006-D9035-00",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-22.tmp",
+      "part": "006-D8448-22",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-17.tmp",
+      "part": "006-D8944-17",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-17.tmp",
+      "part": "006-D8945-17",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-17.tmp",
+      "part": "006-D8947-17",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-17.tmp",
+      "part": "006-D8946-17",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-07.tmp",
+      "part": "006-D9035-07",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-13.tmp",
+      "part": "006-D8448-13",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-08.tmp",
+      "part": "006-D8944-08",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-08.tmp",
+      "part": "006-D8945-08",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-08.tmp",
+      "part": "006-D8947-08",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-08.tmp",
+      "part": "006-D8946-08",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-00.tmp",
+      "part": "006-D9035-00",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-23.tmp",
+      "part": "006-D8448-23",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-18.tmp",
+      "part": "006-D8944-18",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-18.tmp",
+      "part": "006-D8945-18",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-31.tmp",
+      "part": "006-D8947-31",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-62.tmp",
+      "part": "006-D8946-62",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-08.tmp",
+      "part": "006-D9035-08",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-15.tmp",
+      "part": "006-D8448-15",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-10.tmp",
+      "part": "006-D8944-10",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-10.tmp",
+      "part": "006-D8945-10",
+      "version": "2.40"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-10.tmp",
+      "part": "006-D8947-10",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-10.tmp",
+      "part": "006-D8946-10",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D9035-09.tmp",
+      "part": "006-D9035-09",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8448-16.tmp",
+      "part": "006-D8448-16",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8944-11.tmp",
+      "part": "006-D8944-11",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8945-11.tmp",
+      "part": "006-D8945-11",
+      "version": "2.30"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8947-11.tmp",
+      "part": "006-D8947-11",
+      "version": "2.20"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8946-11.tmp",
+      "part": "006-D8946-11",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8168-16.tmp",
+      "part": "006-D8168-16",
+      "version": "2.10"
+    }
+  ],
+  "extdata": [],
+  "hidden": {
+    "status": "listed",
+    "files": [
+      {
+        "name": "006-D8168-16.fnt",
+        "bytes": 2879858,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-06.fnt",
+        "bytes": 1798953,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-07.fnt",
+        "bytes": 1798133,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-08.fnt",
+        "bytes": 2438827,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-11.fnt",
+        "bytes": 3551154,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-13.fnt",
+        "bytes": 3966483,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-15.fnt",
+        "bytes": 6416800,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-16.fnt",
+        "bytes": 6939073,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-22.fnt",
+        "bytes": 3550290,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8448-23.fnt",
+        "bytes": 3808077,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-01.fnt",
+        "bytes": 574679,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-02.fnt",
+        "bytes": 545497,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-03.fnt",
+        "bytes": 735939,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-06.fnt",
+        "bytes": 1083477,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-08.fnt",
+        "bytes": 1402863,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-10.fnt",
+        "bytes": 1825017,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-11.fnt",
+        "bytes": 2171289,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-17.fnt",
+        "bytes": 1083477,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8944-18.fnt",
+        "bytes": 1127097,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-01.fnt",
+        "bytes": 858895,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-02.fnt",
+        "bytes": 858606,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-03.fnt",
+        "bytes": 907225,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-06.fnt",
+        "bytes": 1672585,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-08.fnt",
+        "bytes": 1906353,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-10.fnt",
+        "bytes": 2717297,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-11.fnt",
+        "bytes": 3286495,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-17.fnt",
+        "bytes": 1617950,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8945-18.fnt",
+        "bytes": 1762537,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-01.fnt",
+        "bytes": 17393,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-02.fnt",
+        "bytes": 14003,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-03.fnt",
+        "bytes": 19267,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-06.fnt",
+        "bytes": 29004,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-08.fnt",
+        "bytes": 36177,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-10.fnt",
+        "bytes": 46158,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-11.fnt",
+        "bytes": 53145,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-17.fnt",
+        "bytes": 29865,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8946-62.fnt",
+        "bytes": 41198,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-01.fnt",
+        "bytes": 4277,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-02.fnt",
+        "bytes": 3755,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-03.fnt",
+        "bytes": 5222,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-06.fnt",
+        "bytes": 8029,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-08.fnt",
+        "bytes": 10231,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-10.fnt",
+        "bytes": 13373,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-11.fnt",
+        "bytes": 16897,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-17.fnt",
+        "bytes": 8141,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D8947-31.fnt",
+        "bytes": 10353,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "006-D9035-00.fnt",
+        "bytes": 12453,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-05.fnt",
+        "bytes": 5529,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-06.fnt",
+        "bytes": 10717,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-07.fnt",
+        "bytes": 13111,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-08.fnt",
+        "bytes": 18480,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-09.fnt",
+        "bytes": 21387,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-17.fnt",
+        "bytes": 8181,
+        "read_only": true,
+        "file": "stock"
+      },
+      {
+        "name": "006-D9035-18.fnt",
+        "bytes": 5529,
+        "read_only": true,
+        "file": "stock"
+      }
+    ]
+  }
+}

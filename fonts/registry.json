@@ -388,7 +388,7 @@
     {"model": "Forerunner 165 Music", "model_part": "006-B4433-00", "issues": [5, 7]},
     {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2]},
     {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5, 9]},
-    {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13]},
+    {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13, 35]},
     {
       "model": "fenix 6S Pro",
       "model_part": "006-B3288-00",

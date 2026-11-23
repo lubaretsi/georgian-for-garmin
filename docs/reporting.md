@@ -65,8 +65,8 @@ space-separated columns, no Markdown table syntax (the form shows it as a code b
 declares 70 files; its report is about 3.6 KB and the whole link, answers included, about 4.3 KB.
 If the link would still pass 8,000 characters (a watch that declares
 hundreds of files, say), the report is left out of it: the app copies it to the clipboard, every
-other field is still filled in, and the report field says to paste it there. The check screen says
-so before opening the browser.
+other field is still filled in, and the report field says to paste it there, over that line,
+not into Notes. The check screen says so before opening the browser.
 
 ## What's in a report
 

@@ -40,7 +40,7 @@ pub const TEMPLATE: &str = "watch-report.yml";
 /// Longest link we make. GitHub answers 414 somewhat above 8 KB; browsers allow more.
 pub const MAX_URL: usize = 8000;
 /// What the form's report field says when the report didn't fit in the link.
-pub const PASTE_NOTE: &str = "The report is on your clipboard: paste it here (Ctrl+V, or Cmd+V on a Mac), replacing this line.";
+pub const PASTE_NOTE: &str = "Paste the report here, over this line: it is on your clipboard (Ctrl+V, or Cmd+V on a Mac). Not into Notes.";
 /// The phone page that sends the test notification.
 pub const PHONE_PAGE: &str = "https://lubaretsi.github.io/georgian-for-garmin/";
 
