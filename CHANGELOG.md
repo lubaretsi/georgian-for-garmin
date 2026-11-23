@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `issue_link` takes `busy`: alone (no `report`) it makes a report with the `app` and `busy`
   lines, titled `Busy watch: …`; with a report, the `busy` line follows `connection`.
   `GEORGIAN_FOR_GARMIN_DEMO_BUSY` shows each case in the demo build.
+- The epix Pro (Gen 2) 51mm (`006-B4314-00`) is tested on software 27.18
+  ([#46](https://github.com/lubaretsi/georgian-for-garmin/issues/46)): with the bitmap Armenian
+  fonts NotoSans Armenian Regular and Bold, Georgian showed in the pop-up, the notification list
+  and the opened notification. It was the first predicted model a report confirmed; the two other
+  parts under that Connect IQ name stay predicted.
 
 ### Changed
 

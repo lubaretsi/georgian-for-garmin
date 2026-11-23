@@ -74,9 +74,10 @@ and software version and saw it in a real notification. Follow a watch's issue f
 | Instinct 2 Solar Tactical | 17.22 | Doesn't work ([#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
 <!-- /watches -->
 
-Where Georgian showed: on the Venu 2, Forerunner 165, Forerunner 255 and fenix 7 Pro in pop-ups,
-the notification list and opened notifications, and on the fenix 7 Pro in incoming calls too. The
-Forerunner 165 was first confirmed with the TrueType fonts of the 0.3.0 beta.
+Where Georgian showed: on the Venu 2, Forerunner 165, Forerunner 255, fenix 7 Pro and epix Pro
+(Gen 2) 51mm in pop-ups, the notification list and opened notifications, and on the fenix 7 Pro
+in incoming calls too. The Forerunner 165 was first confirmed with the TrueType fonts of the 0.3.0
+beta.
 
 It works with notifications from Android phones and from iPhones: on an iPhone-paired fenix 7 Pro,
 a WhatsApp message and an incoming call both showed Georgian ([#15](https://github.com/lubaretsi/georgian-for-garmin/issues/15)).
