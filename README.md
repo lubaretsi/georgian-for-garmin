@@ -61,7 +61,7 @@ and software version and saw it in a real notification. Follow a watch's issue f
 | Forerunner 165 Music | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#7](https://github.com/lubaretsi/georgian-for-garmin/issues/7)) |
 | Venu 3 | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#2](https://github.com/lubaretsi/georgian-for-garmin/issues/2)) |
 | Venu 3S | – | Not confirmed yet ([#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5), [#9](https://github.com/lubaretsi/georgian-for-garmin/issues/9)) |
-| Forerunner 255 | – | Not confirmed yet ([#13](https://github.com/lubaretsi/georgian-for-garmin/issues/13), [#35](https://github.com/lubaretsi/georgian-for-garmin/issues/35)) |
+| Forerunner 255 | 29.52 | Tested ([#13](https://github.com/lubaretsi/georgian-for-garmin/issues/13), [#35](https://github.com/lubaretsi/georgian-for-garmin/issues/35), [#37](https://github.com/lubaretsi/georgian-for-garmin/issues/37)) |
 | fenix 6S Pro | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#20](https://github.com/lubaretsi/georgian-for-garmin/issues/20)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
 | fenix 6 Pro Solar | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#14](https://github.com/lubaretsi/georgian-for-garmin/issues/14)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
 | fenix 6X Pro | 28.02 | Doesn't work ([#6](https://github.com/lubaretsi/georgian-for-garmin/issues/6), [#3](https://github.com/lubaretsi/georgian-for-garmin/issues/3), [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24), [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)). The watch has the font file but doesn't use it for Georgian letters: they still show as question marks. |
@@ -73,8 +73,8 @@ and software version and saw it in a real notification. Follow a watch's issue f
 | fenix 5 | 25.00 | Doesn't work ([#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30), [#29](https://github.com/lubaretsi/georgian-for-garmin/issues/29)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
 <!-- /watches -->
 
-Where Georgian showed: on the Venu 2, Forerunner 165 and fenix 7 Pro in pop-ups, the
-notification list and opened notifications, and on the fenix 7 Pro in incoming calls too. The
+Where Georgian showed: on the Venu 2, Forerunner 165, Forerunner 255 and fenix 7 Pro in pop-ups,
+the notification list and opened notifications, and on the fenix 7 Pro in incoming calls too. The
 Forerunner 165 was first confirmed with the TrueType fonts of the 0.3.0 beta.
 
 It works with notifications from Android phones and from iPhones: on an iPhone-paired fenix 7 Pro,

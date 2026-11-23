@@ -23,8 +23,8 @@ allowlisted fields (model, part number, software, app version, connection, the d
 `Garmin/ExtData` files, the ExtData and hidden listings) and refuses any value that looks like a
 unit ID or serial number; `fixtures_hold_no_identifiers` checks the same. A prose report of a
 watch that mounts as a drive needs `--connection usb_drive`. Issue #13 has no report (the
-Forerunner 255's font list came later, in #35). The script finds the report anywhere in the body,
-so one pasted into Notes (#35) works too. A fixture may carry a `note` on what its report
+Forerunner 255's font list came later, in #37 and #35). The script finds the report anywhere in
+the body, so one pasted into Notes (#35) works too. A fixture may carry a `note` on what its report
 says beyond the allowlisted fields: `issue-29.json`'s form answer was "Georgian letters",
 although nothing was installed (`packs none`, connected as a USB drive); that is unexplained.
 
@@ -80,6 +80,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | `issue-30.json` | fenix 5 (006-B2697-00), 25.00, a USB drive | 0.3.2 | [#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30) |
 | `issue-33.json` | Instinct 3 AMOLED 50mm (006-B4587-00), 16.12, with the hidden listing | 0.3.2 | [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33), closed as a duplicate of #6 |
 | `issue-35.json` | Forerunner 255 (006-B3992-00), 29.52, before installing: 8 bitmap Armenian parts, all Garmin's, with the hidden listing | 0.3.2 | [#35](https://github.com/lubaretsi/georgian-for-garmin/issues/35) (report in Notes), closed as a duplicate of #13 |
+| `issue-37.json` | Forerunner 255 (006-B3992-00), 29.52, the same 8 bitmap Armenian parts (`006-D9035-00` declared twice, as the watch listed it) | 0.2.2 | [#37](https://github.com/lubaretsi/georgian-for-garmin/issues/37), the font list for #13's confirmation |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 
