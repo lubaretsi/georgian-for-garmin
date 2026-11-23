@@ -37,8 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps the watch open between calls and opens it again after an unplug and replug (`no_device`
   meanwhile). `install`, `restore_stock`, `stage_file` and `wait_for_watch` send
   `notifications/progress` for a `_meta.progressToken` and stop on `notifications/cancelled`; a
-  cancelled install or restore undoes what it wrote. A line that isn't JSON gets -32700 and the
-  session goes on.
+  cancelled install or restore tries to undo what it wrote, as a failed one does. A line that
+  isn't JSON gets -32700 and the session goes on.
 - `extdata-list` (`extdata_list`) lists every file in `GARMIN/ExtData`, including the read-only
   fonts the watch imported, which only Garmin's `GetObjectIds` shows, with size, read-only flag
   and, with `--hash`, SHA-256s. It pages, or writes the whole list to a file.
@@ -48,10 +48,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   short name, as `D844870.tmp`), with install's checks and readback, and remove it later by the
   id it logged.
 - Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
+- Errors after a failed or cancelled write carry `rollback`: `complete` or `incomplete`, with each
+  file it tried to delete or put back and whether that worked. An incomplete rollback now says
+  so plainly, names the files that may be left, and points to Restore original font
+  (`restore-stock`); the app shows it in both languages. Before, the message said "Rolled back"
+  even when a step had failed.
 
 ### Changed
 
 - `issue_link`'s `report` is optional when `busy` is given (JSON input change ahead of 1.0).
+
+### Fixed
+
+- A bitmap part's imported `<part>.fnt` in the normal `ExtData` listing (as the watch in #38
+  shows it) is now identified before install or restore writes a `.tmp` that would replace it at
+  the next restart, and `inspect` reports it; before, only the hidden listing was checked.
 
 ## [0.3.3] - 2026-11-23
 

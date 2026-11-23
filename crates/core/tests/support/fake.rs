@@ -110,6 +110,11 @@ pub struct State {
     pub connects: usize,
     /// How long each object creation takes.
     pub write_delay: Duration,
+    /// `DeleteObject` fails, as on a watch that refuses it.
+    pub fail_delete: bool,
+    /// The nth object creation (1-based) stores other bytes than it was sent.
+    pub corrupt_create_at: Option<usize>,
+    creates: usize,
     /// Operations sent, by name, in order.
     pub log: Vec<String>,
 }
@@ -143,6 +148,9 @@ impl Watch {
             generation: 0,
             connects: 0,
             write_delay: Duration::ZERO,
+            fail_delete: false,
+            corrupt_create_at: None,
+            creates: 0,
             log: Vec::new(),
         };
         s.add(GARMIN, 0, "GARMIN", format::ASSOCIATION, Vec::new(), false);
@@ -191,6 +199,7 @@ impl Watch {
         Ok(Box::new(Connection {
             watch: self.clone(),
             generation: s.generation,
+            info: None,
         }))
     }
 
@@ -224,10 +233,12 @@ impl Watch {
     }
 }
 
-/// One session with the watch.
+/// One session with the watch. Like both real backends, it keeps the first `device_info`
+/// answer, so that call doesn't show whether the watch is still there.
 struct Connection {
     watch: Watch,
     generation: u32,
+    info: Option<DeviceInfo>,
 }
 
 impl Connection {
@@ -256,8 +267,11 @@ fn invalid_handle(operation: u16) -> MtpError {
 
 impl Mtp for Connection {
     fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
+        if let Some(info) = &self.info {
+            return Ok(info.clone());
+        }
         drop(self.live(op::GET_DEVICE_INFO)?);
-        Ok(DeviceInfo {
+        let info = DeviceInfo {
             model: "Venu 2".into(),
             operations_supported: vec![
                 op::GET_DEVICE_INFO,
@@ -273,7 +287,9 @@ impl Mtp for Connection {
                 op::GARMIN_GET_OBJECT_IDS,
             ],
             ..DeviceInfo::default()
-        })
+        };
+        self.info = Some(info.clone());
+        Ok(info)
     }
 
     fn storage_ids(&mut self) -> Result<Vec<u32>, MtpError> {
@@ -331,15 +347,15 @@ impl Mtp for Connection {
             .map_err(CreateError::Unconfirmed)?;
         let handle = s.next_handle;
         s.next_handle += 1;
+        s.creates += 1;
+        let mut stored = data.to_vec();
+        if s.corrupt_create_at == Some(s.creates)
+            && let Some(last) = stored.last_mut()
+        {
+            *last ^= 0xff;
+        }
         let name = info.filename.clone();
-        s.add(
-            handle,
-            parent,
-            &name,
-            format::UNDEFINED,
-            data.to_vec(),
-            false,
-        );
+        s.add(handle, parent, &name, format::UNDEFINED, stored, false);
         Ok(NewObject {
             storage,
             parent,
@@ -349,6 +365,12 @@ impl Mtp for Connection {
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
         let mut s = self.live(op::DELETE_OBJECT)?;
+        if s.fail_delete {
+            return Err(MtpError::Response {
+                operation: op::DELETE_OBJECT,
+                code: 0x2002,
+            });
+        }
         s.objects
             .remove(&handle)
             .map(drop)

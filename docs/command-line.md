@@ -114,7 +114,8 @@ $ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params":
 - The method is the operation's name, `params` its input (an object; absent means `{}`), the
   result its output. `params._meta` is protocol metadata, removed before the input is checked.
 - Errors: `{"code": …, "message": …, "data": {"code": "<error code>", "message": …}}`, with `busy`
-  in `data` for `device_busy`. `code` is -32602 for `invalid_input`, -32800 for `cancelled`,
+  in `data` for `device_busy` and `rollback` after a failed write ([below](#failed-writes)).
+  `code` is -32602 for `invalid_input`, -32800 for `cancelled`,
   -32000 for any other error code ([below](#exit-codes-and-errors)), -32601 for an unknown
   method, -32600 for a message that isn't a request (batches aren't supported) and -32700 for a
   line that isn't JSON; after any of them the session goes on.
@@ -125,8 +126,9 @@ $ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params":
 - Cancellation: `{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": …}}`
   stops a queued or running call. It answers with -32800 (`cancelled`). `install`,
   `restore_stock` and `stage_file` stop between files: before the first write nothing is written;
-  after it, what the call wrote is undone, as when a write fails. A single file transfer is never
-  cut off.
+  after it, the call tries to undo what it wrote, as when a write fails, and the error's
+  `rollback` says whether it could ([below](#failed-writes)). A single file transfer is never cut
+  off.
 - At the end of stdin, the calls already read still run and are answered, then `rpc` exits.
 
 `mcp` speaks MCP over stdio: `tools/list` returns the same definitions, `tools/call` runs one
@@ -205,7 +207,8 @@ later one-shot `remove-staged`.
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
 `already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
 watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
-TrueType part replaces the watch's `<part>.bin`, and a failed run writes the original back.
+TrueType part replaces the watch's `<part>.bin`, and a failed run tries to write the original
+back ([Failed writes](#failed-writes)).
 
 ## Exit codes and errors
 
@@ -220,14 +223,31 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
 | `conflict` | A file under a target's name, or the font the watch imported for it (a bitmap part's `.fnt`, which the next restart would replace), is neither Garmin's original nor one of this program's builds, by content, or two files share the name; nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
 | `restore_first` | Install: a TrueType file the watch doesn't let be read is declared below 1.00, as watches declared this program's builds before 0.3.0; install never writes over a file it can't identify, so nothing was written | Run `restore-stock`, restart the watch, then install again. |
-| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
+| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` written back, where that worked (`rollback`, [below](#failed-writes)) | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |
 | `font_unavailable` | This build doesn't include a requested part | Check the part number, or download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
-| `cancelled` | `rpc` or `mcp`: the client cancelled the call; anything it had written was undone | Nothing; run it again when wanted. |
+| `cancelled` | `rpc` or `mcp`: the client cancelled the call; what it had written was undone where possible (`rollback`) | Nothing; run it again when wanted. |
+
+### Failed writes
+
+When `install`, `restore-stock` or `stage-file` fails or is cancelled after writing, it tries to
+undo its changes: files it created are deleted, files it replaced are written back from the bytes
+read before. The error then carries `rollback`:
+
+```json
+{"error": {"code": "device_error", "message": "…", "rollback": {"status": "incomplete", "files": [
+  {"path": "GARMIN/ExtData/006-D9035-02.tmp", "action": "delete", "done": false,
+   "result": "GARMIN/ExtData/006-D9035-02.tmp (0x01000101) could not be deleted (…)"}]}}}
+```
+
+`status` is `complete` when every step worked, `incomplete` when one didn't (a delete the watch
+refused, a disconnect in the middle); `action` is `delete` or `restore`. After an incomplete
+rollback the message says so and names the files: connect the watch, run Restore original font
+(`restore-stock`), and restart the watch. The app says the same.
 
 ### Busy watch
 

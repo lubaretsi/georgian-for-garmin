@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
+use georgian_for_garmin_core::error::RollbackStatus;
 use georgian_for_garmin_core::fonts::{
     Earlier, Font, FontSet, Kind, Mark, Pack, Tested, sha256_hex,
 };
@@ -1623,14 +1624,19 @@ fn failure_on_a_later_part_rolls_back_this_runs_files_only() {
         let err = fake.call("install", json!({}), &fonts()).unwrap_err();
         assert_eq!(err.code, ErrorCode::DeviceError);
         let timed_out = "DeleteObject timed out waiting for the reply";
+        let recovery = "Connect the watch and run Restore original font \
+                        (georgian-for-garmin restore-stock), then restart the watch; if that \
+                        reports a conflict, share the watch report in an issue.";
         let expected = if undeletable {
             format!(
                 "SendObject timed out waiting for the reply. A new object was created as \
                  GARMIN/ExtData/006-D9035-03.tmp (0x01000102) and could not be deleted \
-                 ({timed_out}); it may hold incomplete data. Rolled back the files this run had \
-                 staged: GARMIN/ExtData/006-D9035-01.tmp (0x01000100) could not be deleted \
+                 ({timed_out}); it may hold incomplete data. Tried to undo this run's changes: \
+                 GARMIN/ExtData/006-D9035-01.tmp (0x01000100) could not be deleted \
                  ({timed_out}); GARMIN/ExtData/006-D9035-02.tmp (0x01000101) could not be \
-                 deleted ({timed_out}). Files staged before this run were left in place."
+                 deleted ({timed_out}). The rollback was incomplete: \
+                 GARMIN/ExtData/006-D9035-01.tmp, GARMIN/ExtData/006-D9035-02.tmp and \
+                 GARMIN/ExtData/006-D9035-03.tmp may not be as before this run. {recovery}"
             )
         } else {
             "SendObject timed out waiting for the reply. A new object was created as \
@@ -1641,6 +1647,25 @@ fn failure_on_a_later_part_rolls_back_this_runs_files_only() {
                 .to_owned()
         };
         assert_eq!(err.message, expected);
+        let rollback = err.rollback.as_ref().expect("a rollback");
+        assert_eq!(
+            rollback.status,
+            if undeletable {
+                RollbackStatus::Incomplete
+            } else {
+                RollbackStatus::Complete
+            }
+        );
+        let paths: Vec<&str> = rollback.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            [
+                "GARMIN/ExtData/006-D9035-03.tmp",
+                "GARMIN/ExtData/006-D9035-01.tmp",
+                "GARMIN/ExtData/006-D9035-02.tmp"
+            ]
+        );
+        assert!(rollback.files.iter().all(|f| f.done != undeletable));
         assert_eq!(
             fake.writes()[6..],
             [
@@ -1901,7 +1926,16 @@ fn undeletable_partial_file_is_reported() {
         err.message,
         "SendObject timed out waiting for the reply. A new object was created as \
          GARMIN/ExtData/006-D9035-03.tmp (0x01000100) and could not be deleted \
-         (DeleteObject timed out waiting for the reply); it may hold incomplete data."
+         (DeleteObject timed out waiting for the reply); it may hold incomplete data. The \
+         rollback was incomplete: GARMIN/ExtData/006-D9035-03.tmp may not be as before this \
+         run. Connect the watch and run Restore original font (georgian-for-garmin \
+         restore-stock), then restart the watch; if that reports a conflict, share the watch \
+         report in an issue."
+    );
+    assert!(err.rollback_incomplete());
+    assert_eq!(
+        err.to_json()["error"]["rollback"]["files"][0]["done"],
+        false
     );
 }
 

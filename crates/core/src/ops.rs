@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::drive;
-use crate::error::{Error, ErrorCode};
+use crate::error::{Error, ErrorCode, RollbackAction, RollbackFile, RollbackStatus};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
 use crate::fonts::{Content, Font, FontSet, Hosts, Kind, Listed, Pack, sha256_hex};
 use crate::garmin_device::{self, GarminDevice};
@@ -497,9 +497,11 @@ static OPERATIONS: [Operation; 7] = [
                       is written (conflict). A file that can't be read is written over only when \
                       the watch declares Garmin's version for it; below 1.00 (this program's \
                       trailer-less builds) the call fails with restore_first, any other version \
-                      with unsupported_device. If a part fails, this call's changes are undone: \
-                      new files deleted, replaced files written back from the bytes read before. \
-                      Disconnect USB and restart the watch to load them.",
+                      with unsupported_device. If a part fails or the call is cancelled, it tries \
+                      to undo its changes (new files deleted, replaced files written back from \
+                      the bytes read before) and the error's rollback says whether every step \
+                      worked (complete or incomplete, per file). Disconnect USB and restart the \
+                      watch to load them.",
         read_only: false,
         destructive: true,
         idempotent: true,
@@ -621,9 +623,10 @@ static DEV_OPERATIONS: [Operation; 3] = [
                       SHA-256. Every existing file for that part is checked first, like install: \
                       a file under name is replaced only when it is identical (already_staged), \
                       Garmin's original or this build's Georgian font (by content), one this tool \
-                      staged, or has a SHA-256 in garmin_sha256; an imported <part>.fnt must be \
-                      one of those too, and another waiting .tmp for the part is a conflict. A \
-                      failed write is undone. dry_run checks everything and writes nothing. The \
+                      staged, or has a SHA-256 in garmin_sha256; an imported <part>.fnt (in \
+                      either listing) must be one of those too, and another waiting .tmp for the \
+                      part is a conflict. A failed write is undone where possible; the error's \
+                      rollback says if it couldn't be. dry_run checks everything and writes nothing. The \
                       returned id, logged on this computer, is what remove_staged takes. Reports \
                       progress and stops on cancellation. Development builds only.",
         read_only: false,
@@ -936,9 +939,10 @@ fn report_of(
 /// What the file named for `font` holds, by the one rule in [`FileState`], and whether it is
 /// the imported one: `files` is the `ExtData` listing (`None` when it wasn't found or read),
 /// `contents` the files read, and `hidden` the children the normal listing leaves out. Without
-/// a file in the normal listing, the part's file is identified from the hidden one: a TrueType
-/// part's `<part>.bin`, or the `<part>.fnt` the watch imported a bitmap part's `.tmp` as (the
-/// Venu 2 keeps every import there, read-only).
+/// a file in the normal listing, the part's file is identified from the imported one: a
+/// TrueType part's hidden `<part>.bin`, or the `<part>.fnt` the watch imported a bitmap part's
+/// `.tmp` as, in either listing (the Venu 2 keeps every import hidden and read-only; the watch
+/// in #38 lists it).
 fn file_state(
     font: &Font,
     device: &GarminDevice,
@@ -949,39 +953,46 @@ fn file_state(
     let Some(files) = files else {
         return (FileState::Unknown, false);
     };
+    let read = |o: &Object| match contents.get(&o.handle).map(|bytes| font.identify(bytes)) {
+        Some(Content::Georgian) => FileState::Georgian,
+        Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
+        Some(Content::Stock) => FileState::Stock,
+        Some(Content::Other) | None => FileState::Other,
+    };
     let name = font.file_name();
     let found: Vec<&Object> = files
         .iter()
         .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
         .collect();
     let imported_name = imported_name(font);
-    let hidden_state = || {
-        let mut named = hidden
+    let imported_state = || {
+        let listed = files
             .iter()
-            .filter(|h| h.name.eq_ignore_ascii_case(&imported_name));
+            .filter(|o| {
+                font.kind == Kind::Bitmap && o.info.filename.eq_ignore_ascii_case(&imported_name)
+            })
+            .map(|o| Some(read(o)));
+        let mut named = listed.chain(
+            hidden
+                .iter()
+                .filter(|h| h.name.eq_ignore_ascii_case(&imported_name))
+                .map(|h| h.file),
+        );
         match (named.next(), named.next()) {
-            (Some(one), None) => one.file,
+            (Some(one), None) => one,
             (Some(_), Some(_)) => Some(FileState::Other),
             _ => None,
         }
     };
     match found.as_slice() {
-        [] => match hidden_state() {
+        [] => match imported_state() {
             Some(state) => (state, true),
             None if font.kind == Kind::Truetype && device.declares_extdata_part(&font.part) => {
                 (FileState::NotVisible, false)
             }
             None => (FileState::None, false),
         },
-        [one] => {
-            let state = match contents.get(&one.handle).map(|bytes| font.identify(bytes)) {
-                Some(Content::Georgian) => FileState::Georgian,
-                Some(Content::EarlierGeorgian) => FileState::GeorgianBeta,
-                Some(Content::Stock) => FileState::Stock,
-                Some(Content::Other) | None => FileState::Other,
-            };
-            (state, false)
-        }
+        [one] => (read(one), false),
         _ => (FileState::Other, false),
     }
 }
@@ -1137,7 +1148,9 @@ pub fn inspect(dev: &mut dyn Mtp, fonts: &FontSet) -> Result<InspectOutput, Erro
     for o in layout.extdata.iter().flat_map(|ext| &ext.files) {
         let size = o.info.compressed_size as usize;
         let ours = fonts.fonts().any(|(_, f)| {
-            o.info.filename.eq_ignore_ascii_case(&f.file_name()) && f.known_size(size)
+            (o.info.filename.eq_ignore_ascii_case(&f.file_name())
+                || o.info.filename.eq_ignore_ascii_case(&imported_name(f)))
+                && f.known_size(size)
         });
         if ours {
             contents.insert(o.handle, dev.get_object(o.handle)?);
@@ -1297,22 +1310,39 @@ pub fn inspect_drive(
     })
 }
 
-/// Deletes the object this run created after a failed transfer and says so in `cause`.
+/// Deletes the object this run created after a failed transfer and says so in `cause` and its
+/// rollback.
 pub(crate) fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
-    let message = match dev.delete_object(handle) {
-        Ok(()) => format!(
-            "{}. A new object was created as {path} ({}) and has been deleted.",
-            cause.message,
-            hex_handle(handle)
+    let (done, result, message) = match dev.delete_object(handle) {
+        Ok(()) => (
+            true,
+            format!("{path} ({}) deleted", hex_handle(handle)),
+            format!(
+                "{}. A new object was created as {path} ({}) and has been deleted.",
+                cause.message,
+                hex_handle(handle)
+            ),
         ),
-        Err(e) => format!(
-            "{}. A new object was created as {path} ({}) and could not be deleted ({e}); \
-             it may hold incomplete data.",
-            cause.message,
-            hex_handle(handle)
+        Err(e) => (
+            false,
+            format!(
+                "{path} ({}) could not be deleted ({e}); it may hold incomplete data",
+                hex_handle(handle)
+            ),
+            format!(
+                "{}. A new object was created as {path} ({}) and could not be deleted ({e}); \
+                 it may hold incomplete data.",
+                cause.message,
+                hex_handle(handle)
+            ),
         ),
     };
-    Error::new(cause.code, message)
+    Error { message, ..cause }.with_rollback([RollbackFile {
+        path: path.to_owned(),
+        action: RollbackAction::Delete,
+        done,
+        result,
+    }])
 }
 
 /// The objects in `parent` named `name` (case-insensitively), from a fresh listing.
@@ -1349,12 +1379,19 @@ fn discard_unconfirmed(
                 "{}. Whether the watch created {path} is unknown: listing ExtData failed ({e}).",
                 cause.message
             );
-            return Error::new(cause.code, message);
+            return Error { message, ..cause }.with_rollback([RollbackFile {
+                path: path.to_owned(),
+                action: RollbackAction::Delete,
+                done: false,
+                result: format!(
+                    "whether the watch created {path} is unknown (listing ExtData failed: {e})"
+                ),
+            }]);
         }
     };
     if created.is_empty() {
         let message = format!("{}. No object was created.", cause.message);
-        return Error::new(cause.code, message);
+        return Error { message, ..cause };
     }
     created
         .into_iter()
@@ -1444,62 +1481,94 @@ fn restore_original(
     ext: &ExtData,
     name: &str,
     original: &[u8],
-) -> String {
+) -> RollbackFile {
     let path = extdata_path(name);
+    let step = |done: bool, result: String| RollbackFile {
+        path: path.clone(),
+        action: RollbackAction::Restore,
+        done,
+        result,
+    };
     let current = match named_objects(dev, storage, ext.handle, name) {
         Ok(current) => current,
         Err(e) => {
-            return format!(
-                "whether {path} holds its original is unknown (listing ExtData failed: {e})"
+            return step(
+                false,
+                format!(
+                    "whether {path} holds its original is unknown (listing ExtData failed: {e})"
+                ),
             );
         }
     };
     if let [one] = current.as_slice()
         && dev.get_object(*one).is_ok_and(|bytes| bytes == original)
     {
-        return format!("{path} still holds the original");
+        return step(true, format!("{path} still holds the original"));
     }
     for handle in current {
         if let Err(e) = dev.delete_object(handle) {
-            return format!(
-                "{path} ({}) could not be deleted ({e}), so its original was not written back",
-                hex_handle(handle)
+            return step(
+                false,
+                format!(
+                    "{path} ({}) could not be deleted ({e}), so its original was not written back",
+                    hex_handle(handle)
+                ),
             );
         }
     }
     match write_verified(dev, storage, ext, name, original) {
-        Ok(handle) => format!(
-            "{path} written back from the original and verified ({})",
-            hex_handle(handle)
+        Ok(handle) => step(
+            true,
+            format!(
+                "{path} written back from the original and verified ({})",
+                hex_handle(handle)
+            ),
         ),
-        Err(e) => format!("{path} could not be written back: {}", e.message),
+        Err(e) => step(
+            false,
+            format!("{path} could not be written back: {}", e.message),
+        ),
     }
 }
 
-/// After a part failed: undoes this run's changes, in order, and adds each result to `cause`.
-/// Files staged by earlier runs were never changed.
+/// What to do after install or restore couldn't undo all of its changes.
+pub(crate) const RESTORE_HINT: &str = "Connect the watch and run Restore original font \
+    (georgian-for-garmin restore-stock), then restart the watch; if that reports a conflict, \
+    share the watch report in an issue.";
+
+/// After a part failed: tries to undo this run's changes, in order, and adds each result to
+/// `cause`, in words and in its `rollback`. Files staged by earlier runs were never changed. When
+/// a step (or the cleanup of a failed transfer, already in `cause`) failed, the message says the
+/// rollback was incomplete, names what may be left, and ends with `recovery`.
 pub(crate) fn roll_back(
     dev: &mut dyn Mtp,
     storage: u32,
     ext: &ExtData,
     undo: &[Undo],
     cause: Error,
+    recovery: &str,
 ) -> Error {
-    if undo.is_empty() {
-        return cause;
-    }
     let (mut created, mut replaced) = (false, false);
-    let mut results = Vec::with_capacity(undo.len());
+    let mut files = Vec::with_capacity(undo.len());
     for step in undo {
-        results.push(match step {
+        files.push(match step {
             Undo::Created { handle, path } => {
                 created = true;
-                match dev.delete_object(*handle) {
-                    Ok(()) => format!("{path} ({}) deleted", hex_handle(*handle)),
-                    Err(e) => format!(
-                        "{path} ({}) could not be deleted ({e})",
-                        hex_handle(*handle)
+                let (done, result) = match dev.delete_object(*handle) {
+                    Ok(()) => (true, format!("{path} ({}) deleted", hex_handle(*handle))),
+                    Err(e) => (
+                        false,
+                        format!(
+                            "{path} ({}) could not be deleted ({e})",
+                            hex_handle(*handle)
+                        ),
                     ),
+                };
+                RollbackFile {
+                    path: path.clone(),
+                    action: RollbackAction::Delete,
+                    done,
+                    result,
                 }
             }
             Undo::Replaced { name, original } => {
@@ -1508,20 +1577,48 @@ pub(crate) fn roll_back(
             }
         });
     }
-    let what = if replaced {
-        "Rolled back this run's changes"
-    } else {
-        "Rolled back the files this run had staged"
+    let results: Vec<String> = files.iter().map(|f| f.result.clone()).collect();
+    let error = cause.with_rollback(files);
+    let Some(rollback) = error.rollback.as_deref() else {
+        return error;
     };
-    let tail = if created {
-        " Files staged before this run were left in place."
+    let message = if rollback.status == RollbackStatus::Complete {
+        if results.is_empty() {
+            return error;
+        }
+        let what = if replaced {
+            "Rolled back this run's changes"
+        } else {
+            "Rolled back the files this run had staged"
+        };
+        let tail = if created {
+            " Files staged before this run were left in place."
+        } else {
+            ""
+        };
+        format!("{} {what}: {}.{tail}", error.message, results.join("; "))
     } else {
-        ""
+        let left: Vec<String> = rollback
+            .files
+            .iter()
+            .filter(|f| !f.done)
+            .map(|f| f.path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let tried = if results.is_empty() {
+            String::new()
+        } else {
+            format!(" Tried to undo this run's changes: {}.", results.join("; "))
+        };
+        format!(
+            "{}{tried} The rollback was incomplete: {} may not be as before this run. \
+             {recovery}",
+            error.message,
+            and_list(&left)
+        )
     };
-    Error::new(
-        cause.code,
-        format!("{} {what}: {}.{tail}", cause.message, results.join("; ")),
-    )
+    Error { message, ..error }
 }
 
 /// What a target needs, decided before anything is written.
@@ -1627,16 +1724,17 @@ fn imported_name(font: &Font) -> String {
 }
 
 /// Decides `font`'s Plan from what its file holds, by content: the file in the normal listing,
-/// else the imported one in the hidden listing (`hidden`, when the watch lists 0x9002; a bitmap
-/// part's `<part>.fnt`, a TrueType part's `<part>.bin`). Garmin's original or one of this
-/// program's builds is replaced (an imported one by writing a new file, which the watch imports
-/// over it at the next restart); anything else is refused, imported or not, since a new file
-/// would replace it one restart later. Only a file that can't be read (not shown, or an imported
-/// one whose read fails) falls back to what the watch declares, for a TrueType part: install
-/// accepts only Garmin's version, restore also a version below 1.00 ([`below_one`]), since it
-/// only ever puts Garmin's own file back. A bitmap part with no file to read is simply staged.
-/// A failed read of a file in the normal listing stops the call: replacing it would delete a
-/// file that couldn't be kept for rollback.
+/// else the imported one (a bitmap part's `<part>.fnt`, in either listing: the Venu 2 hides it,
+/// other watches list it, as in #38; a TrueType part's hidden `<part>.bin`, from `hidden` when
+/// the watch lists 0x9002). Garmin's original or one of this program's builds is replaced (an
+/// imported one by writing a new file, which the watch imports over it at the next restart);
+/// anything else is refused, imported or not, since a new file would replace it one restart
+/// later. Only a file that can't be read (not shown, or a hidden import whose read fails) falls
+/// back to what the watch declares, for a TrueType part: install accepts only Garmin's version,
+/// restore also a version below 1.00 ([`below_one`]), since it only ever puts Garmin's own file
+/// back. A bitmap part with no file to read is simply staged. A failed read of a file in the
+/// normal listing stops the call: replacing it would delete a file that couldn't be kept for
+/// rollback, and an import there is never left unidentified.
 fn plan(
     dev: &mut dyn Mtp,
     ext: &ExtData,
@@ -1669,20 +1767,35 @@ fn plan(
     }
     let name = imported_name(font);
     let imported_path = format!("GARMIN/ExtData/{name}");
-    let named: Vec<&(u32, ObjectInfo)> = hidden
-        .into_iter()
-        .flatten()
-        .filter(|(_, info)| info.filename.eq_ignore_ascii_case(&name))
+    // (handle, info, hidden). A TrueType part's import has the target's name, handled above.
+    let listed = ext
+        .files
+        .iter()
+        .filter(|o| font.kind == Kind::Bitmap && o.info.filename.eq_ignore_ascii_case(&name))
+        .map(|o| (o.handle, &o.info, false));
+    let named: Vec<(u32, &ObjectInfo, bool)> = listed
+        .chain(
+            hidden
+                .into_iter()
+                .flatten()
+                .filter(|(_, info)| info.filename.eq_ignore_ascii_case(&name))
+                .map(|(handle, info)| (*handle, info, true)),
+        )
         .collect();
     match named.as_slice() {
-        [(handle, info)] => {
+        [(handle, info, is_hidden)] => {
             if !font.known_size(info.compressed_size as usize) {
                 return Ok(Err(Refusal::Other(imported_path)));
             }
-            // A failed read leaves the file unidentified: the fallback below decides. A bitmap
-            // part identical to its import is staged again as before; the watch imports the
-            // same bytes.
-            if let Ok(current) = dev.get_object(*handle) {
+            // A failed read of a hidden import leaves it unidentified: the fallback below
+            // decides. A bitmap part identical to its import is staged again as before; the
+            // watch imports the same bytes.
+            let current = match dev.get_object(*handle) {
+                Ok(current) => Some(current),
+                Err(e) if !is_hidden => return Err(e.into()),
+                Err(_) => None,
+            };
+            if let Some(current) = current {
                 return Ok(if current == target && font.kind == Kind::Truetype {
                     Ok(Plan::Already(*handle))
                 } else if font.identify(&current) == Content::Other {
@@ -1737,7 +1850,8 @@ fn and_list(items: &[String]) -> String {
 /// Stages `variant` of every part of this build's packs that the watch lists, across all packs,
 /// or of `parts`: a bitmap part as a new `<part>.tmp`, a TrueType part over `<part>.bin`.
 /// `control` gets one progress step per part and can cancel between files: cancelled before
-/// the first write, nothing is written; after it, this call's changes are rolled back.
+/// the first write, nothing is written; after it, this call's changes are rolled back as far as
+/// possible, and the error's `rollback` says whether every step worked.
 pub fn stage(
     dev: &mut dyn Mtp,
     fonts: &FontSet,
@@ -1913,7 +2027,7 @@ pub fn stage(
             } else {
                 Error::new(ErrorCode::Cancelled, "Cancelled.")
             };
-            return Err(roll_back(dev, storage, ext, &undo, cause));
+            return Err(roll_back(dev, storage, ext, &undo, cause, RESTORE_HINT));
         }
         let bytes = variant.bytes(font);
         let path = staged_path(font);
@@ -1927,7 +2041,7 @@ pub fn stage(
                     });
                     (StageStatus::StagedVerified, handle)
                 }
-                Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
+                Err(e) => return Err(roll_back(dev, storage, ext, &undo, e, RESTORE_HINT)),
             },
             Plan::Replace { existing, original } => {
                 undo.push(Undo::Replaced {
@@ -1949,7 +2063,7 @@ pub fn stage(
                     .and_then(|()| write_verified(dev, storage, ext, &font.file_name(), bytes))
                 {
                     Ok(handle) => (StageStatus::StagedVerified, handle),
-                    Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
+                    Err(e) => return Err(roll_back(dev, storage, ext, &undo, e, RESTORE_HINT)),
                 }
             }
         };

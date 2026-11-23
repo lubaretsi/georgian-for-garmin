@@ -124,6 +124,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "GitHub-ზე შეტყობინება",
+    "rollbackIncomplete": "ყველაფერი ვერ დავაბრუნეთ. ეს ფაილები საათზე შეიძლება ისე აღარ იყოს, როგორც იყო: {files}. შეაერთეთ საათი, დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“ და მერე გადატვირთეთ საათი.",
 
     "errorTitle": "ვერ მოხერხდა",
     "details": "დეტალები",
@@ -272,6 +273,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "Report this on GitHub",
+    "rollbackIncomplete": "Not everything could be put back. These files on the watch may not be as they were: {files}. Connect the watch, click Restore original font, then restart the watch.",
 
     "errorTitle": "That didn’t work",
     "details": "Details",

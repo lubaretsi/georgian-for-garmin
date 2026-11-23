@@ -409,7 +409,9 @@ pub fn stage_file(
             .any(|stem| file.eq_ignore_ascii_case(&format!("{stem}.{ext}")))
     };
 
-    // The waiting files: only the one under name may be replaced.
+    // The waiting files: only the one under name may be replaced. An imported font in the
+    // normal listing (some watches show their `.fnt` there) is checked like a hidden one, but a
+    // failed read stops the call, as install's does for a file in the normal listing.
     let mut existing: Option<Existing> = None;
     let mut already = false;
     let mut targets = Vec::new();
@@ -425,6 +427,10 @@ pub fn stage_file(
                     extdata_path(file)
                 ),
             ));
+        } else if is_alias(file, "fnt")
+            && matches!(identify(&dev.get_object(o.handle)?), Found::Unknown)
+        {
+            return Err(unknown(&extdata_path(file), &part));
         }
     }
     match targets.as_slice() {
@@ -549,7 +555,11 @@ pub fn stage_file(
     )?;
     let storage = layout.storage;
     let (handle, replaces) = match existing {
-        None => (write_verified(dev, storage, ext, name, &bytes)?, None),
+        None => (
+            write_verified(dev, storage, ext, name, &bytes)
+                .map_err(|e| roll_back(dev, storage, ext, &[], e, STAGE_HINT))?,
+            None,
+        ),
         Some(Existing {
             handle,
             original,
@@ -575,7 +585,7 @@ pub fn stage_file(
                 .and_then(|()| write_verified(dev, storage, ext, name, &bytes));
             match written {
                 Ok(new) => (new, Some(replaced)),
-                Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
+                Err(e) => return Err(roll_back(dev, storage, ext, &undo, e, STAGE_HINT)),
             }
         }
     };
@@ -612,6 +622,11 @@ pub fn stage_file(
         replaces,
     ))
 }
+
+/// What to do after stage_file couldn't undo all of its changes.
+const STAGE_HINT: &str = "Connect the watch and look at GARMIN/ExtData with extdata_list: \
+    remove a file this tool staged with remove_staged, or stage Garmin's original for the part \
+    again with stage_file.";
 
 fn unknown(path: &str, part: &str) -> Error {
     Error::new(

@@ -136,6 +136,15 @@ fn a_cancelled_install_rolls_back_what_it_wrote() {
     let error = recorder.run(&mut s, "install", json!({})).unwrap_err();
     assert_eq!(error.code, ErrorCode::Cancelled);
     assert!(error.message.contains("Rolled back"), "{}", error.message);
+    let rollback = error.to_json()["error"]["rollback"].clone();
+    assert_eq!(rollback["status"], "complete", "{rollback}");
+    let undone: Vec<&Value> = rollback["files"].as_array().unwrap().iter().collect();
+    assert_eq!(undone.len(), 2, "{rollback}");
+    assert!(
+        undone
+            .iter()
+            .all(|f| f["done"] == true && f["action"] == "delete")
+    );
     assert!(watch.listed().is_empty(), "{:?}", watch.listed());
 
     // Cancelled before anything was written.
@@ -302,6 +311,159 @@ fn temp_path(name: &str) -> std::path::PathBuf {
     ));
     std::fs::create_dir_all(&dir).unwrap();
     dir.join(name)
+}
+
+/// The `rollback` paths that weren't undone.
+fn left(error: &Error) -> Vec<String> {
+    let rollback = error.rollback.as_ref().expect("a rollback");
+    let mut left: Vec<String> = rollback
+        .files
+        .iter()
+        .filter(|f| !f.done)
+        .map(|f| f.path.clone())
+        .collect();
+    left.sort();
+    left.dedup();
+    left
+}
+
+#[test]
+fn wait_for_watch_notices_that_the_held_watch_is_gone() {
+    let watch = Watch::venu2();
+    let mut s = session(&watch);
+    call(&mut s, "inspect", json!({})).unwrap();
+    watch.unplug();
+    // The held connection's device_info is cached, as on both real backends: it must not count
+    // as an answer.
+    let input = json!({"timeout_seconds": 0.05});
+    assert_eq!(
+        code(call(&mut s, "wait_for_watch", input)),
+        ErrorCode::NoDevice
+    );
+    watch.plug();
+    call(&mut s, "wait_for_watch", json!({"timeout_seconds": 1})).unwrap();
+    call(&mut s, "inspect", json!({})).unwrap();
+    assert_eq!(watch.state().connects, 2);
+}
+
+#[test]
+fn a_failed_install_whose_rollback_fails_says_it_is_incomplete() {
+    let watch = Watch::venu2();
+    {
+        let mut state = watch.state();
+        state.corrupt_create_at = Some(2);
+        state.fail_delete = true;
+    }
+    let mut s = session(&watch);
+    let error = call(&mut s, "install", json!({})).unwrap_err();
+    assert_eq!(error.code, ErrorCode::VerificationFailed);
+    assert!(error.rollback_incomplete());
+    assert_eq!(
+        left(&error),
+        [
+            "GARMIN/ExtData/006-D9035-01.tmp",
+            "GARMIN/ExtData/006-D9035-02.tmp"
+        ]
+    );
+    assert!(
+        error.message.contains("rollback was incomplete"),
+        "{}",
+        error.message
+    );
+    assert!(error.message.contains("restore-stock"), "{}", error.message);
+    assert!(!error.message.contains("Rolled back"), "{}", error.message);
+    let json = error.to_json();
+    assert_eq!(json["error"]["rollback"]["status"], "incomplete");
+
+    // The first write failing alone, its partial file undeletable: incomplete too.
+    let watch = Watch::venu2();
+    {
+        let mut state = watch.state();
+        state.corrupt_create_at = Some(1);
+        state.fail_delete = true;
+    }
+    let mut s = session(&watch);
+    let error = call(&mut s, "install", json!({})).unwrap_err();
+    assert_eq!(left(&error), ["GARMIN/ExtData/006-D9035-01.tmp"]);
+    assert!(
+        error.message.contains("rollback was incomplete"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+fn a_cancelled_install_disconnected_mid_rollback_says_it_is_incomplete() {
+    let watch = Watch::venu2();
+    let mut s = session(&watch);
+    let cancel = AtomicBool::new(false);
+    let sink = |p: Progress| {
+        if p.progress >= 2.0 {
+            cancel.store(true, Ordering::SeqCst);
+            watch.unplug();
+        }
+    };
+    let error = s
+        .call(
+            "install",
+            json!({}),
+            &Control::new(Some(&sink), Some(&cancel)),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Cancelled);
+    assert_eq!(
+        left(&error),
+        [
+            "GARMIN/ExtData/006-D9035-01.tmp",
+            "GARMIN/ExtData/006-D9035-02.tmp"
+        ]
+    );
+    assert!(
+        error.message.contains("rollback was incomplete"),
+        "{}",
+        error.message
+    );
+    watch.plug();
+    assert_eq!(watch.listed().len(), 2, "both files really are still there");
+}
+
+#[test]
+fn an_imported_font_in_the_normal_listing_is_identified() {
+    // Same size as Garmin's file, other bytes: neither stock nor Georgian.
+    let mut unknown = fake::stock("006-D9035-02");
+    unknown[5] ^= 0xff;
+    let watch = Watch::venu2();
+    watch.add_file("006-D9035-02.fnt", unknown);
+    let mut s = session(&watch);
+    for name in ["install", "restore_stock"] {
+        let error = call(&mut s, name, json!({"parts": ["006-D9035-02"]})).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Conflict, "{name}");
+        assert!(
+            error.message.contains("006-D9035-02.fnt"),
+            "{}",
+            error.message
+        );
+    }
+    assert_eq!(watch.listed().len(), 1, "nothing was written");
+
+    // A Georgian import there is this program's: inspect reports it, restore replaces it.
+    let watch = Watch::venu2();
+    watch.add_file("006-D9035-02.fnt", fake::georgian("006-D9035-02"));
+    let mut s = session(&watch);
+    let out = call(&mut s, "inspect", json!({})).unwrap();
+    let font = out["fonts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["part"] == "006-D9035-02")
+        .unwrap()
+        .clone();
+    assert_eq!(
+        (font["file"].clone(), font["imported"].clone()),
+        (json!("georgian"), json!(true))
+    );
+    let out = call(&mut s, "restore_stock", json!({"parts": ["006-D9035-02"]})).unwrap();
+    assert_eq!(out["status"], "staged_verified");
 }
 
 #[cfg(not(feature = "dev"))]
@@ -513,6 +675,45 @@ mod dev {
         let error = recorder.run(&mut s, "stage_file", input).unwrap_err();
         assert_eq!(error.code, ErrorCode::Cancelled);
         assert!(watch.listed().is_empty());
+    }
+
+    #[test]
+    fn stage_file_checks_imported_fonts_in_the_normal_listing() {
+        for name in ["006-D9035-02.fnt", "D903502.fnt"] {
+            let watch = Watch::venu2();
+            let (mut s, _) = dev_session(&watch);
+            watch.add_file(name, b"an import this build doesn't know".to_vec());
+            let input = json!({"source": source(b"font"), "name": "006-D9035-02.tmp"});
+            let error = call(&mut s, "stage_file", input).unwrap_err();
+            assert_eq!(error.code, ErrorCode::Conflict, "{name}");
+            assert!(error.message.contains(name), "{}", error.message);
+            assert_eq!(watch.listed().len(), 1, "nothing was written");
+        }
+        // Garmin's own, by this build's fonts: staged.
+        let watch = Watch::venu2();
+        let (mut s, _) = dev_session(&watch);
+        watch.add_file("D903502.fnt", fake::stock("006-D9035-02"));
+        let input = json!({"source": source(b"font"), "name": "006-D9035-02.tmp"});
+        assert_eq!(
+            call(&mut s, "stage_file", input).unwrap()["status"],
+            "staged_verified"
+        );
+    }
+
+    #[test]
+    fn a_failed_stage_file_says_when_its_cleanup_failed() {
+        let watch = Watch::venu2();
+        {
+            let mut state = watch.state();
+            state.corrupt_create_at = Some(1);
+            state.fail_delete = true;
+        }
+        let (mut s, _) = dev_session(&watch);
+        let input = json!({"source": source(b"font"), "name": "006-D9035-02.tmp"});
+        let error = call(&mut s, "stage_file", input).unwrap_err();
+        assert_eq!(error.code, ErrorCode::VerificationFailed);
+        assert_eq!(left(&error), ["GARMIN/ExtData/006-D9035-02.tmp"]);
+        assert!(error.message.contains("remove_staged"), "{}", error.message);
     }
 }
 

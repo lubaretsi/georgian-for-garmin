@@ -125,8 +125,19 @@ function busyText(busy) {
   return fill(text, { name: holder.name });
 }
 
+/**
+ * A failed install or restore that couldn't undo all of its changes: which files may be left,
+ * and the way back, after what went wrong.
+ */
+function rollbackText(rollback) {
+  if (!rollback || rollback.status !== "incomplete") return "";
+  const left = rollback.files.filter((f) => !f.done).map((f) => f.path.split("/").pop());
+  return " " + fill(T.rollbackIncomplete, { files: [...new Set(left)].join(", ") });
+}
+
 const errorText = (f) =>
-  f.code === "device_busy" ? busyText(f.busy) : T.errors[f.code] || T.errors.internal;
+  (f.code === "device_busy" ? busyText(f.busy) : T.errors[f.code] || T.errors.internal) +
+  rollbackText(f.rollback);
 
 /** What sharing a busy watch did on this visit to the waiting screen: `{key, result, url}`. */
 let busyShared = null;

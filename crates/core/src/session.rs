@@ -265,6 +265,12 @@ fn staged_log(log: &Option<std::path::PathBuf>) -> Result<&std::path::Path, Erro
     })
 }
 
+/// Whether a held connection still reaches the watch. `GetStorageIDs` goes to the watch every
+/// time; `device_info` doesn't: both backends keep the answer from when the session opened.
+fn answers(dev: &mut dyn Mtp) -> bool {
+    dev.storage_ids().is_ok()
+}
+
 impl Watch<'_> {
     /// Runs `f` on the watch: the held connection if it still answers, else a new one. A
     /// transfer failure or a vanished watch drops the connection, so the next call opens it
@@ -274,7 +280,7 @@ impl Watch<'_> {
         f: impl FnOnce(&mut dyn Mtp, &mut HashCache) -> Result<T, Error>,
     ) -> Result<T, Error> {
         if let Some(dev) = &mut self.dev
-            && dev.device_info().is_err()
+            && !answers(dev.as_mut())
         {
             self.dev = None;
         }
@@ -301,15 +307,13 @@ impl Watch<'_> {
         let limit = Duration::from_secs_f64(timeout);
         loop {
             if let Some(dev) = &mut self.dev {
-                match dev.device_info() {
-                    Ok(info) => {
-                        return Ok(WaitOutput {
-                            model: info.model,
-                            waited_seconds: start.elapsed().as_secs_f64(),
-                        });
-                    }
-                    Err(_) => self.dev = None,
+                if answers(dev.as_mut()) {
+                    return Ok(WaitOutput {
+                        model: dev.device_info()?.model,
+                        waited_seconds: start.elapsed().as_secs_f64(),
+                    });
                 }
+                self.dev = None;
             }
             let last = match (self.connect)() {
                 Ok(mut dev) => {
