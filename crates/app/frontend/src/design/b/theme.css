@@ -1,0 +1,372 @@
+/*
+ * Direction B, "Native & precise": tokens, scoped base styles and Tailwind utilities.
+ *
+ * Isolation: Tailwind's preflight is not loaded. Utilities carry the `nb:` prefix and are
+ * generated only from this direction's files (source(none) + @source), and every token and
+ * base rule lives under `.design-b`, so the other direction and the Screens/… stories are
+ * unaffected.
+ *
+ * Contrast (CONTRACT §2.9), measured with WCAG relative luminance for both themes:
+ *   light  text #1c1c1f on bg/group 15.2/16.6 · secondary #5e5e66 5.8/6.3 (5.0 on fills)
+ *          accent text #bf2640 5.3/5.7 · on-accent #fffbfb on #c92a43 5.3
+ *          control border #84848c 3.3/3.6 · success text #17703a 5.4 on its fill
+ *   dark   text #f0f0f3 15.0/12.8 · secondary #a5a5ad 7.0/5.9 (5.2 on fills)
+ *          accent text #ff7086 6.4/5.5 · on-accent #fffbfb on #c42a44 5.4
+ *          control border #7d7d86 4.2/3.6 · checked indicator #e5455f 3.7 on group
+ *          success text #6fd78e 7.6 on its fill
+ * Type: 22/28 title, 15/22 lead, 14/20 rows and body, 13/18 labels and footnotes; nothing smaller.
+ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) prefix(nb);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "./";
+@source "../../stories/design/B.stories.tsx";
+
+/* Georgian always from the bundled Noto Sans Georgian (§2.11); Latin from the system font. */
+@font-face {
+  font-family: "B Georgian";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../../node_modules/@fontsource-variable/noto-sans-georgian/files/noto-sans-georgian-georgian-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+}
+
+@theme inline {
+  --font-ui: var(--b-font);
+  --color-canvas: var(--b-bg);
+  --color-group: var(--b-group);
+  --color-group-hover: var(--b-group-hover);
+  --color-group-active: var(--b-group-active);
+  --color-fill: var(--b-fill);
+  --color-fill-strong: var(--b-fill-strong);
+  --color-fg: var(--b-text);
+  --color-fg-2: var(--b-text-2);
+  --color-sep: var(--b-sep);
+  --color-control: var(--b-control-border);
+  --color-control-bg: var(--b-control-bg);
+  --color-accent: var(--b-accent);
+  --color-accent-hover: var(--b-accent-hover);
+  --color-accent-active: var(--b-accent-active);
+  --color-on-accent: var(--b-on-accent);
+  --color-accent-ink: var(--b-accent-ink);
+  --color-indicator: var(--b-indicator);
+  --color-accent-soft: var(--b-accent-soft);
+  --color-success: var(--b-success);
+  --color-success-ink: var(--b-success-ink);
+  --color-success-soft: var(--b-success-soft);
+  --color-caution-soft: var(--b-caution-soft);
+  --color-caution-ink: var(--b-caution-ink);
+  --color-tile: var(--b-tile);
+  --color-toolbar: var(--b-toolbar);
+
+  --text-title: 22px;
+  --text-title--line-height: 28px;
+  --text-title--letter-spacing: -0.01em;
+  --text-lead: 15px;
+  --text-lead--line-height: 22px;
+  --text-row: 14px;
+  --text-row--line-height: 20px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+
+  --radius-group: 12px;
+  --radius-control: var(--b-control-radius);
+  --radius-tile: 7px;
+
+  --shadow-group: var(--b-shadow-group);
+  --shadow-control: var(--b-shadow-control);
+  --shadow-thumb: var(--b-shadow-thumb);
+  --shadow-window: var(--b-shadow-window);
+
+  --ease-native: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ---- Tokens ---- */
+
+.design-b {
+  --b-font: "B Georgian", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    Cantarell, "Noto Sans Georgian Variable", system-ui, sans-serif;
+  --b-control-radius: 8px;
+  --b-toolbar-h: 52px;
+  --b-footer-h: 60px;
+
+  color-scheme: light;
+  --b-bg: #f2f2f5;
+  --b-group: #fcfcfd;
+  --b-group-hover: #f5f5f8;
+  --b-group-active: #ececf0;
+  --b-fill: rgb(118 118 128 / 0.12);
+  --b-fill-strong: rgb(118 118 128 / 0.2);
+  --b-text: #1c1c1f;
+  --b-text-2: #5e5e66;
+  --b-sep: rgb(60 60 67 / 0.14);
+  --b-control-border: #84848c;
+  --b-control-bg: #fcfcfd;
+  --b-accent: #c92a43;
+  --b-accent-hover: #b32239;
+  --b-accent-active: #9e1d32;
+  --b-on-accent: #fffbfb;
+  --b-accent-ink: #bf2640;
+  --b-indicator: #c92a43;
+  --b-accent-soft: rgb(201 42 67 / 0.08);
+  --b-success: #1f8a43;
+  --b-success-ink: #17703a;
+  --b-success-soft: #e4f3e8;
+  --b-caution-soft: #f8eedb;
+  --b-caution-ink: #7a4f06;
+  --b-tile: linear-gradient(180deg, #8e8e96, #6e6e76);
+  --b-tile-green: linear-gradient(180deg, #34b55a, #23974a);
+  --b-tile-accent: linear-gradient(180deg, #db3a53, #c22840);
+  --b-toolbar: rgb(242 242 245 / 0.94);
+  --b-focus: #c92a43;
+  --b-shadow-group: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+  --b-shadow-control: 0 0.5px 1px rgb(0 0 0 / 0.12);
+  --b-shadow-thumb: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 5px rgb(0 0 0 / 0.12);
+  --b-shadow-window: 0 0 0 0.5px rgb(0 0 0 / 0.22), 0 24px 64px rgb(0 0 0 / 0.22), 0 6px 16px rgb(0 0 0 / 0.1);
+
+  /* The device: silver case, dark glass, graphite strap. */
+  --b-case-hi: #eef0f3;
+  --b-case-lo: #a3a6ad;
+  --b-case-edge: rgb(0 0 0 / 0.28);
+  --b-bezel: #2a2b30;
+  --b-glass: #111215;
+  --b-face-fg: #f3f3f5;
+  --b-face-dim: #8d8f98;
+  --b-strap-a: #c3c6cd;
+  --b-strap-b: #a8abb3;
+  --b-button: #9ea1a8;
+  --b-device-shadow: rgb(20 20 30 / 0.18);
+  --b-ring: rgb(60 60 67 / 0.16);
+}
+
+.design-b[data-theme="dark"] {
+  color-scheme: dark;
+  --b-bg: #1c1c1e;
+  --b-group: #29292c;
+  --b-group-hover: #2f2f32;
+  --b-group-active: #363639;
+  --b-fill: rgb(118 118 128 / 0.24);
+  --b-fill-strong: rgb(118 118 128 / 0.36);
+  --b-text: #f0f0f3;
+  --b-text-2: #a5a5ad;
+  --b-sep: rgb(255 255 255 / 0.1);
+  --b-control-border: #7d7d86;
+  --b-control-bg: #46464b;
+  --b-accent: #c42a44;
+  --b-accent-hover: #b22339;
+  --b-accent-active: #a01f33;
+  --b-on-accent: #fffbfb;
+  --b-accent-ink: #ff7086;
+  --b-indicator: #e5455f;
+  --b-accent-soft: rgb(255 112 134 / 0.1);
+  --b-success: #3fbf68;
+  --b-success-ink: #6fd78e;
+  --b-success-soft: #1d3324;
+  --b-caution-soft: #3a2f19;
+  --b-caution-ink: #f0c36b;
+  --b-tile: linear-gradient(180deg, #7a7a82, #5d5d64);
+  --b-toolbar: rgb(28 28 30 / 0.94);
+  --b-focus: #ff7086;
+  --b-shadow-group: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --b-shadow-control: 0 0 0 0.5px rgb(255 255 255 / 0.04), 0 1px 1px rgb(0 0 0 / 0.3);
+  --b-shadow-thumb: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 2px 5px rgb(0 0 0 / 0.4);
+  --b-shadow-window: 0 0 0 0.5px rgb(0 0 0 / 0.8), inset 0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 24px 64px rgb(0 0 0 / 0.5);
+
+  --b-case-hi: #7a7d86;
+  --b-case-lo: #2a2c31;
+  --b-case-edge: rgb(0 0 0 / 0.6);
+  --b-bezel: #16171a;
+  --b-glass: #0c0d0f;
+  --b-strap-a: #3f4147;
+  --b-strap-b: #32343a;
+  --b-button: #5d6068;
+  --b-device-shadow: rgb(0 0 0 / 0.45);
+  --b-ring: rgb(255 255 255 / 0.12);
+}
+
+.design-b[data-platform="windows"] {
+  --b-control-radius: 5px;
+}
+
+/* ---- Base (scoped; Tailwind's preflight is not loaded) ---- */
+
+@layer base {
+  .design-b {
+    font-family: var(--b-font);
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--b-text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
+  }
+  .design-b *,
+  .design-b *::before,
+  .design-b *::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+  .design-b :where(h1, h2, h3, p, ol, ul, figure, legend, fieldset) {
+    font: inherit;
+  }
+  .design-b :where(ol, ul) {
+    list-style: none;
+  }
+  .design-b :where(button, input) {
+    font: inherit;
+    color: inherit;
+    background: none;
+    letter-spacing: inherit;
+  }
+  .design-b :where(button) {
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .design-b :where(svg, img) {
+    display: block;
+    flex-shrink: 0;
+  }
+  .design-b ::selection {
+    background: rgb(201 42 67 / 0.22);
+  }
+}
+
+/* Unlayered on purpose: the app's global `:focus-visible` rule is unlayered too, and this
+   one has to win over it inside the direction. */
+.design-b :focus-visible {
+  outline: 2px solid var(--b-focus);
+  outline-offset: 2px;
+}
+.design-b [data-focus="inset"]:focus-visible {
+  outline-offset: -3px;
+}
+.design-b h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* ---- Motion ---- */
+
+@keyframes b-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes b-spokes {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes b-ripple {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.32);
+    opacity: 0;
+  }
+}
+@keyframes b-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes b-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+@keyframes b-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes b-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+@keyframes b-flight {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+.design-b .b-spinner {
+  animation: b-spokes 0.9s steps(12) infinite;
+}
+.design-b .b-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-spin 1.4s linear infinite;
+}
+.design-b .b-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: b-ripple 2.8s var(--ease-native, ease-out) infinite;
+}
+.design-b .b-pulse {
+  animation: b-pulse 1.8s ease-in-out infinite;
+}
+.design-b .b-flow {
+  animation: b-dash 1.2s linear infinite;
+}
+
+/* The hero shrinks on short windows so the content and the footer keep their room. */
+.design-b .b-shell {
+  container: b-shell / size;
+}
+.design-b .b-hero {
+  height: var(--b-hero-h, 176px);
+}
+@container b-shell (min-height: 700px) {
+  .design-b .b-hero {
+    --b-hero-h: 196px;
+  }
+}
+@container b-shell (max-height: 620px) {
+  .design-b .b-hero {
+    --b-hero-h: 120px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .design-b .b-spinner,
+  .design-b .b-spin,
+  .design-b .b-ripple,
+  .design-b .b-pulse,
+  .design-b .b-flow {
+    animation: none;
+  }
+  .design-b .b-ripple {
+    opacity: 0.5;
+  }
+}
