@@ -27,6 +27,8 @@ scripts/build-macos-release.sh  # outside nix develop
   machine's hardware. Images are cropped to what they show.
 - Every change users would notice adds a `CHANGELOG.md` entry in the same commit.
 - Nix sees only Git-tracked files: `git add` new files before `nix build` or `nix flake check`.
+- Agents own this codebase: an improvement found while working gets made, in the same change
+  when small and related, otherwise in its own PR.
 
 ## Code Review Rules
 
