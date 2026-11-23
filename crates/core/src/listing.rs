@@ -44,11 +44,12 @@ pub struct ExtdataFolder {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HiddenListingStatus {
-    /// Read; `files` has the hidden ones.
+    /// Read whole; `files` has the hidden ones.
     Listed,
     /// The watch doesn't list Garmin's GetObjectIds.
     Unsupported,
-    /// Reading it failed; `note` says why.
+    /// Reading it failed, or failed for some files; `note` says why, and `files` has the
+    /// hidden ones that could be read.
     Error,
 }
 
@@ -133,7 +134,12 @@ pub fn extdata_list(
             note,
         } => {
             objects.extend(hidden.into_iter().map(|(h, info)| (h, info, true)));
-            (HiddenListingStatus::Listed, note)
+            let status = if note.is_some() {
+                HiddenListingStatus::Error
+            } else {
+                HiddenListingStatus::Listed
+            };
+            (status, note)
         }
     };
     objects.sort_by(|a, b| {

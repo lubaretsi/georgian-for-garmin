@@ -277,18 +277,26 @@ fn extdata(layout: &Layout) -> Result<&ExtData, Error> {
     })
 }
 
-/// Every file in `ExtData`, normal listing then hidden, with whether it is hidden.
-fn all_files(dev: &mut dyn Mtp, layout: &Layout, ext: &ExtData) -> Vec<(u32, ObjectInfo, bool)> {
-    let mut files: Vec<(u32, ObjectInfo, bool)> = ext
-        .files
+/// `ExtData`'s files in the normal listing, with `false` for not hidden.
+fn listed_files(ext: &ExtData) -> Vec<(u32, ObjectInfo, bool)> {
+    ext.files
         .iter()
         .filter(|o| !o.info.is_folder())
         .map(|o| (o.handle, o.info.clone(), false))
-        .collect();
-    if let HiddenScan::Listed { objects, .. } = scan_hidden(dev, layout.storage, ext) {
-        files.extend(objects.into_iter().map(|(h, i)| (h, i, true)));
-    }
-    files
+        .collect()
+}
+
+/// Every file in `ExtData` for a write, normal listing then hidden, with whether it is
+/// hidden. A failed or partial hidden listing is an error ([`HiddenScan::for_write`]).
+fn all_files(
+    dev: &mut dyn Mtp,
+    layout: &Layout,
+    ext: &ExtData,
+) -> Result<Vec<(u32, ObjectInfo, bool)>, Error> {
+    let mut files = listed_files(ext);
+    let hidden = scan_hidden(dev, layout.storage, ext).for_write()?;
+    files.extend(hidden.into_iter().flatten().map(|(h, i)| (h, i, true)));
+    Ok(files)
 }
 
 /// Which file to read, and where to put it.
@@ -318,7 +326,16 @@ pub struct ReadFileOutput {
 pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOutput, Error> {
     let layout = extdata::discover(dev)?;
     let ext = extdata(&layout)?;
-    let files = all_files(dev, &layout, ext);
+    // A read: a partial hidden listing still serves, and a name it misses says so.
+    let mut files = listed_files(ext);
+    let missing = match scan_hidden(dev, layout.storage, ext) {
+        HiddenScan::Unsupported => None,
+        HiddenScan::Failed(why) => Some(why),
+        HiddenScan::Listed { objects, note } => {
+            files.extend(objects.into_iter().map(|(h, i)| (h, i, true)));
+            note
+        }
+    };
     let named: Vec<&(u32, ObjectInfo, bool)> = files
         .iter()
         .filter(|f| f.1.filename.eq_ignore_ascii_case(&input.name))
@@ -326,8 +343,11 @@ pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOut
     let (handle, info, hidden) = match named.as_slice() {
         [one] => *one,
         [] => {
+            let incomplete = missing
+                .map(|why| format!(" (its hidden listing couldn't be read whole: {why})"))
+                .unwrap_or_default();
             return Err(invalid(format!(
-                "GARMIN/ExtData has no file named {}",
+                "GARMIN/ExtData has no file named {}{incomplete}",
                 input.name
             )));
         }
@@ -560,9 +580,9 @@ pub fn stage_file(
             ));
         }
     }
-    // The imported fonts the next restart would replace: a file that can't be read is left to
-    // the watch, as install does for a bitmap part.
-    if let HiddenScan::Listed { objects, .. } = scan_hidden(dev, layout.storage, ext) {
+    // The imported fonts the next restart would replace, from a hidden listing read whole: a
+    // file whose contents can't be read is left to the watch, as install does for a bitmap part.
+    if let Some(objects) = scan_hidden(dev, layout.storage, ext).for_write()? {
         for (handle, info) in objects {
             let ours = names::resolve(&info.filename)
                 .is_some_and(|f| f.part == part && f.role != Role::Bin);
@@ -951,7 +971,7 @@ pub fn mtp_create(
     }
     let entries = read_log(log)?;
     let known = Identify::new(fonts, &entries, &file.part, BTreeSet::new());
-    for (handle, info, hidden) in all_files(dev, &layout, ext) {
+    for (handle, info, hidden) in all_files(dev, &layout, ext)? {
         let Some(other) = names::resolve(&info.filename).filter(|f| f.part == file.part) else {
             continue;
         };
@@ -1055,7 +1075,7 @@ pub fn mtp_delete(
     let handle = input.handle;
     let (layout, _) = write_target(dev, None)?;
     let ext = extdata(&layout)?;
-    let files = all_files(dev, &layout, ext);
+    let files = all_files(dev, &layout, ext)?;
     let Some((_, info, hidden)) = files.into_iter().find(|f| f.0 == handle) else {
         return Err(invalid(format!(
             "{} is not a file in GARMIN/ExtData, the only place mtp_delete deletes from. Nothing \

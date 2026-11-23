@@ -1867,6 +1867,34 @@ pub(crate) enum HiddenScan {
     },
 }
 
+impl HiddenScan {
+    /// The hidden children a write checks: `None` when the watch doesn't list GetObjectIds.
+    /// A failed or partial listing is an error, never an empty or shorter list: a file it
+    /// leaves unseen would go unchecked, and could be replaced at the next restart.
+    pub(crate) fn for_write(self) -> Result<Option<Vec<(u32, ObjectInfo)>>, Error> {
+        let why = match self {
+            HiddenScan::Unsupported => return Ok(None),
+            HiddenScan::Listed {
+                objects,
+                note: None,
+            } => return Ok(Some(objects)),
+            HiddenScan::Failed(why) => format!(
+                "Could not read GARMIN/ExtData's hidden listing (Garmin's GetObjectIds): {why}."
+            ),
+            HiddenScan::Listed {
+                note: Some(why), ..
+            } => format!("Could not read every file of GARMIN/ExtData's hidden listing ({why})."),
+        };
+        Err(Error::new(
+            ErrorCode::DeviceError,
+            format!(
+                "{why} A file it leaves unseen could be replaced unchecked, so nothing was \
+                 written. Reconnect the watch and try again."
+            ),
+        ))
+    }
+}
+
 /// Reads `ExtData`'s hidden children: on the Venu 2 exactly the read-only imports. Folders and
 /// objects outside `ExtData` are left out.
 pub(crate) fn scan_hidden(dev: &mut dyn Mtp, storage: u32, ext: &ExtData) -> HiddenScan {
@@ -1902,20 +1930,6 @@ pub(crate) fn scan_hidden(dev: &mut dyn Mtp, storage: u32, ext: &ExtData) -> Hid
         }
     }
     HiddenScan::Listed { objects, note }
-}
-
-/// `ExtData`'s children the normal listing leaves out, with their info, when the watch lists
-/// Garmin's `GetObjectIds` (0x9002); `None` when it doesn't, or listing fails. On the Venu 2
-/// these are exactly the read-only imports.
-fn hidden_objects(
-    dev: &mut dyn Mtp,
-    storage: u32,
-    ext: &ExtData,
-) -> Option<Vec<(u32, ObjectInfo)>> {
-    match scan_hidden(dev, storage, ext) {
-        HiddenScan::Listed { objects, .. } => Some(objects),
-        HiddenScan::Unsupported | HiddenScan::Failed(_) => None,
-    }
 }
 
 /// Decides `font`'s Plan from what its file holds, by content: the part's file in the normal
@@ -2158,12 +2172,12 @@ pub fn stage(
     })?;
 
     // Check every target before writing anything. Files are identified by content; the hidden
-    // listing is read only when a target isn't in the normal one.
+    // listing is read only when a target isn't in the normal one, and must be read whole.
     let needs_hidden = targets
         .iter()
         .any(|(_, font)| staged_in(&ext.files, font).is_empty());
     let hidden = if needs_hidden {
-        hidden_objects(dev, layout.storage, ext)
+        scan_hidden(dev, layout.storage, ext).for_write()?
     } else {
         None
     };

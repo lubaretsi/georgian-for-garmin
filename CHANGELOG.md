@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Install and restore stop with `device_error`, writing nothing, when the watch lists Garmin's
+  GetObjectIds but reading `ExtData`'s hidden listing fails, wholly or for one file; before, they
+  went on as if the listing were complete, so an imported font they couldn't see could be
+  replaced unchecked at the next restart. The development writes (`stage_file`, `mtp_create`,
+  `mtp_delete`) refuse the same way. `extdata_list` reports such a partial listing as
+  `hidden_listing: error` with its `note`.
 - A bitmap part's imported `<part>.fnt` in the normal `ExtData` listing (as the watch in #38
   shows it) is now identified before install or restore writes a `.tmp` that would replace it at
   the next restart, and `inspect` reports it; before, only the hidden listing was checked.

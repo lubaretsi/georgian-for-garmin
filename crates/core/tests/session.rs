@@ -109,6 +109,66 @@ impl Recorder {
     }
 }
 
+/// The two ways the hidden listing comes back incomplete: Garmin's GetObjectIds fails for
+/// ExtData, or GetObjectInfo fails for one hidden child (the imported CJK font).
+fn incomplete_hidden_listings() -> [(&'static str, Watch); 2] {
+    let ids = Watch::venu2();
+    ids.state().fail_object_ids_of = Some(fake::EXTDATA);
+    let info = Watch::venu2();
+    info.state().fail_object_info_of = Some(fake::IMPORTED_CJK);
+    [
+        ("GetObjectIds fails", ids),
+        ("GetObjectInfo fails for one child", info),
+    ]
+}
+
+/// Whether the watch was sent anything that writes.
+fn wrote(watch: &Watch) -> bool {
+    watch
+        .state()
+        .log
+        .iter()
+        .any(|o| o.starts_with("Send") || o == "DeleteObject")
+}
+
+/// Install and restore never count an incomplete hidden listing as complete: an import it
+/// leaves unseen would go unchecked and be replaced at the next restart. Nothing is written.
+#[test]
+fn install_and_restore_refuse_an_incomplete_hidden_listing() {
+    for (case, watch) in incomplete_hidden_listings() {
+        let mut s = session(&watch);
+        for name in ["install", "restore_stock"] {
+            let error = call(&mut s, name, json!({})).unwrap_err();
+            assert_eq!(
+                error.code,
+                ErrorCode::DeviceError,
+                "{case}, {name}: {error}"
+            );
+            assert!(error.message.contains("hidden listing"), "{case}: {error}");
+            assert!(
+                error.message.contains("nothing was written"),
+                "{case}: {error}"
+            );
+        }
+        assert!(!wrote(&watch), "{case}: {:?}", watch.state().log);
+        assert!(watch.listed().is_empty(), "{case}");
+    }
+}
+
+/// The read-only listings still answer, and flag what they couldn't read.
+#[test]
+fn listings_flag_an_incomplete_hidden_listing() {
+    for (case, watch) in incomplete_hidden_listings() {
+        let mut s = session(&watch);
+        let out = call(&mut s, "extdata_list", json!({})).unwrap();
+        assert_eq!(out["hidden_listing"], "error", "{case}: {out}");
+        assert!(out["note"].is_string(), "{case}: {out}");
+        let out = call(&mut s, "inspect", json!({})).unwrap();
+        assert_eq!(out["extdata_hidden"]["status"], "error", "{case}");
+        assert!(out["extdata_hidden"]["note"].is_string(), "{case}");
+    }
+}
+
 #[test]
 fn install_reports_one_step_per_part() {
     let watch = Watch::venu2();

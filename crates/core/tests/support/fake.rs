@@ -121,6 +121,10 @@ pub struct State {
     pub write_delay: Duration,
     /// `DeleteObject` fails, as on a watch that refuses it.
     pub fail_delete: bool,
+    /// Garmin's `GetObjectIds` fails for this parent.
+    pub fail_object_ids_of: Option<u32>,
+    /// `GetObjectInfo` fails for this handle.
+    pub fail_object_info_of: Option<u32>,
     /// The nth object creation (1-based) stores other bytes than it was sent.
     pub corrupt_create_at: Option<usize>,
     creates: usize,
@@ -158,6 +162,8 @@ impl Watch {
             connects: 0,
             write_delay: Duration::ZERO,
             fail_delete: false,
+            fail_object_ids_of: None,
+            fail_object_info_of: None,
             corrupt_create_at: None,
             creates: 0,
             log: Vec::new(),
@@ -350,6 +356,12 @@ impl Mtp for Connection {
 
     fn object_info(&mut self, handle: u32) -> Result<ObjectInfo, MtpError> {
         let s = self.live(op::GET_OBJECT_INFO)?;
+        if s.fail_object_info_of == Some(handle) {
+            return Err(MtpError::Response {
+                operation: op::GET_OBJECT_INFO,
+                code: 0x2002,
+            });
+        }
         s.objects
             .get(&handle)
             .map(|(i, _)| i.clone())
@@ -413,6 +425,12 @@ impl Mtp for Connection {
 
     fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         let s = self.live(op::GARMIN_GET_OBJECT_IDS)?;
+        if s.fail_object_ids_of == Some(parent) {
+            return Err(MtpError::Response {
+                operation: op::GARMIN_GET_OBJECT_IDS,
+                code: 0x2002,
+            });
+        }
         Ok(s.hidden
             .iter()
             .copied()

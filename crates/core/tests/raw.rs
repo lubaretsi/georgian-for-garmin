@@ -418,6 +418,92 @@ fn mtp_delete_deletes_only_identified_files_in_extdata() {
     assert_eq!(listed, ["006-D9035-01.tmp", "notes.txt"]);
 }
 
+/// A way the hidden listing comes back incomplete: its name, and how the fake fails.
+type Failure = (&'static str, fn(&Watch));
+
+/// `mtp_create`, `stage_file` and `mtp_delete` never count an incomplete hidden listing as
+/// complete, whether GetObjectIds fails for ExtData or GetObjectInfo fails for one hidden
+/// child: nothing is written. `read_file` still reads, and says so when a name may be missed.
+#[test]
+fn writes_refuse_an_incomplete_hidden_listing() {
+    let failures: [Failure; 2] = [
+        ("GetObjectIds fails", |w| {
+            w.state().fail_object_ids_of = Some(EXTDATA);
+        }),
+        ("GetObjectInfo fails for one child", |w| {
+            w.state().fail_object_info_of = Some(IMPORTED_CJK);
+        }),
+    ];
+    for (case, fail) in failures {
+        let watch = Watch::venu2();
+        let georgian = watch.add_file("006-D9035-02.tmp", fake::georgian("006-D9035-02"));
+        let source = temp_path("font.tmp");
+        std::fs::write(&source, b"experimental host").unwrap();
+        fail(&watch);
+        let (mut s, log) = session(&watch);
+        let calls = [
+            (
+                "mtp_create",
+                json!({"name": "006-D9035-03.tmp", "data_base64": STANDARD.encode(b"x"),
+                       "allow_write": true}),
+            ),
+            (
+                "stage_file",
+                json!({"source": source, "name": "006-D9035-03.tmp"}),
+            ),
+            (
+                "stage_file",
+                json!({"source": source, "name": "006-D9035-03.tmp", "dry_run": true}),
+            ),
+            (
+                "mtp_delete",
+                json!({"handle": georgian, "allow_write": true}),
+            ),
+        ];
+        for (name, input) in calls {
+            let error = refused(&mut s, name, input);
+            assert_eq!(
+                error.code,
+                ErrorCode::DeviceError,
+                "{case}, {name}: {error}"
+            );
+            assert!(
+                error.message.contains("hidden listing"),
+                "{case}, {name}: {error}"
+            );
+            assert!(
+                error.message.contains("nothing was written"),
+                "{case}: {error}"
+            );
+        }
+        let sent = watch.state().log.clone();
+        assert!(
+            !sent
+                .iter()
+                .any(|o| o.starts_with("Send") || o == "DeleteObject"),
+            "{case}: {sent:?}"
+        );
+        assert_eq!(watch.listed().len(), 1, "{case}");
+        assert!(log_lines(&log).is_empty(), "{case}");
+
+        // A read: a file in the normal listing still comes; a name that may be hidden is
+        // reported missing with why.
+        let path = temp_path("copy.tmp");
+        let input = json!({"name": "006-D9035-02.tmp", "path": path});
+        call(&mut s, "read_file", input).unwrap();
+        let path = temp_path("copy.fnt");
+        let error = refused(
+            &mut s,
+            "read_file",
+            json!({"name": "D844870.fnt", "path": path}),
+        );
+        assert!(
+            error.message.contains("couldn't be read whole"),
+            "{case}: {error}"
+        );
+    }
+}
+
 /// The masked elements of the fake's GarminDevice.xml, their values and how often each occurs.
 const XML_IDS: [(&str, &str, usize); 3] =
     [("Id", UNIT_ID, 1), ("Ifix", IFIX, 1), ("AppId", APP_ID, 2)];
