@@ -63,6 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A bitmap part's imported `<part>.fnt` in the normal `ExtData` listing (as the watch in #38
   shows it) is now identified before install or restore writes a `.tmp` that would replace it at
   the next restart, and `inspect` reports it; before, only the hidden listing was checked.
+- Install, restore and `inspect` recognize a part's files under Garmin's short name too
+  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting short-named file
+  is identified before anything is written, replaced under this build's name when it is
+  Garmin's or this program's, and refused otherwise, so a part never ends up with two waiting
+  files. Two files for one part are named in the `conflict` error.
 
 ## [0.3.3] - 2026-11-23
 

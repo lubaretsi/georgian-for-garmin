@@ -18,6 +18,7 @@ use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, Layout};
 use crate::fonts::{Content, FontSet, sha256_hex};
 use crate::mtp::Mtp;
+use crate::names::{self, Role};
 use crate::ops::{
     HiddenScan, Undo, extdata_path, hex_handle, missing_write_operations, read_garmin_device,
     roll_back, scan_hidden, write_verified,
@@ -255,6 +256,8 @@ pub enum Identified {
     Georgian,
     /// A file this tool staged (in the log).
     Staged,
+    /// The same bytes as source, waiting under the part's other name form.
+    Same,
 }
 
 /// The file a stage replaces.
@@ -285,32 +288,7 @@ pub struct StageFileOutput {
     pub replaces: Option<Replaced>,
 }
 
-/// `name`'s part number and short form: `006-D8448-70.tmp` and `D844870.tmp` are both
-/// `("006-D8448-70", "D844870")`.
-fn part_of(name: &str) -> Option<(String, String)> {
-    let stem = name
-        .len()
-        .checked_sub(4)
-        .filter(|&i| name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".tmp"))
-        .map(|i| &name[..i])?;
-    let digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
-    let b = stem.as_bytes();
-    let (four, two) = if b.len() == 12
-        && stem[..5].eq_ignore_ascii_case("006-d")
-        && b[9] == b'-'
-        && digits(&stem[5..9])
-        && digits(&stem[10..])
-    {
-        (&stem[5..9], &stem[10..])
-    } else if b.len() == 7 && b[0].eq_ignore_ascii_case(&b'd') && digits(&stem[1..]) {
-        (&stem[1..5], &stem[5..])
-    } else {
-        return None;
-    };
-    Some((format!("006-D{four}-{two}"), format!("D{four}{two}")))
-}
-
-/// What `stage_file` found under the part's names.
+/// What `stage_file` found in a file of the part.
 enum Found {
     Same,
     Known(Identified),
@@ -333,11 +311,14 @@ pub fn stage_file(
 ) -> Result<StageFileOutput, Error> {
     let name = input.name.as_str();
     let path = extdata_path(name);
-    let (part, short) = part_of(name).ok_or_else(|| {
-        invalid(format!(
-            "{name} is not <part>.tmp, as 006-D8448-70.tmp or D844870.tmp"
-        ))
-    })?;
+    let part = names::resolve(name)
+        .filter(|f| f.role == Role::Waiting)
+        .map(|f| f.part)
+        .ok_or_else(|| {
+            invalid(format!(
+                "{name} is not <part>.tmp, as 006-D8448-70.tmp or D844870.tmp"
+            ))
+        })?;
     let bytes = std::fs::read(&input.source)
         .map_err(|e| invalid(format!("cannot read {}: {e}", input.source)))?;
     let sha256 = sha256_hex(&bytes);
@@ -403,61 +384,70 @@ pub fn stage_file(
             Found::Unknown
         }
     };
-    let is_alias = |file: &str, ext: &str| {
-        [&part, &short]
-            .iter()
-            .any(|stem| file.eq_ignore_ascii_case(&format!("{stem}.{ext}")))
-    };
-
-    // The waiting files: only the one under name may be replaced. An imported font in the
-    // normal listing (some watches show their `.fnt` there) is checked like a hidden one, but a
-    // failed read stops the call, as install's does for a file in the normal listing.
+    // The part's files, by the one name rule ([`names`]) in either name form. Of its waiting
+    // files there may be one, under either name: identical (under name), identified (replaced)
+    // or unknown (refused). An import in the normal listing (some watches show their `.fnt`
+    // there) must be identified like a hidden one, but a failed read stops the call, as
+    // install's does for a file in the normal listing.
     let mut existing: Option<Existing> = None;
-    let mut already = false;
-    let mut targets = Vec::new();
+    let mut already: Option<u32> = None;
+    let mut waiting = Vec::new();
     for o in ext.files.iter().filter(|o| !o.info.is_folder()) {
-        let file = &o.info.filename;
-        if file.eq_ignore_ascii_case(name) {
-            targets.push(o);
-        } else if is_alias(file, "tmp") {
-            return Err(Error::new(
-                ErrorCode::Conflict,
-                format!(
-                    "{} is waiting for part {part} too; nothing was written.",
-                    extdata_path(file)
-                ),
-            ));
-        } else if is_alias(file, "fnt")
-            && matches!(identify(&dev.get_object(o.handle)?), Found::Unknown)
-        {
-            return Err(unknown(&extdata_path(file), &part));
+        let Some(file) = names::resolve(&o.info.filename).filter(|f| f.part == part) else {
+            continue;
+        };
+        match file.role {
+            Role::Waiting => waiting.push(o),
+            Role::Imported => {
+                if matches!(identify(&dev.get_object(o.handle)?), Found::Unknown) {
+                    return Err(unknown(&extdata_path(&o.info.filename), &part));
+                }
+            }
+            Role::Bin => {}
         }
     }
-    match targets.as_slice() {
+    match waiting.as_slice() {
         [] => {}
         [one] => {
             let current = dev.get_object(one.handle)?;
-            match identify(&current) {
-                Found::Same => already = true,
-                Found::Known(identified_as) => {
-                    existing = Some(Existing {
-                        handle: one.handle,
-                        replaced: Replaced {
-                            name: one.info.filename.clone(),
-                            handle: hex_handle(one.handle),
-                            sha256: sha256_hex(&current),
-                            identified_as,
-                        },
-                        original: current,
-                    });
+            let under_name = one.info.filename.eq_ignore_ascii_case(name);
+            let identified_as = match identify(&current) {
+                Found::Same if under_name => {
+                    already = Some(one.handle);
+                    None
                 }
-                Found::Unknown => return Err(unknown(&path, &part)),
+                Found::Same => Some(Identified::Same),
+                Found::Known(identified_as) => Some(identified_as),
+                Found::Unknown => {
+                    return Err(unknown(&extdata_path(&one.info.filename), &part));
+                }
+            };
+            if let Some(identified_as) = identified_as {
+                existing = Some(Existing {
+                    handle: one.handle,
+                    replaced: Replaced {
+                        name: one.info.filename.clone(),
+                        handle: hex_handle(one.handle),
+                        sha256: sha256_hex(&current),
+                        identified_as,
+                    },
+                    original: current,
+                });
             }
         }
-        _ => {
+        many => {
+            let paths: Vec<String> = many
+                .iter()
+                .map(|o| extdata_path(&o.info.filename))
+                .collect();
             return Err(Error::new(
                 ErrorCode::Conflict,
-                format!("Several files are named {path}; nothing was written."),
+                format!(
+                    "{} all wait for part {part}: a part takes one waiting file, so nothing was \
+                     written. Remove the ones this tool staged with remove_staged, or unplug and \
+                     restart the watch.",
+                    paths.join(", ")
+                ),
             ));
         }
     }
@@ -465,10 +455,10 @@ pub fn stage_file(
     // the watch, as install does for a bitmap part.
     if let HiddenScan::Listed { objects, .. } = scan_hidden(dev, layout.storage, ext) {
         for (handle, info) in objects {
-            if !(is_alias(&info.filename, "fnt") || is_alias(&info.filename, "tmp")) {
-                continue;
-            }
-            if let Ok(current) = dev.get_object(handle)
+            let ours = names::resolve(&info.filename)
+                .is_some_and(|f| f.part == part && f.role != Role::Bin);
+            if ours
+                && let Ok(current) = dev.get_object(handle)
                 && matches!(identify(&current), Found::Unknown)
             {
                 return Err(unknown(&extdata_path(&info.filename), &part));
@@ -476,7 +466,7 @@ pub fn stage_file(
         }
     }
 
-    let action = if already {
+    let action = if already.is_some() {
         StageAction::None
     } else if existing.is_some() {
         StageAction::Replace
@@ -510,7 +500,7 @@ pub fn stage_file(
         replaces,
     };
     if input.dry_run.unwrap_or(false) {
-        let id = if already { logged_id() } else { None };
+        let id = if already.is_some() { logged_id() } else { None };
         return Ok(output(
             StageFileStatus::DryRun,
             id,
@@ -518,8 +508,8 @@ pub fn stage_file(
             existing.map(|e| e.replaced),
         ));
     }
-    if already {
-        let handle = targets.first().map(|o| o.handle);
+    if let Some(handle) = already {
+        let handle = Some(handle);
         control.progress(2, 2, &format!("{path}: already staged"));
         return Ok(output(
             StageFileStatus::AlreadyStaged,
@@ -576,7 +566,8 @@ pub fn stage_file(
                     Error::new(
                         e.code,
                         format!(
-                            "Could not delete {path} ({}) to replace it: {}.",
+                            "Could not delete {} ({}) to replace it: {}.",
+                            extdata_path(&replaced.name),
                             hex_handle(handle),
                             e.message
                         ),
@@ -704,6 +695,9 @@ pub fn already_removed(
     }))
 }
 
+/// Deletes the part's waiting files (either name form, [`names`]) that hold the bytes `id`
+/// staged. A file under the logged name with other bytes is refused; another waiting file of
+/// the part is left alone.
 pub fn remove_staged(
     dev: &mut dyn Mtp,
     log: &Path,
@@ -711,28 +705,30 @@ pub fn remove_staged(
 ) -> Result<RemoveStagedOutput, Error> {
     let (name, sha256, _) = logged(log, &input.id)?;
     let path = extdata_path(&name);
+    let part = names::resolve(&name).map(|f| f.part);
     let layout = extdata::discover(dev)?;
     let ext = extdata(&layout)?;
-    let named: Vec<u32> = ext
-        .files
-        .iter()
-        .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
-        .map(|o| o.handle)
-        .collect();
-    let mut ours = Vec::new();
-    for handle in named {
-        let current = dev.get_object(handle)?;
-        if sha256_hex(&current) != sha256 {
-            return Err(Error::new(
-                ErrorCode::Conflict,
-                format!(
-                    "{path} ({}) now holds other bytes than {} staged; nothing was deleted.",
-                    hex_handle(handle),
-                    input.id
-                ),
-            ));
+    let waiting = ext.files.iter().filter(|o| {
+        part.as_deref()
+            .is_some_and(|p| names::is(&o.info.filename, p, Role::Waiting))
+    });
+    let (mut ours, mut changed) = (Vec::new(), None);
+    for o in waiting {
+        if sha256_hex(&dev.get_object(o.handle)?) == sha256 {
+            ours.push(o);
+        } else if o.info.filename.eq_ignore_ascii_case(&name) {
+            changed = Some(o.handle);
         }
-        ours.push(handle);
+    }
+    if let (true, Some(handle)) = (ours.is_empty(), changed) {
+        return Err(Error::new(
+            ErrorCode::Conflict,
+            format!(
+                "{path} ({}) now holds other bytes than {} staged; nothing was deleted.",
+                hex_handle(handle),
+                input.id
+            ),
+        ));
     }
     let output = |status| RemoveStagedOutput {
         id: input.id.clone(),
@@ -743,9 +739,9 @@ pub fn remove_staged(
     if ours.is_empty() {
         return Ok(output(RemoveStatus::NotFound));
     }
-    for handle in ours {
-        dev.delete_object(handle)
-            .map_err(|e| discard_note(&path, handle, Error::from(e)))?;
+    for o in ours {
+        dev.delete_object(o.handle)
+            .map_err(|e| discard_note(&extdata_path(&o.info.filename), o.handle, Error::from(e)))?;
     }
     append(
         log,
@@ -766,27 +762,4 @@ fn discard_note(path: &str, handle: u32, cause: Error) -> Error {
             cause.message
         ),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::part_of;
-
-    #[test]
-    fn part_names() {
-        let both = Some(("006-D8448-70".to_owned(), "D844870".to_owned()));
-        assert_eq!(part_of("006-D8448-70.tmp"), both);
-        assert_eq!(part_of("D844870.tmp"), both);
-        assert_eq!(part_of("d844870.TMP"), both);
-        for bad in [
-            "D844870.fnt",
-            "D84487.tmp",
-            "006-D8448-7.tmp",
-            "../D844870.tmp",
-            "006-D8448_70.tmp",
-            ".tmp",
-        ] {
-            assert_eq!(part_of(bad), None, "{bad}");
-        }
-    }
 }

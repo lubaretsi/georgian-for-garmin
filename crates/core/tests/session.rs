@@ -13,6 +13,7 @@ use std::time::Duration;
 
 use fake::Watch;
 use georgian_for_garmin_core::fonts::sha256_hex;
+use georgian_for_garmin_core::names::{self, Role};
 use georgian_for_garmin_core::session::{Control, Progress, Session, Worker};
 use georgian_for_garmin_core::{Error, ErrorCode, ops, rpc};
 use serde_json::{Value, json};
@@ -466,6 +467,159 @@ fn an_imported_font_in_the_normal_listing_is_identified() {
     assert_eq!(out["status"], "staged_verified");
 }
 
+/// `ExtData`'s normal listing by part, role and contents: what the watch holds, whatever the
+/// files are named.
+fn by_part(watch: &Watch) -> Vec<(String, Role, Vec<u8>)> {
+    let mut files: Vec<(String, Role, Vec<u8>)> = watch
+        .listed()
+        .into_iter()
+        .map(|(name, data)| {
+            let file = names::resolve(&name).expect("a part's file");
+            (file.part, file.role, data)
+        })
+        .collect();
+    files.sort_by(|a, b| (&a.0, a.1 as u8, &a.2).cmp(&(&b.0, b.1 as u8, &b.2)));
+    files
+}
+
+/// What inspect says of part 006-D9035-02's file, and what install and restore of that part
+/// do: their outcome (status or error code) and what the watch holds afterwards.
+fn outcome(place: &str, name: &str, data: &[u8]) -> Vec<Value> {
+    let mut results = Vec::new();
+    for operation in ["inspect", "install", "restore_stock"] {
+        let watch = Watch::venu2();
+        match place {
+            "normal" => watch.add_file(name, data.to_vec()),
+            _ => watch.add_hidden(name, data.to_vec()),
+        };
+        let mut s = session(&watch);
+        let input = if operation == "inspect" {
+            json!({})
+        } else {
+            json!({"parts": ["006-D9035-02"]})
+        };
+        let result = match call(&mut s, operation, input) {
+            Ok(out) if operation == "inspect" => {
+                let font = out["fonts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|f| f["part"] == "006-D9035-02")
+                    .unwrap()
+                    .clone();
+                json!([font["file"], font["imported"]])
+            }
+            // Success either way: what the watch then holds is in `watch`. (An identical
+            // waiting file under the short name is written again under this build's name, the
+            // one the watch declares, so its status is staged_verified, not already_staged.)
+            Ok(_) => json!("ok"),
+            Err(e) => json!(e.code.as_str()),
+        };
+        let held: Vec<Value> = by_part(&watch)
+            .into_iter()
+            .map(|(part, role, data)| json!([part, format!("{role:?}"), sha256_hex(&data)]))
+            .collect();
+        results.push(json!({"operation": operation, "result": result, "watch": held}));
+    }
+    results
+}
+
+/// Every state and listing a part's file can be in, under either name form, gives the same
+/// inspect result and the same install and restore outcome: one name rule for all of them.
+#[test]
+fn both_name_forms_give_the_same_result_everywhere() {
+    let part = "006-D9035-02";
+    let mut unknown = fake::stock(part);
+    unknown[7] ^= 0xff;
+    let states = [
+        ("stock", fake::stock(part)),
+        ("georgian", fake::georgian(part)),
+        ("unknown", unknown),
+    ];
+    let places = [
+        ("normal", Role::Waiting),
+        ("normal", Role::Imported),
+        ("hidden", Role::Imported),
+    ];
+    for (state, data) in &states {
+        for (place, role) in places {
+            let ext = if role == Role::Waiting { "tmp" } else { "fnt" };
+            let long = outcome(place, &format!("{part}.{ext}"), data);
+            let short = outcome(place, &format!("D903502.{ext}"), data);
+            assert_eq!(long, short, "{state} {place} {role:?}");
+        }
+    }
+    // And the cases mean something: an unknown waiting file blocks both, a stock one is
+    // replaced by install under this build's name, and an identical one under the short name is
+    // moved to this build's name.
+    let blocked = outcome("normal", "D903502.tmp", &states[2].1);
+    assert_eq!(blocked[1]["result"], "conflict");
+    let replaced = outcome("normal", "D903502.tmp", &states[0].1);
+    assert_eq!(replaced[1]["result"], "ok");
+    let watch = Watch::venu2();
+    watch.add_file("D903502.tmp", fake::stock(part));
+    let out = call(
+        &mut session(&watch),
+        "restore_stock",
+        json!({"parts": [part]}),
+    )
+    .unwrap();
+    assert_eq!(out["status"], "staged_verified");
+    assert_eq!(watch.listed(), [(format!("{part}.tmp"), fake::stock(part))]);
+    assert_eq!(
+        replaced[1]["watch"].as_array().unwrap().len(),
+        1,
+        "never two files"
+    );
+}
+
+#[test]
+fn two_waiting_files_for_one_part_are_named_in_the_error() {
+    let watch = Watch::venu2();
+    watch.add_file("006-D9035-02.tmp", fake::stock("006-D9035-02"));
+    watch.add_file("D903502.tmp", fake::stock("006-D9035-02"));
+    let mut s = session(&watch);
+    for operation in ["install", "restore_stock"] {
+        let error = call(&mut s, operation, json!({})).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Conflict);
+        assert!(
+            error.message.contains(
+                "GARMIN/ExtData/006-D9035-02.tmp and GARMIN/ExtData/D903502.tmp are both \
+                 waiting files of part 006-D9035-02"
+            ),
+            "{}",
+            error.message
+        );
+    }
+    assert_eq!(watch.listed().len(), 2, "nothing was written");
+    let out = call(&mut s, "inspect", json!({})).unwrap();
+    let file = out["fonts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["part"] == "006-D9035-02")
+        .unwrap()["file"]
+        .clone();
+    assert_eq!(file, "other");
+}
+
+#[test]
+fn a_failed_rename_puts_the_short_named_file_back() {
+    let watch = Watch::venu2();
+    watch.add_file("D903502.tmp", fake::stock("006-D9035-02"));
+    // The new file under this build's name reads back wrong: it is deleted and the short-named
+    // original written back.
+    watch.state().corrupt_create_at = Some(1);
+    let mut s = session(&watch);
+    let error = call(&mut s, "install", json!({"parts": ["006-D9035-02"]})).unwrap_err();
+    assert_eq!(error.code, ErrorCode::VerificationFailed);
+    assert!(!error.rollback_incomplete(), "{}", error.message);
+    assert_eq!(
+        watch.listed(),
+        [("D903502.tmp".to_owned(), fake::stock("006-D9035-02"))]
+    );
+}
+
 #[cfg(not(feature = "dev"))]
 #[test]
 fn development_operations_are_absent_without_the_dev_feature() {
@@ -617,11 +771,24 @@ mod dev {
             code(call(&mut s, "stage_file", input.clone())),
             ErrorCode::Conflict
         );
-        // A waiting file under the part's other name.
+        // An unknown waiting file under the part's other name: refused just the same.
+        let watch = Watch::venu2();
+        let (mut s, _) = dev_session(&watch);
+        watch.add_file("006-D8448-70.tmp", b"someone else's".to_vec());
+        assert_eq!(
+            code(call(&mut s, "stage_file", input.clone())),
+            ErrorCode::Conflict
+        );
+        // The same bytes under the other name: moved to the name asked for, never two files.
         let watch = Watch::venu2();
         let (mut s, _) = dev_session(&watch);
         watch.add_file("006-D8448-70.tmp", b"font".to_vec());
-        assert_eq!(code(call(&mut s, "stage_file", input)), ErrorCode::Conflict);
+        let out = call(&mut s, "stage_file", input).unwrap();
+        assert_eq!(out["replaces"]["identified_as"], "same");
+        assert_eq!(
+            watch.listed(),
+            [("D844870.tmp".to_owned(), b"font".to_vec())]
+        );
     }
 
     #[test]
@@ -714,6 +881,113 @@ mod dev {
         assert_eq!(error.code, ErrorCode::VerificationFailed);
         assert_eq!(left(&error), ["GARMIN/ExtData/006-D9035-02.tmp"]);
         assert!(error.message.contains("remove_staged"), "{}", error.message);
+    }
+
+    /// `stage_file` under the short name, then install or restore of that part: an experiment
+    /// this build can't identify blocks both; a file it can identify is replaced under this
+    /// build's name. A part never ends up with two waiting files.
+    #[test]
+    fn a_short_name_staged_file_meets_install_and_restore() {
+        let part = "006-D9035-02";
+        let experiment = b"an experimental host font".to_vec();
+        for operation in ["install", "restore_stock"] {
+            let watch = Watch::venu2();
+            let (mut s, _) = dev_session(&watch);
+            let input = json!({"source": source(&experiment), "name": "D903502.tmp"});
+            call(&mut s, "stage_file", input).unwrap();
+            let error = call(&mut s, operation, json!({"parts": [part]})).unwrap_err();
+            assert_eq!(error.code, ErrorCode::Conflict, "{operation}");
+            assert!(error.message.contains("D903502.tmp"), "{}", error.message);
+            assert_eq!(
+                watch.listed(),
+                [("D903502.tmp".to_owned(), experiment.clone())]
+            );
+        }
+        for (operation, staged, expected) in [
+            ("install", fake::stock(part), fake::georgian(part)),
+            ("restore_stock", fake::georgian(part), fake::stock(part)),
+        ] {
+            let watch = Watch::venu2();
+            let (mut s, _) = dev_session(&watch);
+            let input = json!({"source": source(&staged), "name": "D903502.tmp"});
+            call(&mut s, "stage_file", input).unwrap();
+            let out = call(&mut s, operation, json!({"parts": [part]})).unwrap();
+            assert_eq!(out["status"], "staged_verified", "{operation}");
+            assert_eq!(
+                watch.listed(),
+                [(format!("{part}.tmp"), expected)],
+                "{operation}"
+            );
+        }
+    }
+
+    /// Waiting files of a part under the other name form are checked like the one under name.
+    #[test]
+    fn stage_file_handles_the_other_name_form_like_its_own() {
+        let part = "006-D9035-02";
+        // Garmin's own under the long name: replaced by the short-named stage.
+        let watch = Watch::venu2();
+        let (mut s, log) = dev_session(&watch);
+        watch.add_file("006-D9035-02.tmp", fake::stock(part));
+        let input = json!({"source": source(b"font"), "name": "D903502.tmp"});
+        let out = call(&mut s, "stage_file", input).unwrap();
+        assert_eq!(out["action"], "replace");
+        assert_eq!(out["replaces"]["identified_as"], "garmin");
+        assert_eq!(
+            watch.listed(),
+            [("D903502.tmp".to_owned(), b"font".to_vec())]
+        );
+        // remove_staged finds it by part and contents.
+        let id = out["id"].clone();
+        let mut other = session(&watch).with_staged_log(log);
+        let out = call(&mut other, "remove_staged", json!({"id": id})).unwrap();
+        assert_eq!(out["status"], "removed");
+        assert!(watch.listed().is_empty());
+
+        // An unknown one under the long name: refused, whichever name is asked for.
+        let watch = Watch::venu2();
+        let (mut s, _) = dev_session(&watch);
+        watch.add_file("006-D9035-02.tmp", b"someone else's".to_vec());
+        for name in ["D903502.tmp", "006-D9035-02.tmp"] {
+            let input = json!({"source": source(b"font"), "name": name});
+            assert_eq!(
+                code(call(&mut s, "stage_file", input)),
+                ErrorCode::Conflict,
+                "{name}"
+            );
+        }
+
+        // Two waiting files: named in the error.
+        let watch = Watch::venu2();
+        let (mut s, _) = dev_session(&watch);
+        watch.add_file("006-D9035-02.tmp", fake::stock(part));
+        watch.add_file("D903502.tmp", fake::stock(part));
+        let input = json!({"source": source(b"font"), "name": "D903502.tmp"});
+        let error = call(&mut s, "stage_file", input).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Conflict);
+        assert!(
+            error.message.contains("all wait for part"),
+            "{}",
+            error.message
+        );
+
+        // Imported short-name fonts, in either listing, unknown: refused.
+        for hidden in [false, true] {
+            let watch = Watch::venu2();
+            let (mut s, _) = dev_session(&watch);
+            let data = b"an unknown import".to_vec();
+            if hidden {
+                watch.add_hidden("D903502.fnt", data);
+            } else {
+                watch.add_file("D903502.fnt", data);
+            }
+            let input = json!({"source": source(b"font"), "name": "006-D9035-02.tmp"});
+            assert_eq!(
+                code(call(&mut s, "stage_file", input)),
+                ErrorCode::Conflict,
+                "{hidden}"
+            );
+        }
     }
 }
 

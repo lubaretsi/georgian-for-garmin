@@ -222,6 +222,16 @@ impl Watch {
         handle
     }
 
+    /// A read-only file only Garmin's GetObjectIds lists, as the Venu 2 keeps its imports.
+    pub fn add_hidden(&self, name: &str, data: Vec<u8>) -> u32 {
+        let mut s = self.state();
+        let handle = s.next_handle;
+        s.next_handle += 1;
+        s.add(handle, EXTDATA, name, format::UNDEFINED, data, true);
+        s.hidden.insert(handle);
+        handle
+    }
+
     /// `ExtData`'s files in the normal listing: name and contents.
     pub fn listed(&self) -> Vec<(String, Vec<u8>)> {
         let s = self.state();

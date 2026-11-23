@@ -2240,13 +2240,15 @@ fn an_unknown_truetype_file_is_never_replaced() {
     for (existing, message) in [
         (vec![(BIN, altered.clone())], one.to_owned()),
         (vec![(BIN, b"newer Garmin font".to_vec())], one.to_owned()),
-        // A copy that differs only in the name's case is a second file.
+        // A copy that differs only in the name's case is a second file: the error says so.
         (
             vec![
                 (BIN, stock(HEBREW[0])),
                 ("006-d0952-08.BIN", stock(HEBREW[0])),
             ],
-            one.to_owned(),
+            "GARMIN/ExtData/006-D0952-08.bin and GARMIN/ExtData/006-d0952-08.BIN are both files \
+             of part 006-D0952-08: a part takes one file, so nothing was written."
+                .to_owned(),
         ),
         (
             vec![

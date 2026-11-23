@@ -24,6 +24,7 @@ pub mod fonts;
 pub mod garmin_device;
 pub mod listing;
 pub mod mtp;
+pub mod names;
 pub mod ops;
 pub mod ptp;
 pub mod report;
