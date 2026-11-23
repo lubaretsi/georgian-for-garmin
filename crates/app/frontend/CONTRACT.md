@@ -135,6 +135,8 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 - **`other` after reconnecting** leads to `watch` with the `blocked` verdict.
 - **Not verifiable:** if every written pack is TrueType, the state doesn't change on restart. Then `verifiable` is false, the phase after `restart` is `check` (after a restore: `watch`), and the text doesn't ask the user to reconnect.
 - **Skip:** "Skip: I'll check on the watch" goes to `check` after an install, and to `watch` after a restore.
+- **Busy while restarting:** if the reconnected watch is held by another program (Garmin Express often grabs it on reconnect), show the connect/busy screen without leaving the restart. When it's released, verification goes on with the same attempt, and the step indicator stays on Restart.
+- **Drive while restarting:** if the watch comes back as a USB drive, `inspectDrive` is tried as on `connect`. The drive screen's "choose MTP" guidance shows without leaving the restart. When it's reconnected over MTP, verification goes on.
 - **The attempt count** is shown from the second attempt on. After two `again` phases, the outcome offers sharing (§5.6).
 
 ## 5. Screens and their models (`src/model/screens.ts`)
@@ -255,7 +257,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | check / answer | "What did the watch show?" as a radio group with samples rendered in the app's own type: ქართ / □□□□ / ???? / ქა□□ / Nothing arrived. If letters: where they showed (optional checkboxes). Phone (optional). Beta builds only: the marker pictures | "Continue" (enabled once `result` is set; emits `done`, which on this step means "answers complete") | Back |
 | outcome / works_confirmed | "Georgian works. Thanks!" | Done | none |
 | outcome / works_first | "You're the first to confirm Georgian on {model}." Sharing tells every {model} owner | **Share the result** | "Not now" (keeps the answers for this session) |
-| outcome / didnt_show | "Georgian didn't show." | `restarts < 2`: **Restart once more**; else **Share the result** | the other of those two; More › Restore |
+| outcome / didnt_show | "Georgian didn't show." Also for "Some letters, some boxes": a partial result counts as not working. | `restarts < 2`: **Restart once more**; else **Share the result** | the other of those two; More › Restore |
 | outcome / no_notification | Phone setup: Android (Garmin Connect notifications for the browser), iPhone (Home Screen page, iOS 16.4+) | "Try again" (back to send) | none |
 | share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." | **Open GitHub** | none |
 | share (after) | `opened`: "GitHub opened in your browser. Sign in if asked, check the form, then press Submit." `opened_paste`: plus "The report is copied: paste it into the empty Watch report box." Then the thanks line | Done | none |
