@@ -10,7 +10,7 @@
 //!
 //! GitHub and browsers refuse very long URLs, so the report is kept compact; one that would
 //! still make the link longer than [`MAX_URL`] is left out of it, and the form's report field
-//! asks for a paste from the clipboard instead.
+//! stays empty for a paste from the clipboard.
 
 use std::fmt::Write as _;
 use std::sync::LazyLock;
@@ -40,8 +40,6 @@ pub fn issue_url(number: u32) -> String {
 pub const TEMPLATE: &str = "watch-report.yml";
 /// Longest link we make. GitHub answers 414 somewhat above 8 KB; browsers allow more.
 pub const MAX_URL: usize = 8000;
-/// What the form's report field says when the report didn't fit in the link.
-pub const PASTE_NOTE: &str = "Paste the report here, over this line: it is on your clipboard (Ctrl+V, or Cmd+V on a Mac). Not into Notes.";
 /// The phone page that sends the test notification.
 pub const PHONE_PAGE: &str = "https://lubaretsi.github.io/georgian-for-garmin/";
 
@@ -457,14 +455,14 @@ pub struct IssueLinkInput {
 pub struct IssueLink {
     /// The link to open.
     pub url: String,
-    /// The report is in the link; when false, the form's report field asks for a paste and
-    /// `report_text` should go to the clipboard.
+    /// The report is in the link; when false, the link leaves the form's report field empty
+    /// for a paste and `report_text` should go to the clipboard.
     pub report_in_url: bool,
     pub title: String,
     /// The report field's full text: exactly what is shared besides the answers' own fields.
     pub report_text: String,
-    /// Each form field the link fills, by field id, in order (the report field included, with
-    /// the paste note when it didn't fit).
+    /// Each form field the link fills, by field id, in order (the report field only when it
+    /// fit).
     pub fields: Vec<FormField>,
 }
 
@@ -535,28 +533,24 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
             fields.push(("connect", version.into()));
         }
     }
-    let url = |report_field: &str| -> String {
+    let url = |report_field: Option<&str>| -> String {
         let mut params = vec![("template", TEMPLATE), ("title", title.as_str())];
         params.extend(fields.iter().map(|(id, value)| (*id, value.as_str())));
-        params.push(("report", report_field));
+        params.extend(report_field.map(|report| ("report", report)));
         Url::parse_with_params(NEW_ISSUE, params)
             .expect("NEW_ISSUE is a valid URL")
             .into()
     };
-    let full = url(&report_text);
-    let (url, report_in_url) = if full.len() <= MAX_URL {
-        (full, true)
+    let full = url(Some(&report_text));
+    // A report that doesn't fit is left out, not replaced by instructions: the form's report
+    // box stays empty for the paste, and GitHub's `required` check asks for it.
+    let report_in_url = full.len() <= MAX_URL;
+    let url = if report_in_url {
+        fields.push(("report", report_text.clone()));
+        full
     } else {
-        (url(PASTE_NOTE), false)
+        url(None)
     };
-    fields.push((
-        "report",
-        if report_in_url {
-            report_text.clone()
-        } else {
-            PASTE_NOTE.into()
-        },
-    ));
     Ok(IssueLink {
         url,
         report_in_url,
@@ -1097,11 +1091,15 @@ mod tests {
                 link.report_text
             );
         }
-        assert_eq!(link.fields.last().unwrap().value, link.report_text);
+        let last = link.fields.last().unwrap();
+        assert_eq!(
+            (last.id.as_str(), &last.value),
+            ("report", &link.report_text)
+        );
     }
 
     #[test]
-    fn a_report_too_long_for_a_link_asks_for_a_paste() {
+    fn a_report_too_long_for_a_link_leaves_the_report_box_empty() {
         let mut r = report();
         let file = r.declared_files[0].clone();
         r.declared_files = vec![file; 400];
@@ -1109,7 +1107,9 @@ mod tests {
         assert!(!link.report_in_url);
         assert!(link.url.len() <= MAX_URL);
         let q = query(&link.url);
-        assert_eq!(q.last().unwrap(), &("report".into(), PASTE_NOTE.into()));
+        let keys: Vec<&str> = q.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(keys, ["template", "title"], "no report parameter: {keys:?}");
+        assert!(link.fields.iter().all(|f| f.id != "report"));
         assert!(link.report_text.lines().count() > 400);
     }
 

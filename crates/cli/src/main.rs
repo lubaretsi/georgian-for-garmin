@@ -365,7 +365,7 @@ fn print_human(operation: &str, out: &Value) {
             if out["report_in_url"] != true {
                 eprintln!(
                     "The report is too long for the link; paste report_text (see --json) into \
-                     the form's report field."
+                     the form's empty Watch report box."
                 );
             }
             return;

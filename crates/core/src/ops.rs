@@ -551,8 +551,8 @@ static OPERATIONS: [Operation; 7] = [
                       and the owner's answers (what the test notification showed, where, phone, \
                       beta marker). The report text is rebuilt from the report's allowlisted \
                       fields. If the link would pass 8000 characters, the report is left out of \
-                      it, report_in_url is false, and the form's report field asks for a paste of \
-                      report_text. Touches nothing.",
+                      it, report_in_url is false, and the form's report field is left empty for \
+                      a paste of report_text. Touches nothing.",
         read_only: true,
         destructive: false,
         idempotent: true,
