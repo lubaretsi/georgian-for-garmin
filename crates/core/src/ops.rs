@@ -804,7 +804,7 @@ pub(crate) fn extdata_path(name: &str) -> String {
 }
 
 fn staged_path(font: &Font) -> String {
-    format!("GARMIN/ExtData/{}", font.file_name())
+    extdata_path(&font.file_name())
 }
 
 /// Whether `part` of `pack` was verified on this watch.
@@ -1061,42 +1061,20 @@ fn hidden_listing(
     let Some(ext) = ext else {
         return HiddenListing::not_read();
     };
-    match dev.device_info() {
-        Ok(info)
-            if info
-                .operations_supported
-                .contains(&op::GARMIN_GET_OBJECT_IDS) => {}
-        Ok(_) => {
+    // ExtData's own files only: never another folder's names.
+    let (objects, mut note) = match scan_hidden(dev, storage, ext) {
+        HiddenScan::Unsupported => {
             return HiddenListing {
                 status: HiddenStatus::Unsupported,
                 files: Vec::new(),
                 note: None,
             };
         }
-        Err(e) => return failed(short(e)),
-    }
-    let handles = match dev.garmin_object_ids(storage, ext.handle) {
-        Ok(handles) => handles,
-        Err(e) => return failed(short(e)),
+        HiddenScan::Failed(note) => return failed(note),
+        HiddenScan::Listed { objects, note } => (objects, note),
     };
-    let listed: BTreeSet<u32> = ext.files.iter().map(|o| o.handle).collect();
     let mut files = Vec::new();
-    let mut note = None;
-    for handle in handles.into_iter().collect::<BTreeSet<_>>() {
-        if listed.contains(&handle) {
-            continue;
-        }
-        let info = match dev.object_info(handle) {
-            Ok(info) => info,
-            Err(e) => {
-                note.get_or_insert_with(|| short(format!("{}: {e}", hex_handle(handle))));
-                continue;
-            }
-        };
-        // ExtData's own files only: never another folder's names.
-        if info.parent != ext.handle || info.storage_id != storage || info.is_folder() {
-            continue;
-        }
+    for (handle, info) in objects {
         let size = info.compressed_size as usize;
         let named = |f: &Font| {
             info.filename.eq_ignore_ascii_case(&f.file_name())
