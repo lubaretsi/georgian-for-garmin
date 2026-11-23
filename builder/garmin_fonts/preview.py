@@ -16,12 +16,13 @@ from pathlib import Path
 
 from . import __version__
 from . import registry as font_registry
+from .hosts import hosts
 from .codec import decode
 from .georgian import Outlines, choose_sizing, rows, with_georgian
 from .marks import TEST_CAPS
 
 PROG = "garmin-fonts-preview"
-REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
+REGISTRY = font_registry.REGISTRY
 ARMENIAN_SAMPLE = "Հայերեն ՀԱՅԵՐԵՆ"
 GEORGIAN_SAMPLE = "მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ"
 # Host text shown beside Georgian in a TrueType preview, each sample when the font maps all of it.
@@ -87,7 +88,7 @@ def readme_image(registry, stock_dir, noto, part_number):
     stock = font_registry.check_file(Path(stock_dir) / f"{part_number}.fnt", part["sha256"])
     font_registry.check_file(noto, entries["georgian_font"]["sha256"])
     outlines = Outlines(noto, font_registry.weight(pack, part))
-    sizing = choose_sizing(stock, outlines, part["size_px"])
+    sizing = choose_sizing(stock, outlines, part["size_px"], hosts(entries)[pack["host"]])
     georgian, _ = with_georgian(stock, outlines, sizing)
     size = f"{part_number}, {part['size_px']} px"
     return sheet([

@@ -1,4 +1,5 @@
 import pytest
+from registry_data import HOSTS
 
 from garmin_fonts import georgian
 from garmin_fonts.codec import GEORGIAN, decode, encode
@@ -31,14 +32,14 @@ def test_template_too_short_is_rejected(stock, outlines):
     template = encode(short, footer, {None: (4, bytes(4))})
     with pytest.raises(ValueError, match="does not fit the template"):
         with_georgian(template, outlines(400), Sizing(27))
-    with pytest.raises(ValueError, match="lacks the Armenian letters Georgian is sized by: աոս"):
-        choose_sizing(template, outlines(400), 27)
+    with pytest.raises(ValueError, match="lacks the Armenian host's letters Georgian is sized by: աոս"):
+        choose_sizing(template, outlines(400), 27, HOSTS["armenian"])
 
 
 def test_sizing_that_never_fits_is_rejected(stock, outlines, monkeypatch):
     monkeypatch.setattr(georgian, "MAX_CLIPPED_PIXELS", -1)  # nothing fits
     with pytest.raises(ValueError, match="Georgian does not fit the template at 34 px"):
-        choose_sizing(stock["006-D9035-03"], outlines(400), 27)
+        choose_sizing(stock["006-D9035-03"], outlines(400), 27, HOSTS["armenian"])
 
 
 def template_like(data, height_change=0):
@@ -94,7 +95,7 @@ def test_shortening_moves_only_descenders(stock, inputs, outlines):
 
 def test_descenders_are_shortened_only_as_far_as_needed(stock, outlines):
     data = stock["006-D9035-03"]
-    assert choose_sizing(data, outlines(400), 27) == Sizing(34, 85)
+    assert choose_sizing(data, outlines(400), 27, HOSTS["armenian"]) == Sizing(34, 85)
     with pytest.raises(ValueError, match="does not fit the template"):
         with_georgian(data, outlines(400), Sizing(34, 86))
 

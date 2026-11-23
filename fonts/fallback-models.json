@@ -1,0 +1,107 @@
+{
+  "$schema": "./fallback-models.schema.json",
+  "models": [
+    {
+      "id": "venu-2-notifications",
+      "watch": "Venu 2",
+      "model_parts": ["006-B3703-00"],
+      "software": ["19.05"],
+      "view": "Smart Notifications pop-up (title and body)",
+      "kind": "bitmap",
+      "system_lacks": {
+        "ranges": [["U+10A0", "U+10FF"], ["U+1C90", "U+1CBF"]],
+        "evidence": ["venu-2-stock-boxes"]
+      },
+      "order": [
+        {"part": "006-D8947-22", "evidence": ["venu-2-thai-host", "venu-2-thai-before-armenian"]},
+        {"part": "006-D9035-03", "evidence": ["venu-2-armenian-27px", "venu-2-thai-before-armenian"]}
+      ],
+      "sole": [
+        {"part": "006-D8945-22", "evidence": ["venu-2-korean-host", "venu-2-compressed-korean"]}
+      ],
+      "unused": [
+        {"parts": ["006-D8947-20", "006-D8947-21", "006-D8947-23"], "evidence": ["venu-2-thai-host"]},
+        {"parts": ["006-D8945-20", "006-D8945-21", "006-D8945-23"], "evidence": ["venu-2-korean-host"]},
+        {"parts": ["006-D9035-01", "006-D9035-02", "006-D9035-04"], "evidence": ["venu-2-armenian-27px"]}
+      ],
+      "stock_without_effect": {
+        "fonts": [
+          {"part": "006-D9035-01", "version": "2.10"}, {"part": "006-D9035-02", "version": "2.10"},
+          {"part": "006-D9035-03", "version": "2.10"}, {"part": "006-D9035-04", "version": "2.10"},
+          {"part": "006-D8448-25", "version": "2.10"}, {"part": "006-D8448-26", "version": "2.10"},
+          {"part": "006-D8448-27", "version": "2.10"}, {"part": "006-D8448-28", "version": "2.10"},
+          {"part": "006-D8944-20", "version": "2.00"}, {"part": "006-D8944-21", "version": "2.00"},
+          {"part": "006-D8944-22", "version": "2.00"}, {"part": "006-D8944-23", "version": "2.00"},
+          {"part": "006-D8945-20", "version": "2.10"}, {"part": "006-D8945-21", "version": "2.10"},
+          {"part": "006-D8945-22", "version": "2.10"}, {"part": "006-D8945-23", "version": "2.10"},
+          {"part": "006-D8947-20", "version": "2.00"}, {"part": "006-D8947-21", "version": "2.00"},
+          {"part": "006-D8947-22", "version": "2.00"}, {"part": "006-D8947-23", "version": "2.00"},
+          {"part": "006-D8168-13", "version": "2.10"}
+        ],
+        "evidence": ["venu-2-stock-boxes"]
+      },
+      "missing": {"evidence": ["venu-2-stock-boxes"]},
+      "caveats": [
+        {
+          "note": "A letter the view once failed to find can keep drawing as a box after a font that has it is imported, until a full restart: რ stayed a box with the Thai build as its only claimant.",
+          "evidence": ["venu-2-cached-miss"]
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "venu-2-stock-boxes",
+      "observed": "Venu 2, 19.05, with Garmin's original fonts imported (the 21 ExtData fonts it declares): Georgian in notifications drew as boxes; English and Armenian rendered.",
+      "sources": [
+        {"repo": "crates/core/tests/reports/maintainer-venu2-stock-imported.json"},
+        {"repo": "crates/core/tests/reports/README.md"},
+        {"lab": "2026-11-20-venu-2-georgian-font", "section": "Native verification (post-disconnect notification control)"}
+      ]
+    },
+    {
+      "id": "venu-2-armenian-27px",
+      "observed": "Venu 2, 19.05: with Georgian builds of all four Armenian sizes, each marking Հ differently, the Gmail pop-up drew the 27 px build's marker (Գ, 006-D9035-03) and its Georgian; the 21, 24 and 31 px markers didn't appear. Georgian has rendered from the Armenian builds since (the registry's tested entry).",
+      "sources": [
+        {"lab": "2026-11-20-venu-2-georgian-font", "section": "Native verification (successful camera control, GG-EA700D)"},
+        {"repo": "crates/core/tests/reports/maintainer-venu2-georgian-imported.json"},
+        {"repo": "fonts/registry.json"}
+      ]
+    },
+    {
+      "id": "venu-2-thai-host",
+      "observed": "Venu 2, 19.05: with Garmin's original Armenian fonts restored and Georgian added to the four Thai sizes (006-D8947-20..23), each drawing ჰ as a different Mkhedruli letter and ก as ข, a Gmail notification drew both ქართული and ᲥᲐᲠᲗᲣᲚᲘ as Georgian, ჰჰ as გგ (the 27 px build, 006-D8947-22) and กข as one Thai glyph twice.",
+      "sources": [
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (a) Thai host"}
+      ]
+    },
+    {
+      "id": "venu-2-korean-host",
+      "observed": "Venu 2, 19.05: with Garmin's original Armenian and Thai fonts and Georgian added to the four Korean sizes (006-D8945-20..23), each drawing ჰ as a different Mkhedruli letter and 가 as 나, a Gmail notification drew both ქართული and ᲥᲐᲠᲗᲣᲚᲘ as Georgian, ჰჰ as ზზ (the 27 px build, 006-D8945-22) and 가나 as one Korean glyph twice; the 21, 24 and 31 px markers didn't appear.",
+      "sources": [
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (b) Korean host"}
+      ]
+    },
+    {
+      "id": "venu-2-compressed-korean",
+      "observed": "Venu 2, 19.05: with Garmin's original Armenian and Thai fonts, a Compressed (per-glyph RLE) Georgian build of 006-D8945-22 from the builder's encoder, every other Korean part Garmin's, drew both Georgian cases and its own markers.",
+      "sources": [
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (c) Compressed Korean"}
+      ]
+    },
+    {
+      "id": "venu-2-thai-before-armenian",
+      "observed": "Venu 2, 19.05: the Thai 27 px font with მ mapped to ง's tile, next to the Armenian 27 px build that has მ: Gmail 708319 drew მ as ง and the Thai marker, so the Thai font comes first for a letter both have.",
+      "sources": [
+        {"lab": "2026-11-20-venu-2-georgian-font", "section": "Second 27 px font (708319)"}
+      ]
+    },
+    {
+      "id": "venu-2-cached-miss",
+      "observed": "Venu 2, 19.05: with რ removed from the Armenian 27 px build and mapped only in the Thai routing build, Gmail 708322 still drew რ as a box while both builds' markers showed; before a full restart, the seven distinct letters of the first failed word ქართული drew as boxes and every other letter rendered.",
+      "sources": [
+        {"lab": "2026-11-20-venu-2-georgian-font", "section": "Single modified claimant for რ (708322); Coverage before a full restart"}
+      ]
+    }
+  ]
+}
