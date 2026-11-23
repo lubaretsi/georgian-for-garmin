@@ -68,6 +68,7 @@ export interface Backend {
   issueLink(input: IssueLinkInput): Promise<IssueLink>;
   shareReport(input: IssueLinkInput): Promise<Shared>; // opens the browser (not in demo/mock)
   openIssue(issue: number): Promise<string>;
+  openWatchList(): Promise<string>;                    // new (phase 2): the README's watch list; no arbitrary URLs
   phonePage(language: Lang): Promise<PhonePage>;
   testMarks(): Promise<MarkPicture[]>;                 // empty in stable builds
   platform(): Promise<Platform>;
@@ -110,7 +111,7 @@ stateDiagram-v2
   watch --> connect: unplugged
 ```
 
-**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`. When it fails with `no_device`, the app tries `inspectDrive` too. The app doesn't poll during `working`, `check`, `outcome`, `share` or `error`. The connect help card appears after 10 s without a watch.
+**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`. When it fails with `no_device`, the app tries `inspectDrive` too. The app doesn't poll during `working`, `check`, `outcome` or `share`; on `error` it polls only after a `no_device` error, to notice the reconnect. The connect help card appears after 10 s without a watch.
 
 **The same watch:** after a restart, the reconnected watch is the same one if `device.part_number` matches. Telling two watches of the same model apart is a non-goal.
 
@@ -126,9 +127,14 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 | `again` | reconnected, `state` still `waiting` or `stock_waiting` | "The watch hasn't loaded the font yet. Restart it once more." | the next attempt starts automatically on unplug |
 | `other_watch` | reconnected, different `part_number` | "This is a different watch. Connect the {model} again." | none |
 
-- **Verified:** `installed` after an install, or `not_installed` with nothing waiting after a restore, leads to `result`.
+- **Verified:** decided on the first successful `inspect` after the reconnect, with no extra read. "Checking the watch…" (`verifying`) shows only while that read takes more than 400 ms.
+  - After an install: `installed`.
+  - After a restore: nothing waits, and every restored part holds Garmin's font or nothing. The state may read `not_installed` or `unsupported`.
+  - Either leads to `result`.
+- **Still starting up:** in the first 10 s after a reconnect, `device_error` and `extdata_not_found` mean the watch is still starting: keep polling, and show `error` only after that.
 - **`other` after reconnecting** leads to `watch` with the `blocked` verdict.
-- **Not verifiable:** if every written pack is TrueType, the state doesn't change on restart. Then `verifiable` is false, the phase after `restart` is `check`, and the text doesn't ask the user to reconnect.
+- **Not verifiable:** if every written pack is TrueType, the state doesn't change on restart. Then `verifiable` is false, the phase after `restart` is `check` (after a restore: `watch`), and the text doesn't ask the user to reconnect.
+- **Skip:** "Skip: I'll check on the watch" goes to `check` after an install, and to `watch` after a restore.
 - **The attempt count** is shown from the second attempt on. After two `again` phases, the outcome offers sharing (§5.6).
 
 ## 5. Screens and their models (`src/model/screens.ts`)
@@ -173,9 +179,9 @@ export type ScreenModel =
   | { screen: "working"; op: Op; watch: WatchInfo; progress: { done: number; total: number } | null }
   | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
-  | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qrSvg: string } | null; markPictures: { variant: string; svg: string }[] }
+  | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean }
-  | { screen: "share"; watch: WatchInfo; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null }
+  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
   | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string };
 
 /** What the screen's buttons do. Screens emit these; only the flow acts on them. */
@@ -260,7 +266,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 - **Restore original font:** shown when `restorable`, and leads to `confirm_restore`.
 - **What the app sees:** model, part number, software, what install writes (pack names and parts live here) and the report text, all copyable.
 - **Help:** connecting, MTP, Garmin Express, phone setup.
-- **Which watches work:** opens the README list.
+- **Which watches work:** `openWatchList()` opens the README list.
 - **About:** version, "Unofficial; not affiliated with Garmin", GitHub.
 
 **Answers survive** leaving `check`, `outcome` or `share` for the rest of the session. "Done" never discards answers that haven't been shared without asking first.
@@ -284,12 +290,14 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
   - Never print a name twice ("Garmin Express (Garmin Express)" is a bug).
   - An `other` holder shows its process name once, in quotes. A 16-character macOS name is marked as cut off.
   - A name that isn't `confirmed` is phrased as "may be".
-- **Connect problems:**
-  - `permission_denied` (Linux): the udev rule commands from `docs/command-line.md`, copyable.
-  - `multiple_devices`: "Unplug all but one watch".
-  - `garmin_folder_not_found` / `extdata_not_found`: explain, then Report.
-  - `device_error`: replug.
-  - `internal`: Report.
+- **Connect problems.** A problem with a fix the user can do shows that fix and no Report:
+  - `permission_denied` (Linux): the udev rule commands from `docs/command-line.md`, copyable;
+  - `multiple_devices`: "Unplug all but one watch";
+  - `device_error`: unplug and reconnect.
+
+  A problem with no user fix (`garmin_folder_not_found`, `extdata_not_found`, `internal`) explains and offers **Report this problem**. Its report holds the app, the platform and the error, and no watch.
+  - Phase 2 makes the core's `issue_link` accept an `error` alone, as it already accepts `busy` alone.
+  - Until then the mock returns that planned shape, typed by hand and marked as pending.
 
 ## 7. Copy
 
