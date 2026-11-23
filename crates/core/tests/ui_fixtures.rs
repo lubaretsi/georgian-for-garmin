@@ -59,6 +59,7 @@ const SCENARIOS: &[&str] = &[
     "forerunner245-drive",
     "venu2-drive",
     "forerunner265",
+    "forerunner255-newer",
     "busy",
     "connect-problems",
     "errors",
@@ -538,6 +539,20 @@ fn venu2_drive() {
         "venu2-drive",
         &fixture("maintainer-venu2-stock-imported.json"),
     );
+    s.finish();
+}
+
+/// The Forerunner 255 (#35) on a newer software than the one Georgian was confirmed on
+/// (composed: 30.00, as replay.rs's the_forerunner_255_on_29_52_is_tested does): confirmed on
+/// other software.
+#[test]
+fn forerunner255_newer() {
+    let mut fr255 = fixture("issue-35.json");
+    fr255["software"] = json!("30.00");
+    let (watch, fonts) = Watch::from_fixture(&fr255);
+    let mut s = Scenario::new("forerunner255-newer", fonts);
+    let out = s.ok("inspect", "inspect", &watch);
+    assert_eq!(out["tested"]["status"], "tested_other_software");
     s.finish();
 }
 
