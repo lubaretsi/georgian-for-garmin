@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from registry_data import ENTRIES, REGISTRY, SCHEMA
 
 from garmin_fonts.registry import RegistryError, check_pack, validate
+from garmin_fonts.render import load_models
 from garmin_fonts.truetype import unmask
 
 SCHEMA_JSON = json.loads(SCHEMA.read_text())
@@ -204,6 +205,38 @@ MALFORMED |= {
         "prediction source names Venu 3, not a tested model",
     ),
 }
+
+
+def host(entries, host_id):
+    return next(h for h in entries["hosts"] if h["id"] == host_id)
+
+
+SWISS = next(i for i, p in enumerate(ENTRIES["packs"]) if p["host"] == "swiss-721-hebrew-truetype")
+
+MALFORMED |= {
+    "installable pack of an unconfirmed family": (
+        lambda e: e["packs"][SWISS].__setitem__("install", True),
+        "pack hebrew-swiss-721-truetype: host swiss-721-hebrew-truetype has no tested pack and "
+        "no confirmed_by",
+    ),
+    "installable Korean pack without its lab confirmation": (
+        lambda e: host(e, "korean").pop("confirmed_by"),
+        "pack korean-nanum-gothic-medium-compressed: host korean has no tested pack",
+    ),
+}
+
+
+def test_every_installable_pack_has_a_confirmed_family():
+    # Families confirmed only by a lab test cite evidence the fallback models record.
+    known = {e["id"] for e in load_models()["evidence"]}
+    tested = {p["host"] for p in ENTRIES["packs"] if p["tested"]}
+    for h in ENTRIES["hosts"]:
+        assert set(h.get("confirmed_by", [])) <= known, h["id"]
+    for p in ENTRIES["packs"]:
+        if p.get("install", True):
+            assert p["host"] in tested or host(ENTRIES, p["host"]).get("confirmed_by"), p["id"]
+    assert ENTRIES["packs"][SWISS].get("install") is False
+
 
 # The first TrueType pack's index, for the schema's error paths.
 TT = next(i for i, p in enumerate(ENTRIES["packs"]) if p["kind"] == "truetype")

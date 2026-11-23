@@ -12,7 +12,7 @@ from registry_data import ENTRIES, HOSTS, PART_IDS, PINS, TRUETYPE_PART_IDS
 from test_build import cli_args, run_cli
 
 from garmin_fonts import truetype
-from garmin_fonts.codec import decode
+from garmin_fonts.codec import compressed, decode
 from garmin_fonts.georgian import add_bar, rows
 from garmin_fonts.marks import STYLES, TEST_CAPS, Mark, assign
 from garmin_fonts.preview import bitmap_mark_picture, marks_sheet, truetype_mark_picture
@@ -40,7 +40,7 @@ def test_test_caps_match_contract():
 
 def test_assignment_follows_registry_order_per_kind():
     marks = assign(ENTRIES["packs"])
-    assert "".join(marks[p].variant for p in PART_IDS) == "ABCDEFGHIJKLMNOPQRST"
+    assert "".join(marks[p].variant for p in PART_IDS) == "ABCDEFGHIJKLMNOPQRSTUVWX"
     assert "".join(marks[p].variant for p in TRUETYPE_PART_IDS) == "ABCDEF"
     assert {marks[p].style for p in TRUETYPE_PART_IDS} == {"below"}
     for parts in (PART_IDS, TRUETYPE_PART_IDS):
@@ -97,15 +97,21 @@ def test_marked_manifest_otherwise_matches_stable(assets, marked_assets):
 def test_marked_builds_are_the_released_beta(marked_assets):
     """The marked builds are pinned: 0.3.0-beta.2 installed exactly these (TrueType ones then
     without Garmin's 16-byte trailer, which builds now keep), and the registry's
-    `earlier_georgian` lists them so later builds recognize and replace them."""
+    `earlier_georgian` lists them so later builds recognize and replace them. The Korean packs
+    came later and have no earlier build."""
     out, manifest = marked_assets
     released = {
-        part["part"]: {(e["sha256"], e["bytes"]) for e in part["earlier_georgian"]
+        part["part"]: {(e["sha256"], e["bytes"]) for e in part.get("earlier_georgian", [])
                        if e["build"] == "0.3.0-beta.2"}
         for pack in ENTRIES["packs"]
         for part in pack["parts"]
     }
+    korean = {p["part"] for pack in ENTRIES["packs"] if pack["host"] == "korean"
+              for p in pack["parts"]}
+    assert {part for part, builds in released.items() if not builds} == korean
     for font in manifest["fonts"]:
+        if font["part"] in korean:
+            continue
         data = (out / font["georgian"]).read_bytes()
         if font["part"] in TRUETYPE_PART_IDS:
             data = data[:-16]
@@ -127,10 +133,17 @@ def test_bitmap_mark_is_a_bar_in_the_row(assets, marked_assets, part):
     mark = next(f["mark"] for f in manifest["fonts"] if f["part"] == part)
     stable_data = (stable_out / "georgian" / f"{part}.fnt").read_bytes()
     data = (out / "georgian" / f"{part}.fnt").read_bytes()
-    assert len(data) == len(stable_data)
     header, footer, cmap = decode(data)
     stable_header, stable_footer, stable_cmap = decode(stable_data)
-    assert (header, footer) == (stable_header, stable_footer)
+    # A Compressed font's glyphs are run-length coded, so the bar can change its length and the
+    # offsets after the range table (end, index, pixels); every other field stays.
+    kept = range(len(header))
+    if compressed(header):
+        kept = [i for i in kept if i not in (2, 4, 5)]
+    else:
+        assert len(data) == len(stable_data)
+    assert [header[i] for i in kept] == [stable_header[i] for i in kept]
+    assert footer == stable_footer
     cp = int(mark["code_point"][2:], 16)
     assert cmap.keys() == stable_cmap.keys()
     assert [k for k in cmap if cmap[k] != stable_cmap[k]] == [cp]

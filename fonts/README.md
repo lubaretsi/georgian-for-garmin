@@ -14,7 +14,8 @@ list.
 A pack has a `kind`:
 
 - `bitmap`: Garmin's 2-bit `.fnt` fonts, one part per pixel size. The installer stages them as
-  `GARMIN/ExtData/<part>.tmp`; the watch imports them when it restarts.
+  `GARMIN/ExtData/<part>.tmp`, under the file name the watch declares (some watches declare
+  Garmin's short form, `D894567.tmp`); the watch imports them when it restarts.
 - `truetype`: Garmin's TrueType `.bin` fonts, one part per weight. The watch keeps them as
   `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
   [TrueType packs](#truetype-packs)).
@@ -29,6 +30,14 @@ one by `id`, of its own `kind`. A host gives:
 | `script`    | The script its fonts are for: Armenian, Thai, Japanese, Korean, Chinese, Hebrew |
 | `size_like` | What Georgian is sized by: `x_height` letters (and for bitmap hosts `capitals`, the tie-break), measured in each font itself ([Size](#size), [TrueType Size](#size-1)). Armenian: ա ո ս ռ ւ and Ա to Ֆ. Thai, which has no Latin: 28 Thai consonants with neither ascender nor descender, and the digit 0. Japanese, Korean and Chinese: their fonts' own Latin letters. TrueType hosts: Latin `oces`, else the em |
 | `marker`    | A test build's activation marker in the host's own script (`glyph` drawn as `drawn_as`, e.g. ก as ข), so a photo shows a build is active even where the watch takes no Georgian from it |
+| `confirmed_by` | Optional: ids of observations in `fallback-models.json`'s `evidence` where a watch drew Georgian from this family's fonts outside any pack's `tested` entries (a lab test) |
+
+A pack installs only when its family is confirmed on a watch: some pack of that host has a
+`tested` entry, or the host has `confirmed_by`. Every other pack must be `install: false`
+(restore-only); the registry checks reject it otherwise. Korean is confirmed by the lab:
+`venu-2-korean-host` (the Venu 2 drew Georgian from Garmin's Korean 27 px font with Georgian
+added) and `venu-2-compressed-korean` (the same, re-encoded as Compressed). Its packs install
+untested per pack, and the watches they reach stay predictions until a report confirms them.
 
 The builder's `add_georgian` (`builder/garmin_fonts/build.py`) draws Georgian the same way for
 every host; only the letters it measures differ. The builds of the Thai, Japanese, Korean and
@@ -40,13 +49,37 @@ says so.
 ## Other stock fonts
 
 `stock` pins Garmin bitmap fonts that are in no pack: the Venu 2's Chinese, Japanese, Korean and
-Thai fonts (`006-D8448-25..28`, `006-D8944-20..23`, `006-D8945-20..23`, `006-D8947-20..23`) and
-the Lily 2 Active's "Compressed" ones (`006-D8448-70/-71`, `006-D8944-66/-67`,
-`006-D8945-67/-68`). Each entry has its catalog `name`, `size_px`, `weight` (500 Medium, 700
-Bold), `host`, `version`, `url` and `sha256`. They are never built into the app's fonts: a font
-family moves into `packs` only after a watch confirms it. `nix develop` and the flake check fetch
-them by hash (`GFG_CATALOG_DIR`), and the builder's `catalog.fetch_stock` finds them there, in
-its cache or by their pinned URL.
+Thai fonts (`006-D8448-25..28`, `006-D8944-20..23`, `006-D8945-20/-21/-23`,
+`006-D8947-20..23`) and the Lily 2 Active's "Compressed" Chinese and Japanese ones
+(`006-D8448-70/-71`, `006-D8944-66/-67`). Each entry has its catalog `name`, `size_px`, `weight`
+(500 Medium, 700 Bold), `host`, `version`, `url` and `sha256`. They are never built into the
+app's fonts: a font family moves into `packs` only after a watch confirms it. `nix develop` and
+the flake check fetch them by hash (`GFG_CATALOG_DIR`), and the builder's `catalog.fetch_stock`
+finds them there, in its cache or by their pinned URL.
+
+## Korean packs
+
+Three packs carry Georgian in Garmin's Korean bitmap fonts, for watches that list no other font
+this build installs, each part the version the watch declares and Garmin's catalog serves:
+
+| Pack | Parts | For |
+| ---- | ----- | --- |
+| `korean-nanum-gothic-medium-compressed` | `006-D8945-67` 17 px, `-68` 22 px, 2.00, Compressed | Lily 2 Active (5.10) |
+| `korean-nanum-gothic-medium` | `006-D8945-22` 27 px, 2.10 | Venu 1st gen (7.80) |
+| `korean-nanum-gothic-bold` | `006-D8945-07` 19 px, 2.20 | Instinct 3 AMOLED 50mm and 45mm |
+
+Which Korean size a notification uses is known only for the Venu 2, whose pop-up drew from the
+27 px part (`fallback-models.json`). So the packs carry few sizes, to keep the app small: the
+Venu 1st gen gets that same 27 px part, the Lily 2 Active both its sizes, and the Instinct 3 its
+19 px text font, which both sizes declare; the large data-screen fonts ("DB … Size 30–69") are
+left out. Garmin's catalog serves each part at one version: where a watch declares another, the
+part is left out, since install would find an import it doesn't recognise and refuse. The
+Instinct 3 declares `-11`, `-13`, `-15`, `-16` at
+2.30 (`-09`, `-10`, `-12`, `-65` on the 45mm, at 2.30, 2.40 and 2.10) and `-63`, `-64` at 2.10,
+where the catalog serves 2.20 and 2.00, and #33's imports of those differ in size from the
+catalog's files; its `-07` matches in version and in size (1823701 bytes). The Venu 1st gen
+declares its Korean fonts at 0.01, below any release, so `-22` is packed at the catalog's 2.10,
+what Garmin Express would install. None of these packs has been installed on a watch.
 
 "Compressed" fonts (header flags `0x0603` instead of `0x0403`) store each glyph as the
 Connect IQ SDK's per-glyph RLE stream of its plain bitmap; the codec reads both and writes each
@@ -62,10 +95,10 @@ font back in its own format, byte for byte (`builder/garmin_fonts/codec.py`).
 | `model_part`   | `Model/PartNumber` from the watch's `GARMIN/GarminDevice.xml`, e.g. `006-B3703-00`; unique |
 | `issues`       | Its GitHub issue numbers, the main one first: the one its owners follow, where duplicates are closed into |
 | `unsupported`  | Only for a model known not to work: `software`, the versions it was reported on, and `reason`, the id of an entry in `reasons` |
-| `prediction`   | Only for a model not tested, predicted to work from Garmin's data ([Predicted models](#predicted-models)) |
+| `prediction`   | Only for a model not tested, predicted to work from Garmin's data or its own watch report ([Predicted models](#predicted-models)) |
 
 `reasons` holds each reason once, by `id`, as `en` and `ka` sentences for the app (the fenix 6
-and Instinct 3 models share `font_unused`). Every reason must be used.
+models share `font_unused`). Every reason must be used.
 
 The list holds only what can't be derived. A connected watch's status is worked out from the
 list, the packs' `tested` entries and `install` settings and the fonts the watch lists
@@ -83,16 +116,16 @@ that is missing, repeated or unused, and a prediction on a tested or unsupported
 
 ### Predicted models
 
-A `prediction` lists a model no one has tested yet whose fonts Garmin's own data says this
-project can add Georgian to, so the README can show it as likely to work before anyone has
-downloaded the app. Its fields:
+A `prediction` lists a model no one has tested yet whose fonts Garmin's own data, or the watch's
+own report, says this project can add Georgian to, so the README can show it as likely to work
+before anyone has confirmed it. Its fields:
 
 | Field        | Value |
 | ------------ | ----- |
-| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters |
+| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters. `bitmap_korean`: the model's own report declares Garmin's Korean bitmap fonts (`006-D8945`) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the Korean 27 px font `006-D8945-22`, plain and re-encoded as Compressed, rendered natively in notifications. Today the Venu (1st gen), both Instinct 3 AMOLED and the Lily 2 Active |
 | `confidence` | `high`, the only value allowed: a weaker guess stays out of the list |
 | `basis`      | Why, in a sentence. When one device page gives one name to several part numbers, `model` is that page's name and `basis` says so; don't guess which part is which |
-| `source`     | The device reference page, or `firmware family of <model>` naming a tested model in this list |
+| `source`     | The device reference page, `firmware family of <model>` naming a tested model in this list, the GitHub issue whose watch report declares the font, or `a watch report emailed to the maintainer` (the report's fixture is in `crates/core/tests/reports`) |
 
 A prediction changes nothing on a connected watch: the app still decides from the fonts the watch
 lists, so a watch that lists none of this build's fonts is `unknown` and asked for a report.
@@ -247,6 +280,16 @@ lists each part's `georgian_size_px` and `georgian_descender_percent`.
 | `006-D9035-08` |   24 px |              16.3 |              22.3 |              29 px |       100% |               16.0 |            21.0 |
 | `006-D9035-09` |   25 px |              18.0 |              24.7 |              32 px |        90% |               18.0 |            24.0 |
 
+The Korean packs are sized by their fonts' own Latin letters (x-height `acemnorsuvwxz`, capitals
+for the tie-break), the same rule:
+
+| Part           | Nominal | Latin x-height | Latin capitals | Georgian font size | Descenders | Mkhedruli x-height | Mtavruli height |
+| -------------- | ------- | -------------- | -------------- | ------------------ | ---------- | ------------------ | --------------- |
+| `006-D8945-67` |   17 px |           11.7 |           15.3 |              21 px |        81% |               12.0 |            16.0 |
+| `006-D8945-68` |   22 px |           15.0 |           20.0 |              27 px |        79% |               15.0 |            20.0 |
+| `006-D8945-22` |   27 px |           17.7 |           23.3 |              32 px |        65% |               18.0 |            23.0 |
+| `006-D8945-07` |   19 px |           13.0 |           17.3 |              23 px |        93% |               13.0 |            17.0 |
+
 ## TrueType packs
 
 Many newer watches list no bitmap Armenian pack but do list TrueType fonts (watch reports in
@@ -277,11 +320,12 @@ can't read it does the declared version decide, and then only restore accepts a 
 
 A pack's `install` decides: `true` (the default) or `false`, restore-only. Pre-release builds
 install exactly what stable builds do: a beta never installs a font family no watch has
-confirmed. Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is `false`: on a fenix 6S Pro our font
-reached the watch (the hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), its
-Georgian Unicode range bit was set, and the watch still drew question marks (#6). Every build
-still restores a pack it doesn't install, and recognizes its Georgian builds, so a beta tester
-can put Garmin's originals back.
+confirmed ([Host families](#host-families)). Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is
+`false`: on a fenix 6S Pro our font reached the watch (the hidden listing showed
+`006-D0952-07/-08.bin ro georgian_beta`), its Georgian Unicode range bit was set, and the watch
+still drew question marks (#6). Every build still restores a pack it doesn't install, whatever
+host install chooses on that watch, and recognizes its Georgian builds, so a beta tester can put
+Garmin's originals back.
 
 ### Earlier builds
 
@@ -293,14 +337,16 @@ removed) and the stable TrueType builds, without their trailer, to the beta.1 en
 
 ### Hosts
 
-TrueType hosts are only for watches that list none of the registry's bitmap parts. A watch that
-lists any bitmap part gets Georgian there, exactly as before TrueType support, and its TrueType
-fonts stay Garmin's: the fenix 7 Pro, which Georgian already works on through its bitmap
-Armenian parts, keeps that install. `inspect` reports the choice under `hosts`, with the reason
-and the TrueType parts it leaves alone.
+A watch gets Georgian in one family of fonts: the first installable pack in registry order that
+it lists chooses ([Pack order](#pack-order)). Bitmap Armenian comes first: a watch that lists
+any of it gets Georgian there, exactly as before TrueType support, and its TrueType and Korean
+fonts stay Garmin's (the fenix 7 Pro keeps its install). TrueType comes next, all its installable
+packs together; Korean last. `inspect` reports the choice under `hosts`, with the reason and the
+parts it leaves alone.
 
-A watch without bitmap parts gets Georgian in every TrueType part below that it lists. Which
-font a watch's firmware draws a Georgian letter from is not known for these watches: the
+A watch without bitmap Armenian parts gets Georgian in every installable TrueType part below
+that it lists. Which font a watch's firmware draws a Georgian letter from is not known for these
+watches: the
 Venu 2 drew one from a Thai bitmap pack, so it searches loaded fonts beyond the one for the
 text's script, but no TrueType watch has been tested. More than one host per watch raises the
 chance that the font the firmware searches has Georgian.
@@ -372,8 +418,9 @@ tests record that as an expected difference, and the hashes pinned for the build
 
 ## Pack order
 
-A watch gets Georgian in every part, of every pack, that it lists. Registry order only sets the
-order of packs in `inspect` and install output, and the order files are written in:
+Registry order chooses a watch's font family: the first installable pack it lists decides
+([Hosts](#hosts)). It also sets the order of packs in `inspect` and install output, and the
+order files are written in:
 
 1. `armenian-noto-sans-regular`, the pack tested on hardware (Venu 2).
 2. `armenian-noto-sans-armenian-regular`.
@@ -381,7 +428,9 @@ order of packs in `inspect` and install output, and the order files are written 
 4. `armenian-noto-sans-armenian-truetype`, the first TrueType pack: the closest match to the
    bitmap Armenian packs.
 5. `hebrew-noto-sans-hebrew-truetype`.
-6. `hebrew-swiss-721-truetype`.
+6. `hebrew-swiss-721-truetype`, restore-only.
+7. `korean-nanum-gothic-medium-compressed`, `korean-nanum-gothic-medium`,
+   `korean-nanum-gothic-bold`: last, for watches that list none of the above.
 
 ## Test marks
 

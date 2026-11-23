@@ -507,6 +507,7 @@ mod tests {
         used.extend(results.iter().map(|k| format!("share{k}")));
         for key in [
             "untestedBody",
+            "predictedBody",
             "stagedFiles",
             "stagedOneFile",
             "stagedPack",

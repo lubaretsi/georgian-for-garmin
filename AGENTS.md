@@ -32,8 +32,11 @@ scripts/build-macos-release.sh  # outside nix develop
 
 ## Code Review Rules
 
-- A Georgian font's bytes change only with a watch test. Safe path: keep the pinned SHA-256s in
-  the builder tests and update them in the same change as the registry's `tested` entry.
+- A Georgian font a watch tested changes its bytes only with a new watch test. Safe path: keep
+  the pinned SHA-256s in the builder tests and update them in the same change as the registry's
+  `tested` entry. A new pack enters untested with its own pinned SHA-256s; its models stay
+  predicted until a watch report confirms them, and it installs only if its font family was
+  confirmed on a watch (a tested pack, or the host's `confirmed_by`).
 - Nothing is written to a watch before every target is checked. Safe path: extend the core's
   pre-write checks and its fake-watch tests together.
 - User-facing strings exist in both `ka` and `en`. Safe path: add to `crates/app/ui/strings.json`

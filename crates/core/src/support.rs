@@ -38,6 +38,9 @@ pub enum PredictionFamily {
     NotoTruetype,
     /// Bitmap Armenian (`006-D9035`), as on the fenix 7 Pro: same firmware family.
     BitmapArmenian,
+    /// Garmin's Korean bitmap fonts (`006-D8945`): the model's own report declares them, and
+    /// Georgian added to one of them rendered on the maintainer's Venu 2.
+    BitmapKorean,
 }
 
 /// Why a model doesn't work, and the software versions it was reported on.

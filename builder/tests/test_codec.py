@@ -18,8 +18,8 @@ from garmin_fonts.codec import (
     round_trips,
 )
 
-# The registry's stock parts Garmin publishes "Compressed" (per-glyph RLE): the Lily 2 Active's
-# Chinese, Japanese and Korean fonts. The Venu 2's are plain, like every pack part.
+# The registry's parts Garmin publishes "Compressed" (per-glyph RLE): the Lily 2 Active's
+# Chinese, Japanese and Korean fonts (its Korean ones in a pack). Every other part is plain.
 COMPRESSED_PARTS = {"006-D8448-70", "006-D8448-71", "006-D8944-66", "006-D8944-67",
                     "006-D8945-67", "006-D8945-68"}
 
@@ -171,7 +171,9 @@ MALFORMED = {
 }
 
 
-@pytest.mark.parametrize("part", PART_IDS)
+# A Compressed font's glyph index differs (its bitmaps are RLE streams); test_codec's compressed
+# cases cover it.
+@pytest.mark.parametrize("part", [p for p in PART_IDS if p not in COMPRESSED_PARTS])
 @pytest.mark.parametrize("case", MALFORMED)
 def test_malformed_input_is_rejected(stock, part, case):
     mutate, message = MALFORMED[case]

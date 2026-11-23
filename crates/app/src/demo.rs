@@ -3,7 +3,7 @@
 //! It follows a short script so every screen shows up: the first three connections find no
 //! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at a
 //! software version the support list has), the next two find it held by Garmin Express, and
-//! from then on one of five watches is attached, covering every support status:
+//! from then on one of six watches is attached, covering every support status:
 //!
 //! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
 //!    (the real one doesn't): `tested`; after installing, the main screen says Georgian is
@@ -15,7 +15,10 @@
 //!    it ends in a `conflict`: `expected`;
 //! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which no build installs (the watch had our font
 //!    and still drew question marks, #6): `unsupported`, with Restore;
-//! 5. a Venu listing none of this build's fonts: `unsupported`.
+//! 5. a Venu listing the Korean font `006-D8945-22`, which the support list only predicts to
+//!    work: `expected`, with the note that no one has confirmed Georgian on the model yet;
+//! 6. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
+//!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
 //! importing every staged `.tmp` file as a hidden read-only `<part>.fnt` (replacing the earlier
@@ -66,7 +69,7 @@ enum Lists {
 
 /// (description, part number, software version as in `GarminDevice.xml`, fonts listed, stage
 /// a leftover).
-const WATCHES: [(&str, &str, &str, Lists, bool); 5] = [
+const WATCHES: [(&str, &str, &str, Lists, bool); 6] = [
     (
         "Forerunner 165",
         "006-B4432-00",
@@ -83,7 +86,20 @@ const WATCHES: [(&str, &str, &str, Lists, bool); 5] = [
         Lists::Pack("hebrew-swiss-721-truetype"),
         false,
     ),
-    ("Venu", "006-B3226-00", "780", Lists::Nothing, false),
+    (
+        "Venu",
+        "006-B3226-00",
+        "780",
+        Lists::Pack("korean-nanum-gothic-medium"),
+        false,
+    ),
+    (
+        "Forerunner 265",
+        "006-B4257-00",
+        "2952",
+        Lists::Nothing,
+        false,
+    ),
 ];
 
 type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
@@ -130,7 +146,7 @@ fn device_xml(
                  <Version><Major>{major}</Major><Minor>{minor}</Minor></Version>\
                  <Path>Garmin/ExtData</Path><FileName>{}</FileName></UpdateFile>",
                 f.part,
-                f.file_name()
+                f.long_file_name()
             )
         })
         .collect();
@@ -218,7 +234,7 @@ impl Demo {
                     let data = font.stock.to_vec();
                     objects.insert(
                         handle,
-                        object(EXTDATA, &font.file_name(), format::UNDEFINED, data),
+                        object(EXTDATA, &font.long_file_name(), format::UNDEFINED, data),
                     );
                 }
                 if leftover {
@@ -639,12 +655,26 @@ mod tests {
         assert_eq!(fenix["support"]["issue"], 6);
         demo.swap();
 
-        // The Venu: known not to work, on the software the list has; no report asked.
+        // The Venu: its Korean font gets Georgian, but the model is only predicted to work.
         let venu = call(&demo, "inspect").unwrap();
-        assert_eq!(venu["supported"], false);
-        assert_eq!(venu["support"]["status"], "unsupported");
+        assert_eq!(venu["supported"], true);
+        assert_eq!(venu["support"]["status"], "expected");
+        assert_eq!(venu["support"]["prediction"], "bitmap_korean");
         assert_eq!(venu["support"]["issue"], 12);
-        assert_eq!(venu["support"]["report_wanted"], false);
+        assert_eq!(venu["support"]["report_wanted"], true);
+        demo.swap();
+
+        // The Forerunner 265 lists none of this build's fonts: `unknown`, nothing to install,
+        // and a report asked; its prediction is shown for triage.
+        let fr265 = call(&demo, "inspect").unwrap();
+        assert_eq!(fr265["device"]["model"], "Forerunner 265");
+        assert_eq!(fr265["supported"], false);
+        assert_eq!(fr265["restorable"], false);
+        assert_eq!(fr265["support"]["status"], "unknown");
+        assert_eq!(fr265["support"]["listed"], true);
+        assert_eq!(fr265["support"]["prediction"], "noto_truetype");
+        assert_eq!(fr265["support"]["report_wanted"], true);
+        assert_eq!(call(&demo, "install"), Err(ErrorCode::UnsupportedDevice));
         demo.swap();
 
         // The Forerunner 165 keeps its fonts across restarts.

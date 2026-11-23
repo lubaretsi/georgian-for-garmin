@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use georgian_for_garmin_core::fonts::{Font, FontSet, Kind, Pack};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject, Phase, TransportError};
+use georgian_for_garmin_core::names;
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
 
@@ -66,6 +67,7 @@ pub fn fonts() -> FontSet {
             id: "armenian".into(),
             name: "armenian pack".into(),
             kind: Kind::Bitmap,
+            host: "armenian".into(),
             weight: 400,
             install: true,
             fonts: ARMENIAN
@@ -88,7 +90,17 @@ pub fn fonts() -> FontSet {
     }
 }
 
-fn device_xml() -> Vec<u8> {
+/// The part's file name in the form the watch declares: `006-D9035-03.tmp`, or `D903503.tmp`
+/// with `short`.
+fn declared_name(part: &str, short: bool, ext: &str) -> String {
+    if short {
+        format!("{}.{ext}", names::short_form(part).unwrap())
+    } else {
+        format!("{part}.{ext}")
+    }
+}
+
+fn device_xml(short: bool) -> Vec<u8> {
     let file = |part: &str, name: &str| {
         format!(
             "<UpdateFile><PartNumber>{part}</PartNumber><Version><Major>2</Major><Minor>10</Minor></Version><Path>Garmin/ExtData</Path><FileName>{name}</FileName></UpdateFile>"
@@ -96,7 +108,7 @@ fn device_xml() -> Vec<u8> {
     };
     let mut files: String = ARMENIAN
         .iter()
-        .map(|p| file(p, &format!("{p}.tmp")))
+        .map(|p| file(p, &declared_name(p, short, "tmp")))
         .collect();
     files.push_str(&file(CJK, "D844870.tmp"));
     format!(
@@ -152,7 +164,18 @@ impl State {
 pub struct Watch(pub Arc<Mutex<State>>);
 
 impl Watch {
+    /// A Venu 2, which declares its fonts under their part numbers (`006-D9035-03.tmp`).
     pub fn venu2() -> Watch {
+        Watch::declaring(false)
+    }
+
+    /// The same watch declaring the Armenian parts under their short names (`D903503.tmp`),
+    /// as the Lily 2 Active declares its fonts; its import is `D903503.fnt`.
+    pub fn declaring_short_names() -> Watch {
+        Watch::declaring(true)
+    }
+
+    fn declaring(short: bool) -> Watch {
         let mut s = State {
             objects: BTreeMap::new(),
             hidden: BTreeSet::new(),
@@ -174,7 +197,7 @@ impl Watch {
             GARMIN,
             "GarminDevice.xml",
             format::UNDEFINED,
-            device_xml(),
+            device_xml(short),
             false,
         );
         s.add(
@@ -187,11 +210,15 @@ impl Watch {
         );
         s.hidden.insert(EXTDATA);
         let imported = [
-            (IMPORTED_ARMENIAN, "006-D9035-03.fnt", stock("006-D9035-03")),
-            (IMPORTED_CJK, "D844870.fnt", cjk_stock()),
+            (
+                IMPORTED_ARMENIAN,
+                declared_name("006-D9035-03", short, "fnt"),
+                stock("006-D9035-03"),
+            ),
+            (IMPORTED_CJK, "D844870.fnt".to_owned(), cjk_stock()),
         ];
         for (handle, name, data) in imported {
-            s.add(handle, EXTDATA, name, format::UNDEFINED, data, true);
+            s.add(handle, EXTDATA, &name, format::UNDEFINED, data, true);
             s.hidden.insert(handle);
         }
         Watch(Arc::new(Mutex::new(s)))

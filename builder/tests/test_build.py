@@ -20,10 +20,12 @@ from garmin_fonts.georgian import (
 )
 from garmin_fonts.registry import RegistryError, weight
 
-# Mkhedruli x-height matched to the Armenian, descenders shortened to fit (fonts/README.md, Size).
-# The tactix 7 (software 27.18) rendered these builds of -00, -05, -06, -07 and -09; the others
-# aren't tested on a watch yet. The Venu 2 (firmware 19.05) rendered the earlier builds of -01 to
-# -04, drawn at the nominal size.
+# Mkhedruli x-height matched to the host's letters, descenders shortened to fit (fonts/README.md,
+# Size). The tactix 7 (software 27.18) rendered these builds of -00, -05, -06, -07 and -09; the
+# others aren't tested on a watch yet. The Venu 2 (firmware 19.05) rendered the earlier builds of
+# -01 to -04, drawn at the nominal size. The Korean builds (006-D8945) are untested on any watch:
+# the Venu 2 drew Georgian from a lab build of -22 with markers, and the Lily 2 Active's
+# Compressed -67 and -68 builds are the lab's, byte for byte (test_hosts).
 GEORGIAN_SHA256 = {
     "006-D9035-00": "87f3fca5f37b93dca75d6b78f593b16aa35949b67efe77a326d12545065b35f9",
     "006-D9035-01": "c90dc5c0d3d6eb39185a8fafaa99e81cf2e573e0ce8ed9e8e36c282d008c21cc",
@@ -45,6 +47,10 @@ GEORGIAN_SHA256 = {
     "006-D9035-21": "f3d155b6b3a9f852858fb291fa9017636fb11503c030127f5d9b6c8023032981",
     "006-D9035-08": "2c321a9917f003d36678848305fa9b37b43b71e7aa83da94b01f1061f5cb32bd",
     "006-D9035-09": "bd048e8b593871fdf87ecedbfc82b359c6cd6572887a1d3535f4753654a9e809",
+    "006-D8945-67": "61a204a159b951cbb09e8a5a0706fd5d7b05af7135e6204e02da8ba45e94d2c6",
+    "006-D8945-68": "1f5a1f8e8873c56a1568ced1661b86a78d0dddb0e1fb70ee17ed8cae65d17176",
+    "006-D8945-22": "6c16ad0b16da833e8f051beb4c0034c52157032bcf7039338148903ec15ca3f3",
+    "006-D8945-07": "7e3516420efb4b4f61cd2463d31ace9b942de8387f31178bdb988cfb7d7135e5",
 }
 # Faint pixels dropped below the row, by part: the tips of დ, ლ and ღ. A font or rasterizer change
 # that clips more fails.
@@ -68,6 +74,10 @@ CLIPPED = {
     "006-D9035-21": {"U+10DA": 1, "U+10E6": 1},
     "006-D9035-08": {"U+10D3": 1},
     "006-D9035-09": {"U+10D3": 1, "U+10DA": 1},
+    "006-D8945-67": {"U+10DA": 1, "U+10E6": 2},
+    "006-D8945-68": {"U+10D3": 1, "U+10DA": 1, "U+10E6": 2},
+    "006-D8945-22": {"U+10DA": 1, "U+10E6": 1},
+    "006-D8945-07": {"U+10D3": 1, "U+10DA": 1, "U+10E6": 2},
 }
 
 
@@ -109,35 +119,47 @@ def test_each_part_is_drawn_at_its_registry_weight(assets, stock, outlines, pack
         assert at_pack_weight != expected
 
 
-def heights(data):
-    """(Armenian x-height, capitals, Mkhedruli x-height, Mtavruli height) of a built font."""
+def heights(data, host="armenian"):
+    """(host x-height, host capitals, Mkhedruli x-height, Mtavruli height) of a built font: the
+    letters `host`'s fonts are measured by (Armenian ones; a Korean font's own Latin)."""
     header, _, cmap = decode(data)
     return tuple(
         measure(cmap, header[7], letters)
-        for letters in (HOSTS["armenian"].x_height, HOSTS["armenian"].capitals, MKHEDRULI_X, MTAVRULI)
+        for letters in (HOSTS[host].x_height, HOSTS[host].capitals, MKHEDRULI_X, MTAVRULI)
     )
 
 
+def host_of(pack_id):
+    return next(p["host"] for p in ENTRIES["packs"] if p["id"] == pack_id)
+
+
 @pytest.mark.parametrize("pack_id, part", PARTS, ids=PART_IDS)
-def test_georgian_matches_the_armenian_x_height(assets, pack_id, part):
+def test_georgian_matches_the_host_x_height(assets, pack_id, part):
     out, _ = assets
-    armenian, _, georgian, _ = heights((out / "georgian" / f"{part['part']}.fnt").read_bytes())
-    assert abs(georgian - armenian) <= 1
+    data = (out / "georgian" / f"{part['part']}.fnt").read_bytes()
+    host, _, georgian, _ = heights(data, host_of(pack_id))
+    assert abs(georgian - host) <= 1
 
 
-def sizing_table(out, manifest):
-    """The per-part table in fonts/README.md, as the build measures it."""
+# The per-part tables in fonts/README.md: by host, what its x-height and capitals are measured on.
+SIZE_TABLES = {"armenian": "Armenian", "korean": "Latin"}
+
+
+def sizing_table(out, manifest, host):
+    """A per-part table in fonts/README.md, as the build measures it: `host`'s bitmap parts."""
+    letters = SIZE_TABLES[host]
     lines = [
-        "| Part           | Nominal | Armenian x-height | Armenian capitals | Georgian font size "
-        "| Descenders | Mkhedruli x-height | Mtavruli height |",
-        "| -------------- | ------- | ----------------- | ----------------- | ------------------ "
-        "| ---------- | ------------------ | --------------- |",
+        f"| Part           | Nominal | {letters} x-height | {letters} capitals | Georgian font "
+        "size | Descenders | Mkhedruli x-height | Mtavruli height |",
+        f"| -------------- | ------- | {'-' * (len(letters) + 9)} | {'-' * (len(letters) + 9)} "
+        "| ------------------ | ---------- | ------------------ | --------------- |",
     ]
-    for font in (f for f in manifest["fonts"] if "size_px" in f):
-        cells = heights((out / font["georgian"]).read_bytes())
+    width = len(letters) + 9
+    for font in (f for f in manifest["fonts"] if "size_px" in f and host_of(f["pack"]) == host):
+        cells = heights((out / font["georgian"]).read_bytes(), host)
         x, caps, mkhedruli, mtavruli = (f"{value:.1f}" for value in cells)
         lines.append(
-            f"| `{font['part']}` | {font['size_px']:>4} px | {x:>17} | {caps:>17} "
+            f"| `{font['part']}` | {font['size_px']:>4} px | {x:>{width}} | {caps:>{width}} "
             f"| {font['georgian_size_px']:>15} px | {font['georgian_descender_percent']:>9}% "
             f"| {mkhedruli:>18} | {mtavruli:>15} |"
         )
@@ -146,9 +168,12 @@ def sizing_table(out, manifest):
 
 def test_readme_lists_the_measured_sizes(assets):
     out, manifest = assets
-    table = sizing_table(out, manifest)
     readme = (REGISTRY.parent / "README.md").read_text()
-    assert table in readme, f"update the table in fonts/README.md to:\n{table}"
+    bitmap_hosts = {p["host"] for p in ENTRIES["packs"] if p["kind"] == "bitmap"}
+    assert bitmap_hosts == set(SIZE_TABLES)
+    for host in SIZE_TABLES:
+        table = sizing_table(out, manifest, host)
+        assert table in readme, f"update the {host} table in fonts/README.md to:\n{table}"
 
 
 # codec.HEADER's fields; the build may move only the section offsets after the range table.
@@ -208,8 +233,8 @@ def manifest_view(entries):
         for part in pack["parts"]
     ]
     packs = [
-        {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "weight": pack["weight"],
-         "install": pack.get("install", True),
+        {"id": pack["id"], "name": pack["name"], "kind": pack["kind"], "host": pack["host"],
+         "weight": pack["weight"], "install": pack.get("install", True),
          "parts": [p["part"] for p in pack["parts"]], "tested": pack["tested"]}
         for pack in entries["packs"]
     ]
@@ -222,7 +247,6 @@ def test_manifest_reflects_registry(assets):
     assert [{key: font.get(key) for key in view} for font, view in zip(manifest["fonts"], fonts)] \
         == fonts
     assert len(manifest["fonts"]) == len(fonts)
-    assert not any("size_px" in font for font in manifest["fonts"][len(PART_IDS):])
     assert manifest["packs"] == packs
     # The support list, each reason written out where a model names it.
     watches = {w["model_part"]: w for w in manifest["watches"]}

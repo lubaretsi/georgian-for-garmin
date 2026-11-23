@@ -24,7 +24,13 @@ TRUETYPE_PARTS = [
 TRUETYPE_PART_IDS = [part["part"] for _, part in TRUETYPE_PARTS]
 # Host families, by id.
 HOSTS = hosts(ENTRIES)
-# Every pinned stock bitmap part outside the packs (the registry's `stock`).
-STOCK_PART_IDS = [part["part"] for part in ENTRIES["stock"]]
+# Every pinned bitmap part of a host other than Armenian: the registry's `stock` (outside the
+# packs) and the Korean packs' parts, the Chinese, Japanese, Korean and Thai fonts the codec,
+# host and catalog tests use.
+STOCK_PART_IDS = [part["part"] for part in ENTRIES["stock"]] + [
+    part["part"]
+    for pack in ENTRIES["packs"] if pack["kind"] == "bitmap" and pack["host"] != "armenian"
+    for part in pack["parts"]
+]
 # Every pinned part, packs and stock, by part number.
 PINS = parts(ENTRIES)

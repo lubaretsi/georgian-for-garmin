@@ -188,7 +188,10 @@ Which part a file in `ExtData` belongs to, and whether it is a waiting `.tmp`, a
 `.fnt` or a TrueType `.bin`, comes from one function, `names::resolve` in
 `crates/core/src/names.rs`; it takes the part number (`006-D9035-02.tmp`) and Garmin's short form
 (`D903502.tmp`) alike. Every check before a write and every state `inspect` reports goes through
-it; don't match file names anywhere else.
+it; don't match file names anywhere else. The name install and restore write a part under comes
+from one function too, `Font::file_name` in `crates/core/src/fonts.rs`: the `FileName` the watch
+declares for the part in `GarminDevice.xml` (the Lily 2 Active's short `D894567.tmp`, the Venu
+2's `006-D9035-03.tmp`), or the part number when it declares none that resolves to the part.
 
 The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
 `remove_staged` (`crates/core/src/dev.rs`) and the raw MTP operations below
@@ -286,8 +289,9 @@ cargo tauri build --debug --features demo --bundles app    # a simulated watch, 
 
 The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
 expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
-Restore, and an unsupported Venu), and a Forerunner 245 mounted as a USB
-drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first;
+Restore, an expected Venu with its Korean font, which the support list only predicts, and an
+unknown Forerunner 265 listing none of this build's fonts), and a Forerunner 245 mounted as a
+USB drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first;
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
 its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a program on

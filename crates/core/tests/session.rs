@@ -542,12 +542,16 @@ fn by_part(watch: &Watch) -> Vec<(String, Role, Vec<u8>)> {
     files
 }
 
-/// What inspect says of part 006-D9035-02's file, and what install and restore of that part
-/// do: their outcome (status or error code) and what the watch holds afterwards.
-fn outcome(place: &str, name: &str, data: &[u8]) -> Vec<Value> {
+/// Makes a fresh fake watch: [`Watch::venu2`] or [`Watch::declaring_short_names`].
+type MakeWatch = fn() -> Watch;
+
+/// What inspect says of part 006-D9035-02's file on the watch `watch` makes, and what install
+/// and restore of that part do: their outcome (status or error code) and what the watch holds
+/// afterwards.
+fn outcome(watch: MakeWatch, place: &str, name: &str, data: &[u8]) -> Vec<Value> {
     let mut results = Vec::new();
     for operation in ["inspect", "install", "restore_stock"] {
-        let watch = Watch::venu2();
+        let watch = watch();
         match place {
             "normal" => watch.add_file(name, data.to_vec()),
             _ => watch.add_hidden(name, data.to_vec()),
@@ -570,8 +574,8 @@ fn outcome(place: &str, name: &str, data: &[u8]) -> Vec<Value> {
                 json!([font["file"], font["imported"]])
             }
             // Success either way: what the watch then holds is in `watch`. (An identical
-            // waiting file under the short name is written again under this build's name, the
-            // one the watch declares, so its status is staged_verified, not already_staged.)
+            // waiting file under the other name form is written again under the name the watch
+            // declares, so its status is staged_verified, not already_staged.)
             Ok(_) => json!("ok"),
             Err(e) => json!(e.code.as_str()),
         };
@@ -585,7 +589,8 @@ fn outcome(place: &str, name: &str, data: &[u8]) -> Vec<Value> {
 }
 
 /// Every state and listing a part's file can be in, under either name form, gives the same
-/// inspect result and the same install and restore outcome: one name rule for all of them.
+/// inspect result and the same install and restore outcome, on a watch declaring part numbers
+/// and on one declaring short names: one name rule for all of them.
 #[test]
 fn both_name_forms_give_the_same_result_everywhere() {
     let part = "006-D9035-02";
@@ -601,36 +606,95 @@ fn both_name_forms_give_the_same_result_everywhere() {
         ("normal", Role::Imported),
         ("hidden", Role::Imported),
     ];
-    for (state, data) in &states {
-        for (place, role) in places {
-            let ext = if role == Role::Waiting { "tmp" } else { "fnt" };
-            let long = outcome(place, &format!("{part}.{ext}"), data);
-            let short = outcome(place, &format!("D903502.{ext}"), data);
-            assert_eq!(long, short, "{state} {place} {role:?}");
+    let watches: [(&str, MakeWatch); 2] = [
+        ("long", Watch::venu2),
+        ("short", Watch::declaring_short_names),
+    ];
+    for (declares, watch) in watches {
+        for (state, data) in &states {
+            for (place, role) in places {
+                let ext = if role == Role::Waiting { "tmp" } else { "fnt" };
+                let long = outcome(watch, place, &format!("{part}.{ext}"), data);
+                let short = outcome(watch, place, &format!("D903502.{ext}"), data);
+                assert_eq!(long, short, "declares {declares}: {state} {place} {role:?}");
+            }
+        }
+        // And the cases mean something: an unknown waiting file blocks both, a stock one is
+        // replaced by install, never leaving two files.
+        let blocked = outcome(watch, "normal", "D903502.tmp", &states[2].1);
+        assert_eq!(blocked[1]["result"], "conflict");
+        let replaced = outcome(watch, "normal", "D903502.tmp", &states[0].1);
+        assert_eq!(replaced[1]["result"], "ok");
+        assert_eq!(
+            replaced[1]["watch"].as_array().unwrap().len(),
+            1,
+            "never two files"
+        );
+    }
+}
+
+/// Install and restore write a part under the file name the watch declares in
+/// `GarminDevice.xml` (`Font::file_name`): on a watch declaring part numbers, a waiting copy
+/// under the short name moves to the long one; on a watch declaring short names, as the Lily 2
+/// Active does, a long-named copy moves to the short one. A file that is neither Garmin's nor
+/// ours stays as it is under either name, and nothing is written.
+#[test]
+fn install_and_restore_write_the_name_the_watch_declares() {
+    let part = "006-D9035-02";
+    let (stock, georgian) = (fake::stock(part), fake::georgian(part));
+    let mut unknown = stock.clone();
+    unknown[7] ^= 0xff;
+    let watches: [(MakeWatch, &str, &str); 2] = [
+        (Watch::venu2, "006-D9035-02.tmp", "D903502.tmp"),
+        (
+            Watch::declaring_short_names,
+            "D903502.tmp",
+            "006-D9035-02.tmp",
+        ),
+    ];
+    let run = |watch: &Watch, operation: &str| {
+        call(&mut session(watch), operation, json!({"parts": [part]}))
+    };
+    for (watch, declared, other) in watches {
+        // Nothing there: install writes the declared name.
+        let w = watch();
+        assert_eq!(run(&w, "install").unwrap()["status"], "staged_verified");
+        assert_eq!(w.listed(), [(declared.to_owned(), georgian.clone())]);
+        // Already staged under the declared name: nothing is written.
+        let out = run(&w, "install").unwrap();
+        assert_eq!(out["status"], "already_staged", "{declared}");
+        assert_eq!(w.listed(), [(declared.to_owned(), georgian.clone())]);
+
+        for (operation, before, after) in [
+            // An identical copy under the other name form moves to the declared name.
+            ("install", &georgian, &georgian),
+            ("restore_stock", &stock, &stock),
+            // Garmin's original or ours under the other form is replaced under the declared name.
+            ("install", &stock, &georgian),
+            ("restore_stock", &georgian, &stock),
+        ] {
+            let w = watch();
+            w.add_file(other, before.clone());
+            let out = run(&w, operation).unwrap();
+            assert_eq!(out["status"], "staged_verified", "{declared} {operation}");
+            assert_eq!(
+                w.listed(),
+                [(declared.to_owned(), after.clone())],
+                "{declared} {operation}"
+            );
+        }
+
+        // Neither Garmin's nor ours, under either name: refused, nothing written.
+        for name in [declared, other] {
+            let w = watch();
+            w.add_file(name, unknown.clone());
+            for operation in ["install", "restore_stock"] {
+                let error = run(&w, operation).unwrap_err();
+                assert_eq!(error.code, ErrorCode::Conflict, "{name} {operation}");
+            }
+            assert_eq!(w.listed(), [(name.to_owned(), unknown.clone())]);
         }
     }
-    // And the cases mean something: an unknown waiting file blocks both, a stock one is
-    // replaced by install under this build's name, and an identical one under the short name is
-    // moved to this build's name.
-    let blocked = outcome("normal", "D903502.tmp", &states[2].1);
-    assert_eq!(blocked[1]["result"], "conflict");
-    let replaced = outcome("normal", "D903502.tmp", &states[0].1);
-    assert_eq!(replaced[1]["result"], "ok");
-    let watch = Watch::venu2();
-    watch.add_file("D903502.tmp", fake::stock(part));
-    let out = call(
-        &mut session(&watch),
-        "restore_stock",
-        json!({"parts": [part]}),
-    )
-    .unwrap();
-    assert_eq!(out["status"], "staged_verified");
-    assert_eq!(watch.listed(), [(format!("{part}.tmp"), fake::stock(part))]);
-    assert_eq!(
-        replaced[1]["watch"].as_array().unwrap().len(),
-        1,
-        "never two files"
-    );
 }
 
 #[test]
