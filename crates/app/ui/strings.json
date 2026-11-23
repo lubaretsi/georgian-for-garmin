@@ -6,6 +6,14 @@
     "waitingTitle": "შეაერთეთ საათი",
     "waitingBody": "შეაერთეთ საათი კომპიუტერთან USB კაბელით. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
     "looking": "საათს ვეძებთ…",
+    "waitingHelpTitle": "საათს ვერ ვპოულობთ?",
+    "waitingHelpExpress": {
+      "macos": "დახურეთ Garmin Express: მენიუს ზოლში მის ხატულაზე დააჭირეთ და აირჩიეთ Quit. მის გამო პროგრამამ შეიძლება საათი ვერ დაინახოს.",
+      "windows": "დახურეთ Garmin Express: ეკრანის ქვედა კუთხეში, დროის გვერდით, მის ხატულაზე მარჯვენა ღილაკით დააჭირეთ და აირჩიეთ Exit. მის გამო პროგრამამ შეიძლება საათი ვერ დაინახოს.",
+      "linux": "თუ საათი ფაილების მენეჯერში დისკად ჩანს, იქვე ამოიღეთ."
+    },
+    "waitingHelpReplug": "გამოაერთეთ საათი და ისევ შეაერთეთ. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
+    "waitingHelpCable": "გამოიყენეთ მონაცემების გადასაცემი კაბელი: ზოგი კაბელი მხოლოდ მუხტავს.",
 
     "softwareVersion": "ვერსია {version}",
     "install": "ქართულის დაყენება",
@@ -126,6 +134,14 @@
     "waitingTitle": "Connect your watch",
     "waitingBody": "Connect your watch with its USB cable. If the watch asks how to connect, choose MTP.",
     "looking": "Looking for your watch…",
+    "waitingHelpTitle": "Can’t find your watch?",
+    "waitingHelpExpress": {
+      "macos": "Quit Garmin Express: click its icon in the menu bar and choose Quit. It can keep the app from seeing your watch.",
+      "windows": "Quit Garmin Express: right-click its icon in the notification area next to the clock and choose Exit. It can keep the app from seeing your watch.",
+      "linux": "If your watch shows up as a drive in your file manager, eject it there."
+    },
+    "waitingHelpReplug": "Unplug the watch and plug it back in. If the watch asks how to connect, choose MTP.",
+    "waitingHelpCable": "Use a data cable: some cables only charge.",
 
     "softwareVersion": "Software {version}",
     "install": "Install Georgian",
