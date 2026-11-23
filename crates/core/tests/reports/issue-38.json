@@ -1,0 +1,28 @@
+{
+  "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/38",
+  "app_version": "0.3.2",
+  "connection": "usb_drive",
+  "model": "Instinct 2 Solar Tactical",
+  "model_part": "006-B3888-00",
+  "software": "17.22",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "006-D8952-00.tmp",
+      "part": "006-D8952-00",
+      "version": "2.10"
+    }
+  ],
+  "extdata": [
+    {
+      "name": "006-D8952-00.fnt",
+      "bytes": 97945,
+      "sha256": null,
+      "file": null
+    }
+  ],
+  "hidden": {
+    "status": "not_read",
+    "files": []
+  }
+}

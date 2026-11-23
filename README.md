@@ -71,6 +71,7 @@ and software version and saw it in a real notification. Follow a watch's issue f
 | Forerunner 245 Music | 13.70 | Doesn't work ([#10](https://github.com/lubaretsi/georgian-for-garmin/issues/10)). Its only optional fonts are emoji fonts, which have no letters to add Georgian to. |
 | Venu | 7.80 | Doesn't work ([#12](https://github.com/lubaretsi/georgian-for-garmin/issues/12)). It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet. |
 | fenix 5 | 25.00 | Doesn't work ([#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30), [#29](https://github.com/lubaretsi/georgian-for-garmin/issues/29)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
+| Instinct 2 Solar Tactical | 17.22 | Doesn't work ([#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
 <!-- /watches -->
 
 Where Georgian showed: on the Venu 2, Forerunner 165, Forerunner 255 and fenix 7 Pro in pop-ups,
@@ -167,7 +168,7 @@ and connects by USB. A lent watch comes back with Garmin's original fonts.
 | Noto TrueType fonts | Forerunner 165 / 165 Music, Venu 3 / 3S | Test install and restore before each release | Needed |
 | Newer Noto TrueType fonts | fenix 8, Venu 4, MARQ (Gen 3) | Same fonts as the Forerunner 165, but nobody has seen Georgian on them yet | Needed |
 | Hebrew and Arabic fonts only | fenix 6 Pro / 6S Pro / 6X Pro, Instinct 3 AMOLED | Find out why they show question marks | Needed |
-| No fonts to extend | Forerunner 245 / 245 Music | Look for any font the watch uses | Needed |
+| No fonts to extend | Forerunner 245 / 245 Music, Instinct 2 | Look for any font the watch uses | Needed |
 | Chinese, Japanese and Korean bitmap fonts | Venu (1st gen) | Build Georgian into these fonts | Needed |
 
 ქართულად: თუ გაქვთ საათი ჯგუფიდან, რომელსაც აწერია **Needed**, და შეგიძლიათ გვაჩუქოთ ან თბილისში

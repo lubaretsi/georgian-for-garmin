@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Instinct 2 Solar Tactical (software 17.22, #38) in the support list as not working: it
+  connects only as a USB drive, and its one optional font is an emoji font, with no letters to add
+  Georgian to. Its report is a replay fixture.
 - The Forerunner 255 on software 29.52 as tested (#13, #37): Georgian showed in pop-ups, the
   notification list and opened notifications with 0.2.2, whose eight bitmap Armenian builds are
   byte for byte today's. The app now shows it as confirmed and no longer asks it for a report on
