@@ -31,6 +31,8 @@ export const en = {
     didntWorkCheck: "Didn't work? Check on the watch",
     sendTest: "Send a test notification",
     skipVerify: "Skip: I'll check on the watch",
+    /** After a restore: back to the watch screen without waiting for the reconnect. */
+    skip: "Skip",
     sentIt: "I sent it",
     continue: "Continue",
     back: "Back",
@@ -287,6 +289,7 @@ export const en = {
       how: "Hold its power button, choose Power Off, then turn it on.",
       reconnect: "Then connect it again so the app can check.",
       notVerifiable: "This watch doesn't show the change to the computer, so you check it on the watch.",
+      notVerifiableRestore: "This watch doesn't show the change to the computer. Garmin's font is back once the watch has restarted.",
     },
     verifying: {
       title: "Checking the watch…",

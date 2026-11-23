@@ -1,0 +1,149 @@
+// Story data from the core's fixtures (fixtures/core, written by crates/core/tests/ui_fixtures.rs):
+// real models, part numbers, software, busy holders, rollbacks and shared text.
+
+import type { Lang } from "../../core/backend";
+import type { InspectOutput } from "../../core/types.gen";
+import { copyFor, fmt } from "../../copy";
+import { failure, fixtureFile, output } from "../../mock/fixtures";
+import type { BusyView, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../../model/screens";
+import { PHONE_PAGE_QR } from "./phone-qr";
+
+function watchOf(inspect: Pick<InspectOutput, "device"> & { tested?: InspectOutput["tested"] }): WatchInfo {
+  return {
+    model: inspect.device.model,
+    modelPart: inspect.device.part_number,
+    software: inspect.device.software_version,
+    confirmedSoftware: inspect.tested?.verified_software ?? [],
+  };
+}
+
+const venu2 = watchOf(output("venu2", "inspect", "inspect"));
+
+/** The watches the stories use, each from its scenario's first inspect. */
+export const WATCHES = {
+  venu2,
+  lily2Active: watchOf(output("lily2active", "inspect", "inspect")),
+  instinct3: watchOf(output("instinct3", "inspect", "inspect")),
+  fenix6sPro: watchOf(output("fenix6", "inspect", "inspect")),
+  forerunner245: watchOf(output("forerunner245-drive", "inspect_drive", "inspect_drive")),
+  forerunner265: watchOf(output("forerunner265", "inspect", "inspect")),
+  venu3: watchOf(output("venu3-waiting", "inspect", "inspect")),
+  forerunner165: watchOf(output("errors", "inspect-restore_first", "inspect")),
+  /** Venu 2 after a software update: confirmed on 19.05 only (no fixture has another version yet). */
+  venu2Updated: { ...venu2, software: "20.26" },
+} satisfies Record<string, WatchInfo>;
+
+/** The support list's reason for the fenix 6S Pro (issue 6). */
+export function unsupportedReason(): { ka: string; en: string } | null {
+  return output("fenix6", "inspect", "inspect").support.reason ?? null;
+}
+
+export function issueOf(scenario: string, step = "inspect"): number | null {
+  return output(scenario, step, "inspect").support.issue ?? null;
+}
+
+/** A busy holder as the screen shows it, from `busy/<step>`. */
+export function busyFrom(step: string): BusyView {
+  const holder = failure("busy", step).busy?.holder;
+  if (!holder) throw new Error(`busy/${step} has no holder`);
+  return { kind: holder.kind, name: holder.name ?? null, confirmed: holder.confirmed };
+}
+
+/** The rollback of a failed write, with the file names the user would see. */
+export function rollbackFrom(scenario: string, step: string): RollbackView {
+  const rollback = failure(scenario, step).rollback;
+  if (!rollback) throw new Error(`${scenario}/${step} has no rollback`);
+  return {
+    status: rollback.status,
+    files: rollback.files.filter((f) => !f.done).map((f) => f.path.split("/").pop() ?? f.path),
+  };
+}
+
+export function messageOf(scenario: string, step: string): string {
+  return failure(scenario, step).message;
+}
+
+/** The exact text a share puts on GitHub, from an `issue_link` fixture. */
+export function reportText(scenario: string, step: string): string {
+  const file = fixtureFile(scenario, step);
+  if (file.operation !== "issue_link" || !file.output) throw new Error(`${scenario}/${step} is no issue link`);
+  return file.output.fields.find((f) => f.id === "report")?.value ?? "";
+}
+
+export function phone(lang: Lang): { url: string; qr: string } {
+  return PHONE_PAGE_QR[lang];
+}
+
+/**
+ * Beta marker pictures: the test word with a bar on one capital, one per font. The core
+ * draws them as PNG data URLs; these are SVG data URLs of the same idea.
+ */
+export function markPictures(): { variant: string; picture: string }[] {
+  const word = "ᲛᲗᲐᲕᲠᲣᲚᲘ";
+  return ["a", "b", "c"].map((variant, i) => ({
+    variant,
+    picture: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40">` +
+        `<rect width="200" height="40" fill="#000"/>` +
+        `<text x="8" y="29" font-size="22" fill="#fff" font-family="sans-serif">${word}</text>` +
+        `<rect x="${14 + i * 46}" y="6" width="18" height="3" fill="#fff"/></svg>`,
+    )}`,
+  }));
+}
+
+/** The shared summary as the flow builds it (toScreen), in the story's language. */
+export function shareSummary(
+  lang: Lang,
+  what: "result" | "font_list" | "problem",
+  watch: WatchInfo | null,
+): { label: string; value: string }[] {
+  const c = copyFor(lang);
+  const s = c.share.summary;
+  const base = watch
+    ? [
+        { label: s.watch, value: watch.model },
+        { label: s.software, value: watch.software },
+      ]
+    : [];
+  switch (what) {
+    case "result":
+      return [
+        ...base,
+        { label: s.installed, value: fmt(s.fonts, { count: 4 }) },
+        { label: s.result, value: c.check.answer.results.boxes },
+        { label: s.views, value: [c.check.answer.views.popup, c.check.answer.views.list].join(", ") },
+        { label: s.phone, value: c.check.answer.phone.android },
+        { label: s.fontList, value: fmt(s.fonts, { count: 38 }) },
+      ];
+    case "font_list":
+      return [...base, { label: s.installed, value: s.nothing }, { label: s.fontList, value: fmt(s.fonts, { count: 12 }) }];
+    case "problem":
+      return [...base, { label: s.problem, value: messageOf("errors", "install-internal") }];
+  }
+}
+
+/** The More sheet's data for a watch (the flow builds it; internal words are allowed here). */
+export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean): MoreModel {
+  const l = copyFor(lang).more.seen.labels;
+  return {
+    restorable,
+    seen: watch
+      ? [
+          { label: l.model, value: watch.model },
+          { label: l.modelPart, value: watch.modelPart },
+          { label: l.software, value: watch.software },
+          { label: l.writes, value: "armenian-noto-sans-regular: 006-D9035-01, -02, -03, -04" },
+          { label: l.state, value: "not_installed" },
+        ]
+      : null,
+    reportText: watch ? reportText("venu2", "issue_link-georgian") : null,
+    version: "0.4.0",
+  };
+}
+
+/** A model built per language (the share summary is in the story's language). */
+export type StoryModel = ScreenModel | ((lang: Lang) => ScreenModel);
+
+export function resolveModel(model: StoryModel, lang: Lang): ScreenModel {
+  return typeof model === "function" ? model(lang) : model;
+}

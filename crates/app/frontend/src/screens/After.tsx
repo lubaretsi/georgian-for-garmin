@@ -85,7 +85,9 @@ export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
 /** share: what goes to GitHub, then what to do there. Nothing is sent without the click. */
 export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
   const s = ctx.copy.share;
-  const values = { model: model.watch.model };
+  // No watch: shared from connect (busy, problem), where only `what: "problem"` occurs and its
+  // texts name no model; "Garmin" keeps any other text readable all the same.
+  const values = { model: model.watch?.model ?? "Garmin" };
   const open: FooterAction = {
     label: ctx.copy.actions.openGithub,
     onPress: () => ctx.emit("share", { action: "share", what: model.what }),
@@ -102,18 +104,18 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
         step: "check",
         title: s.title[model.what],
         illustration: { icon: "share" },
-        watch: model.watch,
+        watch: model.watch ?? undefined,
         content: (
           <>
             <p className="lead">{fmt(s.why[model.what], values)}</p>
-            <h2 className="section-title">{s.whatTitle}</h2>
-            <Facts items={model.summary} />
-            <p className="muted">{s.private}</p>
-            {exactText}
             <Notice tone="info">
               <p>{s.account}</p>
               <p>{s.nothingSent}</p>
             </Notice>
+            <h2 className="section-title">{s.whatTitle}</h2>
+            <Facts items={model.summary} />
+            <p className="muted">{s.private}</p>
+            {exactText}
           </>
         ),
         primary: open,

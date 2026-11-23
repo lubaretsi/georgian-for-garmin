@@ -60,10 +60,21 @@ export function ProgressBar(props: { label: string; value: { done: number; total
   );
 }
 
-/** A QR code drawn by the core (an SVG string), on a light background in both themes. */
-export function Qr(props: { svg: string; label: string }) {
+/**
+ * An image the backend drew: a `data:` URL (share.rs gives the QR as an SVG data URL and the
+ * beta marks as PNG data URLs), or raw SVG markup, which becomes a data URL. Never inserted
+ * as markup, so nothing in it runs.
+ */
+export function imageSource(image: string): string {
+  return image.startsWith("data:") ? image : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(image)}`;
+}
+
+/** A QR code, on a light background in both themes. */
+export function Qr(props: { image: string; label: string }) {
   return (
-    <div className="qr" role="img" aria-label={props.label} dangerouslySetInnerHTML={{ __html: props.svg }} />
+    <div className="qr">
+      <img src={imageSource(props.image)} alt={props.label} />
+    </div>
   );
 }
 

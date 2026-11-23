@@ -76,18 +76,23 @@ export function RestartScreen(model: Restart, ctx: ScreenContext): ScreenView {
         content: (
           <>
             <p className="lead">{r.restart.how}</p>
-            <p>{model.verifiable ? r.restart.reconnect : r.restart.notVerifiable}</p>
+            <p>
+              {model.verifiable
+                ? r.restart.reconnect
+                : model.op === "install"
+                  ? r.restart.notVerifiable
+                  : r.restart.notVerifiableRestore}
+            </p>
           </>
         ),
+        // Skipping (or a watch the app can't verify) goes to the check after an install and
+        // back to the watch after a restore (§4.1); the flow decides by `op`.
         primary: model.verifiable
           ? undefined
-          : model.op === "install"
-            ? emitting(ctx, ctx.copy.actions.check, "skip_verify")
-            : emitting(ctx, ctx.copy.actions.done, "done"),
-        secondary:
-          model.verifiable && model.op === "install"
-            ? emitting(ctx, ctx.copy.actions.skipVerify, "skip_verify")
-            : undefined,
+          : emitting(ctx, model.op === "install" ? ctx.copy.actions.check : ctx.copy.actions.continue, "skip_verify"),
+        secondary: model.verifiable
+          ? emitting(ctx, model.op === "install" ? ctx.copy.actions.skipVerify : ctx.copy.actions.skip, "skip_verify")
+          : undefined,
       };
     case "verifying":
       return {

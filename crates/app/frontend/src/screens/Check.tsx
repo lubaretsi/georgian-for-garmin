@@ -1,7 +1,7 @@
 import { fmt } from "../copy";
 import { RESULT_SAMPLES, TEST_TEXT } from "../copy/shared";
 import type { Answers, Result, ScreenModel, View } from "../model/screens";
-import { Qr } from "../ui/bits";
+import { imageSource, Qr } from "../ui/bits";
 import { type Choice, CheckboxChoices, RadioChoices } from "../ui/Choices";
 import { CopyBlock } from "../ui/CopyBlock";
 import { copyLabels, emitting } from "./common";
@@ -29,7 +29,7 @@ function sendStep(model: Check, ctx: ScreenContext): ScreenView {
       <>
         {model.phone ? (
           <div className="qr-row">
-            <Qr svg={model.phone.qrSvg} label={s.qrLabel} />
+            <Qr image={model.phone.qr} label={s.qrLabel} />
             <p>{s.scan}</p>
           </div>
         ) : null}
@@ -64,7 +64,7 @@ function answerStep(model: Check, ctx: ScreenContext): ScreenView {
     ...model.markPictures.map((m) => ({
       value: m.variant,
       label: fmt(a.marker.picture, { variant: m.variant }),
-      sample: <span className="marker-picture" dangerouslySetInnerHTML={{ __html: m.svg }} />,
+      sample: <img className="marker-picture" src={imageSource(m.picture)} alt="" />,
     })),
     { value: NO_MARKER, label: a.marker.none },
   ];

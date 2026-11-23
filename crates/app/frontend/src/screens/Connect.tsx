@@ -113,7 +113,10 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
   };
 }
 
-/** connect / problem: a per-problem title, body and action (§6). */
+/**
+ * connect / problem: a per-problem title, body and action (§6). A problem the user can fix
+ * shows the fix and no Report; one without a user fix offers Report this problem.
+ */
 export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
   const text = ctx.copy.connect.problem[model.problem];
   const retry = emitting(ctx, ctx.copy.actions.tryAgainNow, "retry_now");
@@ -146,11 +149,11 @@ export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
           </>
         ),
         primary: { label: ctx.copy.actions.copyCommands, copyText: LINUX_UDEV_COMMANDS },
-        secondary: report,
+        secondary: retry,
       };
     case "multiple_devices":
     case "device_error":
-      return { ...base, content: <><p>{text.body}</p>{details}</>, primary: retry, secondary: report };
+      return { ...base, content: <><p>{text.body}</p>{details}</>, primary: retry };
     case "garmin_folder_not_found":
     case "extdata_not_found":
     case "internal":

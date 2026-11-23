@@ -133,9 +133,8 @@
   margin-top: var(--space-4);
 }
 
-.screen-content p,
-.notice p,
-.more-section p {
+/* Zero specificity, so the stacks' `> * + *` spacing wins. */
+:where(.screen-content, .notice, .more-section) p {
   margin: 0;
 }
 
@@ -299,6 +298,29 @@
   line-height: 1;
 }
 
+/* Narrow windows: other steps keep their number; their names stay for screen readers. */
+@container shell (max-width: 600px) {
+  .shell:lang(ka) .step:not(.step-current) .step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@container shell (max-width: 430px) {
+  .shell:lang(en) .step:not(.step-current) .step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .step-current {
   color: var(--text);
   font-weight: 650;
@@ -318,7 +340,7 @@
 /* ---- Illustration, badge, waiting ---- */
 
 .illustration {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 56px;
@@ -638,7 +660,7 @@
   align-items: flex-start;
 }
 
-.marker-picture svg {
+.marker-picture {
   display: block;
   max-width: 100%;
   height: auto;
@@ -709,7 +731,7 @@
   background: #ffffff;
 }
 
-.qr svg {
+.qr img {
   display: block;
   width: 100%;
   height: 100%;

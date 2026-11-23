@@ -34,9 +34,9 @@ export type ScreenModel =
   | { screen: "working"; op: Op; watch: WatchInfo; progress: { done: number; total: number } | null }
   | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
-  | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qrSvg: string } | null; markPictures: { variant: string; svg: string }[] }
+  | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean }
-  | { screen: "share"; watch: WatchInfo; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null }
+  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
   | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string };
 
 /** What the screen's buttons do. Screens emit these; only the flow acts on them. */
