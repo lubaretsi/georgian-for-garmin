@@ -189,6 +189,7 @@ describe("install and restore", () => {
       verifiable: true,
       reconnected: false,
       starting: false,
+      interruption: null,
     });
     expect(state.attempt).toBe(1);
     expect(polls(state)).toMatchObject({ delay: 0 });
@@ -287,6 +288,43 @@ describe("the restart step", () => {
     state = reduce(state, { type: "started_up", token: state.startingToken });
     expect(state.phase).toMatchObject({ starting: false });
     expect(read(state, deviceError).phase).toEqual({ name: "error", op: "install", failure: deviceError });
+  });
+
+  test("held after the restart: busy shows, the restart is kept, release resumes verification", () => {
+    const busy = failure("busy", "inspect-garmin_express-macos");
+    let state = read(read(written(), NO_DEVICE), busy);
+    expect(state.phase).toMatchObject({
+      name: "restart",
+      op: "install",
+      phase: "restart",
+      interruption: { kind: "busy", failure: busy },
+    });
+    expect(state.attempt).toBe(1);
+    expect(polls(state)).toMatchObject({ delay: POLL_MS });
+    expect(polls(act(state, "retry_now"))).toMatchObject({ delay: 0 });
+    state = read(state, inspect("venu2", "inspect-restarted"));
+    expect(state.phase).toEqual({ name: "result", op: "install" });
+  });
+
+  test("held before the unplug: still the unplug phase", () => {
+    const busy = failure("busy", "inspect-garmin_express-macos");
+    expect(read(written(), busy).phase).toMatchObject({ phase: "unplug", interruption: null });
+  });
+
+  test("back as a drive after the restart: drive shows, the restart is kept, MTP resumes verification", () => {
+    const drive = output("venu2-drive", "inspect_drive", "inspect_drive");
+    // Not while unplugging: the watch is only leaving.
+    expect(kinds(read(written(), NO_DEVICE))).toEqual(["inspect"]);
+    let state = read(read(written(), NO_DEVICE), NO_DEVICE);
+    expect(state.effects).toContainEqual({ kind: "inspect_drive", token: state.token });
+    state = reduce(state, { type: "drive_inspected", token: state.token, output: drive });
+    expect(state.phase).toMatchObject({ name: "restart", interruption: { kind: "drive", drive } });
+    // Still a drive: kept through the no_device reads until inspect_drive says otherwise.
+    state = read(state, NO_DEVICE);
+    expect(state.phase).toMatchObject({ interruption: { kind: "drive" } });
+    const unplugged = reduce(state, { type: "drive_failed", token: state.token, failure: NO_DEVICE });
+    expect(unplugged.phase).toMatchObject({ name: "restart", phase: "restart", interruption: null });
+    expect(read(state, inspect("venu2", "inspect-restarted")).phase).toEqual({ name: "result", op: "install" });
   });
 
   test("skip after an install → check", () => {

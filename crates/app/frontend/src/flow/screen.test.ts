@@ -205,6 +205,30 @@ describe("toScreen", () => {
     });
   });
 
+  test("share of a connect problem: no watch, no watch rows", () => {
+    const internal = failure("connect-problems", "inspect-internal");
+    const state = act(read(started(), internal), "share", { action: "share", what: "problem" });
+    expect(toScreen(state)).toMatchObject({
+      screen: "share",
+      watch: null,
+      summary: [{ label: "What happened", value: "Something went wrong in the app" }],
+    });
+  });
+
+  test("restart interrupted: the busy or drive screen, then the restart again", () => {
+    const restart = read(written(), NO_DEVICE);
+    const busy = read(restart, failure("busy", "inspect-garmin_express-macos"));
+    expect(toScreen(busy)).toEqual({
+      screen: "connect",
+      mode: "busy",
+      busy: { kind: "garmin_express", name: "Garmin Express", confirmed: true },
+    });
+    const drive = output("venu2-drive", "inspect_drive", "inspect_drive");
+    const mounted = reduce(read(restart, NO_DEVICE), { type: "drive_inspected", token: restart.token, output: drive });
+    expect(toScreen(mounted)).toMatchObject({ screen: "drive", driveOnly: false });
+    expect(toScreen(read(busy, NO_DEVICE))).toMatchObject({ screen: "restart", phase: "restart", attempt: 1 });
+  });
+
   test("error: code, rollback (what may be left) and detail", () => {
     const fail = failure("venu2-write-fails", "install-rollback-incomplete");
     const state = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: fail });

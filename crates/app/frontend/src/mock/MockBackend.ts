@@ -10,8 +10,8 @@ import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backen
 import type { HolderKind, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
 import { shareKeyId } from "../flow/state";
 import type { Result } from "../model/screens";
-import { PHONE_PAGE_QR } from "../stories/screens/phone-qr";
 import { failure, fixtureFile, output } from "./fixtures";
+import { PHONE_PAGE_QR } from "./phone-page";
 import { busyStep, type Step, WATCH_DEFS, type WatchDef, type WatchId } from "./watches";
 
 export type Connection = "mtp" | "drive" | "unplugged";

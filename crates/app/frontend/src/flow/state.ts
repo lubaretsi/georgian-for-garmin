@@ -38,12 +38,19 @@ export type Phase =
       reconnected: boolean;
       /** Within `STARTING_MS` of that. */
       starting: boolean;
+      /**
+       * Reconnected held by another program, or as a USB drive: its screen shows, and the
+       * restart (op, attempt, verification) goes on once the watch is free over MTP (§4.1).
+       */
+      interruption: RestartInterruption | null;
     }
   | { name: "result"; op: Op }
   | { name: "check"; step: "send" | "answer" }
   | { name: "outcome"; kind: OutcomeKind }
   | { name: "share"; what: ShareWhat; input: IssueLinkRequest; link: IssueLink | null; state: ShareState; back: Phase }
   | { name: "error"; op: Op; failure: Failure };
+
+export type RestartInterruption = { kind: "busy"; failure: Failure } | { kind: "drive"; drive: InspectDriveOutput };
 
 export type ShareState = "ready" | "opened" | "opened_paste" | "failed";
 
@@ -220,7 +227,15 @@ function showWatch(state: FlowState, inspect: InspectOutput): FlowState {
   const effects = askSharedBefore(state, inspect);
   if (verdict.kind === "restart_pending") {
     const op: Op = verdict.variant === "georgian" ? "install" : "restore";
-    const restart: Phase = { name: "restart", op, phase: "unplug", verifiable: true, reconnected: false, starting: false };
+    const restart: Phase = {
+      name: "restart",
+      op,
+      phase: "unplug",
+      verifiable: true,
+      reconnected: false,
+      starting: false,
+      interruption: null,
+    };
     return go({ ...next, attempt: Math.max(next.attempt, 1) }, restart, effects);
   }
   return go(next, { name: "watch" }, effects);
@@ -264,7 +279,10 @@ function answered(state: FlowState, phase: Restart, restartPhase: RestartPhase):
 }
 
 /** A read during the restart step (§4.1): decided on the first one after the reconnect. */
-function restartRead(state: FlowState, phase: Restart, inspect: InspectOutput): FlowState {
+function restartRead(state: FlowState, interrupted: Restart, inspect: InspectOutput): FlowState {
+  // Free over MTP: whatever held or mounted it is over.
+  const phase: Restart = { ...interrupted, interruption: null };
+  state = { ...state, phase };
   if (phase.phase === "unplug" || phase.phase === "again" || !phase.verifiable) return pollNext(state);
   if (state.inspect && inspect.device.part_number !== state.inspect.device.part_number) {
     return pollNext(answered(state, phase, "other_watch"));
@@ -284,10 +302,16 @@ function restartRead(state: FlowState, phase: Restart, inspect: InspectOutput): 
 
 function restartFailed(state: FlowState, phase: Restart, failure: Failure): FlowState {
   if (failure.code === "no_device") {
-    // Unplugged: from `again`, that starts the next attempt (§4.1).
+    // Unplugged: from `again`, that starts the next attempt (§4.1). A drive is looked for as on
+    // connect; a drive already found stays until inspect_drive says otherwise.
     const attempt = phase.phase === "again" ? state.attempt + 1 : state.attempt;
-    const unplugged: Restart = { ...phase, phase: "restart", reconnected: false, starting: false };
-    return pollNext({ ...state, attempt, phase: unplugged });
+    const interruption = phase.interruption?.kind === "drive" ? phase.interruption : null;
+    const unplugged: Restart = { ...phase, phase: "restart", reconnected: false, starting: false, interruption };
+    const next = pollNext({ ...state, attempt, phase: unplugged });
+    return phase.phase === "unplug" ? next : withEffects(next, { kind: "inspect_drive", token: state.token });
+  }
+  if (failure.code === "device_busy" && phase.phase !== "unplug") {
+    return pollNext({ ...state, phase: { ...phase, interruption: { kind: "busy", failure } } });
   }
   if (phase.phase === "unplug" || phase.phase === "again" || !phase.verifiable || failure.code === "device_busy") {
     return pollNext(state);
@@ -314,6 +338,9 @@ function shareInput(state: FlowState, what: ShareWhat): IssueLinkRequest {
   const report = phase.name === "drive" ? phase.drive.report : state.inspect?.report;
   if (!report) return {};
   const input: IssueLinkRequest = { report };
+  if (phase.name === "restart" && phase.interruption?.kind === "busy" && phase.interruption.failure.busy) {
+    input.busy = phase.interruption.failure.busy;
+  }
   const last = state.lastOp;
   if (last && phase.name !== "drive") {
     const operation = last.op === "install" ? "install" : "restore_stock";
@@ -353,7 +380,15 @@ function startOp(state: FlowState, op: Op): FlowState {
 
 /** The restart step after a write, or another restart from the outcome (§4.1). */
 function startRestart(state: FlowState, op: Op, attempt: number, isVerifiable: boolean): FlowState {
-  const restart: Phase = { name: "restart", op, phase: "unplug", verifiable: isVerifiable, reconnected: false, starting: false };
+  const restart: Phase = {
+    name: "restart",
+    op,
+    phase: "unplug",
+    verifiable: isVerifiable,
+    reconnected: false,
+    starting: false,
+    interruption: null,
+  };
   return go({ ...state, attempt }, restart);
 }
 
@@ -404,10 +439,14 @@ function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined)
       if (id === "confirm_restore") return startOp(state, "restore");
       if (id === "cancel" || id === "back") return go(state, phase.back);
       return state;
-    case "restart":
+    case "restart": {
       if (id === "skip_verify") return phase.op === "install" ? startCheck(state) : home(state);
       if (id === "done") return home(state);
+      if (id === "retry_now") return pollNow(state);
+      const issue = phase.interruption?.kind === "drive" ? phase.interruption.drive.support.issue : null;
+      if (id === "open_issue" && issue) return withEffects(state, { kind: "open_issue", issue });
       return state;
+    }
     case "result":
       if (id === "check") return startCheck(state);
       if (id === "done") return home(state);
@@ -516,10 +555,16 @@ export function reduce(previous: FlowState, event: FlowEvent): FlowState {
           effects: [...state.effects, ...askSharedBefore(state, event.output)],
         };
       }
+      if (phase.name === "restart" && phase.phase !== "unplug") {
+        return { ...state, phase: { ...phase, interruption: { kind: "drive", drive: event.output } } };
+      }
       return state;
     case "drive_failed":
-      if (event.token !== state.token || phase.name !== "drive") return state;
-      return searching(state);
+      if (event.token !== state.token) return state;
+      if (phase.name === "restart" && phase.interruption?.kind === "drive") {
+        return { ...state, phase: { ...phase, interruption: null } };
+      }
+      return phase.name === "drive" ? searching(state) : state;
     case "progress":
       return phase.name === "working" ? { ...state, phase: { ...phase, progress: event.progress } } : state;
     case "op_done":

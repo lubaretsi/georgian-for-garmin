@@ -2,6 +2,7 @@
 // sheet). Pure; the share summary and "What the app sees" are in the state's language.
 
 import { type Copy, copyFor, fmt, list } from "../copy";
+import type { Failure } from "../core/app-types";
 import type { ShareKey } from "../core/backend";
 import type { InspectDriveOutput, InspectOutput } from "../core/types.gen";
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
@@ -84,6 +85,28 @@ function rollbackOf(state: FlowState): RollbackView | null {
   return { status: rollback.status, files: files.map((f) => f.path) };
 }
 
+/** connect/busy for a read another program refused. */
+function busyScreen(failure: Failure): ScreenModel {
+  const holder = failure.busy?.holder;
+  return {
+    screen: "connect",
+    mode: "busy",
+    busy: { kind: holder?.kind ?? "unknown", name: holder?.name ?? null, confirmed: holder?.confirmed ?? false },
+  };
+}
+
+function driveScreen(state: FlowState, drive: InspectDriveOutput): ScreenModel {
+  const { support } = drive;
+  return {
+    screen: "drive",
+    watch: watchInfo(drive),
+    driveOnly: support.status === "unsupported",
+    issue: support.issue ?? null,
+    reportWanted: support.report_wanted,
+    sharedBefore: sharedBefore(state, drive, "font_list"),
+  };
+}
+
 export function toScreen(state: FlowState): ScreenModel {
   const phase = state.phase;
   switch (phase.name) {
@@ -91,28 +114,13 @@ export function toScreen(state: FlowState): ScreenModel {
       switch (phase.mode) {
         case "searching":
           return { screen: "connect", mode: "searching", showHelp: phase.showHelp };
-        case "busy": {
-          const holder = phase.failure.busy?.holder;
-          return {
-            screen: "connect",
-            mode: "busy",
-            busy: { kind: holder?.kind ?? "unknown", name: holder?.name ?? null, confirmed: holder?.confirmed ?? false },
-          };
-        }
+        case "busy":
+          return busyScreen(phase.failure);
         case "problem":
           return { screen: "connect", mode: "problem", problem: problemOf(phase.failure.code), detail: phase.failure.message };
       }
-    case "drive": {
-      const { support } = phase.drive;
-      return {
-        screen: "drive",
-        watch: watchInfo(phase.drive),
-        driveOnly: support.status === "unsupported",
-        issue: support.issue ?? null,
-        reportWanted: support.report_wanted,
-        sharedBefore: sharedBefore(state, phase.drive, "font_list"),
-      };
-    }
+    case "drive":
+      return driveScreen(state, phase.drive);
     case "watch": {
       const inspect = state.inspect;
       if (!inspect) throw new Error("flow: no watch in watch");
@@ -130,6 +138,9 @@ export function toScreen(state: FlowState): ScreenModel {
     case "working":
       return { screen: "working", op: phase.op, watch: currentWatch(state), progress: phase.progress };
     case "restart":
+      // Held or mounted after the restart: that screen, with the restart kept underneath (§4.1).
+      if (phase.interruption?.kind === "busy") return busyScreen(phase.interruption.failure);
+      if (phase.interruption?.kind === "drive") return driveScreen(state, phase.interruption.drive);
       return {
         screen: "restart",
         op: phase.op,

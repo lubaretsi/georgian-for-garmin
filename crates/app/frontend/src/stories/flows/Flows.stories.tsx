@@ -245,3 +245,40 @@ export const SecondRestartNeeded: Story = {
     await p.screen(p.copy.result.install.title);
   },
 };
+
+export const GarminExpressGrabsItAfterTheRestart: Story = {
+  args: { options: { watch: "venu2" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    await p.screen(p.copy.watch.install.titleConfirmed);
+    await press(p, p.copy.actions.install);
+    await p.screen(p.copy.restart.unplug.title);
+    await simulate(p, "Unplug");
+    await p.screen(p.copy.restart.restart.title);
+    await simulate(p, "Restart watch");
+    await simulate(p, "Garmin Express holds it");
+    await simulate(p, "Plug in (MTP)");
+    await p.screen(p.fmt(p.copy.connect.busy.title.confirmed, { program: p.copy.connect.busy.program.garminExpress }));
+    // Released: the restart's check goes on.
+    await simulate(p, "Release");
+    await p.screen(p.copy.result.install.title);
+  },
+};
+
+export const BackAsADriveAfterTheRestart: Story = {
+  args: { options: { watch: "venu2" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    await p.screen(p.copy.watch.install.titleConfirmed);
+    await press(p, p.copy.actions.install);
+    await p.screen(p.copy.restart.unplug.title);
+    await simulate(p, "Unplug");
+    await p.screen(p.copy.restart.restart.title);
+    await simulate(p, "Restart watch");
+    await simulate(p, "Plug in (drive)");
+    await p.screen(p.fmt(p.copy.drive.title, { model: "Venu 2" }));
+    // Switched to MTP: the restart's check goes on.
+    await simulate(p, "Plug in (MTP)");
+    await p.screen(p.copy.result.install.title);
+  },
+};
