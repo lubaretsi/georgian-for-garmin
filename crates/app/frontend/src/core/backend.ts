@@ -1,0 +1,37 @@
+// What the UI asks of the app: today's Tauri commands (crates/app/src/main.rs), with the same
+// names and the core's output unchanged (contract §3.1). Phase 2's `TauriBackend` implements it
+// over `invoke`; Storybook and the tests use `MockBackend` (src/mock/).
+
+import type { Result } from "../model/screens";
+import type { MarkPicture, PhonePage, Shared } from "./app-types";
+import type { InspectDriveOutput, InspectOutput, IssueLink, IssueLinkInput, StageOutput } from "./types.gen";
+
+export interface Backend {
+  /** Rejects with `Failure`. */
+  inspect(): Promise<InspectOutput>;
+  inspectDrive(): Promise<InspectDriveOutput>;
+  install(onProgress?: (p: Progress) => void): Promise<StageOutput>;
+  restoreStock(onProgress?: (p: Progress) => void): Promise<StageOutput>;
+  issueLink(input: IssueLinkInput): Promise<IssueLink>;
+  /** Opens the browser (not in the demo build or the mock). */
+  shareReport(input: IssueLinkInput): Promise<Shared>;
+  openIssue(issue: number): Promise<string>;
+  phonePage(language: Lang): Promise<PhonePage>;
+  /** Empty in stable builds. */
+  testMarks(): Promise<MarkPicture[]>;
+  platform(): Promise<Platform>;
+  demoMode(): Promise<boolean>;
+  savedLanguage(): Promise<Lang | null>;
+  saveLanguage(language: Lang): Promise<void>;
+  /** New (phase 2: app settings). */
+  sharedBefore(key: ShareKey): Promise<boolean>;
+  /** New (phase 2: app settings). */
+  markShared(key: ShareKey): Promise<void>;
+}
+
+/** Phase 2 wires the core's progress. */
+export type Progress = { done: number; total: number };
+/** What a user already shared for a model and software; no unit ID. */
+export type ShareKey = { modelPart: string; software: string; result: Result | "font_list" };
+export type Lang = "ka" | "en";
+export type Platform = "macos" | "windows" | "linux";
