@@ -139,7 +139,8 @@ This TypeScript is the contract between the flow and the screens. Change it here
 import type { ErrorCode, BusyHolderKind, Reason } from "../core/types.gen";
 import type { Lang, Platform } from "../core/backend";
 
-export type WatchInfo = { model: string; modelPart: string; software: string };
+/** `confirmedSoftware`: InspectOutput.tested.verified_software, the versions Georgian is confirmed on for this model ([] if none). */
+export type WatchInfo = { model: string; modelPart: string; software: string; confirmedSoftware: string[] };
 export type Confidence = "confirmed" | "confirmed_other_software" | "confirmed_some_fonts" | "unconfirmed";
 export type Result = "georgian" | "boxes" | "question_marks" | "some_letters" | "no_notification" | "not_installed";
 export type View = "popup" | "list" | "opened";
@@ -250,7 +251,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | outcome / works_first | "You're the first to confirm Georgian on {model}." Sharing tells every {model} owner | **Share the result** | "Not now" (keeps the answers for this session) |
 | outcome / didnt_show | "Georgian didn't show." | `restarts < 2`: **Restart once more**; else **Share the result** | the other of those two; More › Restore |
 | outcome / no_notification | Phone setup: Android (Garmin Connect notifications for the browser), iPhone (Home Screen page, iOS 16.4+) | "Try again" (back to send) | none |
-| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). The exact text is collapsed. "Needs a free GitHub account." | **Open GitHub** | "Show the exact text" |
+| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." | **Open GitHub** | none |
 | share (after) | `opened`: "GitHub opened in your browser. Sign in if asked, check the form, then press Submit." `opened_paste`: plus "The report is copied: paste it into the empty Watch report box." Then the thanks line | Done | none |
 | error | §6 | §6 | Back |
 
@@ -293,7 +294,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 ## 7. Copy
 
 - **Catalogs:** `src/copy/en.ts` and `src/copy/ka.ts` export the same typed shape, checked by the compiler and by a parity test. Keys are named by meaning (`watch.install.unconfirmed`), not by position.
-  - Interpolation uses `{model}`, `{software}`, `{versions}`, `{files}`, `{program}`.
+  - Interpolation uses `{model}`, `{software}`, `{versions}` (from `confirmedSoftware`), `{files}`, `{program}`, `{done}`, `{total}` and `{attempt}`.
   - Platform variants are nested objects (`{ macos, windows, linux }`).
   - Sentences are never built by concatenating fragments.
 - **Georgian:** natural Georgian, with suffixes attached to model names by a hyphen ("Lily 2 Active-ზე"). Button labels are verbal nouns, as in the current app ("ქართულის დაყენება").
