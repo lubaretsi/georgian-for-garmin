@@ -57,7 +57,10 @@ cargo tauri build --debug --features demo --bundles app    # a simulated watch, 
 The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
 expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
 Restore, and an unsupported Venu), and a Forerunner 245 mounted as a USB
-drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first.
+drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first;
+`GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
+its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
+shows that platform's words.
 Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
 tests check that.
 

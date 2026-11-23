@@ -2,7 +2,8 @@
 // mounted as a USB drive instead of MTP. While waiting, ready or on the drive screen the app
 // polls the read-only `inspect` command (and `inspect_drive` when no MTP watch is found); the
 // backend runs one watch operation at a time, and a result that arrives after the screen has
-// moved on is ignored.
+// moved on is ignored. When the waiting screen has found no watch for WAITING_HELP_MS, it shows
+// tips for finding it; the wait starts over each time the screen comes up.
 //
 // Sharing goes through the core's `issue_link`: the GitHub issue form, filled in from the watch
 // report, the last install or restore, and the answers on the check screen. Every screen that
@@ -16,6 +17,7 @@
 const { invoke } = window.__TAURI__.core;
 
 const POLL_MS = 2000;
+const WAITING_HELP_MS = 10000;
 const DEFAULT_LANGUAGE = "ka";
 // Answer values, as the core's `issue_link` takes them.
 const RESULTS = [
@@ -34,6 +36,8 @@ let STRINGS = {};
 let language = DEFAULT_LANGUAGE;
 let T = {};
 let demo = false;
+/** The desktop, for platform-specific words: "macos", "windows" or "linux". */
+let platform = "macos";
 /** The beta build's test-mark pictures by part; empty in stable builds. */
 let marks = new Map();
 
@@ -77,7 +81,24 @@ function buildLanguageSwitch() {
 
 // Screens
 
+/** The view on screen, and the waiting screen's help: its timer, and whether it is due. */
+let current = null;
+let helpTimer = null;
+let helpDue = false;
+
 function show(view, draw) {
+  if (view !== current) {
+    // Leaving a screen cancels the help's timer; coming to the waiting screen starts it.
+    clearTimeout(helpTimer);
+    helpDue = false;
+    if (view === "waiting") {
+      helpTimer = setTimeout(() => {
+        helpDue = true;
+        redraw();
+      }, WAITING_HELP_MS);
+    }
+    current = view;
+  }
   redraw = draw;
   draw();
   for (const el of document.querySelectorAll(".view")) {
@@ -99,6 +120,9 @@ function showWaiting(error) {
     // `no_device` is what the waiting screen already says.
     problem.hidden = !error || error.code === "no_device";
     if (!problem.hidden) $("waiting-hint").textContent = errorText(error);
+    // A watch that answers with a problem has been found; its hint says what to do.
+    $("waiting-help").hidden = !helpDue || !problem.hidden;
+    $("waiting-help-express").textContent = T.waitingHelpExpress[platform];
   });
 }
 
@@ -526,12 +550,14 @@ $("waiting-retry").addEventListener("click", () => startPolling());
 async function start() {
   STRINGS = await (await fetch("strings.json")).json();
   buildLanguageSwitch();
-  const [saved, isDemo, pictures] = await Promise.all([
+  const [saved, isDemo, desktop, pictures] = await Promise.all([
     invoke("saved_language").catch(() => null),
     invoke("demo_mode"),
+    invoke("platform"),
     invoke("test_marks").catch(() => []),
   ]);
   demo = isDemo;
+  platform = desktop;
   marks = new Map(pictures.map((m) => [m.part, m]));
   useLanguage(saved || DEFAULT_LANGUAGE);
   $("demo").hidden = !demo;

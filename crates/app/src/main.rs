@@ -254,6 +254,30 @@ fn save_language(app: AppHandle, language: String) -> Result<(), Failure> {
     })
 }
 
+/// The desktops the app is built for, as the frontend names them for platform-specific words.
+#[cfg(any(test, feature = "demo"))]
+const PLATFORMS: [&str; 3] = ["macos", "windows", "linux"];
+
+/// The desktop this build runs on: `macos`, `windows` or `linux`. The demo build takes
+/// `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` instead, to show another platform's words.
+#[tauri::command]
+fn platform() -> &'static str {
+    #[cfg(feature = "demo")]
+    if let Some(platform) = demo::platform() {
+        return platform;
+    }
+    built_for()
+}
+
+/// This build's desktop; any other Unix gets Linux's words.
+fn built_for() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
+
 #[cfg(feature = "demo")]
 const CONNECT: fn() -> Result<Box<dyn Mtp>, Error> = demo::connect;
 #[cfg(not(feature = "demo"))]
@@ -282,6 +306,7 @@ fn main() {
             phone_page,
             test_marks,
             demo_mode,
+            platform,
             saved_language,
             save_language
         ])
@@ -482,6 +507,16 @@ mod tests {
         for (language, table) in strings() {
             let missing: Vec<_> = used.iter().filter(|k| table.get(*k).is_none()).collect();
             assert!(missing.is_empty(), "{language} lacks {missing:?}");
+        }
+    }
+
+    #[test]
+    fn every_platform_has_its_own_words() {
+        assert!(PLATFORMS.contains(&built_for()));
+        for (language, table) in strings() {
+            let express = table["waitingHelpExpress"].as_object().expect("a table");
+            let keys: BTreeSet<&str> = express.keys().map(String::as_str).collect();
+            assert_eq!(keys, PLATFORMS.into(), "{language}.waitingHelpExpress");
         }
     }
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- When no watch has turned up 10 seconds after the waiting screen comes up, it shows a short
+  help card under the spinner: quit Garmin Express, which can keep the app from seeing the watch
+  (from its menu-bar icon on macOS, its notification-area icon on Windows; on Linux, eject the
+  watch in the file manager instead), unplug and reconnect the watch choosing MTP, and use a data
+  cable. It goes away as soon as a watch is found.
+- The demo build's `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, and
+  `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` shows another platform's words.
+
 ## [0.3.3] - 2026-11-23
 
 ### Added

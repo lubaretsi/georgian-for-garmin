@@ -23,7 +23,10 @@
 //! attached. So the second visit to the Venu 2 shows Georgian installed, and the Venu 3, having
 //! imported its unknown file, shows a font in use that the app doesn't recognise, and install
 //! still refuses: the next restart would replace that font.
-//! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first.
+//! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first; set to `none`,
+//! no watch is ever found, over MTP or as a drive, so the waiting screen stays (and shows its
+//! help). `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`, `windows`, `linux`) shows another
+//! platform's words.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -84,6 +87,8 @@ type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
 
 struct State {
     connects: usize,
+    /// `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none`: no watch, over MTP or as a drive, ever.
+    unplugged: bool,
     /// Each watch's objects, kept while the other one is attached.
     watches: Vec<Objects>,
     current: usize,
@@ -221,6 +226,7 @@ impl Demo {
             .collect();
         Demo(Arc::new(Mutex::new(State {
             connects: 0,
+            unplugged: false,
             watches,
             current: 0,
             next_handle: 0x0100_0100,
@@ -236,7 +242,7 @@ impl Demo {
     pub fn open(&self) -> Result<Box<dyn Mtp>, Error> {
         let mut s = self.state();
         s.connects += 1;
-        if s.connects <= ABSENT {
+        if s.unplugged || s.connects <= ABSENT {
             Err(Error::new(
                 ErrorCode::NoDevice,
                 "Demo: no watch is connected yet.",
@@ -277,9 +283,13 @@ impl Demo {
         s.current = (s.current + 1) % s.watches.len();
     }
 
-    /// Attaches the watch named `model` next, if there is one.
+    /// Attaches the watch named `model` next, if there is one; `none` attaches none, ever.
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn attach(&self, model: &str) -> bool {
+        if model.eq_ignore_ascii_case("none") {
+            self.state().unplugged = true;
+            return true;
+        }
         match WATCHES.iter().position(|w| w.0.eq_ignore_ascii_case(model)) {
             Some(index) => {
                 self.state().current = index;
@@ -289,10 +299,12 @@ impl Demo {
         }
     }
 
-    /// Whether the script is still in its no-watch connections.
+    /// Whether the Forerunner 245 is mounted as a drive: during the script's no-watch
+    /// connections, unless no watch is attached at all.
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
-    fn absent(&self) -> bool {
-        self.state().connects <= ABSENT
+    fn drive_mounted(&self) -> bool {
+        let s = self.state();
+        !s.unplugged && s.connects <= ABSENT
     }
 }
 
@@ -319,11 +331,27 @@ pub fn unplug() {
     WATCH.swap();
 }
 
+/// The platform named by `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM`, if it names one of the app's.
+#[cfg(feature = "demo")]
+pub fn platform() -> Option<&'static str> {
+    let name = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_PLATFORM").ok()?;
+    let found = crate::PLATFORMS
+        .into_iter()
+        .find(|p| p.eq_ignore_ascii_case(&name));
+    if found.is_none() {
+        eprintln!(
+            "GEORGIAN_FOR_GARMIN_DEMO_PLATFORM: {name:?} is none of {:?}",
+            crate::PLATFORMS
+        );
+    }
+    found
+}
+
 /// While no demo watch is attached over MTP: a Forerunner 245 "mounted as a USB drive" (issue
 /// #16), a folder in the temp directory with its `GARMIN/GarminDevice.xml`.
 #[cfg(feature = "demo")]
 pub fn drive() -> Option<std::path::PathBuf> {
-    if !WATCH.absent() {
+    if !WATCH.drive_mounted() {
         return None;
     }
     let root = std::env::temp_dir().join("georgian-for-garmin-demo-drive");
@@ -577,5 +605,16 @@ mod tests {
         assert_eq!(staged(&venu3).last(), Some(&"other"));
         assert_eq!(venu3["support"]["report_wanted"], true);
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
+    }
+
+    #[test]
+    fn none_never_finds_a_watch() {
+        let demo = Demo::new(Duration::ZERO);
+        assert!(demo.drive_mounted());
+        assert!(demo.attach("none"));
+        for _ in 0..ABSENT + BUSY + 3 {
+            assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+            assert!(!demo.drive_mounted());
+        }
     }
 }
