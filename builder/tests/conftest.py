@@ -2,8 +2,9 @@ import os
 from pathlib import Path
 
 import pytest
-from registry_data import PART_IDS, REGISTRY, TRUETYPE_PART_IDS
+from registry_data import PART_IDS, REGISTRY, STOCK_PART_IDS, TRUETYPE_PART_IDS
 
+from garmin_fonts import catalog
 from garmin_fonts.build import build
 from garmin_fonts.georgian import Outlines
 
@@ -39,6 +40,15 @@ def assets(inputs, tmp_path_factory):
     out = tmp_path_factory.mktemp("assets") / "fonts"
     manifest = build(out=out, **inputs)
     return out, manifest
+
+
+@pytest.fixture(scope="session")
+def catalog_stock():
+    """Every pinned stock bitmap part outside the packs, by part, fetched offline (from
+    GFG_CATALOG_DIR in `nix develop` and the flake check)."""
+    if not os.environ.get("GFG_CATALOG_DIR"):
+        pytest.fail("run inside `nix develop` (unset: GFG_CATALOG_DIR)")
+    return {part: catalog.fetch_stock(part, offline=True).data for part in STOCK_PART_IDS}
 
 
 @pytest.fixture(scope="session")

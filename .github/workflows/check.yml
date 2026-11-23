@@ -28,9 +28,22 @@ jobs:
         with:
           github_access_token: ${{ github.token }}
 
-      # Builds the fonts on Linux and checks all four Georgian fonts against their pinned SHA-256s.
+      # Builds the fonts on Linux and checks every Georgian font against its pinned SHA-256; the
+      # builder tests also round-trip every pinned stock font and render the test text over
+      # every watch report fixture.
       - name: nix flake check
         run: nix flake check --print-build-logs
+
+      # The render report: a PNG per fixture, with Garmin's fonts and with ours, and report.json
+      # with each character's state (the check above already built it).
+      - name: Render report
+        run: nix build .#checks.x86_64-linux.builder --out-link render-report
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: render-report
+          path: render-report/render/
+          if-no-files-found: error
 
       - name: Rust toolchain matches nixpkgs
         run: scripts/check-rust-toolchain.sh
@@ -61,6 +74,28 @@ jobs:
             -p georgian-for-garmin --all-targets --features dev -- -D warnings
           nix develop --command cargo test --locked -p georgian-for-garmin-core \
             -p georgian-for-garmin --features dev
+
+      # The builder's Watch client against the dev CLI: every request it builds checked against
+      # the operations' declared input schemas, every operation having a method
+      # (test_rpc_contract.py), and the real rpc with calls the core refuses before it looks for
+      # a watch, and a terminal's Ctrl-C during wait_for_watch (test_watch.py). No watch is
+      # attached here (GFG_TEST_NO_WATCH).
+      - name: Watch client against the dev rpc
+        run: |
+          nix develop --command cargo build --locked -p georgian-for-garmin --features dev
+          nix develop --command bash -c 'cd builder &&
+            GEORGIAN_FOR_GARMIN_CLI="$PWD/../target/debug/georgian-for-garmin" GFG_TEST_NO_WATCH=1 \
+            pytest -q -rs tests/test_rpc_contract.py tests/test_watch.py'
+
+      # The omp eval route: `nix run .#omp-venv` writes .venv, whose python imports the toolkit
+      # and draws Georgian in the pinned environment, from another directory too.
+      - name: omp-venv
+        run: |
+          nix run .#omp-venv
+          (cd /tmp && "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import warnings
+          warnings.simplefilter("error")
+          from garmin_fonts.build import add_georgian
+          assert add_georgian("006-D8947-22", offline=True).rasterizer_pinned')
 
       # The Windows backend is cfg(windows): type-check it for both Windows targets from Linux.
       # Clippy doesn't link, so no Windows SDK is needed.

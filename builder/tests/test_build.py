@@ -6,13 +6,11 @@ import sys
 from pathlib import Path
 
 import pytest
-from registry_data import ENTRIES, PART_IDS, PARTS, REGISTRY, SCHEMA
+from registry_data import ENTRIES, HOSTS, PART_IDS, PARTS, REGISTRY, SCHEMA
 
 from garmin_fonts.build import DEFAULT_PART, build
 from garmin_fonts.codec import GEORGIAN, decode
 from garmin_fonts.georgian import (
-    ARMENIAN_CAPITALS,
-    ARMENIAN_X,
     MKHEDRULI_X,
     MTAVRULI,
     Sizing,
@@ -99,7 +97,8 @@ def test_each_part_is_drawn_at_its_registry_weight(assets, stock, outlines, pack
     out, manifest = assets
     pack = next(p for p in ENTRIES["packs"] if p["id"] == pack_id)
     number, sizing = part["part"], sizing_of(manifest, part["part"])
-    assert sizing == choose_sizing(stock[number], outlines(weight(pack, part)), part["size_px"])
+    host = HOSTS[pack["host"]]
+    assert sizing == choose_sizing(stock[number], outlines(weight(pack, part)), part["size_px"], host)
     expected, _ = with_georgian(stock[number], outlines(weight(pack, part)), sizing)
     assert (out / "georgian" / f"{number}.fnt").read_bytes() == expected
     if "weight" in part:  # the override changes the result (at the pack's weight it may not fit)
@@ -115,7 +114,7 @@ def heights(data):
     header, _, cmap = decode(data)
     return tuple(
         measure(cmap, header[7], letters)
-        for letters in (ARMENIAN_X, ARMENIAN_CAPITALS, MKHEDRULI_X, MTAVRULI)
+        for letters in (HOSTS["armenian"].x_height, HOSTS["armenian"].capitals, MKHEDRULI_X, MTAVRULI)
     )
 
 
@@ -260,7 +259,7 @@ def test_georgian_font_hash_is_checked(inputs, tmp_path):
 
 def run_cli(*args):
     builder = Path(__file__).resolve().parents[1]
-    command = [sys.executable, "-m", "garmin_fonts", *args]
+    command = [sys.executable, "-m", "garmin_fonts", "build", *args]
     return subprocess.run(command, capture_output=True, text=True, cwd=builder)
 
 

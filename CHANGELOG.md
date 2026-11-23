@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The font builder is a toolkit for font and watch experiments (`garmin_fonts`, from `builder/`;
+  [development](docs/development.md#font-toolkit)): the codec reads and writes Garmin's
+  "Compressed" bitmap fonts (per-glyph RLE, as the Lily 2 Active's Chinese, Japanese and Korean
+  fonts are) byte for byte; `catalog.fetch_stock(part)` fetches stock fonts, pinned ones by
+  SHA-256, others from Garmin's update catalog, cached, offline in CI; `add_georgian(font,
+  size_like=…, markers=…)` adds Georgian to any host family's font; `render` draws text as a
+  watch would, each character `confirmed`, `coverage_only` or `unknown` from cited fallback models
+  (`fonts/fallback-models.json`); `Watch()` drives the watch through `georgian-for-garmin rpc`.
+  The builder's command line is `python -m garmin_fonts fetch|build|render|roundtrip`, with
+  `--json`, `--input` and `--help --json`; the asset build is now `python -m garmin_fonts build`.
+- The font registry lists host families (`hosts`: Armenian, Thai, Japanese, Korean, Chinese and
+  the TrueType hosts, each with the letters Georgian is sized by and a test marker) and pins the
+  Venu 2's and Lily 2 Active's Chinese, Japanese, Korean and Thai fonts (`stock`), which the app's
+  fonts don't include. The app's fonts are byte for byte the same.
+- `nix flake check` round-trips every pinned stock font and renders the test notification over
+  every watch report fixture; CI uploads the PNGs and per-character states as `render-report`.
+  CI also checks every request the `Watch` client builds against the input schemas a dev build
+  of the CLI declares, that every operation has a method, and the client against the real
+  `rpc`.
+- `nix run .#omp-venv` writes a `.venv` whose Python is the builder's pinned one with the
+  toolkit on its path, so omp's eval kernel can use `garmin_fonts` directly
+  ([development](docs/development.md#using-the-toolkit-from-omps-eval)). Builds record the
+  rasterizer that drew them (Pillow, FreeType, raqm, fontTools) against the pinned one in the
+  registry (`georgian_font.rasterizer`): Pillow without raqm, as from PyPI, gives other bytes, so
+  `add_georgian` warns there and `Watch.stage` refuses such a build unless asked.
 - When no watch has turned up 10 seconds after the waiting screen comes up, it shows a short
   help card under the spinner: quit Garmin Express, which can keep the app from seeing the watch
   (from its menu-bar icon on macOS, its notification-area icon on Windows; on Linux, eject the

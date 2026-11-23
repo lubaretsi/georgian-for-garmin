@@ -1,9 +1,27 @@
+import os
+from concurrent.futures import ProcessPoolExecutor
 from struct import pack_into, unpack_from
 
 import pytest
-from registry_data import PART_IDS
+from registry_data import PART_IDS, STOCK_PART_IDS
 
-from garmin_fonts.codec import HEADER, decode, encode, identity
+from garmin_fonts.codec import (
+    COMPRESSED,
+    HEADER,
+    PLAIN,
+    compressed,
+    decode,
+    encode,
+    identity,
+    rle_decode,
+    rle_encode,
+    round_trips,
+)
+
+# The registry's stock parts Garmin publishes "Compressed" (per-glyph RLE): the Lily 2 Active's
+# Chinese, Japanese and Korean fonts. The Venu 2's are plain, like every pack part.
+COMPRESSED_PARTS = {"006-D8448-70", "006-D8448-71", "006-D8944-66", "006-D8944-67",
+                    "006-D8945-67", "006-D8945-68"}
 
 
 @pytest.mark.parametrize("part", PART_IDS)
@@ -11,9 +29,76 @@ def test_stock_round_trips_byte_identically(stock, part):
     assert encode(*decode(stock[part])) == stock[part]
 
 
+@pytest.fixture(scope="session")
+def catalog_round_trips(catalog_stock):
+    """{part: round trip equal} for every registry `stock` part, in parallel: re-compressing
+    every glyph of the large compressed fonts takes a while."""
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
+        return dict(zip(STOCK_PART_IDS, pool.map(round_trips, catalog_stock.values())))
+
+
+@pytest.mark.parametrize("part", STOCK_PART_IDS)
+def test_catalog_stock_round_trips_byte_identically(catalog_stock, catalog_round_trips, part):
+    header, footer, _ = decode(catalog_stock[part])
+    assert identity(footer)[0] == part
+    assert compressed(header) == (part in COMPRESSED_PARTS)
+    assert header[1] == (COMPRESSED if part in COMPRESSED_PARTS else PLAIN)
+    assert catalog_round_trips[part]
+
+
+def test_reused_streams_give_the_same_bytes(catalog_stock):
+    data = catalog_stock["006-D8945-67"]
+    streams = {}
+    header, footer, cmap = decode(data, streams)
+    assert streams and encode(header, footer, cmap, streams) == data
+    # A changed glyph is compressed afresh; the rest keep their streams.
+    width, bitmap = cmap[0x41]
+    cmap[0x41] = (width, bytes(len(bitmap)))
+    assert encode(header, footer, cmap, streams) == encode(header, footer, cmap)
+
+
+def test_rle_streams_round_trip(catalog_stock):
+    _, _, cmap = decode(catalog_stock["006-D8944-66"])
+    tiles = sorted({bitmap for _, bitmap in cmap.values() if bitmap})[:300]
+    for bitmap in tiles + [bytes(12), b"\xff" * 40, bytes(range(256))]:
+        assert rle_decode(rle_encode(bitmap), len(bitmap)) == bitmap
+
+
+def test_malformed_rle_is_rejected(catalog_stock):
+    _, _, cmap = decode(catalog_stock["006-D8944-66"])
+    bitmap = next(b for _, b in cmap.values() if len(b) > 20 and len(set(b)) > 3)
+    stream = rle_encode(bitmap)
+    with pytest.raises(ValueError, match="truncated RLE glyph"):
+        rle_decode(stream[:-2], len(bitmap))
+    with pytest.raises(ValueError, match="trailing bytes"):
+        rle_decode(stream + b"\x00\x00", len(bitmap))
+    with pytest.raises(ValueError, match="bad RLE header"):
+        rle_decode(bytes(8), 4)
+
+
+def test_malformed_compressed_font_is_rejected(catalog_stock):
+    data = bytearray(catalog_stock["006-D8944-66"])
+    index_entry(2, 1)(data)  # one glyph's stream gains a byte, the next loses one
+    with pytest.raises(ValueError, match="RLE"):
+        decode(bytes(data))
+
+
 def test_footer_names_part_and_version(stock):
     _, footer, _ = decode(stock["006-D9035-03"])
     assert identity(footer) == ("006-D9035-03", "2.10")
+
+
+def test_decode_names_its_fields_and_prints_briefly(stock, catalog_stock):
+    decoded = decode(stock["006-D9035-03"])
+    header, footer, cmap = decoded
+    assert (decoded.header, decoded.footer, decoded.cmap) == (header, footer, cmap)
+    assert (header.height, header.baseline, header.flags, header.magic) == \
+        (header[7], header[8], PLAIN, 0x12345678)
+    assert (decoded.part, decoded.version) == ("006-D9035-03", "2.10")
+    assert repr(decoded) == ("Decoded(part='006-D9035-03', version='2.10', plain, "
+                             f"height={header.height}, baseline={header.baseline}, "
+                             f"glyphs={len(cmap)})")
+    assert "compressed" in repr(decode(catalog_stock["006-D8945-67"]))
 
 
 @pytest.mark.parametrize("part", PART_IDS)

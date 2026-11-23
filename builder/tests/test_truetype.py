@@ -5,14 +5,13 @@ from fractions import Fraction
 from statistics import median
 
 import pytest
-from registry_data import ENTRIES, REGISTRY, TRUETYPE_PART_IDS, TRUETYPE_PARTS
+from registry_data import ENTRIES, HOSTS, PINS, REGISTRY, TRUETYPE_PART_IDS, TRUETYPE_PARTS
 
 from garmin_fonts import truetype
 from garmin_fonts.codec import GEORGIAN
 from garmin_fonts.georgian import MKHEDRULI_X
 from garmin_fonts.registry import weight
 from garmin_fonts.truetype import (
-    HOST_LATIN_X,
     LATIN_X_HEIGHT,
     UNICODE_RANGE_GEORGIAN,
     TRAILER_SIZE,
@@ -124,14 +123,16 @@ def test_each_font_is_built_deterministically_at_its_weight(
     number = part["part"]
     entry = next(f for f in manifest["fonts"] if f["part"] == number)
     source = outlines(weight(pack, part))
-    sizing = choose_sizing(truetype_stock[number], source)
+    host = HOSTS[pack["host"]]
+    sizing = choose_sizing(truetype_stock[number], source, host)
     assert (str(sizing.scale), sizing.basis, sizing.descender) == (
         entry["georgian_scale"], entry["georgian_scale_basis"], entry["georgian_descender_percent"]
     )
     first = with_georgian(truetype_stock[number], source, sizing)
     assert first == with_georgian(truetype_stock[number], source, sizing) == built(assets, number)
     other = outlines(400 if weight(pack, part) == 700 else 700)
-    assert with_georgian(truetype_stock[number], other, choose_sizing(truetype_stock[number], other)) \
+    assert with_georgian(truetype_stock[number], other,
+                         choose_sizing(truetype_stock[number], other, host)) \
         != first
 
 
@@ -337,10 +338,11 @@ def test_georgian_is_sized_by_latin_x_height_or_the_em(assets, part):
     _, manifest = assets
     entry = next(f for f in manifest["fonts"] if f["part"] == part)
     georgian = font(built(assets, part))
-    has_latin = all(ord(c) in georgian.getBestCmap() for c in HOST_LATIN_X)
+    letters = HOSTS[PINS[part].host].x_height
+    has_latin = all(ord(c) in georgian.getBestCmap() for c in letters)
     assert entry["georgian_scale_basis"] == (LATIN_X_HEIGHT if has_latin else UNITS_PER_EM)
     if has_latin:
-        assert abs(tops(georgian, MKHEDRULI_X) - tops(georgian, HOST_LATIN_X)) <= 1
+        assert abs(tops(georgian, MKHEDRULI_X) - tops(georgian, letters)) <= 1
     else:
         assert Fraction(entry["georgian_scale"]) == Fraction(georgian["head"].unitsPerEm, 1000)
 
@@ -357,8 +359,9 @@ def sizing_table(out, manifest):
     ]
     for entry in (f for f in manifest["fonts"] if "georgian_scale" in f):
         georgian = font((out / entry["georgian"]).read_bytes())
-        has_latin = all(ord(c) in georgian.getBestCmap() for c in HOST_LATIN_X)
-        latin = f"{tops(georgian, HOST_LATIN_X):g}" if has_latin else "none"
+        letters = HOSTS[PINS[entry["part"]].host].x_height
+        has_latin = all(ord(c) in georgian.getBestCmap() for c in letters)
+        latin = f"{tops(georgian, letters):g}" if has_latin else "none"
         glyphs = [georgian["glyf"][f"uni{cp:04X}"] for cp in GEORGIAN]
         extent = f"{max(g.yMax for g in glyphs)}, {min(g.yMin for g in glyphs)}"
         ascent, descent = limits(georgian)
@@ -400,7 +403,7 @@ def test_open_host_rejects_what_is_not_a_masked_font_without_georgian(assets, tr
 def test_descenders_are_shortened_only_as_far_as_needed(truetype_stock, outlines):
     # Swiss 721 Hebrew: Latin-matched Georgian needs 95% descenders to stay within 483 units.
     data = truetype_stock["006-D0952-08"]
-    sizing = choose_sizing(data, outlines(400))
+    sizing = choose_sizing(data, outlines(400), HOSTS["swiss-721-hebrew-truetype"])
     assert sizing.descender == 95
     loose = TrueTypeSizing(sizing.scale, sizing.descender + 1, sizing.basis)
     lowest = min(font(with_georgian(data, outlines(400), loose))["glyf"][f"uni{cp:04X}"].yMin
@@ -411,10 +414,10 @@ def test_descenders_are_shortened_only_as_far_as_needed(truetype_stock, outlines
 def test_sizing_that_never_fits_is_rejected(truetype_stock, outlines, monkeypatch):
     monkeypatch.setattr(truetype, "MIN_DESCENDER", 96)
     with pytest.raises(ValueError, match="descenders do not fit the host's 483-unit descent"):
-        choose_sizing(truetype_stock["006-D0952-08"], outlines(400))
+        choose_sizing(truetype_stock["006-D0952-08"], outlines(400), HOSTS["swiss-721-hebrew-truetype"])
 
 
 def test_a_low_ascent_shrinks_the_scale_to_fit(truetype_stock, outlines, monkeypatch):
     monkeypatch.setattr(truetype, "limits", lambda _font: (700, 1000))
-    sizing = choose_sizing(truetype_stock["006-D9971-09"], outlines(400))
+    sizing = choose_sizing(truetype_stock["006-D9971-09"], outlines(400), HOSTS["noto-armenian-truetype"])
     assert sizing.scale == Fraction(700, 770) and sizing.descender == 100

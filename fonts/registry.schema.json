@@ -3,14 +3,14 @@
   "title": "Georgian for Garmin font registry",
   "description": "Garmin stock font packs that get Georgian glyphs, the font the glyphs come from, the watch models each pack was verified on, and the support list: every watch model the project knows of.",
   "type": "object",
-  "required": ["georgian_font", "packs", "watches", "reasons"],
+  "required": ["georgian_font", "hosts", "packs", "stock", "watches", "reasons"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
     "georgian_font": {
-      "description": "The TrueType font the Georgian glyphs are rendered from, and its license.",
+      "description": "The TrueType font the Georgian glyphs are rendered from, its license, and the rasterizer environment the pinned Georgian builds come from.",
       "type": "object",
-      "required": ["name", "url", "sha256", "license"],
+      "required": ["name", "url", "sha256", "license", "rasterizer"],
       "additionalProperties": false,
       "properties": {
         "name": { "$ref": "#/$defs/text" },
@@ -25,13 +25,36 @@
             "url": { "$ref": "#/$defs/https_url" },
             "sha256": { "$ref": "#/$defs/sha256" }
           }
+        },
+        "rasterizer": {
+          "description": "The libraries that draw Georgian, as the pinned builds were made with them (nix develop): the same inputs give other bytes with another FreeType, layout engine (Pillow without raqm lays glyphs out differently) or fontTools. Builds elsewhere are marked unpinned.",
+          "type": "object",
+          "required": ["pillow", "freetype2", "raqm", "fonttools"],
+          "additionalProperties": false,
+          "properties": {
+            "pillow": { "$ref": "#/$defs/text" },
+            "freetype2": { "$ref": "#/$defs/text" },
+            "raqm": { "$ref": "#/$defs/text" },
+            "fonttools": { "$ref": "#/$defs/text" }
+          }
         }
       }
+    },
+    "hosts": {
+      "description": "Host families: the kinds of Garmin font Georgian is added to, each with the letters its Georgian is sized by and a marker for test builds.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/host" }
     },
     "packs": {
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/pack" }
+    },
+    "stock": {
+      "description": "Other Garmin stock bitmap fonts the toolkit knows, pinned by SHA-256 for experiments and the codec's round-trip tests. They are never built into the app's fonts; a font family moves into packs only after a watch confirms it.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stock_part" }
     },
     "watches": {
       "description": "The support list: every watch model the project knows of, with its GitHub issues and, for a model known not to work, why. A model's status on a connected watch (tested, expected, unsupported, unknown) is derived from this, the packs' tested entries and install settings, and the fonts the watch lists.",
@@ -75,10 +98,94 @@
       "type": "string",
       "pattern": "^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$"
     },
+    "host_id": {
+      "description": "A host family's id: lowercase words joined by hyphens.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "letters": {
+      "description": "Letters measured to size Georgian, as one string.",
+      "type": "string",
+      "minLength": 1
+    },
+    "host": {
+      "description": "A host family: Garmin fonts of one script and kind that Georgian is added to the same way.",
+      "type": "object",
+      "required": ["id", "kind", "script", "size_like"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/host_id" },
+        "kind": { "enum": ["bitmap", "truetype"] },
+        "script": {
+          "description": "The script the host's fonts are for, e.g. Thai.",
+          "$ref": "#/$defs/text"
+        },
+        "size_like": {
+          "description": "What Georgian is sized by. bitmap: Mkhedruli x-height matches the median height of x_height in each font's own bitmaps, ties broken by Mtavruli against capitals. truetype: Mkhedruli x-height matches the median top of x_height, when the font has those letters; otherwise Noto's own proportions to the em.",
+          "type": "object",
+          "required": ["x_height"],
+          "additionalProperties": false,
+          "properties": {
+            "x_height": { "$ref": "#/$defs/letters" },
+            "capitals": { "$ref": "#/$defs/letters" }
+          }
+        },
+        "marker": {
+          "description": "A test build's activation marker in the host's own script: glyph is drawn with drawn_as's tile, so a photo shows the build is active even where Georgian isn't taken from it.",
+          "type": "object",
+          "required": ["glyph", "drawn_as"],
+          "additionalProperties": false,
+          "properties": {
+            "glyph": { "type": "string", "minLength": 1, "maxLength": 1 },
+            "drawn_as": { "type": "string", "minLength": 1, "maxLength": 1 }
+          }
+        }
+      },
+      "if": { "properties": { "kind": { "const": "bitmap" } } },
+      "then": { "properties": { "size_like": { "required": ["x_height", "capitals"] } } }
+    },
+    "stock_part": {
+      "description": "A Garmin stock bitmap font outside the packs: a .fnt file on Garmin's download server, pinned.",
+      "type": "object",
+      "required": ["part", "name", "size_px", "weight", "host", "version", "url", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "part": { "$ref": "#/$defs/part_number" },
+        "name": {
+          "description": "Garmin's product name for this part, as its update catalog shows it.",
+          "$ref": "#/$defs/text"
+        },
+        "size_px": {
+          "description": "Nominal pixel size, from the product name.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "weight": {
+          "description": "The weight Georgian is drawn at in it: 500 for Medium, 700 for Bold.",
+          "$ref": "#/$defs/weight"
+        },
+        "host": {
+          "description": "The id of its host family in hosts, a bitmap one.",
+          "$ref": "#/$defs/host_id"
+        },
+        "version": {
+          "description": "Garmin's release version of the file, as in its footer (2.10).",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "url": {
+          "description": "The official download URL from Garmin's update catalog.",
+          "type": "string",
+          "pattern": "^https://download\\.garmin\\.com/[^\\s]+\\.fnt$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "pack": {
       "description": "One stock font family: a bitmap pack in all the sizes Garmin publishes it in, or a TrueType family in its weights.",
       "type": "object",
-      "required": ["id", "name", "kind", "weight", "parts", "tested"],
+      "required": ["id", "name", "kind", "host", "weight", "parts", "tested"],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -93,6 +200,10 @@
         "kind": {
           "description": "bitmap: Garmin's 2-bit .fnt fonts, staged on the watch as <part>.tmp. truetype: Garmin's masked TrueType .bin fonts, which the watch keeps as GARMIN/ExtData/<part>.bin.",
           "enum": ["bitmap", "truetype"]
+        },
+        "host": {
+          "description": "The id of the pack's host family in hosts, of the same kind.",
+          "$ref": "#/$defs/host_id"
         },
         "weight": {
           "description": "The weight the pack's stock glyphs are drawn at; Georgian is drawn at it too.",

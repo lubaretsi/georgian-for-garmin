@@ -4,9 +4,10 @@ A Garmin `.bin` font is a plain TrueType file with every byte XOR-ed with 0x76 (
 host keeps its own glyphs, tables, names and vertical metrics; Noto Sans Georgian's Mkhedruli
 and Mtavruli outlines are appended at the end of the glyph order, scaled to the host's units,
 unhinted, and mapped in every Unicode cmap subtable that can hold them (`with_georgian`). The
-size comes from `choose_sizing`: Mkhedruli x-height matches the host's Latin x-height when the
-host has Latin letters, otherwise Noto's own proportions; descenders are shortened as in the
-bitmap builds when they would reach below the host's descent.
+size comes from `choose_sizing`: Mkhedruli x-height matches the x-height of the host family's
+`x_height` letters (Latin `oces` for every TrueType host so far) when the font has them,
+otherwise Noto's own proportions; descenders are shortened as in the bitmap builds when they
+would reach below the host's descent.
 
 Garmin ends every `.bin` with a 16-byte trailer after the masked font: raw (unmasked) 0x89,
 the release version as a little-endian u16 (200 is 2.00), the part number in ASCII, and a NUL.
@@ -31,12 +32,10 @@ from .georgian import MIN_DESCENDER, MKHEDRULI_X, shorten
 MASK = 0x76
 _MASK_TABLE = bytes(b ^ MASK for b in range(256))
 SFNT_TRUETYPE = b"\x00\x01\x00\x00"
-# Round-topped Latin lowercase, measured like the round-topped Mkhedruli in MKHEDRULI_X: both
-# include their overshoot, so the comparison is like for like.
-HOST_LATIN_X = "oces"
 # OS/2 ulUnicodeRange1 bit 26: Georgian.
 UNICODE_RANGE_GEORGIAN = 1 << 26
-# What the scale is matched to.
+# What the scale is matched to: the host's `x_height` letters (Latin in every TrueType host so
+# far, round-topped and measured with their overshoot like MKHEDRULI_X), or the em.
 LATIN_X_HEIGHT = "latin_x_height"
 UNITS_PER_EM = "units_per_em"
 # A test mark bar's thickness, and its gap to the letter, in ems.
@@ -124,12 +123,12 @@ def limits(font):
     return min(hhea.ascent, os2.usWinAscent), min(-hhea.descent, os2.usWinDescent)
 
 
-def host_x_height(font):
-    """Median top of HOST_LATIN_X in font units, or None when the host lacks one of them."""
+def host_x_height(font, letters):
+    """Median top of `letters` in font units, or None when the font lacks one of them."""
     cmap, glyf = font.getBestCmap(), font["glyf"]
-    if any(ord(c) not in cmap for c in HOST_LATIN_X):
+    if any(ord(c) not in cmap for c in letters):
         return None
-    return _median(glyf[cmap[ord(c)]].yMax for c in HOST_LATIN_X)
+    return _median(glyf[cmap[ord(c)]].yMax for c in letters)
 
 
 def georgian_x_height(outlines):
@@ -137,18 +136,19 @@ def georgian_x_height(outlines):
     return _median(max(y for _, y in outlines.glyph(ord(c)).coordinates) for c in MKHEDRULI_X)
 
 
-def choose_sizing(data, outlines):
-    """The TrueTypeSizing for Georgian in the masked host font `data`.
+def choose_sizing(data, outlines, host):
+    """The TrueTypeSizing for Georgian in the masked host font `data` of host family `host`
+    (hosts.Host).
 
-    The scale makes Mkhedruli x-height (MKHEDRULI_X) equal the host's Latin x-height
-    (HOST_LATIN_X) when the host has those letters; otherwise it keeps Noto's proportions to
+    The scale makes Mkhedruli x-height (MKHEDRULI_X) equal the x-height of the host's
+    `x_height` letters when the font has them; otherwise it keeps Noto's proportions to
     the em (host units per em over Noto's). When the tallest Georgian glyph would then rise
     above the host's ascent, the scale shrinks to fit it. Descenders below the overshoot are
     shortened, by whole percent, until the lowest point stays within the host's descent.
     Raises ValueError when nothing down to MIN_DESCENDER fits.
     """
     font = open_host(data)
-    x_height = host_x_height(font)
+    x_height = host_x_height(font, host.x_height)
     if x_height is None:
         scale, basis = Fraction(font["head"].unitsPerEm, outlines.units_per_em), UNITS_PER_EM
     else:
@@ -215,7 +215,7 @@ def add_bar(glyph, sides, upm, ascent, descent):
         glyph.numberOfContours += 1
 
 
-def with_georgian(data, outlines, sizing, mark=None):
+def with_georgian(data, outlines, sizing, mark=None, markers=None):
     """The masked host font `data` with GEORGIAN added from `outlines` at `sizing`, masked.
 
     New glyphs are named `uniXXXX` and appended after the host's; every existing glyph keeps
@@ -224,6 +224,8 @@ def with_georgian(data, outlines, sizing, mark=None):
     get entries for them: `hdmx` (linear widths) and `LTSH` (linear at every size); `VDMX`
     extremes grow to cover them. OS/2 gains the Georgian Unicode range bit. A test `mark`
     (marks.Mark) adds its bar to the marked capital, within the host's `limits` (`add_bar`).
+    `markers` ({glyph: drawn_as}, characters) map each glyph to another's outline in those
+    subtables, as activation markers for test builds.
     """
     font = open_host(data)
     stock_trailer = trailer(data)
@@ -261,6 +263,10 @@ def with_georgian(data, outlines, sizing, mark=None):
     for table in cmap.tables:
         if table.isUnicode() and table.format in (4, 12):
             table.cmap.update(added)
+            for glyph, drawn_as in (markers or {}).items():
+                if ord(glyph) not in table.cmap or ord(drawn_as) not in table.cmap:
+                    raise ValueError(f"marker {glyph} -> {drawn_as} needs both glyphs in the font")
+                table.cmap[ord(glyph)] = table.cmap[ord(drawn_as)]
             mapped = True
     if not mapped:
         raise ValueError("host has no Unicode cmap subtable of format 4 or 12")
