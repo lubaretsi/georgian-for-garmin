@@ -85,17 +85,18 @@ function rollbackOf(state: FlowState): RollbackView | null {
   return { status: rollback.status, files: files.map((f) => f.path) };
 }
 
-/** connect/busy for a read another program refused. */
-function busyScreen(failure: Failure): ScreenModel {
+/** connect/busy for a read another program refused; `duringRestart` when it interrupts one. */
+function busyScreen(failure: Failure, duringRestart: boolean): ScreenModel {
   const holder = failure.busy?.holder;
   return {
     screen: "connect",
     mode: "busy",
     busy: { kind: holder?.kind ?? "unknown", name: holder?.name ?? null, confirmed: holder?.confirmed ?? false },
+    duringRestart,
   };
 }
 
-function driveScreen(state: FlowState, drive: InspectDriveOutput): ScreenModel {
+function driveScreen(state: FlowState, drive: InspectDriveOutput, duringRestart: boolean): ScreenModel {
   const { support } = drive;
   return {
     screen: "drive",
@@ -104,6 +105,7 @@ function driveScreen(state: FlowState, drive: InspectDriveOutput): ScreenModel {
     issue: support.issue ?? null,
     reportWanted: support.report_wanted,
     sharedBefore: sharedBefore(state, drive, "font_list"),
+    duringRestart,
   };
 }
 
@@ -115,12 +117,12 @@ export function toScreen(state: FlowState): ScreenModel {
         case "searching":
           return { screen: "connect", mode: "searching", showHelp: phase.showHelp };
         case "busy":
-          return busyScreen(phase.failure);
+          return busyScreen(phase.failure, false);
         case "problem":
           return { screen: "connect", mode: "problem", problem: problemOf(phase.failure.code), detail: phase.failure.message };
       }
     case "drive":
-      return driveScreen(state, phase.drive);
+      return driveScreen(state, phase.drive, false);
     case "watch": {
       const inspect = state.inspect;
       if (!inspect) throw new Error("flow: no watch in watch");
@@ -139,8 +141,8 @@ export function toScreen(state: FlowState): ScreenModel {
       return { screen: "working", op: phase.op, watch: currentWatch(state), progress: phase.progress };
     case "restart":
       // Held or mounted after the restart: that screen, with the restart kept underneath (§4.1).
-      if (phase.interruption?.kind === "busy") return busyScreen(phase.interruption.failure);
-      if (phase.interruption?.kind === "drive") return driveScreen(state, phase.interruption.drive);
+      if (phase.interruption?.kind === "busy") return busyScreen(phase.interruption.failure, true);
+      if (phase.interruption?.kind === "drive") return driveScreen(state, phase.interruption.drive, true);
       return {
         screen: "restart",
         op: phase.op,

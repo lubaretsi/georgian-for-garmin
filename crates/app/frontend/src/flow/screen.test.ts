@@ -45,6 +45,7 @@ describe("toScreen", () => {
       screen: "connect",
       mode: "busy",
       busy: { kind: "garmin_express", name: "ExpressTray.exe", confirmed: false },
+      duringRestart: false,
     });
     expect(toScreen(read(started(), failure("busy", "inspect-unknown-linux")))).toMatchObject({
       busy: { kind: "unknown", name: null, confirmed: false },
@@ -76,6 +77,7 @@ describe("toScreen", () => {
       issue: 16,
       reportWanted: false,
       sharedBefore: false,
+      duringRestart: false,
     });
     expect(drive("venu2-drive")).toMatchObject({ driveOnly: false, issue: null });
   });
@@ -222,10 +224,11 @@ describe("toScreen", () => {
       screen: "connect",
       mode: "busy",
       busy: { kind: "garmin_express", name: "Garmin Express", confirmed: true },
+      duringRestart: true,
     });
     const drive = output("venu2-drive", "inspect_drive", "inspect_drive");
     const mounted = reduce(read(restart, NO_DEVICE), { type: "drive_inspected", token: restart.token, output: drive });
-    expect(toScreen(mounted)).toMatchObject({ screen: "drive", driveOnly: false });
+    expect(toScreen(mounted)).toMatchObject({ screen: "drive", driveOnly: false, duringRestart: true });
     expect(toScreen(read(busy, NO_DEVICE))).toMatchObject({ screen: "restart", phase: "restart", attempt: 1 });
   });
 

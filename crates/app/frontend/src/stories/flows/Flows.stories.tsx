@@ -48,6 +48,14 @@ async function checkAndAnswer(p: Parts, result: keyof Parts["copy"]["check"]["an
   await press(p, p.copy.actions.continue);
 }
 
+/** The step indicator marks `label` as the current step. */
+async function currentStep(p: Parts, label: string) {
+  const steps = await p.app.findByRole("navigation", { name: p.copy.steps.label }, { timeout: STEP_MS });
+  await waitFor(() => expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent(label), {
+    timeout: STEP_MS,
+  });
+}
+
 async function shareOnGitHub(p: Parts) {
   await press(p, p.copy.actions.openGithub);
   await p.screen(p.copy.share.opened.title);
@@ -259,6 +267,7 @@ export const GarminExpressGrabsItAfterTheRestart: Story = {
     await simulate(p, "Garmin Express holds it");
     await simulate(p, "Plug in (MTP)");
     await p.screen(p.fmt(p.copy.connect.busy.title.confirmed, { program: p.copy.connect.busy.program.garminExpress }));
+    await currentStep(p, p.copy.steps.restart);
     // Released: the restart's check goes on.
     await simulate(p, "Release");
     await p.screen(p.copy.result.install.title);
@@ -277,6 +286,7 @@ export const BackAsADriveAfterTheRestart: Story = {
     await simulate(p, "Restart watch");
     await simulate(p, "Plug in (drive)");
     await p.screen(p.fmt(p.copy.drive.title, { model: "Venu 2" }));
+    await currentStep(p, p.copy.steps.restart);
     // Switched to MTP: the restart's check goes on.
     await simulate(p, "Plug in (MTP)");
     await p.screen(p.copy.result.install.title);
