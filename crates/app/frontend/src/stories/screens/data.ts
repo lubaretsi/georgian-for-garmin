@@ -29,8 +29,8 @@ export const WATCHES = {
   forerunner265: watchOf(output("forerunner265", "inspect", "inspect")),
   venu3: watchOf(output("venu3-waiting", "inspect", "inspect")),
   forerunner165: watchOf(output("errors", "inspect-restore_first", "inspect")),
-  /** Venu 2 after a software update: confirmed on 19.05 only (no fixture has another version yet). */
-  venu2Updated: { ...venu2, software: "20.26" },
+  /** Forerunner 255 on software 30.00, confirmed on 29.52 only. */
+  forerunner255Newer: watchOf(output("forerunner255-newer", "inspect", "inspect")),
 } satisfies Record<string, WatchInfo>;
 
 /** The support list's reason for the fenix 6S Pro (issue 6). */

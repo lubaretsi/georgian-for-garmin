@@ -27,7 +27,7 @@ export const InstallConfirmed: ScreenStoryObj = {
   args: { model: watch(WATCHES.venu2, { kind: "install", confidence: "confirmed" }), restorable: true },
 };
 export const InstallConfirmedOtherSoftware: ScreenStoryObj = {
-  args: { model: watch(WATCHES.venu2Updated, { kind: "install", confidence: "confirmed_other_software" }) },
+  args: { model: watch(WATCHES.forerunner255Newer, { kind: "install", confidence: "confirmed_other_software" }) },
 };
 export const InstallConfirmedSomeFonts: ScreenStoryObj = {
   args: {
@@ -60,7 +60,10 @@ export const InstalledConfirmed: ScreenStoryObj = {
   args: { model: watch(WATCHES.venu2, { kind: "installed", confidence: "confirmed" }), restorable: true },
 };
 export const InstalledConfirmedOtherSoftware: ScreenStoryObj = {
-  args: { model: watch(WATCHES.venu2Updated, { kind: "installed", confidence: "confirmed_other_software" }), restorable: true },
+  args: {
+    model: watch(WATCHES.forerunner255Newer, { kind: "installed", confidence: "confirmed_other_software" }),
+    restorable: true,
+  },
 };
 export const InstalledConfirmedSomeFonts: ScreenStoryObj = {
   args: { model: watch(WATCHES.instinct3, { kind: "installed", confidence: "confirmed_some_fonts" }), restorable: true },
@@ -83,6 +86,7 @@ export const BlockedUnknownFont: ScreenStoryObj = {
   args: { model: watch(WATCHES.venu2, { kind: "blocked", reason: "unknown_font" }, { reportWanted: true }) },
 };
 
+/** fenix 6S Pro (issue 6): no earlier build seen, so Restore stays in More only (§5.1 rule 1). */
 export const UnsupportedFollowUpdates: ScreenStoryObj = {
   args: {
     model: watch(
@@ -90,6 +94,7 @@ export const UnsupportedFollowUpdates: ScreenStoryObj = {
       { kind: "unsupported", reason: unsupportedReason(), restorable: false },
       { issue: issueOf("fenix6"), reportWanted: true },
     ),
+    restorable: true,
   },
 };
 export const UnsupportedRestorable: ScreenStoryObj = {
