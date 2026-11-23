@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "restore_first",
+    "message": "The watch doesn't let GARMIN/ExtData/006-D9971-09.bin (declared as version 0.01), GARMIN/ExtData/006-D9971-08.bin (declared as version 0.01), GARMIN/ExtData/006-D1053-98.bin (declared as version 0.01) and GARMIN/ExtData/006-D1053-99.bin (declared as version 0.01) be read, and declares a version other than Garmin's, as it does for this program's builds before 0.3.0; install never writes over a file it can't identify. Restore the original font first, restart the watch, then install again. Nothing was written."
+  },
+  "operation": "install"
+}

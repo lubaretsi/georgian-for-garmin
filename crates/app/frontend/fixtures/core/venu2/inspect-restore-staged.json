@@ -1,0 +1,1049 @@
+{
+  "operation": "inspect",
+  "output": {
+    "device": {
+      "model": "Venu 2",
+      "part_number": "006-B3703-00",
+      "software_version": "19.05"
+    },
+    "extdata": {
+      "files": [
+        {
+          "bytes": 13181,
+          "handle": "0x0100011d",
+          "name": "006-D9035-01.tmp",
+          "sha256": "575b132a8f241c42604cfa9e7809ec8f3a51b0b6e32800c37ac24d404c707ddf"
+        },
+        {
+          "bytes": 16676,
+          "handle": "0x0100011e",
+          "name": "006-D9035-02.tmp",
+          "sha256": "c991505c121c7bf7fc803790c1c838b1288a33a9d2a3147f0c59168a938015eb"
+        },
+        {
+          "bytes": 20720,
+          "handle": "0x0100011f",
+          "name": "006-D9035-03.tmp",
+          "sha256": "bb61a1a45c90f7526444ce58356691c43314899e290b33232acbf5b0ed79ea1d"
+        },
+        {
+          "bytes": 27831,
+          "handle": "0x01000120",
+          "name": "006-D9035-04.tmp",
+          "sha256": "5cc7fa6d5b7a538eed25581e65abc6e3fad09ccdeab026097b8aed643b336837"
+        }
+      ],
+      "found_by": "garmin_listing",
+      "handle": "0x01000003",
+      "listed_under_garmin": true,
+      "storage_id": "0x00010001"
+    },
+    "extdata_hidden": {
+      "files": [
+        {
+          "bytes": 7442321,
+          "file": null,
+          "name": "006-D8168-13.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 3809005,
+          "file": null,
+          "name": "006-D8448-25.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 5177405,
+          "file": null,
+          "name": "006-D8448-26.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 6760129,
+          "file": null,
+          "name": "006-D8448-27.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 8563929,
+          "file": null,
+          "name": "006-D8448-28.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 1170742,
+          "file": null,
+          "name": "006-D8944-20.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 1558347,
+          "file": null,
+          "name": "006-D8944-21.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 1999530,
+          "file": null,
+          "name": "006-D8944-22.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 2570053,
+          "file": null,
+          "name": "006-D8944-23.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 1834538,
+          "file": null,
+          "name": "006-D8945-20.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 2382097,
+          "file": null,
+          "name": "006-D8945-21.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 3095569,
+          "file": null,
+          "name": "006-D8945-22.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 4012686,
+          "file": null,
+          "name": "006-D8945-23.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 13601,
+          "file": null,
+          "name": "006-D8947-20.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 17552,
+          "file": null,
+          "name": "006-D8947-21.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 22529,
+          "file": null,
+          "name": "006-D8947-22.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 29289,
+          "file": null,
+          "name": "006-D8947-23.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 23101,
+          "file": "georgian",
+          "name": "006-D9035-01.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 28341,
+          "file": "georgian",
+          "name": "006-D9035-02.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 35638,
+          "file": "georgian",
+          "name": "006-D9035-03.fnt",
+          "read_only": true
+        },
+        {
+          "bytes": 48004,
+          "file": "georgian",
+          "name": "006-D9035-04.fnt",
+          "read_only": true
+        }
+      ],
+      "note": null,
+      "status": "listed"
+    },
+    "fonts": [
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-00",
+        "restore": false,
+        "size_px": 19,
+        "target": false
+      },
+      {
+        "file": "stock",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": true,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-01",
+        "restore": true,
+        "size_px": 21,
+        "target": true
+      },
+      {
+        "file": "stock",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": true,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-02",
+        "restore": true,
+        "size_px": 24,
+        "target": true
+      },
+      {
+        "file": "stock",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": true,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-03",
+        "restore": true,
+        "size_px": 27,
+        "target": true
+      },
+      {
+        "file": "stock",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": true,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-04",
+        "restore": true,
+        "size_px": 31,
+        "target": true
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-10",
+        "restore": false,
+        "size_px": 11,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-18",
+        "restore": false,
+        "size_px": 12,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-19",
+        "restore": false,
+        "size_px": 15,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-20",
+        "restore": false,
+        "size_px": 17,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-11",
+        "restore": false,
+        "size_px": 25,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-12",
+        "restore": false,
+        "size_px": 28,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-13",
+        "restore": false,
+        "size_px": 32,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-14",
+        "restore": false,
+        "size_px": 37,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-05",
+        "restore": false,
+        "size_px": 13,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-17",
+        "restore": false,
+        "size_px": 15,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-06",
+        "restore": false,
+        "size_px": 18,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-07",
+        "restore": false,
+        "size_px": 20,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-21",
+        "restore": false,
+        "size_px": 21,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-08",
+        "restore": false,
+        "size_px": 24,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-09",
+        "restore": false,
+        "size_px": 25,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-truetype",
+        "part": "006-D9971-09",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-truetype",
+        "part": "006-D9971-08",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-noto-sans-hebrew-truetype",
+        "part": "006-D1053-98",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-noto-sans-hebrew-truetype",
+        "part": "006-D1053-99",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-swiss-721-truetype",
+        "part": "006-D0952-08",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-swiss-721-truetype",
+        "part": "006-D0952-07",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium-compressed",
+        "part": "006-D8945-67",
+        "restore": false,
+        "size_px": 17,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium-compressed",
+        "part": "006-D8945-68",
+        "restore": false,
+        "size_px": 22,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": true,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium",
+        "part": "006-D8945-22",
+        "restore": false,
+        "size_px": 27,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-bold",
+        "part": "006-D8945-07",
+        "restore": false,
+        "size_px": 19,
+        "target": false
+      }
+    ],
+    "hosts": {
+      "kind": "bitmap",
+      "reason": "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts.",
+      "restore_only_parts": [],
+      "skipped_parts": [
+        "006-D8945-22"
+      ]
+    },
+    "packs": [
+      {
+        "id": "armenian-noto-sans-regular",
+        "kind": "bitmap",
+        "name": "Armenian Font, NotoSans Regular",
+        "parts": [
+          {
+            "part": "006-D9035-01",
+            "size_px": 21,
+            "tested": "tested"
+          },
+          {
+            "part": "006-D9035-02",
+            "size_px": 24,
+            "tested": "tested"
+          },
+          {
+            "part": "006-D9035-03",
+            "size_px": 27,
+            "tested": "tested"
+          },
+          {
+            "part": "006-D9035-04",
+            "size_px": 31,
+            "tested": "tested"
+          }
+        ],
+        "weight": 400
+      }
+    ],
+    "report": {
+      "app_version": "0.3.4",
+      "connection": "mtp",
+      "declared_files": [
+        {
+          "file_name": "006-D9035-04.tmp",
+          "part_number": "006-D9035-04",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-28.tmp",
+          "part_number": "006-D8448-28",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8945-23.tmp",
+          "part_number": "006-D8945-23",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-23.tmp",
+          "part_number": "006-D8944-23",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8947-23.tmp",
+          "part_number": "006-D8947-23",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-03.tmp",
+          "part_number": "006-D9035-03",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-27.tmp",
+          "part_number": "006-D8448-27",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-22.tmp",
+          "part_number": "006-D8944-22",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-22.tmp",
+          "part_number": "006-D8945-22",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-22.tmp",
+          "part_number": "006-D8947-22",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-01.tmp",
+          "part_number": "006-D9035-01",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-25.tmp",
+          "part_number": "006-D8448-25",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-20.tmp",
+          "part_number": "006-D8944-20",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-20.tmp",
+          "part_number": "006-D8945-20",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-20.tmp",
+          "part_number": "006-D8947-20",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-02.tmp",
+          "part_number": "006-D9035-02",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-26.tmp",
+          "part_number": "006-D8448-26",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-21.tmp",
+          "part_number": "006-D8944-21",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-21.tmp",
+          "part_number": "006-D8945-21",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-21.tmp",
+          "part_number": "006-D8947-21",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8168-13.tmp",
+          "part_number": "006-D8168-13",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        }
+      ],
+      "extdata_files": [
+        {
+          "file_name": "006-D9035-04.tmp",
+          "part_number": "006-D9035-04",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-28.tmp",
+          "part_number": "006-D8448-28",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8945-23.tmp",
+          "part_number": "006-D8945-23",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-23.tmp",
+          "part_number": "006-D8944-23",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8947-23.tmp",
+          "part_number": "006-D8947-23",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-03.tmp",
+          "part_number": "006-D9035-03",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-27.tmp",
+          "part_number": "006-D8448-27",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-22.tmp",
+          "part_number": "006-D8944-22",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-22.tmp",
+          "part_number": "006-D8945-22",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-22.tmp",
+          "part_number": "006-D8947-22",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-01.tmp",
+          "part_number": "006-D9035-01",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-25.tmp",
+          "part_number": "006-D8448-25",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-20.tmp",
+          "part_number": "006-D8944-20",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-20.tmp",
+          "part_number": "006-D8945-20",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-20.tmp",
+          "part_number": "006-D8947-20",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-02.tmp",
+          "part_number": "006-D9035-02",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-26.tmp",
+          "part_number": "006-D8448-26",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-21.tmp",
+          "part_number": "006-D8944-21",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-21.tmp",
+          "part_number": "006-D8945-21",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-21.tmp",
+          "part_number": "006-D8947-21",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8168-13.tmp",
+          "part_number": "006-D8168-13",
+          "version": "2.10"
+        }
+      ],
+      "extdata_hidden": {
+        "files": [
+          {
+            "bytes": 7442321,
+            "file": null,
+            "name": "006-D8168-13.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 3809005,
+            "file": null,
+            "name": "006-D8448-25.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 5177405,
+            "file": null,
+            "name": "006-D8448-26.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 6760129,
+            "file": null,
+            "name": "006-D8448-27.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 8563929,
+            "file": null,
+            "name": "006-D8448-28.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 1170742,
+            "file": null,
+            "name": "006-D8944-20.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 1558347,
+            "file": null,
+            "name": "006-D8944-21.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 1999530,
+            "file": null,
+            "name": "006-D8944-22.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 2570053,
+            "file": null,
+            "name": "006-D8944-23.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 1834538,
+            "file": null,
+            "name": "006-D8945-20.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 2382097,
+            "file": null,
+            "name": "006-D8945-21.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 3095569,
+            "file": null,
+            "name": "006-D8945-22.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 4012686,
+            "file": null,
+            "name": "006-D8945-23.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 13601,
+            "file": null,
+            "name": "006-D8947-20.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 17552,
+            "file": null,
+            "name": "006-D8947-21.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 22529,
+            "file": null,
+            "name": "006-D8947-22.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 29289,
+            "file": null,
+            "name": "006-D8947-23.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 23101,
+            "file": "georgian",
+            "name": "006-D9035-01.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 28341,
+            "file": "georgian",
+            "name": "006-D9035-02.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 35638,
+            "file": "georgian",
+            "name": "006-D9035-03.fnt",
+            "read_only": true
+          },
+          {
+            "bytes": 48004,
+            "file": "georgian",
+            "name": "006-D9035-04.fnt",
+            "read_only": true
+          }
+        ],
+        "note": null,
+        "status": "listed"
+      },
+      "extdata_listing": [
+        {
+          "bytes": 13181,
+          "name": "006-D9035-01.tmp",
+          "sha256": "575b132a8f241c42604cfa9e7809ec8f3a51b0b6e32800c37ac24d404c707ddf"
+        },
+        {
+          "bytes": 16676,
+          "name": "006-D9035-02.tmp",
+          "sha256": "c991505c121c7bf7fc803790c1c838b1288a33a9d2a3147f0c59168a938015eb"
+        },
+        {
+          "bytes": 20720,
+          "name": "006-D9035-03.tmp",
+          "sha256": "bb61a1a45c90f7526444ce58356691c43314899e290b33232acbf5b0ed79ea1d"
+        },
+        {
+          "bytes": 27831,
+          "name": "006-D9035-04.tmp",
+          "sha256": "5cc7fa6d5b7a538eed25581e65abc6e3fad09ccdeab026097b8aed643b336837"
+        }
+      ],
+      "hosts": {
+        "kind": "bitmap",
+        "reason": "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts."
+      },
+      "model": "Venu 2",
+      "model_part": "006-B3703-00",
+      "packs": [
+        "armenian-noto-sans-regular"
+      ],
+      "parts": [
+        {
+          "file": "stock",
+          "mark": null,
+          "part": "006-D9035-01",
+          "target": true,
+          "tested": "tested"
+        },
+        {
+          "file": "stock",
+          "mark": null,
+          "part": "006-D9035-02",
+          "target": true,
+          "tested": "tested"
+        },
+        {
+          "file": "stock",
+          "mark": null,
+          "part": "006-D9035-03",
+          "target": true,
+          "tested": "tested"
+        },
+        {
+          "file": "stock",
+          "mark": null,
+          "part": "006-D9035-04",
+          "target": true,
+          "tested": "tested"
+        },
+        {
+          "file": "none",
+          "mark": null,
+          "part": "006-D8945-22",
+          "target": false,
+          "tested": "untested"
+        }
+      ],
+      "platform": {
+        "arch": "aarch64",
+        "os": "Mac OS",
+        "os_version": "15.6.1"
+      },
+      "software_version": "19.05",
+      "state": "stock_waiting",
+      "support": {
+        "issue": null,
+        "listed": true,
+        "prediction": null,
+        "reason": null,
+        "report_wanted": false,
+        "status": "tested"
+      },
+      "test_marks": false,
+      "tested": "tested",
+      "text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nconnection mtp\nwatch \"Venu 2\" 006-B3703-00 19.05\nsupport tested\nhosts bitmap: This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts.\npacks armenian-noto-sans-regular (tested)\nstate stock_waiting\nmarks off\nparts: part file target tested mark\n006-D9035-01 stock yes tested -\n006-D9035-02 stock yes tested -\n006-D9035-03 stock yes tested -\n006-D9035-04 stock yes tested -\n006-D8945-22 none no untested -\ndeclared: path file part version\nGarmin/ExtData 006-D9035-04.tmp 006-D9035-04 2.10\nGarmin/ExtData 006-D8448-28.tmp 006-D8448-28 2.10\nGarmin/ExtData 006-D8945-23.tmp 006-D8945-23 2.10\nGarmin/ExtData 006-D8944-23.tmp 006-D8944-23 2.00\nGarmin/ExtData 006-D8947-23.tmp 006-D8947-23 2.00\nGarmin/ExtData 006-D9035-03.tmp 006-D9035-03 2.10\nGarmin/ExtData 006-D8448-27.tmp 006-D8448-27 2.10\nGarmin/ExtData 006-D8944-22.tmp 006-D8944-22 2.00\nGarmin/ExtData 006-D8945-22.tmp 006-D8945-22 2.10\nGarmin/ExtData 006-D8947-22.tmp 006-D8947-22 2.00\nGarmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10\nGarmin/ExtData 006-D8448-25.tmp 006-D8448-25 2.10\nGarmin/ExtData 006-D8944-20.tmp 006-D8944-20 2.00\nGarmin/ExtData 006-D8945-20.tmp 006-D8945-20 2.10\nGarmin/ExtData 006-D8947-20.tmp 006-D8947-20 2.00\nGarmin/ExtData 006-D9035-02.tmp 006-D9035-02 2.10\nGarmin/ExtData 006-D8448-26.tmp 006-D8448-26 2.10\nGarmin/ExtData 006-D8944-21.tmp 006-D8944-21 2.00\nGarmin/ExtData 006-D8945-21.tmp 006-D8945-21 2.10\nGarmin/ExtData 006-D8947-21.tmp 006-D8947-21 2.00\nGarmin/ExtData 006-D8168-13.tmp 006-D8168-13 2.10\nextdata: name bytes sha256\n006-D9035-01.tmp 13181 575b132a8f241c42604cfa9e7809ec8f3a51b0b6e32800c37ac24d404c707ddf\n006-D9035-02.tmp 16676 c991505c121c7bf7fc803790c1c838b1288a33a9d2a3147f0c59168a938015eb\n006-D9035-03.tmp 20720 bb61a1a45c90f7526444ce58356691c43314899e290b33232acbf5b0ed79ea1d\n006-D9035-04.tmp 27831 5cc7fa6d5b7a538eed25581e65abc6e3fad09ccdeab026097b8aed643b336837\nhidden: 006-D8168-13.fnt 7442321 ro; 006-D8448-25.fnt 3809005 ro; 006-D8448-26.fnt 5177405 ro; 006-D8448-27.fnt 6760129 ro; 006-D8448-28.fnt 8563929 ro; 006-D8944-20.fnt 1170742 ro; 006-D8944-21.fnt 1558347 ro; 006-D8944-22.fnt 1999530 ro; 006-D8944-23.fnt 2570053 ro; 006-D8945-20.fnt 1834538 ro; 006-D8945-21.fnt 2382097 ro; 006-D8945-22.fnt 3095569 ro; 006-D8945-23.fnt 4012686 ro; 006-D8947-20.fnt 13601 ro; 006-D8947-21.fnt 17552 ro; 006-D8947-22.fnt 22529 ro; 006-D8947-23.fnt 29289 ro; 006-D9035-01.fnt 23101 ro georgian; 006-D9035-02.fnt 28341 ro georgian; 006-D9035-03.fnt 35638 ro georgian; 006-D9035-04.fnt 48004 ro georgian\n",
+      "title": "Watch report: Venu 2 (006-B3703-00), software 19.05"
+    },
+    "restorable": true,
+    "state": "stock_waiting",
+    "support": {
+      "issue": null,
+      "listed": true,
+      "prediction": null,
+      "reason": null,
+      "report_wanted": false,
+      "status": "tested"
+    },
+    "supported": true,
+    "tested": {
+      "status": "tested",
+      "verified_software": [
+        "19.05"
+      ]
+    }
+  }
+}

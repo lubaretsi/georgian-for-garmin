@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "verification_failed",
+    "message": "GARMIN/ExtData/006-D9035-01.tmp read back differs from what was written.",
+    "rollback": {
+      "files": [
+        {
+          "action": "delete",
+          "done": true,
+          "path": "GARMIN/ExtData/006-D9035-01.tmp",
+          "result": "GARMIN/ExtData/006-D9035-01.tmp deleted"
+        }
+      ],
+      "status": "complete"
+    }
+  },
+  "operation": "install"
+}

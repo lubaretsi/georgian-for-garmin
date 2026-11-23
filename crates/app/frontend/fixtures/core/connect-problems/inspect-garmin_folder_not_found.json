@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "garmin_folder_not_found",
+    "message": "The watch has no GARMIN/GarminDevice.xml."
+  },
+  "operation": "inspect"
+}

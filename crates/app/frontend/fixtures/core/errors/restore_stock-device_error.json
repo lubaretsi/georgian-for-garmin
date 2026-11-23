@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "device_error",
+    "message": "SendObject failed: General error (0x2002)",
+    "rollback": {
+      "files": [
+        {
+          "action": "delete",
+          "done": true,
+          "path": "GARMIN/ExtData/006-D9035-01.tmp",
+          "result": "GARMIN/ExtData/006-D9035-01.tmp deleted"
+        }
+      ],
+      "status": "complete"
+    }
+  },
+  "operation": "restore_stock"
+}

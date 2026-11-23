@@ -1,0 +1,36 @@
+{
+  "operation": "restore_stock",
+  "output": {
+    "next_step": "Disconnect the USB cable, then restart the watch; it loads the fonts on restart.",
+    "packs": [
+      {
+        "id": "hebrew-swiss-721-truetype",
+        "kind": "truetype",
+        "name": "Font, binary data, Hebrew",
+        "parts": [
+          {
+            "bytes": 37848,
+            "handle": "0x01000105",
+            "part": "006-D0952-08",
+            "path": "GARMIN/ExtData/006-D0952-08.bin",
+            "sha256": "6238a01710e8702ca00cb9e8ce1d49b2ec12af532a7d24962406244372432845",
+            "size_px": null,
+            "status": "staged_verified"
+          },
+          {
+            "bytes": 37980,
+            "handle": "0x01000106",
+            "part": "006-D0952-07",
+            "path": "GARMIN/ExtData/006-D0952-07.bin",
+            "sha256": "5cbae3207c7b5725980f8c1e8beadca35a68ac9956c2977d219ca35d133506a0",
+            "size_px": null,
+            "status": "staged_verified"
+          }
+        ],
+        "weight": 400
+      }
+    ],
+    "status": "staged_verified",
+    "variant": "stock"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "multiple_devices",
+    "message": "2 Garmin devices are connected; connect only the watch to update."
+  },
+  "operation": "inspect"
+}

@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "garmin_express",
+        "name": "Garmin Express",
+        "pid": 812
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "Garmin Express (pid 812) is using the watch's USB connection. Quit Garmin Express, including its menu-bar icon, and try again."
+  },
+  "operation": "inspect"
+}

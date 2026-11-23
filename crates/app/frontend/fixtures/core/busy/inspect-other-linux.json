@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "other",
+        "name": "usb-helper",
+        "pid": 3070
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "usb-helper (pid 3070) is using the watch's USB connection. Quit it and try again."
+  },
+  "operation": "inspect"
+}

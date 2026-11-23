@@ -1,0 +1,445 @@
+{
+  "operation": "inspect",
+  "output": {
+    "device": {
+      "model": "Forerunner 265",
+      "part_number": "006-B4257-00",
+      "software_version": "29.52"
+    },
+    "extdata": {
+      "files": [],
+      "found_by": "garmin_listing",
+      "handle": "0x01000003",
+      "listed_under_garmin": true,
+      "storage_id": "0x00010001"
+    },
+    "extdata_hidden": {
+      "files": [],
+      "note": null,
+      "status": "listed"
+    },
+    "fonts": [
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-00",
+        "restore": false,
+        "size_px": 19,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-01",
+        "restore": false,
+        "size_px": 21,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-02",
+        "restore": false,
+        "size_px": 24,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-03",
+        "restore": false,
+        "size_px": 27,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-regular",
+        "part": "006-D9035-04",
+        "restore": false,
+        "size_px": 31,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-10",
+        "restore": false,
+        "size_px": 11,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-18",
+        "restore": false,
+        "size_px": 12,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-19",
+        "restore": false,
+        "size_px": 15,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-20",
+        "restore": false,
+        "size_px": 17,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-11",
+        "restore": false,
+        "size_px": 25,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-12",
+        "restore": false,
+        "size_px": 28,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-13",
+        "restore": false,
+        "size_px": 32,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-regular",
+        "part": "006-D9035-14",
+        "restore": false,
+        "size_px": 37,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-05",
+        "restore": false,
+        "size_px": 13,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-17",
+        "restore": false,
+        "size_px": 15,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-06",
+        "restore": false,
+        "size_px": 18,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-07",
+        "restore": false,
+        "size_px": 20,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-21",
+        "restore": false,
+        "size_px": 21,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-08",
+        "restore": false,
+        "size_px": 24,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-bold",
+        "part": "006-D9035-09",
+        "restore": false,
+        "size_px": 25,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-truetype",
+        "part": "006-D9971-09",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "armenian-noto-sans-armenian-truetype",
+        "part": "006-D9971-08",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-noto-sans-hebrew-truetype",
+        "part": "006-D1053-98",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-noto-sans-hebrew-truetype",
+        "part": "006-D1053-99",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-swiss-721-truetype",
+        "part": "006-D0952-08",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "truetype",
+        "listed": false,
+        "mark": null,
+        "pack": "hebrew-swiss-721-truetype",
+        "part": "006-D0952-07",
+        "restore": false,
+        "size_px": null,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium-compressed",
+        "part": "006-D8945-67",
+        "restore": false,
+        "size_px": 17,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium-compressed",
+        "part": "006-D8945-68",
+        "restore": false,
+        "size_px": 22,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-medium",
+        "part": "006-D8945-22",
+        "restore": false,
+        "size_px": 27,
+        "target": false
+      },
+      {
+        "file": "none",
+        "imported": false,
+        "kind": "bitmap",
+        "listed": false,
+        "mark": null,
+        "pack": "korean-nanum-gothic-bold",
+        "part": "006-D8945-07",
+        "restore": false,
+        "size_px": 19,
+        "target": false
+      }
+    ],
+    "hosts": {
+      "kind": null,
+      "reason": "This watch lists none of the fonts this build adds Georgian to.",
+      "restore_only_parts": [],
+      "skipped_parts": []
+    },
+    "packs": [],
+    "report": {
+      "app_version": "0.3.4",
+      "connection": "mtp",
+      "declared_files": [],
+      "extdata_files": [],
+      "extdata_hidden": {
+        "files": [],
+        "note": null,
+        "status": "listed"
+      },
+      "extdata_listing": [],
+      "hosts": {
+        "kind": null,
+        "reason": "This watch lists none of the fonts this build adds Georgian to."
+      },
+      "model": "Forerunner 265",
+      "model_part": "006-B4257-00",
+      "packs": [],
+      "parts": [],
+      "platform": {
+        "arch": "aarch64",
+        "os": "Mac OS",
+        "os_version": "15.6.1"
+      },
+      "software_version": "29.52",
+      "state": "unsupported",
+      "support": {
+        "issue": null,
+        "listed": true,
+        "prediction": "noto_truetype",
+        "reason": null,
+        "report_wanted": true,
+        "status": "unknown"
+      },
+      "test_marks": false,
+      "tested": "untested",
+      "text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nconnection mtp\nwatch \"Forerunner 265\" 006-B4257-00 29.52\nsupport unknown predicted=noto_truetype\nhosts none: This watch lists none of the fonts this build adds Georgian to.\npacks none\nstate unsupported\nmarks off\nparts: part file target tested mark\ndeclared: path file part version\nextdata: name bytes sha256\nhidden: none\n",
+      "title": "Watch report: Forerunner 265 (006-B4257-00), software 29.52"
+    },
+    "restorable": false,
+    "state": "unsupported",
+    "support": {
+      "issue": null,
+      "listed": true,
+      "prediction": "noto_truetype",
+      "reason": null,
+      "report_wanted": true,
+      "status": "unknown"
+    },
+    "supported": false,
+    "tested": {
+      "status": "untested",
+      "verified_software": []
+    }
+  }
+}

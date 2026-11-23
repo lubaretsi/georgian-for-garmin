@@ -1,0 +1,44 @@
+{
+  "operation": "install",
+  "output": {
+    "next_step": "Disconnect the USB cable, then restart the watch; it loads the fonts on restart.",
+    "packs": [
+      {
+        "id": "armenian-noto-sans-armenian-truetype",
+        "kind": "truetype",
+        "name": "NotoSansArmenian, Armenian",
+        "parts": [
+          {
+            "bytes": 41124,
+            "handle": "0x01000101",
+            "part": "006-D9971-09",
+            "path": "GARMIN/ExtData/006-D9971-09.bin",
+            "sha256": "372a605beb46cebcd95b43e7a1cffeb478e8737ae2f277491fe48417eabb327a",
+            "size_px": null,
+            "status": "staged_verified"
+          }
+        ],
+        "weight": 400
+      },
+      {
+        "id": "hebrew-noto-sans-hebrew-truetype",
+        "kind": "truetype",
+        "name": "NotoSansHebrew, Hebrew",
+        "parts": [
+          {
+            "bytes": 38736,
+            "handle": "0x01000102",
+            "part": "006-D1053-98",
+            "path": "GARMIN/ExtData/006-D1053-98.bin",
+            "sha256": "c81f5d9922dfd8f7f6db10c2c6ef89e9fec9f943c722a9bf762452cb646a7891",
+            "size_px": null,
+            "status": "staged_verified"
+          }
+        ],
+        "weight": 400
+      }
+    ],
+    "status": "staged_verified",
+    "variant": "georgian"
+  }
+}

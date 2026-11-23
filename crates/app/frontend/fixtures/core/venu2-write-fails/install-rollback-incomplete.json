@@ -1,0 +1,24 @@
+{
+  "error": {
+    "code": "device_error",
+    "message": "SendObject failed: GeneralError (0x2002). A new object was created as GARMIN/ExtData/006-D9035-02.tmp (0x01000118) and could not be deleted (DeleteObject failed: GeneralError (0x2002)); it may hold incomplete data. Tried to undo this run's changes: GARMIN/ExtData/006-D9035-01.tmp (0x01000117) could not be deleted (DeleteObject failed: GeneralError (0x2002)). The rollback was incomplete: GARMIN/ExtData/006-D9035-01.tmp and GARMIN/ExtData/006-D9035-02.tmp may not be as before this run. Connect the watch and run Restore original font (georgian-for-garmin restore-stock), then restart the watch; if that reports a conflict, share the watch report in an issue.",
+    "rollback": {
+      "files": [
+        {
+          "action": "delete",
+          "done": false,
+          "path": "GARMIN/ExtData/006-D9035-02.tmp",
+          "result": "GARMIN/ExtData/006-D9035-02.tmp (0x01000118) could not be deleted (DeleteObject failed: GeneralError (0x2002)); it may hold incomplete data"
+        },
+        {
+          "action": "delete",
+          "done": false,
+          "path": "GARMIN/ExtData/006-D9035-01.tmp",
+          "result": "GARMIN/ExtData/006-D9035-01.tmp (0x01000117) could not be deleted (DeleteObject failed: GeneralError (0x2002))"
+        }
+      ],
+      "status": "incomplete"
+    }
+  },
+  "operation": "install"
+}

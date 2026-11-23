@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "desktop_mtp",
+        "name": "gvfsd-mtp",
+        "pid": 2301
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "gvfsd-mtp (pid 2301) is using the watch's USB connection. Quit it and try again."
+  },
+  "operation": "inspect"
+}

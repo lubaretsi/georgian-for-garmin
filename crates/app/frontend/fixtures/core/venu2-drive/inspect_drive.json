@@ -1,0 +1,337 @@
+{
+  "operation": "inspect_drive",
+  "output": {
+    "device": {
+      "model": "Venu 2",
+      "part_number": "006-B3703-00",
+      "software_version": "19.05"
+    },
+    "hosts": {
+      "kind": "bitmap",
+      "reason": "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts.",
+      "restore_only_parts": [],
+      "skipped_parts": [
+        "006-D8945-22"
+      ]
+    },
+    "path": "/Volumes/GARMIN",
+    "report": {
+      "app_version": "0.3.4",
+      "connection": "usb_drive",
+      "declared_files": [
+        {
+          "file_name": "006-D9035-04.tmp",
+          "part_number": "006-D9035-04",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-28.tmp",
+          "part_number": "006-D8448-28",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8945-23.tmp",
+          "part_number": "006-D8945-23",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-23.tmp",
+          "part_number": "006-D8944-23",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8947-23.tmp",
+          "part_number": "006-D8947-23",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-03.tmp",
+          "part_number": "006-D9035-03",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-27.tmp",
+          "part_number": "006-D8448-27",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-22.tmp",
+          "part_number": "006-D8944-22",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-22.tmp",
+          "part_number": "006-D8945-22",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-22.tmp",
+          "part_number": "006-D8947-22",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-01.tmp",
+          "part_number": "006-D9035-01",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-25.tmp",
+          "part_number": "006-D8448-25",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-20.tmp",
+          "part_number": "006-D8944-20",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-20.tmp",
+          "part_number": "006-D8945-20",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-20.tmp",
+          "part_number": "006-D8947-20",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-02.tmp",
+          "part_number": "006-D9035-02",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-26.tmp",
+          "part_number": "006-D8448-26",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-21.tmp",
+          "part_number": "006-D8944-21",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-21.tmp",
+          "part_number": "006-D8945-21",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-21.tmp",
+          "part_number": "006-D8947-21",
+          "path": "Garmin/ExtData",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8168-13.tmp",
+          "part_number": "006-D8168-13",
+          "path": "Garmin/ExtData",
+          "version": "2.10"
+        }
+      ],
+      "extdata_files": [
+        {
+          "file_name": "006-D9035-04.tmp",
+          "part_number": "006-D9035-04",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-28.tmp",
+          "part_number": "006-D8448-28",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8945-23.tmp",
+          "part_number": "006-D8945-23",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-23.tmp",
+          "part_number": "006-D8944-23",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8947-23.tmp",
+          "part_number": "006-D8947-23",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-03.tmp",
+          "part_number": "006-D9035-03",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-27.tmp",
+          "part_number": "006-D8448-27",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-22.tmp",
+          "part_number": "006-D8944-22",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-22.tmp",
+          "part_number": "006-D8945-22",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-22.tmp",
+          "part_number": "006-D8947-22",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-01.tmp",
+          "part_number": "006-D9035-01",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-25.tmp",
+          "part_number": "006-D8448-25",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-20.tmp",
+          "part_number": "006-D8944-20",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-20.tmp",
+          "part_number": "006-D8945-20",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-20.tmp",
+          "part_number": "006-D8947-20",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D9035-02.tmp",
+          "part_number": "006-D9035-02",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8448-26.tmp",
+          "part_number": "006-D8448-26",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8944-21.tmp",
+          "part_number": "006-D8944-21",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8945-21.tmp",
+          "part_number": "006-D8945-21",
+          "version": "2.10"
+        },
+        {
+          "file_name": "006-D8947-21.tmp",
+          "part_number": "006-D8947-21",
+          "version": "2.00"
+        },
+        {
+          "file_name": "006-D8168-13.tmp",
+          "part_number": "006-D8168-13",
+          "version": "2.10"
+        }
+      ],
+      "extdata_hidden": {
+        "files": [],
+        "note": null,
+        "status": "not_read"
+      },
+      "extdata_listing": [],
+      "hosts": {
+        "kind": "bitmap",
+        "reason": "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts."
+      },
+      "model": "Venu 2",
+      "model_part": "006-B3703-00",
+      "packs": [
+        "armenian-noto-sans-regular"
+      ],
+      "parts": [
+        {
+          "file": "unknown",
+          "mark": null,
+          "part": "006-D9035-01",
+          "target": false,
+          "tested": "tested"
+        },
+        {
+          "file": "unknown",
+          "mark": null,
+          "part": "006-D9035-02",
+          "target": false,
+          "tested": "tested"
+        },
+        {
+          "file": "unknown",
+          "mark": null,
+          "part": "006-D9035-03",
+          "target": false,
+          "tested": "tested"
+        },
+        {
+          "file": "unknown",
+          "mark": null,
+          "part": "006-D9035-04",
+          "target": false,
+          "tested": "tested"
+        },
+        {
+          "file": "unknown",
+          "mark": null,
+          "part": "006-D8945-22",
+          "target": false,
+          "tested": "untested"
+        }
+      ],
+      "platform": {
+        "arch": "aarch64",
+        "os": "Mac OS",
+        "os_version": "15.6.1"
+      },
+      "software_version": "19.05",
+      "state": "unknown",
+      "support": {
+        "issue": null,
+        "listed": true,
+        "prediction": null,
+        "reason": null,
+        "report_wanted": false,
+        "status": "tested"
+      },
+      "test_marks": false,
+      "tested": "tested",
+      "text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nconnection usb_drive\nwatch \"Venu 2\" 006-B3703-00 19.05\nsupport tested\nhosts bitmap: This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. Its fonts 006-D8945-22 stay Garmin's: a watch gets Georgian in one family of fonts, bitmap Armenian first, then TrueType, then Korean bitmap fonts.\npacks armenian-noto-sans-regular (tested)\nstate unknown\nmarks off\nparts: part file target tested mark\n006-D9035-01 unknown no tested -\n006-D9035-02 unknown no tested -\n006-D9035-03 unknown no tested -\n006-D9035-04 unknown no tested -\n006-D8945-22 unknown no untested -\ndeclared: path file part version\nGarmin/ExtData 006-D9035-04.tmp 006-D9035-04 2.10\nGarmin/ExtData 006-D8448-28.tmp 006-D8448-28 2.10\nGarmin/ExtData 006-D8945-23.tmp 006-D8945-23 2.10\nGarmin/ExtData 006-D8944-23.tmp 006-D8944-23 2.00\nGarmin/ExtData 006-D8947-23.tmp 006-D8947-23 2.00\nGarmin/ExtData 006-D9035-03.tmp 006-D9035-03 2.10\nGarmin/ExtData 006-D8448-27.tmp 006-D8448-27 2.10\nGarmin/ExtData 006-D8944-22.tmp 006-D8944-22 2.00\nGarmin/ExtData 006-D8945-22.tmp 006-D8945-22 2.10\nGarmin/ExtData 006-D8947-22.tmp 006-D8947-22 2.00\nGarmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10\nGarmin/ExtData 006-D8448-25.tmp 006-D8448-25 2.10\nGarmin/ExtData 006-D8944-20.tmp 006-D8944-20 2.00\nGarmin/ExtData 006-D8945-20.tmp 006-D8945-20 2.10\nGarmin/ExtData 006-D8947-20.tmp 006-D8947-20 2.00\nGarmin/ExtData 006-D9035-02.tmp 006-D9035-02 2.10\nGarmin/ExtData 006-D8448-26.tmp 006-D8448-26 2.10\nGarmin/ExtData 006-D8944-21.tmp 006-D8944-21 2.00\nGarmin/ExtData 006-D8945-21.tmp 006-D8945-21 2.10\nGarmin/ExtData 006-D8947-21.tmp 006-D8947-21 2.00\nGarmin/ExtData 006-D8168-13.tmp 006-D8168-13 2.10\nextdata: name bytes sha256\nhidden: not read\n",
+      "title": "Watch report: Venu 2 (006-B3703-00), software 19.05"
+    },
+    "support": {
+      "issue": null,
+      "listed": true,
+      "prediction": null,
+      "reason": null,
+      "report_wanted": false,
+      "status": "tested"
+    }
+  }
+}

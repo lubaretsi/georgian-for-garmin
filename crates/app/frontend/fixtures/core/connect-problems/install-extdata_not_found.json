@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "extdata_not_found",
+    "message": "Could not find the watch's GARMIN/ExtData folder; nothing was written."
+  },
+  "operation": "install"
+}
