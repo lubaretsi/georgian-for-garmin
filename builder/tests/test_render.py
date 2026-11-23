@@ -10,6 +10,7 @@ the PNGs in $GFG_RENDER_OUT), never treated as passing evidence.
 import copy
 import json
 import os
+import warnings
 from collections import Counter
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from garmin_fonts.codec import GEORGIAN
 from garmin_fonts.render import (
     MODELS,
     REPORTS,
-    STATES,
+    COUNTS,
     TEST_TEXT,
     ModelError,
     find_model,
@@ -143,7 +144,9 @@ def test_render_report_over_every_fixture(catalog_stock, ours):
     report, totals = [], Counter()
     for fixture in FIXTURES:
         for builds in ((), ours):
-            rendering = render_report(fixture, builds=builds)
+            with warnings.catch_warnings(record=True):
+                warnings.simplefilter("always")
+                rendering = render_report(fixture, builds=builds)
             installed = installed_builds(json.loads(fixture.read_text())["declared"], builds)
             replaced = {identify(data)[1] for data in installed}
             for item in rendering.trace:
@@ -157,10 +160,11 @@ def test_render_report_over_every_fixture(catalog_stock, ours):
             totals.update(counts)
             name = f"{fixture.stem}{'-ours' if builds else ''}"
             report.append({"fixture": fixture.name, "ours_installed": bool(installed),
-                           "model": rendering.model, "counts": counts})
+                           "model": rendering.model, "counts": counts,
+                           "not_installed": rendering.not_installed})
             if out is not None:
                 rendering.save(out / f"{name}.png")
-    summary = {"text": TEST_TEXT, "totals": {s: totals[s] for s in STATES}, "renders": report}
+    summary = {"text": TEST_TEXT, "totals": {s: totals[s] for s in COUNTS}, "renders": report}
     if out is not None:
         (out / "report.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
     print(json.dumps(summary["totals"]))
@@ -243,3 +247,34 @@ def test_the_korean_27_px_font_supplies_georgian_alone(catalog_stock, ours, kore
     replace = [korean_build, *installed_builds(VENU_2["declared"], ours)]
     both = by_char(render(VENU_2["declared"], replace=replace, family="006-B3703-00"))["მ"]
     assert both["state"] == "coverage_only" and "006-D8945-22" in both["reason"]
+
+
+def test_render_report_says_which_builds_install_leaves_out(catalog_stock, thai_build):
+    report = REPORTS / "maintainer-venu2-stock-imported.json"
+    with pytest.warns(UserWarning, match="006-D8947-22 .not in a pack this build installs"):
+        dropped = render_report(report, builds=[thai_build])
+    assert dropped.not_installed == [{
+        "part": "006-D8947-22",
+        "reason": "not in a pack this build installs (registry packs, install true)"}]
+    assert dropped.counts()["confirmed_box"] == 16 and "not_installed" in repr(dropped)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        rendered = render_report(report, replace=[thai_build])
+    assert rendered.counts()["confirmed_drawn"] == 16 and rendered.not_installed == []
+
+
+def test_counts_tell_drawn_glyphs_from_boxes(catalog_stock, ours):
+    stock = render(VENU_2["declared"], family="006-B3703-00")
+    built = render(VENU_2["declared"], replace=installed_builds(VENU_2["declared"], ours),
+                   family="006-B3703-00")
+    assert stock.counts() == {"confirmed_drawn": 0, "confirmed_box": 16, "coverage_only": 0,
+                              "unknown": 11}
+    assert built.counts()["confirmed_drawn"] == 16 and built.counts()["confirmed_box"] == 0
+    assert len(repr(built)) < 300
+
+
+def test_another_software_version_names_the_ones_the_model_covers(catalog_stock):
+    item = by_char(render(VENU_2["declared"], family="006-B3703-00", software="1.0"))["მ"]
+    assert item["state"] == "unknown"
+    assert item["reason"] == ("the fallback model venu-2-notifications for 006-B3703-00 covers "
+                              "software 19.05, not 1.0")

@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI also checks every request the `Watch` client builds against the input schemas a dev build
   of the CLI declares, that every operation has a method, and the client against the real
   `rpc`.
+- `nix run .#omp-venv` writes a `.venv` whose Python is the builder's pinned one with the
+  toolkit on its path, so omp's eval kernel can use `garmin_fonts` directly
+  ([development](docs/development.md#using-the-toolkit-from-omps-eval)). Builds record the
+  rasterizer that drew them (Pillow, FreeType, raqm, fontTools) against the pinned one in the
+  registry (`georgian_font.rasterizer`): Pillow without raqm, as from PyPI, gives other bytes, so
+  `add_georgian` warns there and `Watch.stage` refuses such a build unless asked.
 - When no watch has turned up 10 seconds after the waiting screen comes up, it shows a short
   help card under the spinner: quit Garmin Express, which can keep the app from seeing the watch
   (from its menu-bar icon on macOS, its notification-area icon on Windows; on Linux, eject the

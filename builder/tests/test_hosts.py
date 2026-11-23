@@ -103,6 +103,41 @@ def test_size_like_another_host_and_explicit_sizing(catalog_stock, inputs):
         add_georgian(thai, offline=True)
 
 
+def test_an_unpinned_parts_weight_comes_from_its_catalog_name(catalog_stock, inputs, tmp_path):
+    import dataclasses
+
+    from garmin_fonts.catalog import Stock
+
+    # Garmin's Korean 27 px font under the footer of a part the registry doesn't pin.
+    data = catalog_stock["006-D8945-22"][:-13] + b"006-D8945-13\x00"
+    bold = Stock("006-D8945-13", "2.10", "bitmap", "APAC Font, Nanum Gothic Bold 27px, KOR",
+                 "", False, "catalog", tmp_path / "x.fnt", data)
+    assert add_georgian(bold, "korean", offline=True).weight == 700
+    with pytest.raises(ValueError, match="weight isn't known"):
+        add_georgian(data, "korean", offline=True)
+    vague = dataclasses.replace(bold, name="APAC Font, Nanum Gothic 27px")
+    with pytest.raises(ValueError, match="catalog name 'APAC Font, Nanum Gothic 27px'"):
+        add_georgian(vague, "korean", offline=True)
+
+
+def test_this_environment_is_the_pinned_rasterizer():
+    from garmin_fonts.georgian import rasterizer
+
+    assert rasterizer() == ENTRIES["georgian_font"]["rasterizer"], \
+        "the nix environment changed: rebuild, test on a watch, then update the pins together"
+
+
+def test_a_build_elsewhere_is_marked_and_warned(catalog_stock, inputs, monkeypatch):
+    from garmin_fonts import build
+
+    elsewhere = dict(ENTRIES["georgian_font"]["rasterizer"], raqm=None)
+    monkeypatch.setattr(build, "rasterizer", lambda: elsewhere)
+    with pytest.warns(build.UnpinnedRasterizerWarning, match="'raqm': None"):
+        built = add_georgian(catalog_stock["006-D8947-22"], offline=True)
+    assert not built.rasterizer_pinned and built.rasterizer == elsewhere
+    assert built.summary()["rasterizer_pinned"] is False
+
+
 def test_a_host_marker_marks_a_truetype_build(truetype_stock, inputs):
     data = truetype_stock["006-D1053-98"]
     marked = add_georgian(data, markers=HOSTS["noto-hebrew-truetype"].markers, noto=inputs["noto"])

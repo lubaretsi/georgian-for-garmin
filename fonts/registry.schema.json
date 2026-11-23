@@ -8,9 +8,9 @@
   "properties": {
     "$schema": { "type": "string" },
     "georgian_font": {
-      "description": "The TrueType font the Georgian glyphs are rendered from, and its license.",
+      "description": "The TrueType font the Georgian glyphs are rendered from, its license, and the rasterizer environment the pinned Georgian builds come from.",
       "type": "object",
-      "required": ["name", "url", "sha256", "license"],
+      "required": ["name", "url", "sha256", "license", "rasterizer"],
       "additionalProperties": false,
       "properties": {
         "name": { "$ref": "#/$defs/text" },
@@ -24,6 +24,18 @@
             "name": { "$ref": "#/$defs/text" },
             "url": { "$ref": "#/$defs/https_url" },
             "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "rasterizer": {
+          "description": "The libraries that draw Georgian, as the pinned builds were made with them (nix develop): the same inputs give other bytes with another FreeType, layout engine (Pillow without raqm lays glyphs out differently) or fontTools. Builds elsewhere are marked unpinned.",
+          "type": "object",
+          "required": ["pillow", "freetype2", "raqm", "fonttools"],
+          "additionalProperties": false,
+          "properties": {
+            "pillow": { "$ref": "#/$defs/text" },
+            "freetype2": { "$ref": "#/$defs/text" },
+            "raqm": { "$ref": "#/$defs/text" },
+            "fonttools": { "$ref": "#/$defs/text" }
           }
         }
       }

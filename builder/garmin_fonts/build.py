@@ -4,6 +4,7 @@ stock fonts, Georgian builds and a manifest (`build`)."""
 import hashlib
 import io
 import json
+import warnings
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -14,11 +15,16 @@ from . import marks as test_mark
 from . import registry as font_registry
 from . import truetype
 from .codec import decode, identity
-from .georgian import Outlines, Sizing, choose_sizing, with_georgian
+from .georgian import Outlines, Sizing, choose_sizing, rasterizer, with_georgian
 from .preview import bitmap_mark_picture, truetype_mark_picture, truetype_preview
 
 # The size the installer stages by default: verified on hardware (Venu 2, firmware 19.05).
 DEFAULT_PART = "006-D9035-03"
+
+
+class UnpinnedRasterizerWarning(UserWarning):
+    """Georgian was drawn outside the rasterizer environment the pinned builds come from, so
+    its bytes may differ from a nix build's for the same inputs."""
 
 
 @dataclass(frozen=True)
@@ -29,7 +35,9 @@ class Built:
     `clipped` maps "U+XXXX" to the faint pixels dropped outside a bitmap row; `markers` are the
     activation markers applied ({glyph: drawn_as}). `stock_sha256` is the input font's SHA-256
     and `stock_pinned` whether it is the file the registry pins for the part (Garmin's
-    original at the pinned version), as opposed to other bytes given for it.
+    original at the pinned version), as opposed to other bytes given for it. `rasterizer` is
+    the environment that drew it (georgian.rasterizer) and `rasterizer_pinned` whether it is the
+    registry's `georgian_font.rasterizer`, the one the pinned builds come from (`nix develop`).
     """
 
     part: str
@@ -42,6 +50,8 @@ class Built:
     markers: dict
     stock_sha256: str
     stock_pinned: bool
+    rasterizer: dict
+    rasterizer_pinned: bool
     data: bytes = field(repr=False)
 
     @property
@@ -65,7 +75,9 @@ class Built:
         return {"part": self.part, "version": self.version, "kind": self.kind, "host": self.host,
                 "weight": self.weight, **sizing, "clipped": self.clipped,
                 "markers": self.markers, "stock_sha256": self.stock_sha256,
-                "stock_pinned": self.stock_pinned, "bytes": len(self.data), "sha256": self.sha256}
+                "stock_pinned": self.stock_pinned, "rasterizer": self.rasterizer,
+                "rasterizer_pinned": self.rasterizer_pinned, "bytes": len(self.data),
+                "sha256": self.sha256}
 
 
 @cache
@@ -116,14 +128,21 @@ def add_georgian(font, size_like=None, markers=None, *, weight=None, nominal=Non
     activation markers for test builds, applied after Georgian is drawn, e.g. {"ჰ": "გ", "ก":
     "ข"}; a host's own is `hosts.get("thai").markers`. `weight` (Noto Sans Georgian's wght) and
     `nominal` (the part's nominal px, which bounds the size search) default to the registry's
-    entry for the part; an unpinned bitmap font's nominal defaults to its line height. `mark` is
-    a beta test mark (marks.Mark). `noto` defaults to the pinned Noto Sans Georgian
-    (catalog.georgian_font).
+    entry for the part; for an unpinned font fetched by part number (or a catalog.Stock) the
+    weight comes from its catalog name when that names one weight (Bold 700, Medium 500, …),
+    and an unpinned bitmap font's nominal defaults to its line height. `mark` is a beta test
+    mark (marks.Mark). `noto` defaults to the pinned Noto Sans Georgian (catalog.georgian_font).
+
+    Outside the registry's pinned rasterizer environment the result is marked
+    `rasterizer_pinned=False` and an UnpinnedRasterizerWarning is issued: the same inputs may
+    give other bytes there (`nix develop`, or the `.venv` from `nix run .#omp-venv`, is pinned).
 
     Raises ValueError when Georgian doesn't fit or an input is missing, catalog.CatalogError
     when the font can't be fetched.
     """
     registry = font_registry.default() if registry is None else registry
+    if isinstance(font, str) and catalog.PART_NUMBER.match(font):
+        font = catalog.fetch_stock(font, offline=offline, registry=registry)
     data = font_bytes(font, offline=offline, registry=registry)
     kind, part, version = identify(data)
     pin = font_registry.parts(registry).get(part)
@@ -134,9 +153,14 @@ def add_georgian(font, size_like=None, markers=None, *, weight=None, nominal=Non
     if isinstance(size_like, str):
         size_like = host_families.get(size_like, registry)
     if weight is None:
-        if pin is None:
-            raise ValueError(f"{part} is not in the registry: pass weight (400 Regular, 700 Bold)")
-        weight = pin.weight
+        if pin is not None:
+            weight = pin.weight
+        elif isinstance(font, catalog.Stock) and catalog.weight_of(font.name):
+            weight = catalog.weight_of(font.name)
+        else:
+            named = f" (catalog name {font.name!r})" if isinstance(font, catalog.Stock) else ""
+            raise ValueError(f"{part} is not in the registry and its weight isn't known{named}: "
+                             "pass weight (400 Regular, 500 Medium, 700 Bold)")
     if isinstance(size_like, host_families.Host):
         if size_like.kind != kind:
             raise ValueError(f"host {size_like.id} is a {size_like.kind} host; {part} is {kind}")
@@ -167,8 +191,18 @@ def add_georgian(font, size_like=None, markers=None, *, weight=None, nominal=Non
         out, lost = with_georgian(data, outlines, sizing, mark, markers)
         clipped = {f"U+{cp:04X}": pixels for cp, pixels in lost.items()}
     stock_sha256 = hashlib.sha256(data).hexdigest()
+    environment = rasterizer()
+    pinned_environment = environment == registry["georgian_font"]["rasterizer"]
+    if not pinned_environment:
+        warnings.warn(
+            f"{part}: Georgian drawn with {environment}, not the pinned "
+            f"{registry['georgian_font']['rasterizer']}; its bytes may differ from a nix build's "
+            "(use nix develop, or nix run .#omp-venv for omp's eval)",
+            UnpinnedRasterizerWarning, stacklevel=2,
+        )
     return Built(part, version, kind, host, weight, sizing, clipped, markers, stock_sha256,
-                 pin is not None and stock_sha256 == pin.sha256, out)
+                 pin is not None and stock_sha256 == pin.sha256, environment, pinned_environment,
+                 out)
 
 
 def build(registry, stock_dir, noto, license_file, out, test_marks=False):

@@ -59,10 +59,13 @@ class Watch:
                     f"{CLI} is not on PATH: pass command=<path to the CLI> or set {CLI_ENV}",
                 )
         args = [*command, "rpc"] if isinstance(command, (list, tuple)) else [str(command), "rpc"]
-        self._process = subprocess.Popen(
-            args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            env={**os.environ, **(env or {})},
-        )
+        try:
+            self._process = subprocess.Popen(
+                args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                env={**os.environ, **(env or {})},
+            )
+        except OSError as error:
+            raise WatchError("invalid_input", f"can't run {args[0]}: {error}") from None
         self._next_id = 0
 
     def __enter__(self):
@@ -98,7 +101,14 @@ class Watch:
         line = self._process.stdout.readline()
         if not line:
             raise self._exited()
-        return json.loads(line)
+        try:
+            message = json.loads(line)
+        except ValueError:
+            raise WatchError("internal", "the rpc process wrote a line that isn't JSON-RPC: "
+                                         f"{line[:200]!r}") from None
+        if not isinstance(message, dict):
+            raise WatchError("internal", f"the rpc process wrote {line[:200]!r}, not a message")
+        return message
 
     def call(self, method, params=None, progress=None):
         """Run operation `method` with `params` (its input) and return its output.
@@ -190,18 +200,28 @@ class Watch:
         """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist."""
         return self.call("read_file", {"name": name, "path": str(path)})
 
-    def stage(self, source, name=None, *, dry_run=False, garmin_sha256=None, progress=None):
+    def stage(self, source, name=None, *, dry_run=False, garmin_sha256=None,
+              allow_unpinned_env=False, progress=None):
         """`stage_file` (dev): stage `source` as GARMIN/ExtData/`name`.
 
         `source` is a local path, bytes, or a build (build.Built); `name` defaults to a build's
         `<part>.tmp`. A Garmin font whose footer or trailer names another part than `name` is
-        refused. `garmin_sha256` (hashes vouched to be Garmin's own file for the part)
-        defaults to the registry's pin for the part `name` stands for, so Garmin's original
-        may be replaced. The bytes checked here are the bytes staged (from a private copy).
-        Returns the core's output, with the staged `id` for `remove_staged`.
+        refused. A build drawn outside the pinned rasterizer environment
+        (`Built.rasterizer_pinned` false) is refused unless `allow_unpinned_env`, since its bytes
+        may differ from what a nix build of the same inputs gives. `garmin_sha256` (hashes
+        vouched to be Garmin's own file for the part) defaults to the registry's pin for the
+        part `name` stands for, so Garmin's original may be replaced. The bytes checked here are
+        the bytes staged (from a private copy). Returns the core's output, with the staged `id`
+        for `remove_staged`.
         """
-        from .build import identify
+        from .build import Built, identify
 
+        if isinstance(source, Built) and not source.rasterizer_pinned and not allow_unpinned_env:
+            raise WatchError(
+                "invalid_input",
+                f"{source.part} was drawn with {source.rasterizer}, not the pinned rasterizer; "
+                "build it in nix develop or the omp .venv, or pass allow_unpinned_env=True",
+            )
         data = getattr(source, "data", source)
         if not isinstance(data, (bytes, bytearray)):
             data = Path(source).read_bytes()

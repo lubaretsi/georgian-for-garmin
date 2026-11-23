@@ -20,8 +20,52 @@ each glyph exactly as Garmin's tool does, so every stock font re-encodes byte fo
 import re
 from collections import Counter
 from struct import Struct, iter_unpack, pack, unpack_from
+from typing import NamedTuple
 
 HEADER = Struct("<HH4I6HI")
+
+
+class Header(NamedTuple):
+    """The 36-byte header's fields; `unknown*` are preserved as they are."""
+
+    size: int
+    flags: int
+    end: int
+    ranges_start: int
+    index_start: int
+    pixels_start: int
+    unknown6: int
+    height: int
+    baseline: int
+    unknown9: int
+    unknown10: int
+    unknown11: int
+    magic: int
+
+
+class Decoded(NamedTuple):
+    """A decoded font: its Header, its 21-byte footer, and `cmap` (code point, or None for the
+    missing glyph, to a plain (width, bitmap) tile). Unpacks as (header, footer, cmap)."""
+
+    header: Header
+    footer: bytes
+    cmap: dict
+
+    @property
+    def part(self):
+        return identity(self.footer)[0]
+
+    @property
+    def version(self):
+        return identity(self.footer)[1]
+
+    def __repr__(self):
+        kind = "compressed" if compressed(self.header) else "plain"
+        return (f"Decoded(part={self.part!r}, version={self.version!r}, {kind}, "
+                f"height={self.header.height}, baseline={self.header.baseline}, "
+                f"glyphs={len(self.cmap)})")
+
+
 FOOTER_SIZE = 21
 OFFSET_MASK = 0xFFFFFF
 PLAIN, COMPRESSED = 0x0403, 0x0603
@@ -240,7 +284,7 @@ def rle_encode(data):
 
 
 def decode(data, streams=None):
-    """Return (header, footer, cmap), with the missing-glyph tile at cmap[None].
+    """Return a Decoded (header, footer, cmap), with the missing-glyph tile at cmap[None].
 
     Each cmap value is a plain (width, bitmap) tile, whether the font is plain or compressed.
     For a compressed font, a `streams` dict gets each bitmap's RLE stream as stored, for
@@ -248,7 +292,7 @@ def decode(data, streams=None):
     """
     if len(data) < HEADER.size:
         raise ValueError("truncated font header")
-    header = HEADER.unpack_from(data)
+    header = Header._make(HEADER.unpack_from(data))
     size, flags, end, ranges_start, index_start, pixels_start, _, height, *_ = header
     if (size, ranges_start, header[-1]) != (36, 36, 0x12345678) or flags not in (PLAIN, COMPRESSED):
         raise ValueError("not a supported Garmin 2-bit font")
@@ -300,7 +344,7 @@ def decode(data, streams=None):
         previous = hi
     if next_index != len(tiles):
         raise ValueError("unmapped glyph table entries")
-    return header, footer, cmap
+    return Decoded(header, bytes(footer), cmap)
 
 
 def encode(header, footer, cmap, streams=None):
@@ -353,5 +397,6 @@ def encode(header, footer, cmap, streams=None):
 
 def round_trips(data):
     """Whether `data` decodes and re-encodes byte for byte (without reusing its RLE streams, so
-    a compressed font exercises `rle_encode`)."""
+    a compressed font exercises `rle_encode`). Plain fonts take milliseconds; large compressed
+    ones take 10 to 30 seconds, as every glyph is compressed again in pure Python."""
     return encode(*decode(data)) == data

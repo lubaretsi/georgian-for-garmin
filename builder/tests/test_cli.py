@@ -78,9 +78,18 @@ def test_build_one_font_with_markers(catalog_stock, tmp_path, inputs):
     (font,) = json.loads(result.stdout)["fonts"]
     assert font["sha256"] == "e9536a34b05f2e072563324ade79796f9fb5df1c4da8e55eccaf709c49f6bff7"
     assert font["markers"] == {"ჰ": "გ", "ก": "ข"} and font["host"] == "thai"
-    assert (tmp_path / "006-D8947-22.fnt").is_file()
+    assert (tmp_path / "006-D8947-22.fnt").is_file() and font["rasterizer_pinned"]
     again = cli("build", "006-D8947-22", "--out", str(tmp_path), "--offline", "--json")
     assert again.returncode == 2 and "exists" in json.loads(again.stderr)["error"]["message"]
+
+
+def test_build_without_out_only_summarizes(catalog_stock, tmp_path, inputs):
+    result = cli("build", "006-D8947-22", "--offline", "--json")
+    assert result.returncode == 0, result.stderr
+    (font,) = json.loads(result.stdout)["fonts"]
+    assert "path" not in font and font["sha256"] and font["rasterizer_pinned"]
+    assets = cli("build", "--json")
+    assert assets.returncode == 2 and "--out" in json.loads(assets.stderr)["error"]["message"]
 
 
 def test_render_a_font_given_as_a_file(catalog_stock, tmp_path, inputs):
@@ -101,7 +110,7 @@ def test_render_a_report(catalog_stock, tmp_path, inputs):
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["model"] == "venu-2-notifications" and output["png"] == str(png)
-    assert output["counts"]["confirmed"] == 16
+    assert output["counts"]["confirmed_drawn"] == 16 and output["counts"]["confirmed_box"] == 0
     assert png.read_bytes()[:4] == b"\x89PNG"
     via_input = cli("render", "--input", "-", "--json",
                     stdin=json.dumps({"report": str(report), "text": "ა"}))
@@ -122,3 +131,16 @@ def test_an_unavailable_font_exits_1(tmp_path):
     result = cli("fetch", "006-D8947-99", "--offline", "--json")
     assert result.returncode == 1
     assert json.loads(result.stderr)["error"]["code"] == "font_unavailable"
+
+
+def test_pyproject_matches_the_package_and_the_pinned_rasterizer():
+    import tomllib
+
+    from garmin_fonts import __version__
+    from registry_data import ENTRIES
+
+    project = tomllib.loads((BUILDER / "pyproject.toml").read_text())["project"]
+    assert project["version"] == __version__
+    pinned = ENTRIES["georgian_font"]["rasterizer"]
+    assert f"pillow=={pinned['pillow']}" in project["dependencies"]
+    assert f"fonttools=={pinned['fonttools']}" in project["dependencies"]

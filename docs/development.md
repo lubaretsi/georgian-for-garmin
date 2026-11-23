@@ -45,7 +45,7 @@ fonts lacking a Georgian letter.
 ### Font toolkit
 
 Experiments on fonts and watches run as steps through `garmin_fonts`, from `builder/` in
-`nix develop`, in Python (omp's eval, a REPL) or on the command line:
+`nix develop`, in Python (omp's eval, see below, or a REPL) or on the command line:
 
 ```python
 from garmin_fonts.catalog import fetch_stock
@@ -55,7 +55,7 @@ from garmin_fonts.watch import Watch
 
 thai = add_georgian("006-D8947-22", markers={"ჰ": "გ", "ก": "ข"})   # fetched, sized like Thai
 rendering = render_report("../crates/core/tests/reports/maintainer-venu2-stock-imported.json",
-                          builds=[thai])
+                          replace=[thai])   # builds=[…] only takes what install would write
 rendering.counts(), rendering.trace[5], rendering.save("venu2.png")
 
 with Watch("../target/debug/georgian-for-garmin") as watch:   # a `--features dev` build
@@ -64,14 +64,54 @@ with Watch("../target/debug/georgian-for-garmin") as watch:   # a `--features de
     watch.remove_staged(staged["id"])
 ```
 
+Georgian's bytes depend on the libraries that draw it: Pillow from PyPI lacks raqm, measures a
+glyph's advance with its basic layout engine instead, and with the same FreeType (2.14.3) gives
+22 of the 66 glyphs of the Korean 27 px build another width. Each build records its
+`rasterizer` and whether it is the pinned one (`fonts/registry.json`,
+`georgian_font.rasterizer`, the `nix develop` environment); elsewhere `add_georgian` warns and
+`Watch.stage` refuses the build unless `allow_unpinned_env=True`. `builder/pyproject.toml`
+lists the dependencies for use outside nix.
+
+`codec.round_trips` re-compresses every glyph of a "Compressed" font in pure Python: 10 to 30
+seconds for the large ones; plain fonts take milliseconds.
+
+### Using the toolkit from omp's eval
+
+omp's eval kernel runs `<cwd>/.venv/bin/python` when the session's directory has a `.venv`. From
+the checkout (or a worktree, each gets its own):
+
+```sh
+nix run .#omp-venv
+```
+
+It writes `.venv/` (ignored by Git; it refuses to replace a `.venv` it didn't write): a
+`bin/python` that runs the builder's pinned Python, the one the fonts derivation uses, with
+`builder/` on the path and the pinned font inputs (`GFG_STOCK_DIR`, `GFG_CATALOG_DIR`, Noto Sans
+Georgian) set, plus a garbage-collector root for them. omp picks the interpreter when a session
+first runs Python in that directory and keeps it, so run the command before that, or start a new
+session after. A session whose directory is elsewhere can point omp's `python.interpreter`
+setting at that `.venv/bin/python`. Run it again after the flake's inputs change.
+
+```python
+from garmin_fonts.build import add_georgian
+from garmin_fonts.render import render_report, REPORTS
+from garmin_fonts.watch import Watch
+korean = add_georgian("006-D8945-22")               # pinned stock, sized like Korean
+print(korean)                                       # rasterizer_pinned=True in this .venv
+rendering = render_report(REPORTS / "maintainer-venu2-stock-imported.json", replace=[korean])
+print(rendering, rendering.image)                   # the counts, then the picture inline
+with Watch("target/debug/georgian-for-garmin") as watch:   # a `--features dev` build
+    print(watch.hash("006-D8945-22.fnt"), watch.stage(korean, dry_run=True)["status"])
+```
+
 | Module | What it does |
 |---|---|
-| `codec` | Garmin's 2-bit bitmap `.fnt`, plain and "Compressed" (per-glyph RLE): `decode`, `encode`, byte for byte |
+| `codec` | Garmin's 2-bit bitmap `.fnt`, plain and "Compressed" (per-glyph RLE): `decode` (a `Decoded`: `header` with named fields such as `height` and `baseline`, `footer`, `cmap`, a short repr), `encode`, byte for byte |
 | `truetype` | Garmin's masked TrueType `.bin` |
-| `catalog` | `fetch_stock(part)`: pinned parts from `GFG_STOCK_DIR`/`GFG_CATALOG_DIR`, the cache (`~/.cache/georgian-garmin/catalog`) or their pinned URL, checked by SHA-256; other parts from Garmin's update catalog. `GFG_OFFLINE=1` (as in the flake check) never downloads |
+| `catalog` | `fetch_stock(part)`: pinned parts from `GFG_STOCK_DIR`/`GFG_CATALOG_DIR`, the cache (`~/.cache/georgian-garmin/catalog`) or their pinned URL, checked by SHA-256; other parts from Garmin's update catalog, their kind (bitmap or TrueType) read from the bytes. `GFG_OFFLINE=1` (as in the flake check) never downloads |
 | `hosts` | The registry's host families |
-| `build` | `add_georgian(font, size_like=…, markers=…)`, deterministic; `build` writes the asset folder |
-| `render` | `render(fonts, text, replace=[…], family=…)`: a PNG and a per-character trace from the fallback models |
+| `build` | `add_georgian(font, size_like=…, markers=…)`, deterministic in the pinned environment, with the weight from the registry or an unpinned part's catalog name; `build` writes the asset folder |
+| `render` | `render(fonts, text, replace=[…], family=…)`: a PNG and a per-character trace from the fallback models; `counts()` splits confirmed characters into drawn glyphs and boxes. `render_report(fixture, builds=…)` takes only what install would write there and lists the rest in `not_installed`; `replace=` renders any font |
 | `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods; errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
 
 The same as commands, each with `--json`, `--input <file|->` and examples in `--help`

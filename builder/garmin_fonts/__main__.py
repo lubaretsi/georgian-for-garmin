@@ -77,8 +77,11 @@ def run_fetch(args):
 def run_build(args):
     from .build import add_georgian, build
 
-    out = Path(args["out"])
+    out = Path(args["out"]) if "out" in args else None
     if not args.get("fonts"):
+        if out is None:
+            raise ValueError("pass --out for the asset directory, or fonts to build")
+
         def given(key, env):
             value = args.get(key) or os.environ.get(env)
             if not value:
@@ -96,14 +99,19 @@ def run_build(args):
                      noto=args.get("noto"), offline=args.get("offline"), registry=registry)
         for font in args["fonts"]
     ]
-    out.mkdir(parents=True, exist_ok=True)
     fonts = []
+    if out is not None:
+        out.mkdir(parents=True, exist_ok=True)
+        taken = [out / font.file_name for font in built if (out / font.file_name).exists()]
+        if taken:
+            raise FileExistsError(f"{taken[0]} exists")
     for font in built:
-        path = out / font.file_name
-        if path.exists():
-            raise FileExistsError(f"{path} exists")
-        path.write_bytes(font.data)
-        fonts.append(font.summary() | {"path": str(path)})
+        summary = font.summary()
+        if out is not None:
+            path = out / font.file_name
+            path.write_bytes(font.data)
+            summary["path"] = str(path)
+        fonts.append(summary)
     return {"fonts": fonts}
 
 
@@ -200,10 +208,12 @@ COMMANDS = {
         "hints": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True,
                   "openWorldHint": True},
         "input": {
-            "type": "object", "required": ["out"], "additionalProperties": False,
+            "type": "object", "additionalProperties": False,
             "properties": {
                 "fonts": STRINGS | {"description": "part numbers or font files"},
-                "out": {"type": "string", "description": "output directory"},
+                "out": {"type": "string",
+                        "description": "output directory (without it, fonts are only summarized; "
+                                       "the asset build needs it)"},
                 "size_like": {"type": "string",
                               "description": "host family id whose letters size Georgian "
                               "(default: the part's, from the registry)"},
@@ -266,7 +276,10 @@ COMMANDS = {
                 "text": {"type": "string"},
                 "family": {"type": ["string", "null"]},
                 "model": {"type": ["string", "null"]},
-                "counts": {"type": "object", "required": ["confirmed", "coverage_only", "unknown"]},
+                "counts": {"type": "object",
+                           "required": ["confirmed_drawn", "confirmed_box", "coverage_only",
+                                        "unknown"]},
+                "not_installed": {"type": "array"},
                 "trace": {"type": "array", "items": TRACE},
                 "png": {"type": "string"},
             },
@@ -442,7 +455,9 @@ def _human(name, args, result):
         return "\n".join(f"{f['part']} {f['version']} "
                          f"{'compressed' if f['compressed'] else 'plain'} "
                          f"{'ok' if f['roundtrip'] else 'DIFFERS'}" for f in result["fonts"])
-    return "\n".join(f.get("path") or f"{f['part']} {f['sha256']}" for f in result["fonts"])
+    return "\n".join((f.get("path") or f"{f['part']} {f['sha256']}")
+                     + ("" if f.get("rasterizer_pinned", True) else " (unpinned rasterizer)")
+                     for f in result["fonts"])
 
 
 def fail(as_json, status, code, message):

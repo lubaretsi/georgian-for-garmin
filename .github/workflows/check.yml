@@ -86,6 +86,16 @@ jobs:
             GEORGIAN_FOR_GARMIN_CLI="$PWD/../target/debug/georgian-for-garmin" \
             pytest -q -rs tests/test_rpc_contract.py tests/test_watch.py'
 
+      # The omp eval route: `nix run .#omp-venv` writes .venv, whose python imports the toolkit
+      # and draws Georgian in the pinned environment, from another directory too.
+      - name: omp-venv
+        run: |
+          nix run .#omp-venv
+          (cd /tmp && "$GITHUB_WORKSPACE/.venv/bin/python" -c 'import warnings
+          warnings.simplefilter("error")
+          from garmin_fonts.build import add_georgian
+          assert add_georgian("006-D8947-22", offline=True).rasterizer_pinned')
+
       # The Windows backend is cfg(windows): type-check it for both Windows targets from Linux.
       # Clippy doesn't link, so no Windows SDK is needed.
       - name: cargo clippy (Windows targets)

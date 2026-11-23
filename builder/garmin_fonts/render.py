@@ -22,6 +22,7 @@ bytes are given counts as Garmin's only when they are the registry's pinned file
 import hashlib
 import io
 import json
+import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from functools import cache
@@ -41,6 +42,9 @@ REPORTS = font_registry.REGISTRY.parents[1] / "crates" / "core" / "tests" / "rep
 # The app's test notification.
 TEST_TEXT = "Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test"
 STATES = ("confirmed", "coverage_only", "unknown")
+# What Rendering.counts() reports: a confirmed character is either drawn from a font's glyph or
+# a confirmed box (the watch's missing-glyph box).
+COUNTS = ("confirmed_drawn", "confirmed_box", "coverage_only", "unknown")
 # Pixel size TrueType fonts are drawn at; no TrueType watch has a model to say otherwise.
 TRUETYPE_PX = 24
 SCALE = 2
@@ -88,6 +92,20 @@ def find_model(family, software=None, models=None):
             if software is None or software in model["software"]:
                 return model
     return None
+
+
+def _no_model_reason(family, software, models=None):
+    """Why `find_model` found nothing for `family` and `software`."""
+    if not family:
+        return "no family given"
+    models = _default_models() if models is None else models
+    others = [m for m in models["models"] if family == m["id"] or family in m["model_parts"]]
+    if others:
+        versions = ", ".join(v for m in others for v in m["software"])
+        names = ", ".join(m["id"] for m in others)
+        return (f"the fallback model {names} for {family} covers software {versions}, "
+                f"not {software}")
+    return f"no fallback model for {family}"
 
 
 @dataclass
@@ -186,11 +204,26 @@ class Rendering:
     model: str | None
     trace: list
     image: object = field(repr=False)
+    # Builds render_report was given for parts the watch declares that install wouldn't write
+    # there: [{"part", "reason"}].
+    not_installed: list = field(default_factory=list)
 
     def counts(self):
-        """{state: characters} for every state."""
-        counts = Counter(entry["state"] for entry in self.trace)
-        return {state: counts.get(state, 0) for state in STATES}
+        """{count: characters} for each of COUNTS: confirmed characters split into those drawn
+        from a font (`confirmed_drawn`) and confirmed boxes (`confirmed_box`)."""
+        counts = Counter(
+            ("confirmed_box" if entry["font"] == "missing" else "confirmed_drawn")
+            if entry["state"] == "confirmed" else entry["state"]
+            for entry in self.trace
+        )
+        return {key: counts.get(key, 0) for key in COUNTS}
+
+    def __repr__(self):
+        counts = ", ".join(f"{key}={n}" for key, n in self.counts().items())
+        extra = f", not_installed={[s['part'] for s in self.not_installed]}" \
+            if self.not_installed else ""
+        return (f"Rendering(text={self.text!r}, model={self.model!r}, {counts}, "
+                f"image={self.image.width}x{self.image.height}{extra})")
 
     def png(self):
         buffer = io.BytesIO()
@@ -201,17 +234,19 @@ class Rendering:
         Path(path).write_bytes(self.png())
 
     def summary(self):
-        """The JSON view: text, family, model, counts and trace."""
+        """The JSON view: text, family, model, counts, builds not installed, and trace."""
         return {"text": self.text, "family": self.family, "model": self.model,
-                "counts": self.counts(), "trace": self.trace}
+                "counts": self.counts(), "not_installed": self.not_installed,
+                "trace": self.trace}
 
 
 def _in_ranges(cp, ranges):
     return any(int(lo[2:], 16) <= cp <= int(hi[2:], 16) for lo, hi in ranges)
 
 
-def _trace(char, fonts, model, family):
-    """The trace entry for `char` over the declared `fonts` (in declared order) under `model`."""
+def _trace(char, fonts, model, no_model):
+    """The trace entry for `char` over the declared `fonts` (in declared order) under `model`;
+    `no_model` is why there is none."""
     cp = ord(char)
     entry = {"char": char, "code_point": f"U+{cp:04X}"}
     having = [f.part for f in fonts if f.maps(cp)]
@@ -219,8 +254,7 @@ def _trace(char, fonts, model, family):
     if model is None:
         return entry | {
             "state": "unknown", "font": having[0] if having else None, "evidence": [],
-            "reason": f"no fallback model for {family}" if family else "no family given",
-            "candidates": having, "unknown_fonts": unknown,
+            "reason": no_model, "candidates": having, "unknown_fonts": unknown,
         }
     if not _in_ranges(cp, model["system_lacks"]["ranges"]):
         return entry | {
@@ -327,7 +361,8 @@ def render(fonts, text=TEST_TEXT, replace=(), family=None, *, software=None, lab
         replaced[part] = data
     loaded = [_load(entry, replaced, offline, registry) for entry in declared]
     model = find_model(family, software, models) if family else None
-    trace = [_trace(char, loaded, model, family) for char in text]
+    no_model = None if model else _no_model_reason(family, software, models)
+    trace = [_trace(char, loaded, model, no_model) for char in text]
     image = _image(text, trace, {f.part: f for f in loaded}, label or _label(family, model, software))
     return Rendering(text, family, model["id"] if model else None, trace, image)
 
@@ -404,10 +439,12 @@ def _image(text, trace, fonts, label):
     return image
 
 
-def installed_builds(declared, builds, registry=None):
-    """The fonts of `builds` (Built or bytes, ours) that install puts on a watch declaring
-    `declared` parts: the core's rule, bitmap packs when the watch declares any bitmap part of
-    them, else TrueType packs, only packs with `install` true."""
+def install_plan(declared, builds, registry=None):
+    """(installed, not_installed) for `builds` (Built, bytes or paths, ours) on a watch declaring
+    `declared` parts. `installed` are the fonts install puts there (the core's rule: bitmap packs
+    when the watch declares any bitmap part of them, else TrueType packs, only packs with
+    `install` true); `not_installed` lists [{"part", "reason"}] for the other builds whose part
+    the watch declares. Builds for parts it doesn't declare are in neither."""
     registry = font_registry.default() if registry is None else registry
     parts = {e["part"] for e in _entries(declared)}
     installable = {
@@ -416,13 +453,25 @@ def installed_builds(declared, builds, registry=None):
     }
     listed = {p: installable[p] for p in parts if p in installable}
     kind = "bitmap" if "bitmap" in listed.values() else "truetype"
-    out = []
+    installed, skipped = [], []
     for build in builds:
         data = build.data if isinstance(build, Built) else font_bytes(build)
         part = identify(data)[1]
         if listed.get(part) == kind:
-            out.append(data)
-    return out
+            installed.append(data)
+        elif part in listed:
+            skipped.append({"part": part, "reason": f"install writes this watch's {kind} parts, "
+                                                    f"and {part} is {listed[part]}"})
+        elif part in parts:
+            skipped.append({"part": part,
+                            "reason": "not in a pack this build installs (registry packs, install true)"})
+    return installed, skipped
+
+
+def installed_builds(declared, builds, registry=None):
+    """The fonts of `builds` that install puts on a watch declaring `declared` parts
+    (`install_plan`)."""
+    return install_plan(declared, builds, registry)[0]
 
 
 def load_report(report):
@@ -430,16 +479,30 @@ def load_report(report):
     return report if isinstance(report, dict) else json.loads(Path(report).read_text())
 
 
-def render_report(report, text=TEST_TEXT, builds=(), *, offline=None, registry=None,
-                  models=None):
-    """`render` over a report fixture's declared fonts with its model part and software, the
-    installed ones of `builds` replacing Garmin's (`installed_builds`); labelled with the
-    fixture's watch and whether builds were installed."""
+def render_report(report, text=TEST_TEXT, builds=(), *, replace=(), offline=None,
+                  registry=None, models=None):
+    """`render` over a report fixture's declared fonts with its model part and software.
+
+    `builds` are what install would put on that watch (`install_plan`): the ones install would
+    write replace Garmin's. A build for a part the watch declares that install wouldn't write
+    (a font family outside the installed packs, such as a Thai or Korean host on the Venu 2) is
+    left out, listed in the result's `not_installed` and warned about; render those with
+    `replace`, which swaps in any font the watch declares, as `render` does. Labelled with the
+    fixture's watch and whether our fonts are in it."""
     data = load_report(report)
-    replace = installed_builds(data["declared"], builds, registry)
+    installed, skipped = install_plan(data["declared"], builds, registry)
+    if skipped:
+        warnings.warn(
+            "install wouldn't put these builds on this watch, so they're left out: "
+            + "; ".join(f"{s['part']} ({s['reason']})" for s in skipped)
+            + ". Pass them as replace=[...] to render them anyway.",
+            stacklevel=2,
+        )
     name = Path(report).stem if not isinstance(report, dict) else data.get("model", "report")
     label = (f"{name}: {data['model']} {data['software']} · "
-             f"{'with our fonts' if replace else 'Garmin fonts only'}")
-    return render(data["declared"], text, replace, data["model_part"],
-                  software=data["software"], label=label, offline=offline, registry=registry,
-                  models=models)
+             f"{'with our fonts' if installed or replace else 'Garmin fonts only'}")
+    rendering = render(data["declared"], text, [*installed, *replace], data["model_part"],
+                       software=data["software"], label=label, offline=offline,
+                       registry=registry, models=models)
+    rendering.not_installed = skipped
+    return rendering

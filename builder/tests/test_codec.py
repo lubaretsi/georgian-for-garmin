@@ -88,6 +88,19 @@ def test_footer_names_part_and_version(stock):
     assert identity(footer) == ("006-D9035-03", "2.10")
 
 
+def test_decode_names_its_fields_and_prints_briefly(stock, catalog_stock):
+    decoded = decode(stock["006-D9035-03"])
+    header, footer, cmap = decoded
+    assert (decoded.header, decoded.footer, decoded.cmap) == (header, footer, cmap)
+    assert (header.height, header.baseline, header.flags, header.magic) == \
+        (header[7], header[8], PLAIN, 0x12345678)
+    assert (decoded.part, decoded.version) == ("006-D9035-03", "2.10")
+    assert repr(decoded) == ("Decoded(part='006-D9035-03', version='2.10', plain, "
+                             f"height={header.height}, baseline={header.baseline}, "
+                             f"glyphs={len(cmap)})")
+    assert "compressed" in repr(decode(catalog_stock["006-D8945-67"]))
+
+
 @pytest.mark.parametrize("part", PART_IDS)
 def test_truncated_input_is_rejected(stock, part):
     data = stock[part]

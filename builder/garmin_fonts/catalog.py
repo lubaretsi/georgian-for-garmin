@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import registry as font_registry
+from .codec import decode
+from .truetype import version_of
 
 ENDPOINT = "https://omt.garmin.com/api/device-software/v1/updates"
 # The catalog request: a made-up device asking for one ExtData file (the form recorded in the
@@ -145,17 +147,51 @@ def _download(url):
 def fetch_stock(part, *, offline=None, registry=None, kind=None):
     """The Stock font for Garmin part `part` (e.g. "006-D8448-70").
 
-    `registry` defaults to the repository's; `kind` ("bitmap" for `.fnt`, "truetype" for
-    `.bin`) only matters for parts it doesn't pin and defaults to bitmap. See the module for
-    where the bytes come from. Raises CatalogError.
+    `registry` defaults to the repository's. A Stock's `kind` ("bitmap" for `.fnt`, "truetype"
+    for `.bin`) is the registry's for a pinned part and read from the bytes for any other; a
+    `kind` passed here must agree with it, else CatalogError (`invalid_input`). See the module
+    for where the bytes come from. Raises CatalogError.
     """
     if not PART_NUMBER.match(part):
         raise CatalogError(f"{part!r} is not a Garmin part number like 006-D8448-70", "invalid_input")
+    if kind is not None and kind not in font_registry.SUFFIX:
+        raise CatalogError(f"kind is bitmap or truetype, not {kind!r}", "invalid_input")
     registry = font_registry.default() if registry is None else registry
     pin = font_registry.parts(registry).get(part)
     if pin is not None:
+        if kind is not None and kind != pin.kind:
+            raise CatalogError(f"{part} is a {pin.kind} part, not {kind}", "invalid_input")
         return _fetch_pinned(pin, is_offline(offline))
-    return _fetch_unpinned(part, kind or "bitmap", is_offline(offline))
+    stock = _fetch_unpinned(part, is_offline(offline))
+    if kind is not None and kind != stock.kind:
+        raise CatalogError(f"{part} is a {stock.kind} font, not {kind}", "invalid_input")
+    return stock
+
+
+def kind_of(data):
+    """"bitmap" or "truetype": which kind of Garmin font `data` is. Raises CatalogError when it
+    is neither."""
+    try:
+        decode(data)
+        return "bitmap"
+    except ValueError as bitmap_error:
+        try:
+            version_of(data)
+            return "truetype"
+        except ValueError:
+            raise CatalogError(f"not a Garmin font: {bitmap_error}") from None
+
+
+# Weight words in Garmin's catalog names, as Noto Sans Georgian's wght values.
+WEIGHTS = {"thin": 100, "extralight": 200, "light": 300, "regular": 400, "medium": 500,
+           "semibold": 600, "bold": 700, "extrabold": 800, "black": 900}
+
+
+def weight_of(name):
+    """The weight a catalog product name gives ("APAC Font, Nanum Gothic Bold 27px, KOR": 700),
+    or None when it names none or more than one."""
+    found = {WEIGHTS[word] for word in re.findall(r"[a-z]+", name.lower()) if word in WEIGHTS}
+    return found.pop() if len(found) == 1 else None
 
 
 def _fetch_pinned(pin, offline):
@@ -193,12 +229,13 @@ def _matches(data, deliverable):
             and hashlib.md5(data).hexdigest() == deliverable["md5"])
 
 
-def _fetch_unpinned(part, kind, offline):
-    suffix = font_registry.SUFFIX[kind]
+def _fetch_unpinned(part, offline):
     folder = cache_dir() / part
+    names = [f"{part}{suffix}" for suffix in font_registry.SUFFIX.values()]
     if offline:
         # The newest release fetched before, checked against the catalog entry saved beside it.
-        found = sorted(folder.glob(f"*/{part}{suffix}"), key=lambda p: _version_key(p.parent.name))
+        found = sorted((p for name in names for p in folder.glob(f"*/{name}")),
+                       key=lambda p: _version_key(p.parent.name))
         if not found:
             raise CatalogError(
                 f"{part} is not pinned in the registry and was never fetched; fetch it online first"
@@ -215,20 +252,26 @@ def _fetch_unpinned(part, kind, offline):
         if version != path.parent.name or not _matches(data, deliverable):
             raise CatalogError(f"{path} doesn't match the size and MD5 Garmin's catalog gave for "
                                f"{part} {version}; fetch it online again")
-        return Stock(part, version, kind, entry["productName"], _sha256(data), False, "cache",
-                     path, data)
-    entry = catalog_entry(part, kind)
+        return Stock(part, version, kind_of(data), entry["productName"], _sha256(data), False,
+                     "cache", path, data)
+    entry = catalog_entry(part)
     deliverable = entry["deliverable"]
-    path = folder / entry["version"] / f"{part}{suffix}"
-    data = path.read_bytes() if path.is_file() else b""
-    source = "cache"
-    if not _matches(data, deliverable):
+    folder = folder / entry["version"]
+    cached = [folder / name for name in names if (folder / name).is_file()]
+    data, source = next(((p.read_bytes(), "cache") for p in cached
+                         if _matches(p.read_bytes(), deliverable)), (None, "catalog"))
+    if data is None:
         data = _download(deliverable["secureDownloadUrl"])
         if not _matches(data, deliverable):
             raise CatalogError(f"{part}: the download doesn't match the catalog's size and MD5")
+    kind = kind_of(data)
+    path = folder / f"{part}{font_registry.SUFFIX[kind]}"
+    if source == "catalog" or not path.is_file():
         _store(path, data)
-        source = "catalog"
-    _store(path.parent / "catalog.json", json.dumps(entry, indent=2).encode())
+    for stale in cached:
+        if stale != path:
+            stale.unlink()
+    _store(folder / "catalog.json", json.dumps(entry, indent=2).encode())
     return Stock(part, entry["version"], kind, entry["productName"], _sha256(data), False,
                  source, path, data)
 

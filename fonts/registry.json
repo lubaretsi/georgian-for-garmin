@@ -8,7 +8,8 @@
       "name": "SIL Open Font License 1.1 (google/fonts at the commit that added Noto Sans Georgian 2.005)",
       "url": "https://raw.githubusercontent.com/google/fonts/07eb586093156484de83c97a3a565f8b1e757af2/ofl/notosansgeorgian/OFL.txt",
       "sha256": "8c02263c5d73d40544f9ed91e30c4e947407057a3cc430d7b786189aeceff6df"
-    }
+    },
+    "rasterizer": {"pillow": "12.3.0", "freetype2": "2.14.3", "raqm": "0.10.5", "fonttools": "4.63.0"}
   },
   "hosts": [
     {

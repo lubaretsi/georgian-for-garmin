@@ -1,6 +1,7 @@
-"""The Watch client over a stand-in for `georgian-for-garmin rpc` (fake_rpc.py); the real dev rpc
-is exercised by hand (docs/development.md)."""
+"""The Watch client over a stand-in for `georgian-for-garmin rpc` (fake_rpc.py), and, with
+GEORGIAN_FOR_GARMIN_CLI set to a dev build, over the real one without a watch."""
 
+import dataclasses
 import json
 import os
 import signal
@@ -122,6 +123,29 @@ def test_a_missing_cli_says_what_to_pass(monkeypatch):
     monkeypatch.setenv("PATH", "")
     with pytest.raises(WatchError, match="not on PATH"):
         Watch()
+    with pytest.raises(WatchError, match="can't run /no/such/georgian-for-garmin") as error:
+        Watch("/no/such/georgian-for-garmin")
+    assert error.value.code == "invalid_input"
+
+
+def test_output_that_isnt_json_rpc_is_an_error(watch):
+    with pytest.raises(WatchError, match="isn't JSON-RPC: b'this is not JSON") as error:
+        watch.call("garble")
+    assert error.value.code == "internal"
+
+
+def test_stage_refuses_a_build_from_an_unpinned_rasterizer(watch, catalog_stock):
+    from garmin_fonts.build import Built
+
+    data = catalog_stock["006-D8947-22"]
+    built = Built("006-D8947-22", "2.00", "bitmap", "thai", 500, None, {}, {}, "", True,
+                  {"pillow": "12.3.0", "raqm": None}, False, data)
+    with pytest.raises(WatchError, match="not the pinned rasterizer") as error:
+        watch.stage(built, dry_run=True)
+    assert error.value.code == "invalid_input"
+    assert watch.stage(built, dry_run=True, allow_unpinned_env=True)["status"] == "dry_run"
+    pinned = dataclasses.replace(built, rasterizer_pinned=True)
+    assert watch.stage(pinned, dry_run=True)["status"] == "dry_run"
 
 
 def test_close_ends_the_process(tmp_path):

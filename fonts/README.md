@@ -433,3 +433,9 @@ stays `unknown` or `coverage_only`.
 `georgian_font` holds the TrueType font the glyphs are rendered from and its license, each with
 a URL and SHA-256. Changing it changes every Georgian build, including the parts tested on a
 watch, and may change the sizes in the table above; the builder's tests pin those bytes.
+
+Its `rasterizer` names the library versions that draw the glyphs (Pillow, FreeType, raqm,
+fontTools), as in `nix develop`: other versions, or Pillow without raqm, give other bytes for the
+same inputs. A builder test checks that the environment matches it, so a nixpkgs update that
+changes them fails until the new builds are tested on a watch and the pins updated together;
+builds made elsewhere are marked `rasterizer_pinned: false`.

@@ -128,6 +128,47 @@ def test_unknown_and_malformed_parts(isolated):
         fetch_stock("006-D8947-98", offline=True)
 
 
+def test_kind_comes_from_the_bytes_and_must_agree(isolated, catalog_stock, truetype_stock):
+    # Garmin's catalog answers a request for a .fnt with a TrueType .bin too.
+    data = truetype_stock["006-D1053-98"]
+    url, answer = catalog_answer("006-D0952-99", data)
+    isolated.responses |= {catalog.ENDPOINT: answer, url: data}
+    stock = fetch_stock("006-D0952-99")
+    assert stock.kind == "truetype" and stock.path.name == "006-D0952-99.bin"
+    assert fetch_stock("006-D0952-99", offline=True).kind == "truetype"
+    with pytest.raises(CatalogError, match="is a truetype font, not bitmap") as error:
+        fetch_stock("006-D0952-99", kind="bitmap")
+    assert error.value.code == "invalid_input"
+    with pytest.raises(CatalogError, match="006-D8947-22 is a bitmap part, not truetype"):
+        fetch_stock("006-D8947-22", kind="truetype")
+    with pytest.raises(CatalogError, match="kind is bitmap or truetype"):
+        fetch_stock("006-D8947-22", kind="otf")
+
+
+def test_a_truetype_file_cached_as_fnt_is_moved(isolated, truetype_stock):
+    data = truetype_stock["006-D1053-98"]
+    url, answer = catalog_answer("006-D0952-99", data)
+    isolated.responses |= {catalog.ENDPOINT: answer, url: data}
+    old = catalog.cache_dir() / "006-D0952-99" / "2.00" / "006-D0952-99.fnt"
+    old.parent.mkdir(parents=True)
+    old.write_bytes(data)
+    stock = fetch_stock("006-D0952-99")
+    assert stock.source == "cache" and stock.path.suffix == ".bin" and not old.exists()
+    assert url not in isolated.requests
+
+
+@pytest.mark.parametrize("name, weight", [
+    ("APAC Font, Nanum Gothic Bold 27px, KOR", 700),
+    ("APAC Font, Kosugi Medium 21px, JPN", 500),
+    ("Armenian Font, NotoSans Regular 27px, ARM", 400),
+    ("DB, APAC Font, Nanum Gothic ExtraBold Size 3", 800),
+    ("Extended Emoji Font, Twemoji Extended 30px ARGB4444", None),
+    ("Font, Medium Bold mix", None),
+])
+def test_weight_from_a_catalog_name(name, weight):
+    assert catalog.weight_of(name) == weight
+
+
 def test_a_corrupt_unpinned_cache_entry_is_refused_offline(isolated, catalog_stock):
     data = catalog_stock["006-D8947-20"]
     url, answer = catalog_answer("006-D8947-99", data)

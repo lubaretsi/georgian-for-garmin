@@ -27,6 +27,21 @@ OVERSHOOT = 10
 MIN_DESCENDER = 50
 
 
+def rasterizer():
+    """The libraries that draw Georgian here: {"pillow", "freetype2", "raqm", "fonttools"}
+    versions, raqm None when Pillow lacks it. The same inputs give other bytes in another
+    environment: Pillow without raqm (PyPI's wheels) measures a glyph's advance with its basic
+    layout engine, which gives 22 of the 66 Georgian glyphs of the Korean 27 px build another
+    width, with the same FreeType. The registry's `georgian_font.rasterizer` is the environment
+    the pinned builds come from."""
+    import fontTools
+    import PIL
+    from PIL import features
+
+    return {"pillow": PIL.__version__, "freetype2": features.version("freetype2"),
+            "raqm": features.version("raqm"), "fonttools": fontTools.version}
+
+
 @dataclass(frozen=True)
 class Sizing:
     """How a part's Georgian is drawn: font size in pixels, and descender length in percent."""

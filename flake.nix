@@ -80,6 +80,47 @@
             --noto "$GFG_NOTO_SANS_GEORGIAN" --license "$GFG_NOTO_OFL" --out "$out" \
             ${lib.optionalString testMarks "--test-marks"}
         '';
+
+      # `nix run .#omp-venv`: writes <checkout>/.venv, whose bin/python runs the pinned builder
+      # Python (the fonts derivation's) with <checkout>/builder on sys.path and the pinned font
+      # inputs set, so omp's eval kernel (which takes <cwd>/.venv) imports garmin_fonts and draws
+      # Georgian exactly as the pinned builds. Each checkout or worktree gets its own.
+      ompVenv = pkgs:
+        let
+          inputs = catalogInputs pkgs;
+          exports = lib.concatStrings (lib.mapAttrsToList
+            (name: value: "export ${name}=\"\\\${${name}:-${value}}\"\n")
+            inputs);
+        in
+        pkgs.writeShellScript "omp-venv" ''
+          set -eu
+          root=$(${pkgs.git}/bin/git rev-parse --show-toplevel 2>/dev/null || pwd)
+          if [ ! -d "$root/builder/garmin_fonts" ]; then
+            echo "omp-venv: run it in a georgian-for-garmin checkout ($root has no builder/)" >&2
+            exit 2
+          fi
+          venv="$root/.venv"
+          if [ -e "$venv" ] && [ ! -e "$venv/.omp-venv" ]; then
+            echo "omp-venv: $venv exists and wasn't written by this command; move it away first" >&2
+            exit 2
+          fi
+          mkdir -p "$venv/bin"
+          cat > "$venv/bin/python" <<EOF
+          #!/bin/sh
+          # Written by \`nix run .#omp-venv\`: the pinned builder Python with $root/builder.
+          export PYTHONPATH="$root/builder\''${PYTHONPATH:+:\$PYTHONPATH}"
+          ${exports}exec ${python pkgs}/bin/python3 "\$@"
+          EOF
+          chmod +x "$venv/bin/python"
+          ln -sf python "$venv/bin/python3"
+          printf 'home = %s\ninclude-system-site-packages = false\nversion = %s\n' \
+            "${python pkgs}/bin" "${(python pkgs).python.version}" > "$venv/pyvenv.cfg"
+          echo "written by nix run .#omp-venv" > "$venv/.omp-venv"
+          # A garbage-collector root for this script, which keeps the Python and font inputs
+          # it names alive while the .venv exists.
+          nix-store --add-root "$venv/.gc-root" --realise "$0" > /dev/null
+          echo "$venv/bin/python"
+        '';
     in
     {
       packages = forAllSystems (pkgs: {
@@ -87,6 +128,14 @@
         fonts = buildFonts pkgs preRelease;
         fonts-stable = buildFonts pkgs false;
         fonts-marked = buildFonts pkgs true;
+      });
+
+      apps = forAllSystems (pkgs: {
+        omp-venv = {
+          type = "app";
+          program = toString (ompVenv pkgs);
+          meta.description = "Write .venv for omp's eval: the pinned builder Python with garmin_fonts";
+        };
       });
 
       checks = forAllSystems (pkgs: {

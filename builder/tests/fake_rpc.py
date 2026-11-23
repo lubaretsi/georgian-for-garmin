@@ -102,6 +102,9 @@ def main():
                         cancel["params"]["requestId"] == request_id:
                     error(request_id, -32800, "Cancelled.", {"code": "cancelled"})
                     break
+        elif method == "garble":
+            sys.stdout.write("this is not JSON\n")
+            sys.stdout.flush()
         elif method == "exit":
             sys.exit(3)
         else:
