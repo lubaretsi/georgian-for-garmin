@@ -10,13 +10,12 @@
 //! with `unsupported_device`; install may ask to restore first where it can't read a file the
 //! watch declares below 1.00, as it did after this program's trailer-less builds.
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use georgian_for_garmin_core::fonts::{Content, Earlier, Font, FontSet, Kind, Pack, sha256_hex};
+use georgian_for_garmin_core::fonts::{Content, Earlier, Font, FontSet, Kind, sha256_hex};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::names::{self, Role};
 use georgian_for_garmin_core::ops;
@@ -1009,30 +1008,31 @@ fn the_forerunner_255_on_29_52_is_tested() {
     assert_eq!(out["support"]["report_wanted"], true);
 }
 
-/// The build's fonts with a stand-in bitmap pack for the Lily 2 Active's two Korean parts
-/// (`006-D8945-67/-68`, made-up bytes), so the operations have something to write there.
-fn with_lily_korean_pack() -> FontSet {
-    let mut fonts = FontSet::bundled();
-    let font = |part: &str, size: u16, seed: u8| Font {
-        part: part.into(),
-        kind: Kind::Bitmap,
-        size_px: Some(size),
-        version: "2.00".into(),
-        stock: Cow::Owned(filler(3000 + usize::from(seed), seed)),
-        georgian: Cow::Owned(filler(4000 + usize::from(seed), seed.wrapping_add(1))),
-        mark: None,
-        earlier: vec![],
-    };
-    fonts.packs.push(Pack {
-        id: "korean-stand-in".into(),
-        name: "Korean stand-in".into(),
-        kind: Kind::Bitmap,
-        weight: 500,
-        install: true,
-        fonts: vec![font("006-D8945-67", 17, 67), font("006-D8945-68", 22, 68)],
-        tested: vec![],
-    });
-    fonts
+/// `fixture` with the hidden imports of `parts` read as Garmin's originals. The 0.3.x reports
+/// list a hidden import's size but not its hash, so a test that installs on such a watch has to
+/// say what the import holds; this says Garmin's original, and checks first that the size is
+/// the pinned original's, as it is for the Lily 2 Active's `-67/-68` and #33's `-07`.
+fn imports_as_garmins(mut fixture: Value, fonts: &FontSet, parts: &[&str]) -> Value {
+    for file in fixture["hidden"]["files"]
+        .as_array_mut()
+        .into_iter()
+        .flatten()
+    {
+        let Some(font) = names::resolve(file["name"].as_str().unwrap())
+            .filter(|f| parts.contains(&f.part.as_str()))
+            .and_then(|f| font_for(fonts, &f.part))
+        else {
+            continue;
+        };
+        assert_eq!(
+            file["bytes"].as_u64(),
+            Some(font.stock.len() as u64),
+            "{}: the import isn't the pinned original's size",
+            file["name"]
+        );
+        file["file"] = json!("stock");
+    }
+    fixture
 }
 
 /// The names of the files the operations wrote since `from`, with their bytes.
@@ -1046,22 +1046,19 @@ fn written_since(watch: &Watch, from: usize) -> Vec<(String, Vec<u8>)> {
 }
 
 /// The Lily 2 Active (`email-lily2active.json`) declares its fonts under short names
-/// (`D894567.tmp`) and lists its imports so (`D894567.fnt`). With a pack for its Korean parts
-/// and Garmin's originals imported, install writes only those parts, under the declared short
-/// names; the restart imports them as `D894567.fnt` and inspect reads Georgian installed;
-/// restore writes Garmin's originals under the same names, and after the next restart Georgian
-/// is gone. No file under the long name is ever written.
+/// (`D894567.tmp`) and lists its imports so (`D894567.fnt`). With Garmin's originals imported,
+/// install writes only its Korean parts' builds, under the declared short names; the restart
+/// imports them as `D894567.fnt` and inspect reads Georgian installed; restore writes Garmin's
+/// originals under the same names, and after the next restart Georgian is gone. No file under
+/// the long name is ever written.
 #[test]
 fn the_lily_2_active_round_trips_its_short_names() {
-    let mut lily = fixture("email-lily2active.json");
-    for file in lily["hidden"]["files"].as_array_mut().unwrap() {
-        if matches!(file["name"].as_str(), Some("D894567.fnt" | "D894568.fnt")) {
-            file["file"] = json!("stock");
-        }
-    }
-    let (watch, fonts) = Watch::from_fixture_with(&lily, with_lily_korean_pack());
+    let bundled = FontSet::bundled();
+    let parts = ["006-D8945-67", "006-D8945-68"];
+    let lily = imports_as_garmins(fixture("email-lily2active.json"), &bundled, &parts);
+    let (watch, fonts) = Watch::from_fixture(&lily);
     let font = |part: &str| font_for(&fonts, part).unwrap().clone();
-    let (k67, k68) = (font("006-D8945-67"), font("006-D8945-68"));
+    let (k67, k68) = (font(parts[0]), font(parts[1]));
 
     let out = watch.call("inspect", &fonts).unwrap();
     assert_eq!(out["state"], "not_installed");
@@ -1120,12 +1117,11 @@ fn the_lily_2_active_round_trips_its_short_names() {
 }
 
 /// The Lily 2 Active as reported: its imports' contents unknown (the report lists their sizes
-/// only). With a pack for its Korean parts, install and restore both refuse and write nothing,
-/// since the next restart would import over a font neither Garmin's nor ours.
+/// only). Install and restore both refuse and write nothing, since the next restart would
+/// import over a font neither Garmin's nor ours.
 #[test]
 fn the_lily_2_active_never_writes_over_unknown_imports() {
-    let (watch, fonts) =
-        Watch::from_fixture_with(&fixture("email-lily2active.json"), with_lily_korean_pack());
+    let (watch, fonts) = Watch::from_fixture(&fixture("email-lily2active.json"));
     assert_eq!(watch.call("inspect", &fonts).unwrap()["state"], "other");
     for operation in ["install", "restore_stock"] {
         let err = watch.call(operation, &fonts).unwrap_err();
@@ -1138,4 +1134,196 @@ fn the_lily_2_active_never_writes_over_unknown_imports() {
     }
     assert!(watch.0.borrow().written.is_empty());
     assert!(watch.0.borrow().violations.is_empty());
+}
+
+/// The watches that get Georgian in Korean fonts, from their reports: install writes the Korean
+/// builds of exactly these parts, under the names the watch declares, and nothing else (no
+/// Swiss 721 Hebrew `006-D0952`, no CJK TrueType `006-D9971`); restore writes the pinned
+/// originals. Where a report lists hidden imports (#33, the Lily 2 Active), those of the target
+/// parts are read as Garmin's originals ([`imports_as_garmins`]); the 0.2.2 reports (#8, #23,
+/// #12) list none, so their watches show no import.
+const KOREAN_ROUTE: [(&str, &[&str]); 5] = [
+    ("issue-8.json", &["006-D8945-07"]),
+    ("issue-33.json", &["006-D8945-07"]),
+    ("issue-23.json", &["006-D8945-07"]),
+    ("issue-12.json", &["006-D8945-22"]),
+    ("email-lily2active.json", &["006-D8945-67", "006-D8945-68"]),
+];
+
+#[test]
+fn korean_route_watches_install_only_their_korean_builds() {
+    let bundled = FontSet::bundled();
+    for (name, parts) in KOREAN_ROUTE {
+        let fixture = imports_as_garmins(fixture(name), &bundled, parts);
+        let (watch, fonts) = Watch::from_fixture(&fixture);
+        let declared_name = |part: &str| {
+            let s = watch.0.borrow();
+            s.declared
+                .iter()
+                .find(|d| d.1 == part)
+                .map(|d| d.0.clone())
+                .unwrap()
+        };
+
+        let out = watch.call("inspect", &fonts).unwrap();
+        assert_eq!(targets(&out, "target"), parts, "{name}");
+        assert_eq!(out["hosts"]["kind"], "bitmap", "{name}");
+        assert_eq!(out["support"]["status"], "expected", "{name}");
+        assert_eq!(out["support"]["prediction"], "bitmap_korean", "{name}");
+        assert_eq!(out["tested"]["status"], "untested", "{name}");
+        let packs: Vec<&str> = out["packs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["id"].as_str().unwrap())
+            .collect();
+        assert!(
+            packs.iter().all(|p| p.starts_with("korean-")),
+            "{name}: {packs:?}"
+        );
+
+        let installed = watch.call("install", &fonts).unwrap();
+        assert_eq!(installed["status"], "staged_verified", "{name}");
+        let expected: Vec<(String, Vec<u8>)> = parts
+            .iter()
+            .map(|p| {
+                let font = font_for(&fonts, p).unwrap();
+                (declared_name(p), font.georgian.to_vec())
+            })
+            .collect();
+        assert_eq!(written_since(&watch, 0), expected, "{name}");
+        for part in installed["packs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|p| p["parts"].as_array().unwrap())
+        {
+            let font = font_for(&fonts, part["part"].as_str().unwrap()).unwrap();
+            assert_eq!(part["sha256"], sha256_hex(&font.georgian), "{name}");
+        }
+        watch.restart(&fonts);
+        if watch.0.borrow().get_object_ids {
+            let again = watch.call("inspect", &fonts).unwrap();
+            assert_eq!(again["state"], "installed", "{name}");
+        }
+
+        let restore_parts = targets(&out, "restore");
+        let from = watch.0.borrow().written.len();
+        let restored = watch.call("restore_stock", &fonts).unwrap();
+        assert_eq!(restored["status"], "staged_verified", "{name}");
+        // Every file restore writes is the pinned original of a part it restores: the Korean
+        // ones, and the restore-only Swiss 721 Hebrew the Instinct 3 lists where the watch
+        // doesn't show a hidden import that already is Garmin's (#8 and #23 list none).
+        let written = written_since(&watch, from);
+        for (file, data) in &written {
+            let part = names::resolve(file).unwrap().part;
+            assert!(restore_parts.contains(&part.as_str()), "{name}: {file}");
+            assert_eq!(
+                *data,
+                *font_for(&fonts, &part).unwrap().stock,
+                "{name}: {file}"
+            );
+        }
+        for part in parts {
+            assert!(
+                written.iter().any(|(file, _)| *file == declared_name(part)),
+                "{name}: restore didn't put back {part}"
+            );
+        }
+        watch.restart(&fonts);
+        let s = watch.0.borrow();
+        assert!(s.violations.is_empty(), "{name}: {:?}", s.violations);
+    }
+}
+
+/// Tested watches that also declare Korean fonts keep Georgian in their Armenian fonts: install
+/// targets only bitmap Armenian parts, no Korean pack is listed, and they stay `tested`.
+#[test]
+fn tested_watches_keep_their_armenian_fonts() {
+    for name in [
+        "issue-11.json",
+        "issue-15.json",
+        "issue-35.json",
+        "issue-37.json",
+        "issue-46.json",
+        "issue-4.json",
+        "maintainer-venu2-georgian-imported.json",
+        "maintainer-venu2-stock-imported.json",
+    ] {
+        let (watch, fonts) = Watch::from_fixture(&fixture(name));
+        assert!(
+            watch
+                .0
+                .borrow()
+                .declared
+                .iter()
+                .any(|d| d.1.starts_with("006-D8945")),
+            "{name} declares no Korean font"
+        );
+        let out = watch.call("inspect", &fonts).unwrap();
+        let parts = targets(&out, "target");
+        assert!(
+            !parts.is_empty() && parts.iter().all(|p| p.starts_with("006-D9035")),
+            "{name}: {parts:?}"
+        );
+        assert!(
+            out["packs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|p| p["id"].as_str().unwrap().starts_with("armenian-")),
+            "{name}: {}",
+            out["packs"]
+        );
+        assert_eq!(out["support"]["status"], "tested", "{name}");
+        assert_eq!(out["tested"]["status"], "tested", "{name}");
+    }
+}
+
+/// The fenix 6 family lists only Swiss 721 Hebrew of this build's fonts, a family no watch
+/// confirmed: install writes nothing, restore can still put Garmin's originals back.
+#[test]
+fn the_fenix_6_stays_restore_only() {
+    for name in [
+        "issue-3.json",
+        "issue-6-comment-7080207810.json",
+        "issue-14.json",
+        "issue-20.json",
+        "issue-25.json",
+    ] {
+        let (watch, fonts) = Watch::from_fixture(&fixture(name));
+        let out = watch.call("inspect", &fonts).unwrap();
+        assert_eq!(out["supported"], false, "{name}");
+        assert_eq!(out["support"]["status"], "unsupported", "{name}");
+        assert!(targets(&out, "target").is_empty(), "{name}");
+        assert_eq!(
+            targets(&out, "restore"),
+            ["006-D0952-08", "006-D0952-07"],
+            "{name}"
+        );
+        let err = watch.call("install", &fonts).unwrap_err();
+        assert_eq!(err.code, ErrorCode::UnsupportedDevice, "{name}");
+        assert!(watch.0.borrow().written.is_empty(), "{name}");
+    }
+}
+
+/// A watch that lists the tested Noto TrueType fonts and a Korean bitmap font gets Georgian in
+/// the TrueType ones: bitmap Armenian first, then TrueType, then Korean. The Forerunner 165
+/// (#18) with the Korean 006-D8945-07 added to what it declares.
+#[test]
+fn truetype_comes_before_korean() {
+    let mut fr165 = fixture("issue-18.json");
+    fr165["declared"].as_array_mut().unwrap().push(json!({
+        "path": "Garmin/ExtData", "file": "006-D8945-07.tmp", "part": "006-D8945-07",
+        "version": "2.20"
+    }));
+    let (watch, fonts) = Watch::from_fixture(&fr165);
+    let out = watch.call("inspect", &fonts).unwrap();
+    assert_eq!(out["hosts"]["kind"], "truetype");
+    let parts = targets(&out, "target");
+    assert!(
+        !parts.is_empty() && !parts.contains(&"006-D8945-07"),
+        "{parts:?}"
+    );
+    assert_eq!(out["hosts"]["skipped_parts"], json!(["006-D8945-07"]));
 }

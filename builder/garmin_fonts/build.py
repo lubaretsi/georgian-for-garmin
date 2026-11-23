@@ -290,6 +290,8 @@ def build(registry, stock_dir, noto, license_file, out, test_marks=False):
                 "id": pack["id"],
                 "name": pack["name"],
                 "kind": pack["kind"],
+                # Its host family: the installer gives a watch Georgian in one family only.
+                "host": pack["host"],
                 "weight": pack["weight"],
                 # Whether the installer writes this pack's Georgian; false packs are
                 # restore-only. Every build, pre-release or stable, installs the same packs.

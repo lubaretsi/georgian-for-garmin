@@ -105,6 +105,8 @@ struct PackEntry {
     id: String,
     name: String,
     kind: String,
+    /// The registry's host family, e.g. "armenian"; the installer picks one per watch.
+    host: String,
     weight: u16,
     parts: Vec<String>,
     tested: Vec<TestedEntry>,
@@ -215,9 +217,9 @@ fn pack_table(dir: &Path, manifest: &Manifest, manifest_path: &Path) -> String {
         let mut sizes = BTreeSet::new();
         writeln!(
             code,
-            "    BundledPack {{ id: {:?}, name: {:?}, kind: Kind::{kind}, weight: {}, \
-             install: {}, fonts: &[",
-            pack.id, pack.name, pack.weight, pack.install
+            "    BundledPack {{ id: {:?}, name: {:?}, kind: Kind::{kind}, host: {:?}, \
+             weight: {}, install: {}, fonts: &[",
+            pack.id, pack.name, pack.host, pack.weight, pack.install
         )
         .unwrap();
         for part in &pack.parts {

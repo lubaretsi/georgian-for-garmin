@@ -93,6 +93,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a watch the support list only predicts to work, the app says under its status that no one
   has confirmed Georgian on that model yet and that Restore original font puts Garmin's fonts
   back, in Georgian and English, instead of the note for partly tested models.
+- Georgian in Garmin's Korean bitmap fonts, for watches that list no font this app installed
+  before: the Lily 2 Active gets it in `006-D8945-67/-68` (17 and 22 px, Compressed), the Venu
+  (1st gen) in `006-D8945-22` (27 px, the font the Venu 2 drew Georgian from in the lab), the
+  Instinct 3 AMOLED 50mm and 45mm in `006-D8945-07` (19 px). Three new packs, untested on any
+  watch; these models stay "not yet confirmed", and restoring the original fonts on them is
+  untested too. Each part is Garmin's file at the version the watch declares and Garmin's
+  catalog serves; Instinct 3 parts declared at a version the catalog doesn't serve are left out.
 
 ### Changed
 
@@ -108,6 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   having our font and not using it, but no report shows Georgian tried on it (#33 lists Garmin's
   own Swiss 721 Hebrew), and Swiss 721 Hebrew stays restore-only. The `cjk_bitmap_fonts` reason
   is gone with the Venu's entry. Install and restore on these models are untested.
+- A watch gets Georgian in one family of fonts: bitmap Armenian if it lists any, else the
+  TrueType fonts as before, else Korean. Watches already tested with Armenian fonts (fenix 7 Pro,
+  Forerunner 255, epix Pro, Venu 2, Venu 2 Plus) keep exactly their install, Korean fonts
+  untouched. Restore original font still puts back the restore-only Swiss 721 Hebrew fonts
+  wherever a watch lists them, whatever family install chooses.
 
 ### Fixed
 

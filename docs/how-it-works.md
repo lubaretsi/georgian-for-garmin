@@ -110,7 +110,9 @@ unsupported; the app shows why, links the issue and restores Garmin's originals.
 AMOLED used to be listed with them as not working, though no report shows Georgian tried on it
 (#33's hidden listing has Garmin's own Swiss 721 Hebrew); its reports (#8, #23, #33) also
 declare Garmin's Korean bitmap fonts, so it is now predicted to work through those
-(`bitmap_korean`, [Predicted models](../fonts/README.md#predicted-models)).
+(`bitmap_korean`, [Predicted models](../fonts/README.md#predicted-models)) and gets Georgian in
+its Korean 19 px font (`006-D8945-07`) only, as do the Venu 1st gen (27 px, `006-D8945-22`) and
+the Lily 2 Active (`006-D8945-67/-68`), all untested ([Korean packs](../fonts/README.md#korean-packs)).
 [The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
 These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and

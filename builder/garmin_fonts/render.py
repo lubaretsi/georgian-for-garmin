@@ -441,27 +441,31 @@ def _image(text, trace, fonts, label):
 
 def install_plan(declared, builds, registry=None):
     """(installed, not_installed) for `builds` (Built, bytes or paths, ours) on a watch declaring
-    `declared` parts. `installed` are the fonts install puts there (the core's rule: bitmap packs
-    when the watch declares any bitmap part of them, else TrueType packs, only packs with
-    `install` true); `not_installed` lists [{"part", "reason"}] for the other builds whose part
-    the watch declares. Builds for parts it doesn't declare are in neither."""
+    `declared` parts. `installed` are the fonts install puts there (the core's rule: among packs
+    with `install` true, the first in registry order that the watch declares a part of chooses
+    the host; a bitmap pack chooses its own host family, a TrueType pack every TrueType pack);
+    `not_installed` lists [{"part", "reason"}] for the other builds whose part the watch
+    declares. Builds for parts it doesn't declare are in neither."""
     registry = font_registry.default() if registry is None else registry
     parts = {e["part"] for e in _entries(declared)}
-    installable = {
-        part["part"]: pack["kind"] for pack in registry["packs"] if pack.get("install", True)
-        for part in pack["parts"]
-    }
-    listed = {p: installable[p] for p in parts if p in installable}
-    kind = "bitmap" if "bitmap" in listed.values() else "truetype"
+    installable = [p for p in registry["packs"] if p.get("install", True)]
+    pack_of = {part["part"]: pack for pack in installable for part in pack["parts"]}
+    first = next((p for p in installable if any(q["part"] in parts for q in p["parts"])), None)
+
+    def chosen(pack):
+        return first is not None and pack["kind"] == first["kind"] and (
+            pack["kind"] == "truetype" or pack["host"] == first["host"])
+
     installed, skipped = [], []
     for build in builds:
         data = build.data if isinstance(build, Built) else font_bytes(build)
         part = identify(data)[1]
-        if listed.get(part) == kind:
+        pack = pack_of.get(part) if part in parts else None
+        if pack is not None and chosen(pack):
             installed.append(data)
-        elif part in listed:
-            skipped.append({"part": part, "reason": f"install writes this watch's {kind} parts, "
-                                                    f"and {part} is {listed[part]}"})
+        elif pack is not None:
+            skipped.append({"part": part, "reason": f"install writes this watch's {first['host']} "
+                                                    f"parts, and {part} is {pack['host']}"})
         elif part in parts:
             skipped.append({"part": part,
                             "reason": "not in a pack this build installs (registry packs, install true)"})

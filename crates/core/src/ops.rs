@@ -1022,22 +1022,21 @@ fn host_choice(hosts: &Hosts<'_>) -> HostChoice {
     let restore_only_parts: Vec<String> =
         hosts.restore_only.iter().map(|f| f.part.clone()).collect();
     let mut reason = match hosts.kind {
-        Some(Kind::Bitmap) if skipped_parts.is_empty() => {
-            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
-             those."
-                .to_owned()
-        }
-        Some(Kind::Bitmap) => format!(
-            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
-             those, as before TrueType support; its TrueType fonts {} stay Garmin's. TrueType \
-             fonts get Georgian only on watches that list none of this build's bitmap fonts.",
-            and_list(&skipped_parts)
-        ),
-        Some(Kind::Truetype) => "This watch lists none of this build's bitmap fonts, so Georgian \
-                                 goes into the TrueType fonts it lists."
+        Some(Kind::Bitmap) => "This watch lists bitmap fonts this build adds Georgian to, so \
+                               Georgian goes into those."
+            .to_owned(),
+        Some(Kind::Truetype) => "This watch lists none of this build's bitmap Armenian fonts, so \
+                                 Georgian goes into the TrueType fonts it lists."
             .to_owned(),
         None => "This watch lists none of the fonts this build adds Georgian to.".to_owned(),
     };
+    if !skipped_parts.is_empty() {
+        reason.push_str(&format!(
+            " Its fonts {} stay Garmin's: a watch gets Georgian in one family of fonts, bitmap \
+             Armenian first, then TrueType, then Korean bitmap fonts.",
+            and_list(&skipped_parts)
+        ));
+    }
     if !restore_only_parts.is_empty() {
         reason.push_str(&format!(
             " Its fonts {} didn't show Georgian on a watch, so this build only restores \

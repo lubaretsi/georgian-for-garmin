@@ -57,6 +57,7 @@ struct BundledPack {
     id: &'static str,
     name: &'static str,
     kind: Kind,
+    host: &'static str,
     weight: u16,
     install: bool,
     fonts: &'static [BundledFont],
@@ -229,6 +230,9 @@ pub struct Pack {
     pub id: String,
     pub name: String,
     pub kind: Kind,
+    /// The registry's host family of its fonts, e.g. "armenian", "korean",
+    /// "noto-armenian-truetype".
+    pub host: String,
     /// The weight its stock glyphs are drawn at, e.g. 400; Georgian is drawn at it too (a part
     /// may override it in the registry).
     pub weight: u16,
@@ -283,6 +287,7 @@ impl FontSet {
                     id: p.id.to_owned(),
                     name: p.name.to_owned(),
                     kind: p.kind,
+                    host: p.host.to_owned(),
                     weight: p.weight,
                     install: p.install,
                     fonts: p
@@ -344,75 +349,85 @@ impl FontSet {
         self.fonts().any(|(_, f)| f.mark.is_some())
     }
 
-    /// What `install` writes on the watch `device` describes: the installable packs of one kind
-    /// with a part the watch lists under `Garmin/ExtData`, the parts of the other kind it lists
-    /// that are left alone, and the restore-only parts it lists.
+    /// What `install` writes on the watch `device` describes: the installable packs of one host
+    /// with a part the watch lists under `Garmin/ExtData`, the other installable parts it lists,
+    /// which are left alone, and the restore-only parts it lists.
     ///
-    /// Bitmap packs win: a watch that lists any bitmap part gets Georgian there, as before
-    /// TrueType support, and its TrueType fonts stay Garmin's. Only a watch that lists no bitmap
-    /// part gets Georgian in its TrueType fonts.
+    /// Registry order decides the host: the first installable pack the watch lists chooses it.
+    /// A bitmap pack chooses its own host family alone (a watch that lists bitmap Armenian gets
+    /// Georgian there, and its Korean fonts stay Garmin's); a TrueType pack chooses every
+    /// installable TrueType pack. The bitmap Armenian packs come first, then the TrueType packs,
+    /// then the Korean ones, so a watch gets Georgian in Korean fonts only when it lists none of
+    /// the others.
     pub fn hosts(&self, device: &GarminDevice) -> Hosts<'_> {
         self.hosts_of(device, false)
     }
 
-    /// What `restore_stock` writes: as [`FontSet::hosts`], with restore-only packs too, so
-    /// Garmin's originals can go back where an earlier release installed Georgian.
+    /// What `restore_stock` writes: as [`FontSet::hosts`], with every restore-only pack the
+    /// watch lists too, whatever host install chooses, so Garmin's originals can go back where
+    /// an earlier release installed Georgian.
     pub fn restore_hosts(&self, device: &GarminDevice) -> Hosts<'_> {
         self.hosts_of(device, true)
     }
 
     fn hosts_of(&self, device: &GarminDevice, restore: bool) -> Hosts<'_> {
-        let mut restore_only = Vec::new();
-        let mut all: Vec<Listed<'_>> = Vec::new();
-        for pack in &self.packs {
-            let fonts: Vec<&Font> = pack
-                .fonts
-                .iter()
-                .filter(|f| device.declares_extdata_part(&f.part))
-                .collect();
-            if fonts.is_empty() {
-                continue;
-            }
-            if pack.install || restore {
-                all.push(Listed { pack, fonts });
-            } else {
-                restore_only.extend(fonts);
-            }
-        }
-        let kind = if all.iter().any(|l| l.pack.kind == Kind::Bitmap) {
-            Some(Kind::Bitmap)
-        } else if all.is_empty() {
-            None
-        } else {
-            Some(Kind::Truetype)
+        let all: Vec<Listed<'_>> = self
+            .packs
+            .iter()
+            .filter_map(|pack| {
+                let fonts: Vec<&Font> = pack
+                    .fonts
+                    .iter()
+                    .filter(|f| device.declares_extdata_part(&f.part))
+                    .collect();
+                (!fonts.is_empty()).then_some(Listed { pack, fonts })
+            })
+            .collect();
+        // The first installable pack the watch lists; for restore without one, the first
+        // restore-only pack, whose kind `kind` then reports.
+        let first = all
+            .iter()
+            .find(|l| l.pack.install)
+            .or_else(|| all.first().filter(|_| restore))
+            .map(|l| l.pack);
+        let chosen = |p: &Pack| {
+            first
+                .is_some_and(|f| p.kind == f.kind && (p.kind == Kind::Truetype || p.host == f.host))
         };
-        let (listed, other): (Vec<_>, Vec<_>) =
-            all.into_iter().partition(|l| Some(l.pack.kind) == kind);
-        // Restore-only parts of the other kind than the one chosen are left alone like any.
-        let (left_alone, restore_only): (Vec<&Font>, Vec<&Font>) = restore_only
-            .into_iter()
-            .partition(|f| kind.is_some_and(|k| k != f.kind));
-        Hosts {
-            kind,
-            listed,
-            skipped: other
-                .into_iter()
-                .flat_map(|l| l.fonts)
-                .chain(left_alone)
-                .collect(),
-            restore_only,
+        let mut hosts = Hosts {
+            kind: first.map(|p| p.kind),
+            listed: Vec::new(),
+            skipped: Vec::new(),
+            restore_only: Vec::new(),
+        };
+        for listed in all {
+            if !listed.pack.install {
+                if restore {
+                    hosts.listed.push(listed);
+                } else {
+                    hosts.restore_only.extend(listed.fonts);
+                }
+            } else if chosen(listed.pack) {
+                hosts.listed.push(listed);
+            } else {
+                hosts.skipped.extend(listed.fonts);
+            }
         }
+        hosts
     }
 }
 
 /// The fonts a watch gets Georgian in ([`FontSet::hosts`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hosts<'a> {
-    /// The kind of every pack in `listed`; `None` when the watch lists no part of this build.
+    /// The kind of the chosen host's packs; `None` when the watch lists no part this build
+    /// installs (for restore: no part of this build at all).
     pub kind: Option<Kind>,
-    /// Every pack of that kind, in registry order, with the parts of it the watch lists.
+    /// Every pack of the chosen host, in registry order, with the parts of it the watch lists;
+    /// for [`FontSet::restore_hosts`], every restore-only pack it lists too.
     pub listed: Vec<Listed<'a>>,
-    /// Parts of the other kind that the watch lists, in registry order; left alone.
+    /// Other installable parts the watch lists (of another host), in registry order; left
+    /// alone.
     pub skipped: Vec<&'a Font>,
     /// Parts of restore-only packs the watch lists (empty for [`FontSet::restore_hosts`]):
     /// install leaves them alone; restore writes Garmin's originals.

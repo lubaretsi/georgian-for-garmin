@@ -59,6 +59,7 @@ pub fn fonts() -> FontSet {
             id: "armenian".into(),
             name: "armenian pack".into(),
             kind: Kind::Bitmap,
+            host: "armenian".into(),
             weight: 400,
             install: true,
             fonts: ARMENIAN

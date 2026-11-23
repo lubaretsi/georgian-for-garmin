@@ -95,8 +95,10 @@ one. On the fenix 6 family the watch had our font but didn't use it for Georgian
 installs there; the app still puts Garmin's fonts back
 ([How it works](docs/how-it-works.md#truetype-fonts)). The Venu (1st gen), Instinct 3 AMOLED and
 Lily 2 Active have no Armenian font this project can use, but their reports list Garmin's Korean
-bitmap fonts; on the maintainer's Venu 2, Georgian added to a Korean font showed in
-notifications. They are listed [below](#likely-to-work-not-confirmed), not confirmed.
+bitmap fonts, and on the maintainer's Venu 2 Georgian added to a Korean font showed in
+notifications. So the app adds Georgian to one or two of their Korean fonts; no one has
+installed it on these models yet, and restoring the original fonts is untested there too. They
+are listed [below](#likely-to-work-not-confirmed).
 
 ### Likely to work, not confirmed
 
