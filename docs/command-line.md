@@ -70,6 +70,10 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `restore-stock` | The same with Garmin's original fonts. |
 | `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
 | `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …, "busy": …}` (`report` as `inspect --report --json` prints it; `busy` as a `device_busy` error gives it, alone for a watch that couldn't be read). Touches nothing. |
+| `extdata-list` | Lists every file in the watch's hidden `GARMIN/ExtData` folder: the normal listing plus, on watches that answer Garmin's `GetObjectIds` (0x9002), the files it leaves out (on the Venu 2 the read-only fonts the watch imported), with size, `hidden` and `read_only`. `--hash 006-D9035-03.fnt,…` reads those files and adds their SHA-256s. Pages with `--offset` and `--limit` (default 200); `--output-file FILE` writes the whole list as JSON instead. Read-only. |
+| `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait. Read-only. |
+| `rpc` | Serves every command as JSON-RPC 2.0 on stdin and stdout, keeping the watch open between calls ([below](#sessions-rpc-and-mcp)). |
+| `mcp` | Serves every command as an MCP tool over stdio, with the official MCP SDK, keeping the watch open between calls. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
@@ -88,6 +92,68 @@ Options:
   as MCP tools.
 
 Running `install` again after it succeeded changes nothing and reports `already_staged`.
+
+## Sessions: rpc and mcp
+
+`georgian-for-garmin rpc` and `georgian-for-garmin mcp` are long-lived: they open the watch at the
+first call that needs it and keep it open until they end, so a program or an agent can run many
+steps without reconnecting. While one runs, no other program (Garmin Express, the app, another
+`georgian-for-garmin`) can use the watch. When the watch stops answering, as after an unplug, a
+call fails with `no_device` (or `device_error`) and the next call opens it again;
+`wait_for_watch` waits for it. Calls run one at a time, in the order they arrive. Both modes take
+the operations and schemas `--help --json` prints.
+
+`rpc` reads one JSON-RPC 2.0 message per line and writes one per line:
+
+```sh
+$ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params": {"hash": ["006-D9035-03.fnt"]}}' \
+    | georgian-for-garmin rpc
+{"jsonrpc":"2.0","id":1,"result":{"extdata":{…},"files":[…],"total":…}}
+```
+
+- The method is the operation's name, `params` its input (an object; absent means `{}`), the
+  result its output. `params._meta` is protocol metadata, removed before the input is checked.
+- Errors: `{"code": …, "message": …, "data": {"code": "<error code>", "message": …}}`, with `busy`
+  in `data` for `device_busy` and `rollback` after a failed write ([below](#failed-writes)).
+  `code` is -32602 for `invalid_input`, -32800 for `cancelled`,
+  -32000 for any other error code ([below](#exit-codes-and-errors)), -32601 for an unknown
+  method, -32600 for a message that isn't a request (batches aren't supported) and -32700 for a
+  line that isn't JSON; after any of them the session goes on.
+- Progress: a request with `params._meta.progressToken` gets
+  `{"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progressToken": …, "progress": …, "total": …, "message": …}}`
+  at each step: one per file for `install` and `restore_stock` (0 when every file was checked,
+  then each file written), two for `stage_file`, the seconds waited for `wait_for_watch`.
+- Cancellation: `{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": …}}`
+  stops a queued or running call. It answers with -32800 (`cancelled`). `install`,
+  `restore_stock` and `stage_file` stop between files: before the first write nothing is written;
+  after it, the call tries to undo what it wrote, as when a write fails, and the error's
+  `rollback` says whether it could ([below](#failed-writes)). A single file transfer is never cut
+  off.
+- At the end of stdin, the calls already read still run and are answered, then `rpc` exits.
+
+`mcp` speaks MCP over stdio: `tools/list` returns the same definitions, `tools/call` runs one
+(an error is a result with `isError` and `{"error": {"code", "message"}}` as structured content).
+Progress and cancellation use MCP's `notifications/progress` (with `_meta.progressToken`) and
+`notifications/cancelled`, with the same steps as `rpc`. For example, in an MCP client's
+configuration: `{"command": "georgian-for-garmin", "args": ["mcp"]}`.
+
+### Development operations
+
+A development build (`cargo build -p georgian-for-garmin --features dev`, debug only; release
+builds never have them, and `--release` with the feature fails to compile) adds three commands
+for experiments with fonts this build doesn't install:
+
+| Command | What it does |
+|---|---|
+| `read-file --name D844870.fnt --path out.fnt` | Copies one ExtData file, from either listing, to a new local file and prints its SHA-256. Never overwrites a local file. |
+| `stage-file --source font.tmp --name D844870.tmp` | Writes a local file as `GARMIN/ExtData/<name>` and reads it back by SHA-256. `name` is `<part>.tmp` for a part the watch declares under `Garmin/ExtData`, as `006-D8448-70.tmp` or its short form `D844870.tmp`. Like `install`, it checks every file for that part first: a file under `name` is replaced only when it is identical (`already_staged`), Garmin's original or one of this program's Georgian builds (by content), one this tool staged, or has a SHA-256 given with `--garmin-sha256` (Garmin's file, from a pinned catalog); an imported `<part>.fnt` must be one of those too, and another waiting `.tmp` for the part is a `conflict`. `--dry-run` checks and writes nothing. Prints an id. |
+| `remove-staged --id stg-…` | Deletes the file staged under that id, only while the watch's file under its name still has the staged SHA-256 (otherwise `conflict`); `not_found` once it's gone (imported at a restart, for example), `already_removed` when this tool removed it before. |
+
+`stage-file` logs each id with the file's name and SHA-256 in `staged.jsonl`, in
+`GEORGIAN_FOR_GARMIN_STATE_DIR` or the per-user state folder (`~/Library/Application Support/georgian-for-garmin`
+on macOS, `%LOCALAPPDATA%\georgian-for-garmin` on Windows, `$XDG_STATE_HOME/georgian-for-garmin`
+or `~/.local/state/georgian-for-garmin` elsewhere), so an id from an `rpc` session works in a
+later one-shot `remove-staged`.
 
 ## JSON output
 
@@ -141,7 +207,8 @@ Running `install` again after it succeeded changes nothing and reports `already_
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
 `already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
 watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
-TrueType part replaces the watch's `<part>.bin`, and a failed run writes the original back.
+TrueType part replaces the watch's `<part>.bin`, and a failed run tries to write the original
+back ([Failed writes](#failed-writes)).
 
 ## Exit codes and errors
 
@@ -154,15 +221,33 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
 | `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
-| `conflict` | A file under a target's name, or the font the watch imported for it (a bitmap part's `.fnt`, which the next restart would replace), is neither Garmin's original nor one of this program's builds, by content, or two files share the name; nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
+| `conflict` | A part's file, or the font the watch imported for it (a bitmap part's `.fnt`, which the next restart would replace), in either listing and under either name form (`006-D9035-02.tmp` or Garmin's short `D903502.tmp`), is neither Garmin's original nor one of this program's builds, by content, or the part has several such files (the error names them); nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
 | `restore_first` | Install: a TrueType file the watch doesn't let be read is declared below 1.00, as watches declared this program's builds before 0.3.0; install never writes over a file it can't identify, so nothing was written | Run `restore-stock`, restart the watch, then install again. |
-| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` was written back | Run again. |
+| `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` written back, where that worked (`rollback`, [below](#failed-writes)) | Run again. |
 | `extdata_not_found` | The hidden font folder wasn't found; nothing was written | Restart the watch, reconnect, run again. |
 | `garmin_folder_not_found` | The watch's `GARMIN` folder or `GarminDevice.xml` couldn't be read | Reconnect and run again. |
 | `device_error` | A USB transfer or MTP command failed | Check the cable and run again. The message names the step that failed and whether a file was left on the watch. |
 | `font_unavailable` | This build doesn't include a requested part | Check the part number, or download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
+| `cancelled` | `rpc` or `mcp`: the client cancelled the call; what it had written was undone where possible (`rollback`) | Nothing; run it again when wanted. |
+
+### Failed writes
+
+When `install`, `restore-stock` or `stage-file` fails or is cancelled after writing, it tries to
+undo its changes: files it created are deleted, files it replaced are written back from the bytes
+read before. The error then carries `rollback`:
+
+```json
+{"error": {"code": "device_error", "message": "…", "rollback": {"status": "incomplete", "files": [
+  {"path": "GARMIN/ExtData/006-D9035-02.tmp", "action": "delete", "done": false,
+   "result": "GARMIN/ExtData/006-D9035-02.tmp (0x01000101) could not be deleted (…)"}]}}}
+```
+
+`status` is `complete` when every step worked, `incomplete` when one didn't (a delete the watch
+refused, a disconnect in the middle); `action` is `delete` or `restore`. After an incomplete
+rollback the message says so and names the files: connect the watch, run Restore original font
+(`restore-stock`), and restart the watch. The app says the same.
 
 ### Busy watch
 

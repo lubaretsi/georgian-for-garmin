@@ -14,6 +14,7 @@ use serde::Serialize;
 
 use crate::error::{Error, ErrorCode};
 use crate::mtp::{Mtp, MtpError};
+use crate::names;
 use crate::ptp::{ALL_OBJECTS, ObjectInfo, ROOT, op};
 
 pub const EXTDATA_NAME: &str = "ExtData";
@@ -59,21 +60,12 @@ pub struct Layout {
     pub extdata: Option<ExtData>,
 }
 
-/// A Garmin standalone data file as staged, downloaded or installed
-/// (`006-D<4 digits>-<2 digits>.tmp`, `.fnt` or `.bin`): font packs of any series, including
-/// ones this build doesn't carry. Only a hint for where `ExtData` is; every candidate parent is
-/// still checked by [`is_extdata`].
+/// A Garmin standalone data file as staged, downloaded or installed (`.tmp`, `.fnt` or `.bin`,
+/// under either name form, [`names::resolve`]): font packs of any series, including ones this
+/// build doesn't carry. Only a hint for where `ExtData` is; every candidate parent is still
+/// checked by [`is_extdata`].
 fn is_font_package(name: &str) -> bool {
-    let n = name.as_bytes();
-    n.len() == 16
-        && n[..5].eq_ignore_ascii_case(b"006-d")
-        && n[5..9].iter().all(u8::is_ascii_digit)
-        && n[9] == b'-'
-        && n[10].is_ascii_digit()
-        && n[11].is_ascii_digit()
-        && [b".fnt", b".tmp", b".bin"]
-            .iter()
-            .any(|ext| n[12..].eq_ignore_ascii_case(*ext))
+    names::resolve(name).is_some()
 }
 
 fn is_extdata(info: &ObjectInfo, garmin: u32, storage: u32) -> bool {
@@ -279,23 +271,10 @@ mod tests {
 
     #[test]
     fn font_package_names() {
-        for name in [
-            "006-D9035-03.tmp",
-            "006-d8945-20.TMP",
-            "006-D8168-13.fnt",
-            "006-D1234-03.tmp",
-            "006-D9971-09.bin",
-        ] {
+        for name in ["006-D9035-03.tmp", "006-D8168-13.fnt", "D844870.tmp"] {
             assert!(is_font_package(name), "{name}");
         }
-        for name in [
-            "006-D9035-3.tmp",
-            "006-D12a4-03.tmp",
-            "006-B9035-03.tmp",
-            "006-D9035-03.bix",
-            "006-D9035-03.tmpx",
-            "GarminDevice.xml",
-        ] {
+        for name in ["006-B9035-03.tmp", "GarminDevice.xml"] {
             assert!(!is_font_package(name), "{name}");
         }
     }

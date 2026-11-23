@@ -124,6 +124,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "GitHub-ზე შეტყობინება",
+    "rollbackIncomplete": "ყველაფერი ვერ დავაბრუნეთ. ეს ფაილები საათზე შეიძლება ისე აღარ იყოს, როგორც იყო: {files}. შეაერთეთ საათი, დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“ და მერე გადატვირთეთ საათი.",
 
     "errorTitle": "ვერ მოხერხდა",
     "details": "დეტალები",
@@ -143,7 +144,8 @@
       "restore_first": "საათზე შრიფტის ფაილი ვერ წავიკითხეთ, ამიტომ ვერ ვიგებთ, რა არის, და მასზე არაფერს ვწერთ. დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“, გადატვირთეთ საათი და მერე ისევ დააყენეთ ქართული.",
       "verification_failed": "შრიფტი სწორად ვერ ჩაიწერა, ამიტომ საათიდან წავშალეთ. სცადეთ თავიდან.",
       "device_error": "საათთან კავშირი გაწყდა. შეამოწმეთ კაბელი და სცადეთ თავიდან.",
-      "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ."
+      "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ.",
+      "cancelled": "მოქმედება გაუქმდა. თუ რამე ჩაიწერა, საათზე ისევ ძველი ფაილები დაბრუნდა."
     }
   },
   "en": {
@@ -271,6 +273,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "Report this on GitHub",
+    "rollbackIncomplete": "Not everything could be put back. These files on the watch may not be as they were: {files}. Connect the watch, click Restore original font, then restart the watch.",
 
     "errorTitle": "That didn’t work",
     "details": "Details",
@@ -290,7 +293,8 @@
       "restore_first": "A font file on the watch can’t be read, so the app can’t tell what it is and writes nothing over it. Click Restore original font, restart the watch, then install Georgian again.",
       "verification_failed": "The font didn’t copy correctly, so it was removed from the watch. Try again.",
       "device_error": "The connection to the watch was interrupted. Check the cable and try again.",
-      "internal": "Something went wrong inside the app. Please report it."
+      "internal": "Something went wrong inside the app. Please report it.",
+      "cancelled": "The operation was cancelled. Anything it had written was put back as it was."
     }
   }
 }

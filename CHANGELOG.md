@@ -37,6 +37,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fonts NotoSans Armenian Regular and Bold, Georgian showed in the pop-up, the notification list
   and the opened notification. It was the first predicted model a report confirmed; the two other
   parts under that Connect IQ name stay predicted.
+- `georgian-for-garmin rpc` (JSON-RPC 2.0, one message per line) and `georgian-for-garmin mcp`
+  (MCP over stdio, with the official Rust SDK) run every operation in one long-lived session that
+  keeps the watch open between calls and opens it again after an unplug and replug (`no_device`
+  meanwhile). `install`, `restore_stock`, `stage_file` and `wait_for_watch` send
+  `notifications/progress` for a `_meta.progressToken` and stop on `notifications/cancelled`; a
+  cancelled install or restore tries to undo what it wrote, as a failed one does. A line that
+  isn't JSON gets -32700 and the session goes on.
+- `extdata-list` (`extdata_list`) lists every file in `GARMIN/ExtData`, including the read-only
+  fonts the watch imported, which only Garmin's `GetObjectIds` shows, with size, read-only flag
+  and, with `--hash`, SHA-256s. It pages, or writes the whole list to a file.
+- `wait-for-watch` (`wait_for_watch`) waits until a watch can be opened, as after a restart.
+- Development builds (cargo feature `dev`, never in releases) add `read-file`, `stage-file` and
+  `remove-staged` for font experiments: stage any file under a part the watch declares (also by
+  short name, as `D844870.tmp`), with install's checks and readback, and remove it later by the
+  id it logged.
+- Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
+- Errors after a failed or cancelled write carry `rollback`: `complete` or `incomplete`, with each
+  file it tried to delete or put back and whether that worked. An incomplete rollback now says
+  so plainly, names the files that may be left, and points to Restore original font
+  (`restore-stock`); the app shows it in both languages. Before, the message said "Rolled back"
+  even when a step had failed.
 
 ### Changed
 
@@ -45,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of holding a line to paste over, and the app says to paste into that empty box. GitHub
   then asks for the paste if it's missed; before, the instructions could be posted as the report
   (#35, #46). `issue_link`'s `fields` no longer lists `report` when it didn't fit.
+
+### Fixed
+
+- A bitmap part's imported `<part>.fnt` in the normal `ExtData` listing (as the watch in #38
+  shows it) is now identified before install or restore writes a `.tmp` that would replace it at
+  the next restart, and `inspect` reports it; before, only the hidden listing was checked.
+- Install, restore and `inspect` recognize a part's files under Garmin's short name too
+  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting short-named file
+  is identified before anything is written, replaced under this build's name when it is
+  Garmin's or this program's, and refused otherwise, so a part never ends up with two waiting
+  files. Two files for one part are named in the `conflict` error.
 
 ## [0.3.3] - 2026-11-23
 
