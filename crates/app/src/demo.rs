@@ -3,7 +3,7 @@
 //! It follows a short script so every screen shows up: the first three connections find no
 //! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at a
 //! software version the support list has), the next two find it held by Garmin Express, and
-//! from then on one of six watches is attached, covering every support status:
+//! from then on one of nine watches is attached, covering every support status:
 //!
 //! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
 //!    (the real one doesn't): `tested`; after installing, the main screen says Georgian is
@@ -17,7 +17,13 @@
 //!    and still drew question marks, #6): `unsupported`, with Restore;
 //! 5. a Venu listing the Korean font `006-D8945-22`, which the support list only predicts to
 //!    work: `expected`, with the note that no one has confirmed Georgian on the model yet;
-//! 6. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
+//! 6. a Lily 2 Active whose Korean fonts already have Georgian, imported at an earlier restart:
+//!    `expected` and `installed`, so the main screen's action is to check it on the watch;
+//! 7. an Instinct 3 AMOLED 50mm whose Korean font has Georgian waiting for a restart:
+//!    `expected` and `waiting`, so the main screen says to restart and offers the check after;
+//! 8. a tactix 7 on software 27.18 with Georgian imported in the parts verified on it:
+//!    `tested` and `installed`, with only a quiet link to check if it didn't work;
+//! 9. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
 //!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
@@ -67,38 +73,83 @@ enum Lists {
     Nothing,
 }
 
-/// (description, part number, software version as in `GarminDevice.xml`, fonts listed, stage
-/// a leftover).
-const WATCHES: [(&str, &str, &str, Lists, bool); 6] = [
+/// What a demo watch has under `Garmin/ExtData` besides Garmin's TrueType fonts.
+#[derive(Clone, Copy)]
+enum Extra {
+    Nothing,
+    /// A file this build doesn't know, waiting for a restart as the last listed part's `.tmp`.
+    Leftover,
+    /// This build's Georgian in every listed bitmap part, imported as a hidden `<part>.fnt`.
+    Installed,
+    /// This build's Georgian in every listed bitmap part, waiting as `<part>.tmp`.
+    Waiting,
+}
+
+/// (description, part number, software version as in `GarminDevice.xml`, fonts listed, what
+/// else is in `ExtData`).
+const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
     (
         "Forerunner 165",
         "006-B4432-00",
         "2952",
         Lists::Verified,
-        false,
+        Extra::Nothing,
     ),
-    ("Venu 2", "006-B3703-00", "1905", Lists::Verified, false),
-    ("Venu 3", "006-B4260-00", "1705", Lists::FirstTwoPacks, true),
+    (
+        "Venu 2",
+        "006-B3703-00",
+        "1905",
+        Lists::Verified,
+        Extra::Nothing,
+    ),
+    (
+        "Venu 3",
+        "006-B4260-00",
+        "1705",
+        Lists::FirstTwoPacks,
+        Extra::Leftover,
+    ),
     (
         "fenix 6S Pro",
         "006-B3288-00",
         "2802",
         Lists::Pack("hebrew-swiss-721-truetype"),
-        false,
+        Extra::Nothing,
     ),
     (
         "Venu",
         "006-B3226-00",
         "780",
         Lists::Pack("korean-nanum-gothic-medium"),
-        false,
+        Extra::Nothing,
+    ),
+    (
+        "Lily 2 Active",
+        "006-B4477-00",
+        "510",
+        Lists::Pack("korean-nanum-gothic-medium-compressed"),
+        Extra::Installed,
+    ),
+    (
+        "Instinct 3 AMOLED 50mm",
+        "006-B4587-00",
+        "1612",
+        Lists::Pack("korean-nanum-gothic-bold"),
+        Extra::Waiting,
+    ),
+    (
+        "tactix 7",
+        "006-B4135-00",
+        "2718",
+        Lists::Verified,
+        Extra::Installed,
     ),
     (
         "Forerunner 265",
         "006-B4257-00",
         "2952",
         Lists::Nothing,
-        false,
+        Extra::Nothing,
     ),
 ];
 
@@ -208,7 +259,7 @@ impl Demo {
         let fonts = FontSet::bundled();
         let watches = WATCHES
             .iter()
-            .map(|&(description, part, software, lists, leftover)| {
+            .map(|&(description, part, software, lists, extra)| {
                 let parts = listed_parts(&fonts, part, lists);
                 let mut objects = Objects::new();
                 // Objects in the storage root have parent 0.
@@ -226,23 +277,41 @@ impl Demo {
                     EXTDATA,
                     object(GARMIN, "ExtData", format::ASSOCIATION, vec![]),
                 );
+                let mut handles = LEFTOVER + 1..;
                 // Garmin's own TrueType fonts, which the watch keeps in ExtData.
                 let bins = fonts
                     .fonts()
                     .filter(|(p, f)| p.kind == Kind::Truetype && parts.contains(&f.part));
-                for (handle, (_, font)) in (LEFTOVER + 1..).zip(bins) {
+                for (handle, (_, font)) in handles.by_ref().zip(bins) {
                     let data = font.stock.to_vec();
                     objects.insert(
                         handle,
                         object(EXTDATA, &font.long_file_name(), format::UNDEFINED, data),
                     );
                 }
-                if leftover {
-                    let name = format!("{}.tmp", parts[parts.len() - 1]);
-                    objects.insert(
-                        LEFTOVER,
-                        object(EXTDATA, &name, format::UNDEFINED, b"older font".to_vec()),
-                    );
+                match extra {
+                    Extra::Nothing => {}
+                    Extra::Leftover => {
+                        let name = format!("{}.tmp", parts[parts.len() - 1]);
+                        objects.insert(
+                            LEFTOVER,
+                            object(EXTDATA, &name, format::UNDEFINED, b"older font".to_vec()),
+                        );
+                    }
+                    Extra::Installed | Extra::Waiting => {
+                        let imported = matches!(extra, Extra::Installed);
+                        let bitmaps = fonts
+                            .fonts()
+                            .filter(|(p, f)| p.kind == Kind::Bitmap && parts.contains(&f.part));
+                        for (handle, (_, font)) in handles.zip(bitmaps) {
+                            let suffix = if imported { "fnt" } else { "tmp" };
+                            let name = format!("{}.{suffix}", font.part);
+                            let data = font.georgian.to_vec();
+                            let (mut info, data) = object(EXTDATA, &name, format::UNDEFINED, data);
+                            info.protection_status = u16::from(imported);
+                            objects.insert(handle, (info, data));
+                        }
+                    }
                 }
                 objects
             })
@@ -662,6 +731,39 @@ mod tests {
         assert_eq!(venu["support"]["prediction"], "bitmap_korean");
         assert_eq!(venu["support"]["issue"], 12);
         assert_eq!(venu["support"]["report_wanted"], true);
+        demo.swap();
+
+        // The Lily 2 Active already has Georgian, on a model no one has confirmed it on: the
+        // main screen's action is to check it.
+        let lily = call(&demo, "inspect").unwrap();
+        assert_eq!(lily["device"]["model"], "Lily 2 Active");
+        assert_eq!(lily["state"], "installed");
+        assert_eq!(lily["hosts"]["kind"], "bitmap");
+        assert_eq!(staged(&lily), vec!["georgian"; 2]);
+        assert_eq!(lily["support"]["status"], "expected");
+        assert_eq!(lily["support"]["prediction"], "bitmap_korean");
+        assert_eq!(lily["support"]["report_wanted"], true);
+        assert_eq!(lily["tested"]["status"], "untested");
+        assert_eq!(lily["tested"]["verified_software"], json!([]));
+        demo.swap();
+
+        // The Instinct 3 AMOLED's Georgian waits for a restart.
+        let instinct = call(&demo, "inspect").unwrap();
+        assert_eq!(instinct["device"]["model"], "Instinct 3 AMOLED 50mm");
+        assert_eq!(instinct["state"], "waiting");
+        assert_eq!(staged(&instinct), vec!["georgian"]);
+        assert_eq!(instinct["support"]["status"], "expected");
+        assert_eq!(instinct["support"]["prediction"], "bitmap_korean");
+        assert_eq!(instinct["support"]["report_wanted"], true);
+        demo.swap();
+
+        // The tactix 7 has Georgian in every part verified on it: confirmed, no report asked.
+        let tactix = call(&demo, "inspect").unwrap();
+        assert_eq!(tactix["device"]["model"], "tactix 7");
+        assert_eq!(tactix["state"], "installed");
+        assert_eq!(staged(&tactix), vec!["georgian"; 5]);
+        assert_eq!(tactix["support"]["status"], "tested");
+        assert_eq!(tactix["support"]["report_wanted"], false);
         demo.swap();
 
         // The Forerunner 265 lists none of this build's fonts: `unknown`, nothing to install,

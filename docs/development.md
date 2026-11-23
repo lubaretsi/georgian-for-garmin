@@ -289,9 +289,12 @@ cargo tauri build --debug --features demo --bundles app    # a simulated watch, 
 
 The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
 expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
-Restore, an expected Venu with its Korean font, which the support list only predicts, and an
-unknown Forerunner 265 listing none of this build's fonts), and a Forerunner 245 mounted as a
-USB drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first;
+Restore, an expected Venu with its Korean font, which the support list only predicts, a Lily 2
+Active with Georgian already installed and an Instinct 3 AMOLED 50mm with it waiting for a
+restart, both only predicted, a tested tactix 7 with Georgian installed, and an unknown
+Forerunner 265 listing none of this build's fonts), and a Forerunner 245 mounted as a USB drive.
+Install or Restore moves on to the next watch. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of
+those names, quoted where it has spaces) attaches that watch first;
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
 its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a program on

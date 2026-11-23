@@ -42,9 +42,11 @@
       <p id="ready-note" class="note" hidden></p>
       <button id="ready-follow" class="link" hidden></button>
       <div id="ready-actions" class="actions">
+        <button id="ready-check" class="primary" data-t="checkOnWatch" hidden></button>
         <button id="install" class="primary" data-t="install"></button>
         <button id="restore" class="secondary" data-t="restore"></button>
       </div>
+      <button id="ready-check-link" class="link" data-t="checkDidntWork" hidden></button>
       <div id="share" class="share" hidden>
         <p id="share-why" class="quiet small" data-t="shareWhy"></p>
         <details class="shared">
@@ -92,6 +94,7 @@
         <p class="test-line" data-t="testLine" lang="ka"></p>
         <p class="quiet small" data-t="restartAgain"></p>
       </div>
+      <p id="staged-why" class="note" hidden></p>
       <div class="actions">
         <button id="check" class="primary" data-t="checkOnWatch"></button>
         <button id="done" class="secondary" data-t="done"></button>
@@ -101,6 +104,7 @@
     <main id="checking" class="view check" hidden>
       <h1 data-t="checkTitle"></h1>
       <p id="check-confirmed" class="note" data-t="checkConfirmed" hidden></p>
+      <p id="check-why" class="note" hidden></p>
       <div id="check-phone" class="phone">
         <img id="check-qr" class="qr" alt="">
         <div>
