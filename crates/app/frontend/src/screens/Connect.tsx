@@ -97,11 +97,15 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
       <>
         {cut ? <p className="muted">{b.nameCut}</p> : null}
         <p>{b.lead}</p>
-        <ol className="numbered-list">
-          {steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
+        {steps.length > 1 ? (
+          <ol className="numbered-list">
+            {steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        ) : (
+          <p>{steps[0]}</p>
+        )}
         <Waiting>{b.retrying}</Waiting>
       </>
     ),
