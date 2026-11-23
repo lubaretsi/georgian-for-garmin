@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-23
+
 ### Added
 
 - The Instinct 2 Solar Tactical (software 17.22, #38) in the support list as not working: it
@@ -37,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Instinct 3 AMOLED 50mm is listed as not working on software 16.12 too (#33, a duplicate of
   #6), so the app no longer asks it for a report on that version. Its report is a replay fixture.
 - The Forerunner 255's first font list (#35, software 29.52, a duplicate of #13) is a replay
-  fixture; the watch stays not confirmed yet.
+  fixture.
 - When a report is too long for the link, the app, the placeholder it puts in the form and the
   form itself now say to paste it into the Watch report field over that line, not into Notes
   (#35's went into Notes).
@@ -303,7 +305,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same files locally.
 - Releases carry one `SHA256SUMS` for every platform.
 
-[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.2.2...v0.3.0
