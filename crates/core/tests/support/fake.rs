@@ -31,6 +31,14 @@ pub const ARMENIAN: [&str; 4] = [
 /// A part this build doesn't carry, declared under its short name, as Garmin names some
 /// downloads.
 pub const CJK: &str = "006-D8448-70";
+/// The watch's identifiers, which outputs mask unless asked: its MTP serial number, its unit ID
+/// and its `<Ifix>` and `<AppId>` values in GarminDevice.xml (`<AppId>` twice), and the owner's
+/// name in its DeviceFriendlyName property.
+pub const SERIAL: &str = "FAKESERIAL0042";
+pub const UNIT_ID: &str = "3999999999";
+pub const IFIX: &str = "1888888888";
+pub const APP_ID: &str = "2777777777";
+pub const OWNER_NAME: &str = "Ann's Venu";
 
 fn bytes_for(part: &str, base: usize, step: u32) -> Vec<u8> {
     let seed: usize = part.bytes().map(usize::from).sum();
@@ -106,6 +114,7 @@ fn device_xml(short: bool) -> Vec<u8> {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
          <Model><PartNumber>006-B3703-00</PartNumber><SoftwareVersion>1905</SoftwareVersion><Description>Venu 2</Description></Model>\
+         <Id>{UNIT_ID}</Id><Ifix>{IFIX}</Ifix><AppId>{APP_ID}</AppId><AppId>{APP_ID}</AppId>\
          <MassStorageMode>{files}</MassStorageMode></Device>"
     )
     .into_bytes()
@@ -124,6 +133,10 @@ pub struct State {
     pub write_delay: Duration,
     /// `DeleteObject` fails, as on a watch that refuses it.
     pub fail_delete: bool,
+    /// Garmin's `GetObjectIds` fails for this parent.
+    pub fail_object_ids_of: Option<u32>,
+    /// `GetObjectInfo` fails for this handle.
+    pub fail_object_info_of: Option<u32>,
     /// The nth object creation (1-based) stores other bytes than it was sent.
     pub corrupt_create_at: Option<usize>,
     creates: usize,
@@ -172,6 +185,8 @@ impl Watch {
             connects: 0,
             write_delay: Duration::ZERO,
             fail_delete: false,
+            fail_object_ids_of: None,
+            fail_object_info_of: None,
             corrupt_create_at: None,
             creates: 0,
             log: Vec::new(),
@@ -279,19 +294,33 @@ struct Connection {
 }
 
 impl Connection {
-    /// The state, while this connection is alive.
+    /// The state, while this connection is alive. Each call is one transaction: with the `dev`
+    /// feature it goes to the live trace (as answered OK, unless the watch is gone).
     fn live(&self, operation: u16) -> Result<MutexGuard<'_, State>, MtpError> {
         let mut s = self.watch.state();
-        if !s.plugged || s.generation != self.generation {
-            return Err(MtpError::Transport {
+        let result = if !s.plugged || s.generation != self.generation {
+            Err(MtpError::Transport {
                 operation,
                 phase: Phase::Command,
                 error: TransportError::Disconnected,
+            })
+        } else {
+            s.log
+                .push(georgian_for_garmin_core::ptp::operation_name(operation).to_owned());
+            Ok(())
+        };
+        #[cfg(feature = "dev")]
+        {
+            use georgian_for_garmin_core::mtp::{RawResponse, traced};
+            let answer = result.clone().map(|()| RawResponse {
+                code: 0x2001,
+                params: vec![],
+                data: vec![],
             });
+            let t = traced(operation, &[], 0, &answer, Duration::ZERO);
+            georgian_for_garmin_core::trace::transaction(t);
         }
-        s.log
-            .push(georgian_for_garmin_core::ptp::operation_name(operation).to_owned());
-        Ok(s)
+        result.map(|()| s)
     }
 }
 
@@ -310,6 +339,7 @@ impl Mtp for Connection {
         drop(self.live(op::GET_DEVICE_INFO)?);
         let info = DeviceInfo {
             model: "Venu 2".into(),
+            serial_number: SERIAL.into(),
             operations_supported: vec![
                 op::GET_DEVICE_INFO,
                 op::OPEN_SESSION,
@@ -353,6 +383,12 @@ impl Mtp for Connection {
 
     fn object_info(&mut self, handle: u32) -> Result<ObjectInfo, MtpError> {
         let s = self.live(op::GET_OBJECT_INFO)?;
+        if s.fail_object_info_of == Some(handle) {
+            return Err(MtpError::Response {
+                operation: op::GET_OBJECT_INFO,
+                code: 0x2002,
+            });
+        }
         s.objects
             .get(&handle)
             .map(|(i, _)| i.clone())
@@ -416,6 +452,12 @@ impl Mtp for Connection {
 
     fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         let s = self.live(op::GARMIN_GET_OBJECT_IDS)?;
+        if s.fail_object_ids_of == Some(parent) {
+            return Err(MtpError::Response {
+                operation: op::GARMIN_GET_OBJECT_IDS,
+                code: 0x2002,
+            });
+        }
         Ok(s.hidden
             .iter()
             .copied()
@@ -425,5 +467,131 @@ impl Mtp for Connection {
                     .is_some_and(|(i, _)| i.storage_id == storage && i.parent == parent)
             })
             .collect())
+    }
+
+    #[cfg(feature = "dev")]
+    fn storage_info(
+        &mut self,
+        storage: u32,
+    ) -> Result<georgian_for_garmin_core::ptp::StorageInfo, MtpError> {
+        drop(self.live(op::GET_STORAGE_INFO)?);
+        if storage != STORAGE {
+            return Err(MtpError::Response {
+                operation: op::GET_STORAGE_INFO,
+                code: 0x2008,
+            });
+        }
+        Ok(georgian_for_garmin_core::ptp::StorageInfo {
+            storage_type: 3,
+            filesystem_type: 2,
+            access_capability: 0,
+            max_capacity: 8 << 30,
+            free_space_in_bytes: 4 << 30,
+            free_space_in_objects: u32::MAX,
+            storage_description: "Internal Storage".into(),
+            volume_identifier: String::new(),
+        })
+    }
+
+    /// The reads the tests send, answered from the state; any other code is answered
+    /// OperationNotSupported.
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(
+        &mut self,
+        code: u16,
+        params: &[u32],
+    ) -> Result<georgian_for_garmin_core::mtp::RawResponse, MtpError> {
+        let p = |i: usize| params.get(i).copied().unwrap_or(0);
+        let array = |values: Vec<u32>| {
+            let mut w = georgian_for_garmin_core::ptp::Writer::default();
+            w.u32_array(&values);
+            w.0
+        };
+        let answer = match code {
+            op::GET_STORAGE_IDS => self.storage_ids().map(|ids| (vec![], array(ids))),
+            op::GET_OBJECT_HANDLES => self.object_handles(p(0), p(2)).map(|h| (vec![], array(h))),
+            op::GET_NUM_OBJECTS => self
+                .object_handles(p(0), p(2))
+                .map(|h| (vec![h.len() as u32], vec![])),
+            op::GET_OBJECT_INFO => self
+                .object_info(p(0))
+                .and_then(|i| Ok((vec![], i.encode()?))),
+            op::GET_OBJECT => self.get_object(p(0)).map(|d| (vec![], d)),
+            op::GET_PARTIAL_OBJECT => self.get_object(p(0)).map(|d| {
+                (
+                    vec![],
+                    georgian_for_garmin_core::mtp::byte_range(d, p(1), p(2)),
+                )
+            }),
+            op::GET_DEVICE_INFO => self.device_info().and_then(|i| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.u16(i.standard_version)
+                    .u32(i.vendor_extension_id)
+                    .u16(i.vendor_extension_version);
+                w.string(&i.vendor_extension_desc)?;
+                w.u16(i.functional_mode);
+                for list in [
+                    &i.operations_supported,
+                    &i.events_supported,
+                    &i.device_properties_supported,
+                    &i.capture_formats,
+                    &i.playback_formats,
+                ] {
+                    w.u32(list.len() as u32);
+                    for &code in list {
+                        w.u16(code);
+                    }
+                }
+                for s in [
+                    &i.manufacturer,
+                    &i.model,
+                    &i.device_version,
+                    &i.serial_number,
+                ] {
+                    w.string(s)?;
+                }
+                Ok((vec![], w.0))
+            }),
+            // DeviceFriendlyName: its value, and its description (code, string type, get-set,
+            // factory default, current value, no form).
+            0x1015 if p(0) == 0xD402 => self.live(code).map(|_| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.string(OWNER_NAME).unwrap();
+                (vec![], w.0)
+            }),
+            0x1014 if p(0) == 0xD402 => self.live(code).map(|_| {
+                let mut w = georgian_for_garmin_core::ptp::Writer::default();
+                w.u16(0xD402).u16(0xFFFF);
+                w.0.push(1);
+                w.string("Venu 2").unwrap().string(OWNER_NAME).unwrap();
+                w.0.push(0);
+                (vec![], w.0)
+            }),
+            op::GARMIN_GET_OBJECT_IDS => self
+                .garmin_object_ids(p(0), p(1))
+                .map(|h| (vec![], array(h))),
+            _ => {
+                drop(self.live(code)?);
+                Err(MtpError::Response {
+                    operation: code,
+                    code: 0x2005,
+                })
+            }
+        };
+        match answer {
+            Ok((params, data)) => Ok(georgian_for_garmin_core::mtp::RawResponse {
+                code: 0x2001,
+                params,
+                data,
+            }),
+            Err(MtpError::Response { code, .. }) => {
+                Ok(georgian_for_garmin_core::mtp::RawResponse {
+                    code,
+                    params: vec![],
+                    data: vec![],
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 }

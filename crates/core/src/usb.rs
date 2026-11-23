@@ -454,6 +454,8 @@ pub fn connect() -> Result<UsbMtp, Error> {
         .map_err(|e| unresponsive(&e))
 }
 
+// Every method is forwarded, the trait's defaults included: a default left here would answer
+// in place of the session's own (as GetPartialObject and raw transactions once did).
 impl Mtp for UsbMtp {
     fn device_info(&mut self) -> Result<DeviceInfo, MtpError> {
         self.0.device_info()
@@ -491,6 +493,34 @@ impl Mtp for UsbMtp {
 
     fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         self.0.garmin_object_ids(storage, parent)
+    }
+
+    fn read_only(&mut self, handle: u32, info: &crate::ptp::ObjectInfo) -> Option<bool> {
+        self.0.read_only(handle, info)
+    }
+
+    #[cfg(feature = "dev")]
+    fn storage_info(&mut self, storage: u32) -> Result<crate::ptp::StorageInfo, MtpError> {
+        self.0.storage_info(storage)
+    }
+
+    #[cfg(feature = "dev")]
+    fn get_partial_object(
+        &mut self,
+        handle: u32,
+        offset: u32,
+        len: u32,
+    ) -> Result<Vec<u8>, MtpError> {
+        self.0.get_partial_object(handle, offset, len)
+    }
+
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(
+        &mut self,
+        code: u16,
+        params: &[u32],
+    ) -> Result<crate::mtp::RawResponse, MtpError> {
+        self.0.ptp_transaction(code, params)
     }
 }
 

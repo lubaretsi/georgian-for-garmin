@@ -42,7 +42,21 @@ const OPERATIONS: [&str; 7] = [
     "extdata_list",
     "wait_for_watch",
 ];
-const DEV_OPERATIONS: [&str; 3] = ["read_file", "stage_file", "remove_staged"];
+const DEV_OPERATIONS: [&str; 13] = [
+    "read_file",
+    "stage_file",
+    "remove_staged",
+    "mtp_device_info",
+    "mtp_storage_ids",
+    "mtp_storage_info",
+    "mtp_handles",
+    "mtp_object_info",
+    "mtp_read",
+    "ptp_transaction",
+    "mtp_create",
+    "mtp_delete",
+    "mtp_trace",
+];
 
 fn tool_names(tools: &Value) -> Vec<&str> {
     tools["tools"]

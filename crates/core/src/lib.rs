@@ -27,6 +27,8 @@ pub mod mtp;
 pub mod names;
 pub mod ops;
 pub mod ptp;
+#[cfg(feature = "dev")]
+pub mod raw;
 pub mod report;
 pub mod rpc;
 pub mod session;

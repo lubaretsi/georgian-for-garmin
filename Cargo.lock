@@ -1578,6 +1578,7 @@ dependencies = [
 name = "georgian-for-garmin-core"
 version = "0.3.3"
 dependencies = [
+ "base64 0.23.1",
  "jsonschema",
  "nusb",
  "os_info",

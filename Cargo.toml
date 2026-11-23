@@ -10,6 +10,7 @@ repository = "https://github.com/lubaretsi/georgian-for-garmin"
 
 [workspace.dependencies]
 georgian-for-garmin-core = { path = "crates/core" }
+base64 = "0.23"
 clap = { version = "4.6", features = ["derive"] }
 jsonschema = { version = "0.61", default-features = false }
 nusb = "0.2.9"

@@ -8,16 +8,37 @@ pub mod op {
     pub const OPEN_SESSION: u16 = 0x1002;
     pub const CLOSE_SESSION: u16 = 0x1003;
     pub const GET_STORAGE_IDS: u16 = 0x1004;
+    pub const GET_STORAGE_INFO: u16 = 0x1005;
+    pub const GET_NUM_OBJECTS: u16 = 0x1006;
     pub const GET_OBJECT_HANDLES: u16 = 0x1007;
     pub const GET_OBJECT_INFO: u16 = 0x1008;
     pub const GET_OBJECT: u16 = 0x1009;
+    pub const GET_THUMB: u16 = 0x100A;
     pub const DELETE_OBJECT: u16 = 0x100B;
     pub const SEND_OBJECT_INFO: u16 = 0x100C;
     pub const SEND_OBJECT: u16 = 0x100D;
+    pub const FORMAT_STORE: u16 = 0x100F;
+    pub const RESET_DEVICE: u16 = 0x1010;
+    pub const SET_OBJECT_PROTECTION: u16 = 0x1012;
+    pub const POWER_DOWN: u16 = 0x1013;
+    pub const GET_DEVICE_PROP_DESC: u16 = 0x1014;
+    pub const GET_DEVICE_PROP_VALUE: u16 = 0x1015;
+    pub const SET_DEVICE_PROP_VALUE: u16 = 0x1016;
+    pub const MOVE_OBJECT: u16 = 0x1019;
+    pub const COPY_OBJECT: u16 = 0x101A;
+    pub const GET_PARTIAL_OBJECT: u16 = 0x101B;
     /// Garmin's vendor `GetObjectIds`, parameters `(storage, parent)`: the handles of `parent`'s
     /// children as a `u32` array, like `GetObjectHandles`, but including children the watch
     /// leaves out of standard listings, such as an empty `GARMIN/ExtData`.
     pub const GARMIN_GET_OBJECT_IDS: u16 = 0x9002;
+    pub const GET_OBJECT_PROPS_SUPPORTED: u16 = 0x9801;
+    pub const GET_OBJECT_PROP_DESC: u16 = 0x9802;
+    pub const GET_OBJECT_PROP_VALUE: u16 = 0x9803;
+    pub const SET_OBJECT_PROP_VALUE: u16 = 0x9804;
+    pub const GET_OBJECT_PROP_LIST: u16 = 0x9805;
+    pub const SET_OBJECT_PROP_LIST: u16 = 0x9806;
+    pub const GET_OBJECT_REFERENCES: u16 = 0x9810;
+    pub const SET_OBJECT_REFERENCES: u16 = 0x9811;
 }
 
 /// Object format codes.
@@ -47,20 +68,47 @@ pub const DATA: u16 = 2;
 pub const RESPONSE: u16 = 3;
 
 pub fn operation_name(code: u16) -> &'static str {
-    match code {
+    known_operation_name(code).unwrap_or("operation")
+}
+
+/// The PTP or MTP name of operation `code`; `None` for one this client doesn't name, such as
+/// most vendor operations.
+pub fn known_operation_name(code: u16) -> Option<&'static str> {
+    Some(match code {
         op::GET_DEVICE_INFO => "GetDeviceInfo",
         op::OPEN_SESSION => "OpenSession",
         op::CLOSE_SESSION => "CloseSession",
         op::GET_STORAGE_IDS => "GetStorageIDs",
+        op::GET_STORAGE_INFO => "GetStorageInfo",
+        op::GET_NUM_OBJECTS => "GetNumObjects",
         op::GET_OBJECT_HANDLES => "GetObjectHandles",
         op::GET_OBJECT_INFO => "GetObjectInfo",
         op::GET_OBJECT => "GetObject",
+        op::GET_THUMB => "GetThumb",
         op::DELETE_OBJECT => "DeleteObject",
         op::SEND_OBJECT_INFO => "SendObjectInfo",
         op::SEND_OBJECT => "SendObject",
+        op::FORMAT_STORE => "FormatStore",
+        op::RESET_DEVICE => "ResetDevice",
+        op::SET_OBJECT_PROTECTION => "SetObjectProtection",
+        op::POWER_DOWN => "PowerDown",
+        op::GET_DEVICE_PROP_DESC => "GetDevicePropDesc",
+        op::GET_DEVICE_PROP_VALUE => "GetDevicePropValue",
+        op::SET_DEVICE_PROP_VALUE => "SetDevicePropValue",
+        op::MOVE_OBJECT => "MoveObject",
+        op::COPY_OBJECT => "CopyObject",
+        op::GET_PARTIAL_OBJECT => "GetPartialObject",
         op::GARMIN_GET_OBJECT_IDS => "GarminGetObjectIds",
-        _ => "operation",
-    }
+        op::GET_OBJECT_PROPS_SUPPORTED => "GetObjectPropsSupported",
+        op::GET_OBJECT_PROP_DESC => "GetObjectPropDesc",
+        op::GET_OBJECT_PROP_VALUE => "GetObjectPropValue",
+        op::SET_OBJECT_PROP_VALUE => "SetObjectPropValue",
+        op::GET_OBJECT_PROP_LIST => "GetObjectPropList",
+        op::SET_OBJECT_PROP_LIST => "SetObjectPropList",
+        op::GET_OBJECT_REFERENCES => "GetObjectReferences",
+        op::SET_OBJECT_REFERENCES => "SetObjectReferences",
+        _ => return None,
+    })
 }
 
 pub fn response_name(code: u16) -> Option<&'static str> {
@@ -285,6 +333,11 @@ impl<'a> Reader<'a> {
         Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     }
 
+    pub fn u64(&mut self) -> Result<u64, ProtocolError> {
+        let b = self.take(8)?;
+        Ok(u64::from_le_bytes(b.try_into().expect("8 bytes")))
+    }
+
     /// A PTP string: a count of UCS-2 units including the terminating NUL, then the units.
     /// Unpaired surrogates decode as U+FFFD so one odd filename cannot break a listing scan.
     pub fn string(&mut self) -> Result<String, ProtocolError> {
@@ -387,8 +440,14 @@ pub struct DeviceInfo {
 
 impl DeviceInfo {
     pub fn decode(bytes: &[u8]) -> Result<DeviceInfo, ProtocolError> {
+        Ok(DeviceInfo::decode_with_serial_offset(bytes)?.0)
+    }
+
+    /// The dataset, and the byte offset of its SerialNumber string (the count byte), so a copy
+    /// of the bytes can be masked.
+    pub fn decode_with_serial_offset(bytes: &[u8]) -> Result<(DeviceInfo, usize), ProtocolError> {
         let mut r = Reader::new(bytes);
-        Ok(DeviceInfo {
+        let mut info = DeviceInfo {
             standard_version: r.u16()?,
             vendor_extension_id: r.u32()?,
             vendor_extension_version: r.u16()?,
@@ -402,8 +461,11 @@ impl DeviceInfo {
             manufacturer: r.string()?,
             model: r.string()?,
             device_version: r.string()?,
-            serial_number: r.string()?,
-        })
+            serial_number: String::new(),
+        };
+        let serial = r.pos;
+        info.serial_number = r.string()?;
+        Ok((info, serial))
     }
 }
 
@@ -483,6 +545,37 @@ impl ObjectInfo {
 
     pub fn is_folder(&self) -> bool {
         self.format == format::ASSOCIATION
+    }
+}
+
+/// The `GetStorageInfo` dataset.
+#[cfg(feature = "dev")]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StorageInfo {
+    pub storage_type: u16,
+    pub filesystem_type: u16,
+    pub access_capability: u16,
+    pub max_capacity: u64,
+    pub free_space_in_bytes: u64,
+    pub free_space_in_objects: u32,
+    pub storage_description: String,
+    pub volume_identifier: String,
+}
+
+#[cfg(feature = "dev")]
+impl StorageInfo {
+    pub fn decode(bytes: &[u8]) -> Result<StorageInfo, ProtocolError> {
+        let mut r = Reader::new(bytes);
+        Ok(StorageInfo {
+            storage_type: r.u16()?,
+            filesystem_type: r.u16()?,
+            access_capability: r.u16()?,
+            max_capacity: r.u64()?,
+            free_space_in_bytes: r.u64()?,
+            free_space_in_objects: r.u32()?,
+            storage_description: r.string()?,
+            volume_identifier: r.string()?,
+        })
     }
 }
 
@@ -601,5 +694,21 @@ mod tests {
         assert_eq!(info.serial_number, "");
         // An array count larger than the dataset is rejected rather than allocated.
         assert!(DeviceInfo::decode(&hex("6400 06000000 6400 00 0000 ffffff7f")).is_err());
+    }
+
+    #[cfg(feature = "dev")]
+    #[test]
+    fn storage_info_bytes() {
+        let bytes =
+            hex("0300 0200 0000 0000004000000000 0000001000000000 ffffffff 03 4d00 4d00 0000 00");
+        let info = StorageInfo::decode(&bytes).unwrap();
+        assert_eq!(info.storage_type, 3);
+        assert_eq!(info.filesystem_type, 2);
+        assert_eq!(info.max_capacity, 0x4000_0000);
+        assert_eq!(info.free_space_in_bytes, 0x1000_0000);
+        assert_eq!(info.free_space_in_objects, u32::MAX);
+        assert_eq!(info.storage_description, "MM");
+        assert_eq!(info.volume_identifier, "");
+        assert!(StorageInfo::decode(&bytes[..10]).is_err());
     }
 }
