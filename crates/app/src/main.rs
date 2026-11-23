@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use georgian_for_garmin_core::busy::Busy;
+use georgian_for_garmin_core::error::Rollback;
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::mtp::Mtp;
 use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
@@ -42,6 +43,9 @@ struct Failure {
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     busy: Option<Box<Busy>>,
+    /// A failed install or restore: how undoing it went.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rollback: Option<Box<Rollback>>,
 }
 
 impl From<Error> for Failure {
@@ -50,6 +54,7 @@ impl From<Error> for Failure {
             code: e.code.as_str(),
             message: e.message,
             busy: e.busy,
+            rollback: e.rollback,
         }
     }
 }

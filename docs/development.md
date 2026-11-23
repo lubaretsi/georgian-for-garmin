@@ -7,8 +7,8 @@
 | `fonts/registry.json` | Garmin font packs that get Georgian, their host families, other pinned stock fonts: parts, download URLs, SHA-256s, tested watches, and the support list of every known watch model ([how to add one](../fonts/README.md)) |
 | `fonts/fallback-models.json` | Which font a watch view draws a character from, as far as recorded observations show, with citations ([Fallback models](../fonts/README.md#fallback-models)) |
 | `builder/` | Python font toolkit (`garmin_fonts`): Garmin's font formats, the stock font catalog, adding Georgian, rendering as a watch would, the watch over `rpc`; writes the asset folder |
-| `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`), the watch's font list, the hidden-folder search, and MTP over USB |
-| `crates/cli` | The `georgian-for-garmin` command |
+| `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`, `extdata_list`, …), sessions that keep the watch open (`session.rs`), the JSON-RPC loop (`rpc.rs`), the watch's font list, the hidden-folder search, and MTP over USB |
+| `crates/cli` | The `georgian-for-garmin` command, with its `rpc` and `mcp` (`mcp.rs`, the official Rust MCP SDK `rmcp`) sessions |
 | `crates/app` | The desktop app (Tauri 2; plain HTML, CSS and JavaScript in `ui/`, strings in `ui/strings.json`) |
 | `scripts/` | The release builds (macOS, Windows, Linux) |
 | `.github/workflows/` | `check.yml` on every push and pull request; `release.yml` on version tags and manual runs |
@@ -95,10 +95,31 @@ calls the core refuses before it touches a watch.
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p georgian-for-garmin -- inspect
+cargo test -p georgian-for-garmin-core -p georgian-for-garmin --features dev   # the dev operations
 ```
 
 The core's tests run against an in-memory watch; no hardware is needed. To trace a real watch,
-set `GEORGIAN_FOR_GARMIN_TRACE=1`.
+set `GEORGIAN_FOR_GARMIN_TRACE=1`. `tests/support/fake.rs` in `crates/core` is a Venu 2 that can
+be unplugged and plugged back in; the session, `rpc` and `mcp` tests share it.
+
+Every operation is declared once in `crates/core/src/ops.rs`: JSON Schemas for its input and
+output, from the Rust types, and its read-only, destructive, idempotent and open-world hints. The
+one-shot commands, `rpc`, `mcp`, `--help --json` and the app all go through those declarations;
+a new operation needs its declaration, its branch in `crates/core/src/session.rs`, and a subcommand in
+`crates/cli`. The `rpc` and `mcp` protocols are described in
+[Command line](command-line.md#sessions-rpc-and-mcp).
+
+Which part a file in `ExtData` belongs to, and whether it is a waiting `.tmp`, an imported
+`.fnt` or a TrueType `.bin`, comes from one function, `names::resolve` in
+`crates/core/src/names.rs`; it takes the part number (`006-D9035-02.tmp`) and Garmin's short form
+(`D903502.tmp`) alike. Every check before a write and every state `inspect` reports goes through
+it; don't match file names anywhere else.
+
+The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
+`remove_staged` (`crates/core/src/dev.rs`): `cargo build -p georgian-for-garmin --features dev`.
+They write files of any content to a watch, so the feature only builds in debug: `--release`
+with it fails to compile, and the release scripts never enable it. The CLI tests check that a
+build without it lists none of them.
 
 ## Desktop app
 

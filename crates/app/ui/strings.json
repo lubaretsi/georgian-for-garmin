@@ -52,13 +52,13 @@
     "shareWhy": "დაგვეხმარეთ ამ საათის დამატებაში: გაგვიზიარეთ მისი შრიფტების სია GitHub-ზე. სიაში სერიული ნომერი არ არის.",
     "share": "ჩემი საათის შრიფტების სიის გაზიარება",
     "shareDone": "ბრაუზერში GitHub-ის გვერდი გაიხსნა, ყველაფერი შევსებულია. გადახედეთ და გამოაქვეყნეთ.",
-    "sharePaste": "ტექსტი დაკოპირდა. ბრაუზერში გახსნილ GitHub-ის გვერდზე ჩასვით ის „Watch report“ ველში, იქ დაწერილი ხაზის ნაცვლად (არა „Notes“-ში), და გამოაქვეყნეთ.",
+    "sharePaste": "ტექსტი დაკოპირდა. ბრაუზერში გახსნილ GitHub-ის გვერდზე ჩასვით ის ცარიელ „Watch report“ ველში (არა „Notes“-ში) და გამოაქვეყნეთ.",
     "shareFailed": "სია ვერ გავაზიარეთ. სცადეთ თავიდან.",
     "shareDemo": "დემო: ბრაუზერი არ გაიხსნება. ბმული: {url}",
     "shareGithub": "GitHub-ზე გაზიარება",
     "sharedSummary": "რა გაზიარდება",
     "sharedWhat": "საათის მოდელი და ვერსია, მისი შრიფტის ფაილების სია, რას აყენებს მასზე პროგრამა და როგორ ჩაიარა, თქვენი პასუხები, თუ რამე მონიშნეთ, პროგრამის ვერსია და ოპერაციული სისტემა. სერიული ნომერი და საათის ID არ გაზიარდება. ზუსტად ეს ტექსტი:",
-    "sharePasteAhead": "ტექსტი ბმულში არ ეტევა: დაკოპირდება და GitHub-ის გვერდზე „Watch report“ ველში, იქ დაწერილი ხაზის ნაცვლად ჩასვამთ.",
+    "sharePasteAhead": "ტექსტი ბმულში არ ეტევა: დაკოპირდება და GitHub-ის გვერდზე ცარიელ „Watch report“ ველში ჩასვამთ.",
     "driveBody": "საათი კომპიუტერთან USB დისკად არის შეერთებული, ასე ქართულს ვერ დავაყენებთ. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP. ზოგ საათს მხოლოდ დისკის რეჟიმი აქვს.",
     "driveShareWhy": "გაგვიზიარეთ ამ საათის შრიფტების სია GitHub-ზე, რომ მისთვისაც ვეძებოთ გზა. სიაში სერიული ნომერი არ არის.",
     "state": {
@@ -124,6 +124,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "GitHub-ზე შეტყობინება",
+    "rollbackIncomplete": "ყველაფერი ვერ დავაბრუნეთ. ეს ფაილები საათზე შეიძლება ისე აღარ იყოს, როგორც იყო: {files}. შეაერთეთ საათი, დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“ და მერე გადატვირთეთ საათი.",
 
     "errorTitle": "ვერ მოხერხდა",
     "details": "დეტალები",
@@ -143,7 +144,8 @@
       "restore_first": "საათზე შრიფტის ფაილი ვერ წავიკითხეთ, ამიტომ ვერ ვიგებთ, რა არის, და მასზე არაფერს ვწერთ. დააჭირეთ „ქარხნული შრიფტის დაბრუნებას“, გადატვირთეთ საათი და მერე ისევ დააყენეთ ქართული.",
       "verification_failed": "შრიფტი სწორად ვერ ჩაიწერა, ამიტომ საათიდან წავშალეთ. სცადეთ თავიდან.",
       "device_error": "საათთან კავშირი გაწყდა. შეამოწმეთ კაბელი და სცადეთ თავიდან.",
-      "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ."
+      "internal": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ.",
+      "cancelled": "მოქმედება გაუქმდა. თუ რამე ჩაიწერა, საათზე ისევ ძველი ფაილები დაბრუნდა."
     }
   },
   "en": {
@@ -199,13 +201,13 @@
     "shareWhy": "Help us add this watch: share its font list on GitHub. The list has no serial number.",
     "share": "Share my watch’s font list",
     "shareDone": "A GitHub page opened in your browser with everything filled in. Check it and post it.",
-    "sharePaste": "Copied. On the GitHub page that opened, paste it into the Watch report field over the line that’s there (not into Notes), then post it.",
+    "sharePaste": "Copied. On the GitHub page that opened, paste it into the empty Watch report box (not into Notes), then post it.",
     "shareFailed": "The list couldn’t be shared. Try again.",
     "shareDemo": "Demo: no browser opens. The link: {url}",
     "shareGithub": "Share on GitHub",
     "sharedSummary": "What’s shared",
     "sharedWhat": "Your watch’s model and software, its list of font files, what the app installs on it and how that went, any answers you picked, and the app’s version and your operating system. No serial number or watch ID. Exactly this text:",
-    "sharePasteAhead": "This is too long for the link: it gets copied, and you paste it into the form’s Watch report field, over the line that’s there.",
+    "sharePasteAhead": "This is too long for the link: it gets copied, and you paste it into the form’s empty Watch report box.",
     "driveBody": "Your watch is connected as a USB drive, so Georgian can’t be installed. If the watch asks how to connect, choose MTP. Some watches only have drive mode.",
     "driveShareWhy": "Share this watch’s font list on GitHub so we can look for a way for it too. The list has no serial number.",
     "state": {
@@ -271,6 +273,7 @@
       "iphone": "iPhone"
     },
     "reportProblem": "Report this on GitHub",
+    "rollbackIncomplete": "Not everything could be put back. These files on the watch may not be as they were: {files}. Connect the watch, click Restore original font, then restart the watch.",
 
     "errorTitle": "That didn’t work",
     "details": "Details",
@@ -290,7 +293,8 @@
       "restore_first": "A font file on the watch can’t be read, so the app can’t tell what it is and writes nothing over it. Click Restore original font, restart the watch, then install Georgian again.",
       "verification_failed": "The font didn’t copy correctly, so it was removed from the watch. Try again.",
       "device_error": "The connection to the watch was interrupted. Check the cable and try again.",
-      "internal": "Something went wrong inside the app. Please report it."
+      "internal": "Something went wrong inside the app. Please report it.",
+      "cancelled": "The operation was cancelled. Anything it had written was put back as it was."
     }
   }
 }

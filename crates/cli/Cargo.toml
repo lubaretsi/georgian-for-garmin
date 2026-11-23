@@ -10,3 +10,13 @@ repository.workspace = true
 georgian-for-garmin-core.workspace = true
 clap.workspace = true
 serde_json.workspace = true
+rmcp = { version = "3.11", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["rt", "macros", "sync", "io-std"] }
+
+[features]
+# The development operations of the core (read-file, stage-file, remove-staged); debug builds
+# only.
+dev = ["georgian-for-garmin-core/dev"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "macros", "rt", "time"] }

@@ -7,6 +7,11 @@ license.workspace = true
 repository.workspace = true
 build = "build.rs"
 
+[features]
+# Development operations (read_file, stage_file, remove_staged): debug builds only; a release
+# build with it fails to compile.
+dev = []
+
 [dependencies]
 jsonschema.workspace = true
 roxmltree.workspace = true

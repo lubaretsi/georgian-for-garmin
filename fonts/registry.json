@@ -248,6 +248,11 @@
           "model_part": "006-B3992-00",
           "software": "29.52",
           "parts": ["006-D9035-18"]
+        },
+        {
+          "model_part": "006-B4314-00",
+          "software": "27.18",
+          "parts": ["006-D9035-12", "006-D9035-13", "006-D9035-14"]
         }
       ]
     },
@@ -349,6 +354,11 @@
           "model_part": "006-B3992-00",
           "software": "29.52",
           "parts": ["006-D9035-05", "006-D9035-06", "006-D9035-07", "006-D9035-08", "006-D9035-09", "006-D9035-17"]
+        },
+        {
+          "model_part": "006-B4314-00",
+          "software": "27.18",
+          "parts": ["006-D9035-09"]
         }
       ]
     },
@@ -537,6 +547,7 @@
     {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2]},
     {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5, 9]},
     {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13, 35, 37]},
+    {"model": "epix Pro (Gen 2) 51mm", "model_part": "006-B4314-00", "issues": [46]},
     {
       "model": "fenix 6S Pro",
       "model_part": "006-B3288-00",
@@ -693,17 +704,6 @@
         "family": "bitmap_armenian",
         "confidence": "high",
         "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters.",
-        "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
-      }
-    },
-    {
-      "model": "epix Pro (Gen 2) 51mm / D2 Mach 1 Pro / tactix 7 - AMOLED Edition",
-      "model_part": "006-B4314-00",
-      "issues": [],
-      "prediction": {
-        "family": "bitmap_armenian",
-        "confidence": "high",
-        "basis": "Same firmware family as the tested fenix 7 Pro and tactix 7, which list bitmap Armenian (006-D9035) and show Georgian; Garmin's 10.43 notes for the family add Armenian characters. The name is the Connect IQ device page's for 3 parts; which part is which isn't stated.",
         "source": "firmware family of fenix 7 Pro Solar, Pro Sapphire Solar"
       }
     },

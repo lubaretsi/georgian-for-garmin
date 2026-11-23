@@ -44,6 +44,9 @@ pub enum ErrorCode {
     DeviceError,
     /// A bug: the operation produced output that violates its own schema.
     Internal,
+    /// The caller cancelled the call (`notifications/cancelled` in `rpc` and `mcp`). Changes a
+    /// write had already made were undone where possible; `rollback` says whether all were.
+    Cancelled,
 }
 
 impl ErrorCode {
@@ -63,8 +66,48 @@ impl ErrorCode {
             ErrorCode::VerificationFailed => "verification_failed",
             ErrorCode::DeviceError => "device_error",
             ErrorCode::Internal => "internal",
+            ErrorCode::Cancelled => "cancelled",
         }
     }
+}
+
+/// What a failed write did to undo this call's changes: every file it tried to delete or put
+/// back, and whether all of that worked.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Rollback {
+    pub status: RollbackStatus,
+    pub files: Vec<RollbackFile>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RollbackStatus {
+    /// Every change was undone.
+    Complete,
+    /// Some file couldn't be deleted or put back: the watch holds what `files` says.
+    Incomplete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RollbackAction {
+    /// A file this call created, deleted.
+    Delete,
+    /// A file this call replaced, written back from the bytes read before.
+    Restore,
+}
+
+/// One file of a [`Rollback`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RollbackFile {
+    /// "GARMIN/ExtData/<name>".
+    pub path: String,
+    pub action: RollbackAction,
+    /// Whether it worked; false means the file may still be there (delete) or missing or
+    /// different (restore).
+    pub done: bool,
+    /// What happened, in words.
+    pub result: String,
 }
 
 /// An operation failure: a code and a message for people.
@@ -74,6 +117,8 @@ pub struct Error {
     pub message: String,
     /// `device_busy`: who holds the watch, as far as the system tells.
     pub busy: Option<Box<Busy>>,
+    /// A failed write: how undoing this call's changes went.
+    pub rollback: Option<Box<Rollback>>,
 }
 
 impl Error {
@@ -82,16 +127,39 @@ impl Error {
             code,
             message: message.into(),
             busy: None,
+            rollback: None,
         }
     }
 
     /// `device_busy` with what is known about the holder, and the message for it.
     pub fn busy(busy: Busy) -> Self {
+        let message = crate::busy::message(&busy);
         Error {
-            code: ErrorCode::DeviceBusy,
-            message: crate::busy::message(&busy),
             busy: Some(Box::new(busy)),
+            ..Error::new(ErrorCode::DeviceBusy, message)
         }
+    }
+
+    /// This error with `files` added to its rollback, whose status follows from all of them.
+    pub fn with_rollback(mut self, files: impl IntoIterator<Item = RollbackFile>) -> Self {
+        let mut all = self.rollback.take().map(|r| r.files).unwrap_or_default();
+        all.extend(files);
+        if !all.is_empty() {
+            let status = if all.iter().all(|f| f.done) {
+                RollbackStatus::Complete
+            } else {
+                RollbackStatus::Incomplete
+            };
+            self.rollback = Some(Box::new(Rollback { status, files: all }));
+        }
+        self
+    }
+
+    /// Whether undoing this call's changes left something behind.
+    pub fn rollback_incomplete(&self) -> bool {
+        self.rollback
+            .as_ref()
+            .is_some_and(|r| r.status == RollbackStatus::Incomplete)
     }
 
     /// Process exit code: 2 for invalid input, 1 otherwise.
@@ -103,11 +171,15 @@ impl Error {
         }
     }
 
-    /// `{"error": {"code": …, "message": …}}`, with `busy` for `device_busy`.
+    /// `{"error": {"code": …, "message": …}}`, with `busy` for `device_busy` and `rollback`
+    /// after a failed write.
     pub fn to_json(&self) -> serde_json::Value {
         let mut error = serde_json::json!({"code": self.code.as_str(), "message": self.message});
         if let Some(busy) = &self.busy {
             error["busy"] = serde_json::to_value(busy).expect("Busy serializes");
+        }
+        if let Some(rollback) = &self.rollback {
+            error["rollback"] = serde_json::to_value(rollback).expect("Rollback serializes");
         }
         serde_json::json!({ "error": error })
     }

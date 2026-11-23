@@ -67,6 +67,14 @@ jobs:
       - name: cargo test
         run: nix develop --command cargo test --locked --workspace
 
+      # The development operations (cargo feature `dev`), which release builds never have.
+      - name: cargo clippy and test (dev operations)
+        run: |
+          nix develop --command cargo clippy --locked -p georgian-for-garmin-core \
+            -p georgian-for-garmin --all-targets --features dev -- -D warnings
+          nix develop --command cargo test --locked -p georgian-for-garmin-core \
+            -p georgian-for-garmin --features dev
+
       # The Windows backend is cfg(windows): type-check it for both Windows targets from Linux.
       # Clippy doesn't link, so no Windows SDK is needed.
       - name: cargo clippy (Windows targets)
@@ -76,7 +84,9 @@ jobs:
           rustup toolchain install "$toolchain" --profile minimal --component clippy \
             --target x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
           for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
-            GEORGIAN_FOR_GARMIN_FONTS=$fonts cargo "+$toolchain" clippy --locked \
-              -p georgian-for-garmin-core -p georgian-for-garmin --all-targets --target "$target" \
-              -- -D warnings
+            for features in "" "--features dev"; do
+              GEORGIAN_FOR_GARMIN_FONTS=$fonts cargo "+$toolchain" clippy --locked \
+                -p georgian-for-garmin-core -p georgian-for-garmin --all-targets --target "$target" \
+                $features -- -D warnings
+            done
           done
