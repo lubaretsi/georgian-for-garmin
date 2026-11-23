@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::garmin_device::GarminDevice;
+use crate::names::{self, Role};
 use crate::support::{PredictionFamily, Reason, Unsupported, Watch};
 
 /// How a pack's fonts reach the watch.
@@ -142,9 +143,33 @@ pub struct Mark {
 }
 
 impl Font {
-    /// The file name in `GARMIN/ExtData`: `<part>.tmp`, which the watch imports, for a bitmap
-    /// part; `<part>.bin`, which the watch loads, for a TrueType part.
-    pub fn file_name(&self) -> String {
+    /// What this part's own file in `GARMIN/ExtData` is: a bitmap part's `.tmp`, which the watch
+    /// imports at the next restart; a TrueType part's `.bin`, which the watch loads.
+    pub fn target_role(&self) -> Role {
+        match self.kind {
+            Kind::Bitmap => Role::Waiting,
+            Kind::Truetype => Role::Bin,
+        }
+    }
+
+    /// The name this build writes the part under in `GARMIN/ExtData`: the file name `device`
+    /// declares for it in `GarminDevice.xml`, in the watch's own name form (the Lily 2 Active
+    /// declares `D894567.tmp`, the Venu 2 `006-D9035-03.tmp`), so the watch imports or loads
+    /// it; [`Font::long_file_name`] when the watch declares no file name that [`names`] resolves
+    /// to this part's own file.
+    pub fn file_name(&self, device: &GarminDevice) -> String {
+        device
+            .extdata_files()
+            .find(|d| {
+                d.part_number == self.part
+                    && names::is(&d.file_name, &self.part, self.target_role())
+            })
+            .map_or_else(|| self.long_file_name(), |d| d.file_name.clone())
+    }
+
+    /// The part's file name in the part-number form: `<part>.tmp` for a bitmap part,
+    /// `<part>.bin` for a TrueType part.
+    pub fn long_file_name(&self) -> String {
         match self.kind {
             Kind::Bitmap => format!("{}.tmp", self.part),
             Kind::Truetype => format!("{}.bin", self.part),

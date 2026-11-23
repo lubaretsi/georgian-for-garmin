@@ -59,7 +59,10 @@ Which part a file in `ExtData` belongs to, and whether it is a waiting `.tmp`, a
 `.fnt` or a TrueType `.bin`, comes from one function, `names::resolve` in
 `crates/core/src/names.rs`; it takes the part number (`006-D9035-02.tmp`) and Garmin's short form
 (`D903502.tmp`) alike. Every check before a write and every state `inspect` reports goes through
-it; don't match file names anywhere else.
+it; don't match file names anywhere else. The name install and restore write a part under comes
+from one function too, `Font::file_name` in `crates/core/src/fonts.rs`: the `FileName` the watch
+declares for the part in `GarminDevice.xml` (the Lily 2 Active's short `D894567.tmp`, the Venu
+2's `006-D9035-03.tmp`), or the part number when it declares none that resolves to the part.
 
 The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
 `remove_staged` (`crates/core/src/dev.rs`): `cargo build -p georgian-for-garmin --features dev`.

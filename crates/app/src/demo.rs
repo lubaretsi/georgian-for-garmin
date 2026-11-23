@@ -130,7 +130,7 @@ fn device_xml(
                  <Version><Major>{major}</Major><Minor>{minor}</Minor></Version>\
                  <Path>Garmin/ExtData</Path><FileName>{}</FileName></UpdateFile>",
                 f.part,
-                f.file_name()
+                f.long_file_name()
             )
         })
         .collect();
@@ -218,7 +218,7 @@ impl Demo {
                     let data = font.stock.to_vec();
                     objects.insert(
                         handle,
-                        object(EXTDATA, &font.file_name(), format::UNDEFINED, data),
+                        object(EXTDATA, &font.long_file_name(), format::UNDEFINED, data),
                     );
                 }
                 if leftover {

@@ -23,9 +23,12 @@ flowchart LR
   `MassStorageMode/UpdateFile` entries with `Path` `Garmin/ExtData`. A Venu 2 lists 21 of them;
   the Armenian font comes in four sizes, parts `006-D9035-01` to `-04` (21, 24, 27 and 31 px).
 - **How a font gets onto the watch.** Garmin's updater copies a new font to
-  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`;
-  the Venu 2 keeps what it loaded as a read-only `<part>.fnt`, byte for byte the `.tmp`, which
-  only Garmin's vendor `GetObjectIds` lists ([Hidden files](reporting.md#hidden-files)).
+  `GARMIN/ExtData` under the `FileName` `GarminDevice.xml` gives it: the part number,
+  `006-D9035-03.tmp`, on the Venu 2, Garmin's short form, `D894567.tmp`, on the Lily 2 Active.
+  This project writes the same name. When the watch restarts it loads the file and deletes the
+  `.tmp`; the Venu 2 keeps what it loaded as a read-only `.fnt` of the same name
+  (`006-D9035-03.fnt`), byte for byte the `.tmp`, which only Garmin's vendor `GetObjectIds`
+  lists ([Hidden files](reporting.md#hidden-files)).
   `inspect` reads that `.fnt` to tell whether Georgian is installed after the restart. Install
   and restore never delete it, and the next restart replaces it with the next `.tmp`, so they
   stage one only over an import they recognise (Garmin's original or one of this program's

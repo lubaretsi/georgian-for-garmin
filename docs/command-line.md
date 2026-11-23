@@ -206,9 +206,10 @@ later one-shot `remove-staged`.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
 `already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
-watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
-TrueType part replaces the watch's `<part>.bin`, and a failed run tries to write the original
-back ([Failed writes](#failed-writes)).
+watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `.tmp` under the
+file name the watch declares for it (`006-D9035-03.tmp`, or the short form, as `D894567.tmp`, on
+a watch that declares that); a TrueType part replaces the watch's `<part>.bin`, and a failed run
+tries to write the original back ([Failed writes](#failed-writes)).
 
 ## Exit codes and errors
 

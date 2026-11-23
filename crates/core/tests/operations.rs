@@ -2527,7 +2527,7 @@ fn reported_watch(model_part: &str, software: &str, list: &[(&str, &str, &str)])
     let mut handle = 0x0100_0050;
     for (_, font) in bundled.fonts().filter(|(p, _)| p.kind == Kind::Truetype) {
         if list.iter().any(|(part, ..)| *part == font.part) {
-            s.file(handle, EXTDATA, &font.file_name(), &font.stock);
+            s.file(handle, EXTDATA, &font.long_file_name(), &font.stock);
             handle += 1;
         }
     }

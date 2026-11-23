@@ -73,10 +73,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows it) is now identified before install or restore writes a `.tmp` that would replace it at
   the next restart, and `inspect` reports it; before, only the hidden listing was checked.
 - Install, restore and `inspect` recognize a part's files under Garmin's short name too
-  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting short-named file
-  is identified before anything is written, replaced under this build's name when it is
-  Garmin's or this program's, and refused otherwise, so a part never ends up with two waiting
-  files. Two files for one part are named in the `conflict` error.
+  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting file under either
+  name is identified before anything is written, replaced when it is Garmin's or this
+  program's, and refused otherwise, so a part never ends up with two waiting files. Two files
+  for one part are named in the `conflict` error.
+- Install and restore write each font under the file name the watch declares for it in
+  `GarminDevice.xml`: the short `D894567.tmp` on a watch that declares short names, as the Lily 2
+  Active does, so it imports `D894567.fnt`; the part number, `006-D9035-03.tmp`, on the Venu 2
+  and every watch reported before. A waiting copy under the other name is moved to the declared
+  one.
 
 ## [0.3.3] - 2026-11-23
 

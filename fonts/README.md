@@ -11,7 +11,8 @@ against the support list.
 A pack has a `kind`:
 
 - `bitmap`: Garmin's 2-bit `.fnt` fonts, one part per pixel size. The installer stages them as
-  `GARMIN/ExtData/<part>.tmp`; the watch imports them when it restarts.
+  `GARMIN/ExtData/<part>.tmp`, under the file name the watch declares (some watches declare
+  Garmin's short form, `D894567.tmp`); the watch imports them when it restarts.
 - `truetype`: Garmin's TrueType `.bin` fonts, one part per weight. The watch keeps them as
   `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
   [TrueType packs](#truetype-packs)).

@@ -17,12 +17,14 @@ watch wasn't checked after a Windows-only install.
 ## Rules
 
 - Ask the user before writing to the watch.
-- Write only `GARMIN/ExtData/<part>.tmp` for the parts you picked in step 3. Don't delete or
-  change other files, create folders, or touch firmware files.
-- Check every target before writing any: if `ExtData` already holds a `<part>.tmp` identical to
-  the file you would write, skip that part; if one holds different contents, stop without writing
-  anything and tell the user (it's waiting to be imported; unplugging and restarting the watch
-  clears it).
+- Write only the `.tmp` files of the parts you picked in step 3, each under the `FileName` its
+  `UpdateFile` entry declares (`006-D9035-03.tmp`, or a short form such as `D894567.tmp`).
+  Don't delete or change other files, create folders, or touch firmware files.
+- Check every target before writing any. A part's waiting file may be under its part number or
+  Garmin's short form (`006-D9035-03.tmp` or `D903503.tmp`, any case). If one is identical to
+  the file you would write and has the declared name, skip that part; if one holds different
+  contents or another name, stop without writing anything and tell the user (it's waiting to be
+  imported; unplugging and restarting the watch clears it).
 - Read each file back and compare SHA-256 before moving to the next.
 - If a part fails, delete every file this run created, tell the user which deletions worked, and
   stop. Leave files staged by earlier runs alone.
@@ -46,9 +48,9 @@ watch wasn't checked after a Windows-only install.
 3. **Pick the targets.** Read `GARMIN/GarminDevice.xml`. Take the `MassStorageMode/UpdateFile`
    entries whose `Path` is `Garmin/ExtData` (compare case-insensitively). The targets are every
    part of every `bitmap` pack in the manifest's `packs` that is among their `PartNumber`s,
-   across those packs, each staged as `<part>.tmp`. If none matches, stop: tell the user the
-   watch isn't
-   supported yet and offer to share its report (below). Tell the user the model, software version
+   across those packs, each staged under its entry's `FileName`. If none matches, stop: tell
+   the user the watch isn't supported yet and offer to share its report (below). Tell the user
+   the model, software version
    (`Model/Description`, `Model/SoftwareVersion`; `1905` is `19.05`), the targets, and whether
    it's tested: a part is tested when its pack's `tested` list has an entry with this
    `Model/PartNumber` and software version that names the part, and the watch is tested only
@@ -65,8 +67,9 @@ watch wasn't checked after a Windows-only install.
    `GARMIN`, and it's on the same storage. On the verified Venu 2 it's `0x01000009`. If none
    matches, stop.
 5. **Check the targets** against what `ExtData` holds, as in the rules.
-6. **Copy and verify each part.** Send `georgian/<part>.fnt` as `<part>.tmp` into `ExtData`
-   (`SendObjectInfo` + `SendObject`). With libmtp, call `LIBMTP_Send_File_From_File` with
+6. **Copy and verify each part.** Send `georgian/<part>.fnt` into `ExtData` under the part's
+   declared `FileName` (`SendObjectInfo` + `SendObject`). With libmtp, call
+   `LIBMTP_Send_File_From_File` with
    `parent_id` set to the `ExtData` handle and the matching `storage_id`. libmtp's command-line
    tools resolve folders by listing, so they can't reach `ExtData`. Read the file back
    (`LIBMTP_Get_File_To_File`) and compare SHA-256 with the manifest.

@@ -1,0 +1,103 @@
+{
+  "source": "maintainer email report, owner anonymized",
+  "composed_from": [
+    "maintainer email report, owner anonymized: the 0.3.2 app's report of a Lily 2 Active, 5.10, sent by its owner (2026-11-23)"
+  ],
+  "app_version": "0.3.2",
+  "connection": "mtp",
+  "model": "Lily 2 Active",
+  "model_part": "006-B4477-00",
+  "software": "5.10",
+  "declared": [
+    {
+      "path": "Garmin/ExtData",
+      "file": "D895200.tmp",
+      "part": "006-D8952-00",
+      "version": "2.10"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D894466.tmp",
+      "part": "006-D8944-66",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D894467.tmp",
+      "part": "006-D8944-67",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D894567.tmp",
+      "part": "006-D8945-67",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D894568.tmp",
+      "part": "006-D8945-68",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D844870.tmp",
+      "part": "006-D8448-70",
+      "version": "2.00"
+    },
+    {
+      "path": "Garmin/ExtData",
+      "file": "D844871.tmp",
+      "part": "006-D8448-71",
+      "version": "2.00"
+    }
+  ],
+  "extdata": [],
+  "hidden": {
+    "status": "listed",
+    "files": [
+      {
+        "name": "D844870.fnt",
+        "bytes": 2535804,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D844871.fnt",
+        "bytes": 3543164,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D894466.fnt",
+        "bytes": 811755,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D894467.fnt",
+        "bytes": 1139670,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D894567.fnt",
+        "bytes": 1112122,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D894568.fnt",
+        "bytes": 1666276,
+        "read_only": true,
+        "file": null
+      },
+      {
+        "name": "D895200.fnt",
+        "bytes": 97945,
+        "read_only": true,
+        "file": null
+      }
+    ]
+  }
+}
