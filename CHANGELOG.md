@@ -77,6 +77,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remove-staged` for font experiments: stage any file under a part the watch declares (also by
   short name, as `D844870.tmp`), with install's checks and readback, and remove it later by the
   id it logged.
+- Development builds also add raw MTP operations for debugging from a script over `rpc` or
+  `mcp` (and as CLI subcommands): `mtp_device_info`, `mtp_storage_ids`, `mtp_storage_info`,
+  `mtp_handles` (with `hidden`, Garmin's GetObjectIds), `mtp_object_info`, `mtp_read` (whole or
+  a range, as base64 or to a file), `ptp_transaction` (reads only, from a fixed list; USB only),
+  and `mtp_trace`, which sends every PTP transaction of a session as `notifications/trace`. The
+  only writes, `mtp_create` and `mtp_delete`, need `allow_write` and make `stage_file`'s checks
+  with no override: only in `GARMIN/ExtData`, only over files identified as Garmin's, this
+  program's or this tool's, never a hidden import; each is logged in `staged.jsonl`, and
+  `remove_staged` removes what `mtp_create` wrote. Identifiers are masked unless
+  `reveal_identifiers`: the serial number in `mtp_device_info` and a raw GetDeviceInfo, the
+  owner's names in the 0xD401/0xD402 device properties, and the `<Id>` (unit ID), `<Ifix>` and
+  `<AppId>` values in `GarminDevice.xml` (also in `read_file`). The Python `Watch` client has
+  them as `watch.mtp.*`, `watch.ptp(opcode, params)` and `with watch.trace() as transactions:`.
 - Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
 - Errors after a failed or cancelled write carry `rollback`: `complete` or `incomplete`, with each
   file it tried to delete or put back and whether that worked. An incomplete rollback now says
@@ -137,6 +150,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Install and restore stop with `device_error`, writing nothing, when the watch lists Garmin's
+  GetObjectIds but reading `ExtData`'s hidden listing fails, wholly or for one file; before, they
+  went on as if the listing were complete, so an imported font they couldn't see could be
+  replaced unchecked at the next restart. The development writes (`stage_file`, `mtp_create`,
+  `mtp_delete`) refuse the same way. `extdata_list` reports such a partial listing as
+  `hidden_listing: error` with its `note`.
 - A bitmap part's imported `<part>.fnt` in the normal `ExtData` listing (as the watch in #38
   shows it) is now identified before install or restore writes a `.tmp` that would replace it at
   the next restart, and `inspect` reports it; before, only the hidden listing was checked.

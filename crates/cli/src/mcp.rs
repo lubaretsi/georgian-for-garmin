@@ -1,8 +1,10 @@
 //! `georgian-for-garmin mcp`: the operations as MCP tools over stdio, with the official Rust SDK
 //! (`rmcp`). Tools come from the core's declarations; calls run one at a time on a session that
 //! keeps the watch open. A call whose `_meta` carries a `progressToken` gets
-//! `notifications/progress`; `notifications/cancelled` stops it. An operation error is a tool
-//! result with `isError` and `{"error": {"code", "message"}}` as its structured content.
+//! `notifications/progress`; `notifications/cancelled` stops it. With the `dev` feature, while
+//! `mtp_trace` is on, a call's PTP transactions come as `notifications/trace`, as in `rpc`. An
+//! operation error is a tool result with `isError` and `{"error": {"code", "message"}}` as its
+//! structured content.
 
 use std::pin::pin;
 use std::sync::Arc;
@@ -19,6 +21,14 @@ use rmcp::service::RequestContext;
 use rmcp::transport::IntoTransport;
 use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::Value;
+
+/// What a running call sends before its result.
+enum Update {
+    Progress(Progress),
+    /// `notifications/trace`'s params.
+    #[cfg(feature = "dev")]
+    Trace(Value),
+}
 
 pub struct Server {
     worker: Worker,
@@ -69,41 +79,65 @@ impl ServerHandler for Server {
         let input = Value::Object(request.arguments.unwrap_or_default());
         let token = context.meta.get_progress_token();
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
-        let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
+        let (update_tx, mut update_rx) = tokio::sync::mpsc::unbounded_channel::<Update>();
         let progress = token.is_some().then(|| {
+            let update_tx = update_tx.clone();
             Box::new(move |p: Progress| {
-                let _ = progress_tx.send(p);
+                let _ = update_tx.send(Update::Progress(p));
             }) as Box<dyn Fn(Progress) + Send>
         });
+        #[cfg(feature = "dev")]
+        let trace: georgian_for_garmin_core::trace::Sink = {
+            let id = serde_json::to_value(&context.id).unwrap_or(Value::Null);
+            Arc::new(move |t: &georgian_for_garmin_core::trace::Transaction| {
+                let params = georgian_for_garmin_core::rpc::trace_params(&id, t);
+                let _ = update_tx.send(Update::Trace(params));
+            })
+        };
+        #[cfg(not(feature = "dev"))]
+        drop(update_tx);
         let cancel = Arc::new(AtomicBool::new(false));
         self.worker.submit(Job {
             name,
             input,
             progress,
             cancel: cancel.clone(),
+            #[cfg(feature = "dev")]
+            trace: Some(trace),
             done: Box::new(move |result| {
                 let _ = result_tx.send(result);
             }),
         });
-        let notify = |p: Progress| {
-            let param = token.clone().map(|token| {
-                let param =
-                    ProgressNotificationParam::new(token, p.progress).with_message(p.message);
-                match p.total {
-                    Some(total) => param.with_total(total),
-                    None => param,
-                }
-            });
-            let peer = context.peer.clone();
+        let notify = |update: Update| {
+            let (peer, token) = (context.peer.clone(), token.clone());
             async move {
-                if let Some(param) = param {
-                    let _ = peer.notify_progress(param).await;
+                match update {
+                    Update::Progress(p) => {
+                        let Some(token) = token else { return };
+                        let param = ProgressNotificationParam::new(token, p.progress)
+                            .with_message(p.message);
+                        let param = match p.total {
+                            Some(total) => param.with_total(total),
+                            None => param,
+                        };
+                        let _ = peer.notify_progress(param).await;
+                    }
+                    #[cfg(feature = "dev")]
+                    Update::Trace(params) => {
+                        let trace = rmcp::model::CustomNotification::new(
+                            "notifications/trace",
+                            Some(params),
+                        );
+                        let notification =
+                            rmcp::model::ServerNotification::CustomNotification(trace);
+                        let _ = peer.send_notification(notification).await;
+                    }
                 }
             }
         };
         let outcome = relay(
             result_rx,
-            &mut progress_rx,
+            &mut update_rx,
             context.ct.cancelled(),
             &cancel,
             notify,
@@ -120,19 +154,19 @@ impl ServerHandler for Server {
     }
 }
 
-/// Forwards an operation's progress until its result comes, and stops it when `cancelled`
+/// Forwards an operation's updates until its result comes, and stops it when `cancelled`
 /// completes. The worker sends every update before the result, but both can be ready at once:
 /// what is still queued then is delivered before the result is returned, so a client sees every
-/// step, the last one included.
-async fn relay<N, F>(
+/// update, the last one included.
+async fn relay<U, N, F>(
     result: tokio::sync::oneshot::Receiver<Result<Value, Error>>,
-    progress: &mut tokio::sync::mpsc::UnboundedReceiver<Progress>,
+    progress: &mut tokio::sync::mpsc::UnboundedReceiver<U>,
     cancelled: impl Future<Output = ()>,
     cancel: &AtomicBool,
     mut notify: N,
 ) -> Result<Result<Value, Error>, tokio::sync::oneshot::error::RecvError>
 where
-    N: FnMut(Progress) -> F,
+    N: FnMut(U) -> F,
     F: Future<Output = ()>,
 {
     let mut result = pin!(result);
@@ -438,5 +472,54 @@ mod tests {
         assert_eq!(out["result"]["structuredContent"]["model"], "Venu 2");
         let out = client.call(6, "inspect", json!({})).await;
         assert_eq!(out["result"]["isError"], false, "{out}");
+    }
+
+    /// With the trace on, a call's transactions come as `notifications/trace`, in order, before
+    /// its result, carrying its request id; off, none come.
+    #[cfg(feature = "dev")]
+    #[tokio::test]
+    async fn traced_calls_send_their_transactions_before_the_result() {
+        let watch = Watch::venu2();
+        let mut client = start(&watch).await;
+        let out = client.call(1, "mtp_trace", json!({"enabled": true})).await;
+        assert_eq!(out["result"]["structuredContent"]["enabled"], true);
+        for id in 2..=4 {
+            client
+                .send(
+                    json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": {
+                    "name": "ptp_transaction",
+                    "arguments": {"opcode": 0x9002, "params": [fake::STORAGE, fake::EXTDATA]}}}),
+                )
+                .await;
+            let mut traces = Vec::new();
+            let out = loop {
+                let message = client.next().await;
+                if message["method"] == "notifications/trace" {
+                    assert_eq!(message["params"]["requestId"], id, "{message}");
+                    traces.push(message["params"]["operation"].clone());
+                } else {
+                    break message;
+                }
+            };
+            assert_eq!(out["id"], id);
+            assert_eq!(
+                out["result"]["structuredContent"]["response"], "OK",
+                "{out}"
+            );
+            let mut expected = vec![json!("GetStorageIDs"), json!("GarminGetObjectIds")];
+            if id == 2 {
+                expected.remove(0); // the first call opens the watch; no check before it
+            }
+            assert_eq!(traces, expected, "call {id}");
+        }
+        client.call(5, "mtp_trace", json!({"enabled": false})).await;
+        let out = client.call(6, "mtp_storage_ids", json!({})).await;
+        assert_eq!(out["result"]["isError"], false);
+        client
+            .send(json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+                         "params": {"name": "mtp_storage_ids", "arguments": {}}}))
+            .await;
+        let next = client.next().await;
+        assert_eq!(next["id"], 7, "no trace while off: {next}");
     }
 }

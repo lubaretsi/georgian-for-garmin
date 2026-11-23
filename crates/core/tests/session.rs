@@ -109,6 +109,108 @@ impl Recorder {
     }
 }
 
+/// The two ways the hidden listing comes back incomplete: Garmin's GetObjectIds fails for
+/// ExtData, or GetObjectInfo fails for one hidden child (the imported CJK font).
+fn incomplete_hidden_listings() -> [(&'static str, Watch); 2] {
+    let ids = Watch::venu2();
+    ids.state().fail_object_ids_of = Some(fake::EXTDATA);
+    let info = Watch::venu2();
+    info.state().fail_object_info_of = Some(fake::IMPORTED_CJK);
+    [
+        ("GetObjectIds fails", ids),
+        ("GetObjectInfo fails for one child", info),
+    ]
+}
+
+/// Whether the watch was sent anything that writes.
+fn wrote(watch: &Watch) -> bool {
+    watch
+        .state()
+        .log
+        .iter()
+        .any(|o| o.starts_with("Send") || o == "DeleteObject")
+}
+
+/// Install and restore never count an incomplete hidden listing as complete: an import it
+/// leaves unseen would go unchecked and be replaced at the next restart. Nothing is written.
+#[test]
+fn install_and_restore_refuse_an_incomplete_hidden_listing() {
+    for (case, watch) in incomplete_hidden_listings() {
+        let mut s = session(&watch);
+        for name in ["install", "restore_stock"] {
+            let error = call(&mut s, name, json!({})).unwrap_err();
+            assert_eq!(
+                error.code,
+                ErrorCode::DeviceError,
+                "{case}, {name}: {error}"
+            );
+            assert!(error.message.contains("hidden listing"), "{case}: {error}");
+            assert!(
+                error.message.contains("nothing was written"),
+                "{case}: {error}"
+            );
+        }
+        assert!(!wrote(&watch), "{case}: {:?}", watch.state().log);
+        assert!(watch.listed().is_empty(), "{case}");
+    }
+}
+
+/// A way the hidden listing comes back incomplete: its name, and how the fake fails.
+type Failure = (&'static str, fn(&Watch));
+
+/// The same on a watch declaring its fonts under their short names, as the Lily 2 Active does
+/// (`D903503.tmp`, import `D903503.fnt`): GetObjectIds failing, or GetObjectInfo failing for the
+/// part's own import; with and without a long-named waiting copy, which install and restore
+/// would otherwise move to the declared short name. Nothing is written, moved or deleted.
+#[test]
+fn a_short_name_watch_refuses_an_incomplete_hidden_listing() {
+    let failures: [Failure; 2] = [
+        ("GetObjectIds fails", |w| {
+            w.state().fail_object_ids_of = Some(fake::EXTDATA);
+        }),
+        ("GetObjectInfo fails for the part's import", |w| {
+            w.state().fail_object_info_of = Some(fake::IMPORTED_ARMENIAN);
+        }),
+    ];
+    for (case, fail) in failures {
+        for long_copy in [false, true] {
+            let watch = Watch::declaring_short_names();
+            if long_copy {
+                watch.add_file("006-D9035-02.tmp", fake::georgian("006-D9035-02"));
+            }
+            let before = watch.listed();
+            fail(&watch);
+            let mut s = session(&watch);
+            for name in ["install", "restore_stock"] {
+                let error = call(&mut s, name, json!({})).unwrap_err();
+                let what = format!("{case}, long copy {long_copy}, {name}");
+                assert_eq!(error.code, ErrorCode::DeviceError, "{what}: {error}");
+                assert!(error.message.contains("hidden listing"), "{what}: {error}");
+                assert!(
+                    error.message.contains("nothing was written"),
+                    "{what}: {error}"
+                );
+            }
+            assert!(!wrote(&watch), "{case}: {:?}", watch.state().log);
+            assert_eq!(watch.listed(), before, "{case}, long copy {long_copy}");
+        }
+    }
+}
+
+/// The read-only listings still answer, and flag what they couldn't read.
+#[test]
+fn listings_flag_an_incomplete_hidden_listing() {
+    for (case, watch) in incomplete_hidden_listings() {
+        let mut s = session(&watch);
+        let out = call(&mut s, "extdata_list", json!({})).unwrap();
+        assert_eq!(out["hidden_listing"], "error", "{case}: {out}");
+        assert!(out["note"].is_string(), "{case}: {out}");
+        let out = call(&mut s, "inspect", json!({})).unwrap();
+        assert_eq!(out["extdata_hidden"]["status"], "error", "{case}");
+        assert!(out["extdata_hidden"]["note"].is_string(), "{case}");
+    }
+}
+
 #[test]
 fn install_reports_one_step_per_part() {
     let watch = Watch::venu2();
@@ -687,7 +789,22 @@ fn a_failed_rename_puts_the_short_named_file_back() {
 #[cfg(not(feature = "dev"))]
 #[test]
 fn development_operations_are_absent_without_the_dev_feature() {
-    for name in ["read_file", "stage_file", "remove_staged"] {
+    let dev = [
+        "read_file",
+        "stage_file",
+        "remove_staged",
+        "mtp_device_info",
+        "mtp_storage_ids",
+        "mtp_storage_info",
+        "mtp_handles",
+        "mtp_object_info",
+        "mtp_read",
+        "ptp_transaction",
+        "mtp_create",
+        "mtp_delete",
+        "mtp_trace",
+    ];
+    for name in dev {
         assert!(ops::operation(name).is_none(), "{name}");
         let watch = Watch::venu2();
         let error = call(&mut session(&watch), name, json!({})).unwrap_err();
@@ -698,7 +815,9 @@ fn development_operations_are_absent_without_the_dev_feature() {
             error.message
         );
     }
-    assert!(!ops::tools().to_string().contains("stage_file"));
+    let tools = ops::tools().to_string();
+    assert!(dev.iter().all(|name| !tools.contains(name)), "{tools}");
+    assert!(!tools.contains("notifications/trace"));
 }
 
 #[cfg(feature = "dev")]

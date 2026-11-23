@@ -1,10 +1,13 @@
 //! Development operations (cargo feature `dev`, debug builds only): `read_file`, `stage_file`
-//! and `remove_staged`, for experiments with fonts this build doesn't install.
+//! and `remove_staged`, for experiments with fonts this build doesn't install, and `mtp_create`
+//! and `mtp_delete`, the only writes of the raw MTP operations ([`crate::raw`]).
 //!
-//! `stage_file` logs every id it hands out, with the file's name and SHA-256, as JSON lines in
-//! `staged.jsonl` under `GEORGIAN_FOR_GARMIN_STATE_DIR` (default: the platform's per-user state
-//! folder), so a later session or one-shot call can remove the file. `remove_staged` deletes
-//! only a file whose name and contents match a logged id.
+//! Every write is logged as JSON lines in `staged.jsonl` under `GEORGIAN_FOR_GARMIN_STATE_DIR`
+//! (default: the platform's per-user state folder): `stage_file` and `mtp_create` log the id
+//! they hand out, with the file's name and SHA-256, so a later session or one-shot call can
+//! remove the file; `mtp_delete` logs what it deleted. `remove_staged` deletes only a file whose
+//! name and contents match a logged id. A write goes only to `GARMIN/ExtData`, and only over
+//! files identified by content ([`Identify`]), checked before anything is written.
 
 use std::collections::BTreeSet;
 use std::io::Write;
@@ -16,7 +19,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, Layout};
-use crate::fonts::{Content, FontSet, sha256_hex};
+use crate::fonts::{Content, Font, FontSet, sha256_hex};
+use crate::garmin_device::GarminDevice;
 use crate::mtp::Mtp;
 use crate::names::{self, Role};
 use crate::ops::{
@@ -60,6 +64,8 @@ fn now() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 enum Entry {
+    /// A file `stage_file` or `mtp_create` is about to write, logged before writing: an id
+    /// whose write failed is simply not found later.
     Staged {
         id: String,
         at: u64,
@@ -69,10 +75,32 @@ enum Entry {
         part: String,
         sha256: String,
         bytes: u64,
+        /// The operation, when it isn't stage_file.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        op: Option<String>,
+    },
+    /// The object an `mtp_create` id wrote.
+    Created {
+        id: String,
+        at: u64,
+        storage: u32,
+        parent: u32,
+        handle: u32,
     },
     Removed {
         id: String,
         at: u64,
+    },
+    /// A file `mtp_delete` deleted. Nothing can bring it back; this records what it was.
+    Deleted {
+        id: String,
+        at: u64,
+        name: String,
+        part: String,
+        handle: u32,
+        sha256: String,
+        bytes: u64,
+        identified_as: Identified,
     },
 }
 
@@ -114,9 +142,126 @@ fn removed_ids(entries: &[Entry]) -> BTreeSet<&str> {
         .iter()
         .filter_map(|e| match e {
             Entry::Removed { id, .. } => Some(id.as_str()),
-            Entry::Staged { .. } => None,
+            _ => None,
         })
         .collect()
+}
+
+/// A new id: `prefix`, then 12 hex digits from the time, the name and the contents.
+fn new_id(prefix: &str, name: &str, sha256: &str) -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let digest = sha256_hex(format!("{nanos}:{name}:{sha256}").as_bytes());
+    format!("{prefix}-{}", &digest[..12])
+}
+
+/// Logs every id that staged `sha256` as `name` and isn't removed yet as removed: the file is
+/// gone.
+fn mark_removed(log: &Path, entries: &[Entry], name: &str, sha256: &str) -> Result<(), Error> {
+    let removed = removed_ids(entries);
+    for entry in entries {
+        if let Entry::Staged {
+            id,
+            name: n,
+            sha256: s,
+            ..
+        } = entry
+            && n.eq_ignore_ascii_case(name)
+            && s == sha256
+            && !removed.contains(id.as_str())
+        {
+            let entry = Entry::Removed {
+                id: id.clone(),
+                at: now(),
+            };
+            append(log, &entry)?;
+        }
+    }
+    Ok(())
+}
+
+/// Identifies a part's file by content, the check behind every write here: Garmin's original
+/// (this build's stock font for the part, or one of `garmin`, `stage_file`'s
+/// `garmin_sha256`), one of this program's Georgian builds, or a file this tool staged or
+/// created (a SHA-256 logged for the part).
+struct Identify<'a> {
+    font: Option<&'a Font>,
+    garmin: BTreeSet<String>,
+    staged: BTreeSet<&'a str>,
+}
+
+impl<'a> Identify<'a> {
+    fn new(fonts: &'a FontSet, entries: &'a [Entry], part: &str, garmin: BTreeSet<String>) -> Self {
+        let staged = entries
+            .iter()
+            .filter_map(|e| match e {
+                Entry::Staged {
+                    part: p, sha256, ..
+                } if p == part => Some(sha256.as_str()),
+                _ => None,
+            })
+            .collect();
+        Identify {
+            font: fonts.fonts().map(|(_, f)| f).find(|f| f.part == part),
+            garmin,
+            staged,
+        }
+    }
+
+    fn known(&self, current: &[u8]) -> Option<Identified> {
+        match self.font.map(|f| f.identify(current)) {
+            Some(Content::Stock) => return Some(Identified::Garmin),
+            Some(Content::Georgian | Content::EarlierGeorgian) => {
+                return Some(Identified::Georgian);
+            }
+            Some(Content::Other) | None => {}
+        }
+        let hash = sha256_hex(current);
+        if self.garmin.contains(&hash) {
+            Some(Identified::Garmin)
+        } else if self.staged.contains(hash.as_str()) {
+            Some(Identified::Staged)
+        } else {
+            None
+        }
+    }
+}
+
+/// What every write here checks first, before reading any file: the watch supports MTP's
+/// object writes and has `GARMIN/ExtData`, and declares `part` there when one is given.
+fn write_target(
+    dev: &mut dyn Mtp,
+    part: Option<&str>,
+) -> Result<(Layout, Option<GarminDevice>), Error> {
+    let missing = missing_write_operations(dev)?;
+    if !missing.is_empty() {
+        return Err(Error::new(
+            ErrorCode::UnsupportedDevice,
+            format!(
+                "The watch does not support MTP {}; nothing was written.",
+                missing.join(", ")
+            ),
+        ));
+    }
+    let layout = extdata::discover(dev)?;
+    let Some(part) = part else {
+        extdata(&layout)?;
+        return Ok((layout, None));
+    };
+    let device = read_garmin_device(dev, &layout)?;
+    if !device.declares_extdata_part(part) {
+        return Err(Error::new(
+            ErrorCode::UnsupportedDevice,
+            format!(
+                "{} ({}) doesn't declare part {part} under Garmin/ExtData; nothing was written.",
+                device.description, device.part_number
+            ),
+        ));
+    }
+    extdata(&layout)?;
+    Ok((layout, Some(device)))
 }
 
 fn invalid(message: impl Into<String>) -> Error {
@@ -132,18 +277,26 @@ fn extdata(layout: &Layout) -> Result<&ExtData, Error> {
     })
 }
 
-/// Every file in `ExtData`, normal listing then hidden, with whether it is hidden.
-fn all_files(dev: &mut dyn Mtp, layout: &Layout, ext: &ExtData) -> Vec<(u32, ObjectInfo, bool)> {
-    let mut files: Vec<(u32, ObjectInfo, bool)> = ext
-        .files
+/// `ExtData`'s files in the normal listing, with `false` for not hidden.
+fn listed_files(ext: &ExtData) -> Vec<(u32, ObjectInfo, bool)> {
+    ext.files
         .iter()
         .filter(|o| !o.info.is_folder())
         .map(|o| (o.handle, o.info.clone(), false))
-        .collect();
-    if let HiddenScan::Listed { objects, .. } = scan_hidden(dev, layout.storage, ext) {
-        files.extend(objects.into_iter().map(|(h, i)| (h, i, true)));
-    }
-    files
+        .collect()
+}
+
+/// Every file in `ExtData` for a write, normal listing then hidden, with whether it is
+/// hidden. A failed or partial hidden listing is an error ([`HiddenScan::for_write`]).
+fn all_files(
+    dev: &mut dyn Mtp,
+    layout: &Layout,
+    ext: &ExtData,
+) -> Result<Vec<(u32, ObjectInfo, bool)>, Error> {
+    let mut files = listed_files(ext);
+    let hidden = scan_hidden(dev, layout.storage, ext).for_write()?;
+    files.extend(hidden.into_iter().flatten().map(|(h, i)| (h, i, true)));
+    Ok(files)
 }
 
 /// Which file to read, and where to put it.
@@ -154,6 +307,9 @@ pub struct ReadFileInput {
     pub name: String,
     /// The local file to create; it must not exist.
     pub path: String,
+    /// Copy GarminDevice.xml's <Id>, <Ifix> and <AppId> instead of asterisks. Never share such a
+    /// copy (issues, pull requests, lab records). Default false.
+    pub reveal_identifiers: Option<bool>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -170,7 +326,16 @@ pub struct ReadFileOutput {
 pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOutput, Error> {
     let layout = extdata::discover(dev)?;
     let ext = extdata(&layout)?;
-    let files = all_files(dev, &layout, ext);
+    // A read: a partial hidden listing still serves, and a name it misses says so.
+    let mut files = listed_files(ext);
+    let missing = match scan_hidden(dev, layout.storage, ext) {
+        HiddenScan::Unsupported => None,
+        HiddenScan::Failed(why) => Some(why),
+        HiddenScan::Listed { objects, note } => {
+            files.extend(objects.into_iter().map(|(h, i)| (h, i, true)));
+            note
+        }
+    };
     let named: Vec<&(u32, ObjectInfo, bool)> = files
         .iter()
         .filter(|f| f.1.filename.eq_ignore_ascii_case(&input.name))
@@ -178,8 +343,11 @@ pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOut
     let (handle, info, hidden) = match named.as_slice() {
         [one] => *one,
         [] => {
+            let incomplete = missing
+                .map(|why| format!(" (its hidden listing couldn't be read whole: {why})"))
+                .unwrap_or_default();
             return Err(invalid(format!(
-                "GARMIN/ExtData has no file named {}",
+                "GARMIN/ExtData has no file named {}{incomplete}",
                 input.name
             )));
         }
@@ -190,7 +358,10 @@ pub fn read_file(dev: &mut dyn Mtp, input: &ReadFileInput) -> Result<ReadFileOut
             ));
         }
     };
-    let bytes = dev.get_object(*handle)?;
+    let mut bytes = dev.get_object(*handle)?;
+    if input.reveal_identifiers != Some(true) {
+        crate::raw::mask_unit_id(&info.filename, &mut bytes);
+    }
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -247,7 +418,7 @@ pub enum StageAction {
     None,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Identified {
     /// Garmin's original: this build's stock font for the part, or a garmin_sha256.
@@ -324,65 +495,23 @@ pub fn stage_file(
     let sha256 = sha256_hex(&bytes);
     control.progress(0, 2, &format!("Checking {path}"));
 
-    let missing = missing_write_operations(dev)?;
-    if !missing.is_empty() {
-        return Err(Error::new(
-            ErrorCode::UnsupportedDevice,
-            format!(
-                "The watch does not support MTP {}; nothing was written.",
-                missing.join(", ")
-            ),
-        ));
-    }
-    let layout = extdata::discover(dev)?;
-    let device = read_garmin_device(dev, &layout)?;
-    if !device.declares_extdata_part(&part) {
-        return Err(Error::new(
-            ErrorCode::UnsupportedDevice,
-            format!(
-                "{} ({}) doesn't declare part {part} under Garmin/ExtData; nothing was written.",
-                device.description, device.part_number
-            ),
-        ));
-    }
+    let (layout, device) = write_target(dev, Some(&part))?;
+    let device = device.expect("write_target reads the device for a part");
     let ext = extdata(&layout)?;
 
     let entries = read_log(log)?;
-    let staged_hashes: BTreeSet<&str> = entries
-        .iter()
-        .filter_map(|e| match e {
-            Entry::Staged {
-                part: p, sha256, ..
-            } if *p == part => Some(sha256.as_str()),
-            _ => None,
-        })
-        .collect();
     let garmin: BTreeSet<String> = input
         .garmin_sha256
         .iter()
         .flatten()
         .map(|h| h.to_ascii_lowercase())
         .collect();
-    let font = fonts.fonts().map(|(_, f)| f).find(|f| f.part == part);
+    let known = Identify::new(fonts, &entries, &part, garmin);
     let identify = |current: &[u8]| -> Found {
         if current == bytes.as_slice() {
             return Found::Same;
         }
-        match font.map(|f| f.identify(current)) {
-            Some(Content::Stock) => return Found::Known(Identified::Garmin),
-            Some(Content::Georgian | Content::EarlierGeorgian) => {
-                return Found::Known(Identified::Georgian);
-            }
-            Some(Content::Other) | None => {}
-        }
-        let hash = sha256_hex(current);
-        if garmin.contains(&hash) {
-            Found::Known(Identified::Garmin)
-        } else if staged_hashes.contains(hash.as_str()) {
-            Found::Known(Identified::Staged)
-        } else {
-            Found::Unknown
-        }
+        known.known(current).map_or(Found::Unknown, Found::Known)
     };
     // The part's files, by the one name rule ([`names`]) in either name form. Of its waiting
     // files there may be one, under either name: identical (under name), identified (replaced)
@@ -451,9 +580,9 @@ pub fn stage_file(
             ));
         }
     }
-    // The imported fonts the next restart would replace: a file that can't be read is left to
-    // the watch, as install does for a bitmap part.
-    if let HiddenScan::Listed { objects, .. } = scan_hidden(dev, layout.storage, ext) {
+    // The imported fonts the next restart would replace, from a hidden listing read whole: a
+    // file whose contents can't be read is left to the watch, as install does for a bitmap part.
+    if let Some(objects) = scan_hidden(dev, layout.storage, ext).for_write()? {
         for (handle, info) in objects {
             let ours = names::resolve(&info.filename)
                 .is_some_and(|f| f.part == part && f.role != Role::Bin);
@@ -522,14 +651,7 @@ pub fn stage_file(
     control.progress(1, 2, &format!("Writing {path}"));
 
     // Logged before writing: an id whose write failed is simply not found later.
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let id = format!(
-        "stg-{}",
-        &sha256_hex(format!("{nanos}:{name}:{sha256}").as_bytes())[..12]
-    );
+    let id = new_id("stg", name, &sha256);
     append(
         log,
         &Entry::Staged {
@@ -541,6 +663,7 @@ pub fn stage_file(
             part: part.clone(),
             sha256: sha256.clone(),
             bytes: bytes.len() as u64,
+            op: None,
         },
     )?;
     let storage = layout.storage;
@@ -585,25 +708,7 @@ pub fn stage_file(
         .as_ref()
         .filter(|r| r.identified_as == Identified::Staged)
     {
-        let removed = removed_ids(&entries);
-        for entry in &entries {
-            if let Entry::Staged {
-                id: old,
-                name: n,
-                sha256: s,
-                ..
-            } = entry
-                && n.eq_ignore_ascii_case(&replaced.name)
-                && *s == replaced.sha256
-                && !removed.contains(old.as_str())
-            {
-                let entry = Entry::Removed {
-                    id: old.clone(),
-                    at: now(),
-                };
-                append(log, &entry)?;
-            }
-        }
+        mark_removed(log, &entries, &replaced.name, &replaced.sha256)?;
     }
     control.progress(2, 2, &format!("{path}: staged and verified"));
     Ok(output(
@@ -623,9 +728,9 @@ fn unknown(path: &str, part: &str) -> Error {
     Error::new(
         ErrorCode::Conflict,
         format!(
-            "{path} is neither Garmin's original for part {part} (by this build's fonts or \
-             garmin_sha256), one of this program's Georgian builds, nor a file this tool staged; \
-             nothing was written."
+            "{path} is neither Garmin's original for part {part} (by this build's fonts, or \
+             stage_file's garmin_sha256), one of this program's Georgian builds, nor a file this \
+             tool staged or created; nothing was written."
         ),
     )
 }
@@ -634,7 +739,7 @@ fn unknown(path: &str, part: &str) -> Error {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RemoveStagedInput {
-    /// The id stage_file returned.
+    /// The id stage_file or mtp_create returned.
     pub id: String,
 }
 
@@ -662,6 +767,14 @@ pub struct RemoveStagedOutput {
 fn logged(log: &Path, id: &str) -> Result<(String, String, bool), Error> {
     let entries = read_log(log)?;
     let removed = removed_ids(&entries).contains(id);
+    if entries
+        .iter()
+        .any(|e| matches!(e, Entry::Deleted { id: i, .. } if i == id))
+    {
+        return Err(invalid(format!(
+            "{id} logged a file mtp_delete deleted; a delete can't be undone"
+        )));
+    }
     entries
         .iter()
         .find_map(|e| match e {
@@ -675,7 +788,7 @@ fn logged(log: &Path, id: &str) -> Result<(String, String, bool), Error> {
         })
         .ok_or_else(|| {
             invalid(format!(
-                "{id} is not an id stage_file logged in {}",
+                "{id} is not an id stage_file or mtp_create logged in {}",
                 log.display()
             ))
         })
@@ -695,9 +808,9 @@ pub fn already_removed(
     }))
 }
 
-/// Deletes the part's waiting files (either name form, [`names`]) that hold the bytes `id`
-/// staged. A file under the logged name with other bytes is refused; another waiting file of
-/// the part is left alone.
+/// Deletes the part's files of the logged name's kind (a waiting `.tmp`, an imported `.fnt` or
+/// a `.bin`, in either name form, [`names`]) that hold the bytes `id` staged. A file under the
+/// logged name with other bytes is refused; another file of the part is left alone.
 pub fn remove_staged(
     dev: &mut dyn Mtp,
     log: &Path,
@@ -705,12 +818,12 @@ pub fn remove_staged(
 ) -> Result<RemoveStagedOutput, Error> {
     let (name, sha256, _) = logged(log, &input.id)?;
     let path = extdata_path(&name);
-    let part = names::resolve(&name).map(|f| f.part);
+    let file = names::resolve(&name);
     let layout = extdata::discover(dev)?;
     let ext = extdata(&layout)?;
     let waiting = ext.files.iter().filter(|o| {
-        part.as_deref()
-            .is_some_and(|p| names::is(&o.info.filename, p, Role::Waiting))
+        file.as_ref()
+            .is_some_and(|f| names::is(&o.info.filename, &f.part, f.role))
     });
     let (mut ours, mut changed) = (Vec::new(), None);
     for o in waiting {
@@ -762,4 +875,269 @@ fn discard_note(path: &str, handle: u32, cause: Error) -> Error {
             cause.message
         ),
     )
+}
+
+/// The bytes of a write: inline as base64, or from a local file.
+fn write_bytes(data_base64: Option<&str>, source: Option<&str>) -> Result<Vec<u8>, Error> {
+    match (data_base64, source) {
+        (Some(data), None) => crate::raw::decode_base64(data, "data_base64"),
+        (None, Some(source)) => {
+            std::fs::read(source).map_err(|e| invalid(format!("cannot read {source}: {e}")))
+        }
+        _ => Err(invalid(
+            "give the bytes as exactly one of data_base64 and source",
+        )),
+    }
+}
+
+/// `allow_write` must be true for a call that writes to the watch.
+pub(crate) fn check_allowed(op: &str, allow_write: Option<bool>) -> Result<(), Error> {
+    if allow_write == Some(true) {
+        Ok(())
+    } else {
+        Err(invalid(format!(
+            "{op} writes to the watch: set allow_write to true to run it; nothing was written."
+        )))
+    }
+}
+
+/// What to create, and where.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MtpCreateInput {
+    /// The new file's name in GARMIN/ExtData: a file of a part the watch declares there,
+    /// `<part>.tmp`, `.fnt` or `.bin`, as 006-D8448-70.tmp or its short form D844870.tmp.
+    pub name: String,
+    /// The contents, base64; give this or source.
+    pub data_base64: Option<String>,
+    /// A local file with the contents; give this or data_base64.
+    pub source: Option<String>,
+    /// The storage ID; default and only allowed value: GARMIN/ExtData's.
+    pub storage: Option<u32>,
+    /// The parent handle; default and only allowed value: GARMIN/ExtData's.
+    pub parent: Option<u32>,
+    /// Must be true: this writes to the watch.
+    pub allow_write: Option<bool>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct MtpCreateOutput {
+    /// What remove_staged takes.
+    pub id: String,
+    pub handle: u32,
+    pub storage: u32,
+    pub parent: u32,
+    pub name: String,
+    /// "GARMIN/ExtData/<name>".
+    pub path: String,
+    /// The part number, e.g. "006-D8448-70".
+    pub part: String,
+    pub bytes: u64,
+    pub sha256: String,
+}
+
+/// Creates one file in `GARMIN/ExtData`, read back by SHA-256, after the checks `stage_file`
+/// makes: the watch declares the part; every other file of the part, in either listing, is
+/// identified ([`Identify`]); no file has the name; no file of the same kind is in the normal
+/// listing (a part takes one; `mtp_delete` it first). Nothing replaces or overrides a check.
+pub fn mtp_create(
+    dev: &mut dyn Mtp,
+    fonts: &FontSet,
+    log: &Path,
+    input: &MtpCreateInput,
+    control: &Control<'_>,
+) -> Result<MtpCreateOutput, Error> {
+    check_allowed("mtp_create", input.allow_write)?;
+    let name = input.name.as_str();
+    let path = extdata_path(name);
+    let file = names::resolve(name).ok_or_else(|| {
+        invalid(format!(
+            "{name} is not a part's file: mtp_create writes only <part>.tmp, .fnt or .bin, as \
+             006-D8448-70.tmp or D844870.tmp; nothing was written."
+        ))
+    })?;
+    let bytes = write_bytes(input.data_base64.as_deref(), input.source.as_deref())?;
+    let sha256 = sha256_hex(&bytes);
+
+    let (layout, device) = write_target(dev, Some(&file.part))?;
+    let device = device.expect("write_target reads the device for a part");
+    let ext = extdata(&layout)?;
+    let (storage, parent) = (layout.storage, ext.handle);
+    if input.storage.is_some_and(|s| s != storage) || input.parent.is_some_and(|p| p != parent) {
+        return Err(invalid(format!(
+            "mtp_create writes only into GARMIN/ExtData (storage {storage}, parent {parent}); \
+             nothing was written."
+        )));
+    }
+    let entries = read_log(log)?;
+    let known = Identify::new(fonts, &entries, &file.part, BTreeSet::new());
+    for (handle, info, hidden) in all_files(dev, &layout, ext)? {
+        let Some(other) = names::resolve(&info.filename).filter(|f| f.part == file.part) else {
+            continue;
+        };
+        let other_path = extdata_path(&info.filename);
+        if info.filename.eq_ignore_ascii_case(name) || (!hidden && other.role == file.role) {
+            return Err(Error::new(
+                ErrorCode::Conflict,
+                format!(
+                    "{other_path} ({}) is already there, and a part takes one file of each \
+                     kind: delete it first with mtp_delete; nothing was written.",
+                    hex_handle(handle)
+                ),
+            ));
+        }
+        // As stage_file: a hidden import that can't be read is left to the watch.
+        let current = match dev.get_object(handle) {
+            Ok(current) => current,
+            Err(_) if hidden => continue,
+            Err(e) => return Err(e.into()),
+        };
+        if known.known(&current).is_none() {
+            return Err(unknown(&other_path, &file.part));
+        }
+    }
+    control.check_nothing_written()?;
+
+    let id = new_id("stg", name, &sha256);
+    append(
+        log,
+        &Entry::Staged {
+            id: id.clone(),
+            at: now(),
+            model: device.description,
+            model_part_number: device.part_number,
+            name: name.to_owned(),
+            part: file.part.clone(),
+            sha256: sha256.clone(),
+            bytes: bytes.len() as u64,
+            op: Some("mtp_create".into()),
+        },
+    )?;
+    let handle = write_verified(dev, storage, ext, name, &bytes)?;
+    append(
+        log,
+        &Entry::Created {
+            id: id.clone(),
+            at: now(),
+            storage,
+            parent,
+            handle,
+        },
+    )?;
+    Ok(MtpCreateOutput {
+        id,
+        handle,
+        storage,
+        parent,
+        name: name.to_owned(),
+        path,
+        part: file.part,
+        bytes: bytes.len() as u64,
+        sha256,
+    })
+}
+
+/// Which object to delete.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MtpDeleteInput {
+    /// The object's handle, from mtp_handles or extdata_list.
+    pub handle: u32,
+    /// Must be true: this deletes from the watch, for good.
+    pub allow_write: Option<bool>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct MtpDeleteOutput {
+    /// The log entry recording what was deleted; nothing takes it to undo the delete.
+    pub id: String,
+    pub handle: u32,
+    pub name: String,
+    /// "GARMIN/ExtData/<name>".
+    pub path: String,
+    pub part: String,
+    pub bytes: u64,
+    pub sha256: String,
+    pub identified_as: Identified,
+}
+
+/// Deletes one file of the normal `GARMIN/ExtData` listing that is a part's file identified by
+/// content ([`Identify`]): never a hidden or read-only import, a file elsewhere or an
+/// unidentified one. Nothing overrides a check, and nothing undoes a delete.
+pub fn mtp_delete(
+    dev: &mut dyn Mtp,
+    fonts: &FontSet,
+    log: &Path,
+    input: &MtpDeleteInput,
+    control: &Control<'_>,
+) -> Result<MtpDeleteOutput, Error> {
+    check_allowed("mtp_delete", input.allow_write)?;
+    let handle = input.handle;
+    let (layout, _) = write_target(dev, None)?;
+    let ext = extdata(&layout)?;
+    let files = all_files(dev, &layout, ext)?;
+    let Some((_, info, hidden)) = files.into_iter().find(|f| f.0 == handle) else {
+        return Err(invalid(format!(
+            "{} is not a file in GARMIN/ExtData, the only place mtp_delete deletes from. Nothing \
+             was deleted.",
+            hex_handle(handle)
+        )));
+    };
+    let path = extdata_path(&info.filename);
+    if hidden || dev.read_only(handle, &info) == Some(true) {
+        return Err(invalid(format!(
+            "{path} ({}) is a hidden or read-only import, a font the watch loads; mtp_delete never \
+             deletes one. Nothing was deleted.",
+            hex_handle(handle)
+        )));
+    }
+    let refuse = |part: &str| {
+        Error::new(
+            ErrorCode::Conflict,
+            format!(
+                "{path} ({}) is not identified as Garmin's original{part}, one of this program's \
+                 Georgian builds or a file this tool staged or created; mtp_delete deletes only \
+                 those. Nothing was deleted.",
+                hex_handle(handle)
+            ),
+        )
+    };
+    let Some(file) = names::resolve(&info.filename) else {
+        return Err(refuse(""));
+    };
+    let current = dev.get_object(handle)?;
+    let entries = read_log(log)?;
+    let identified_as = Identify::new(fonts, &entries, &file.part, BTreeSet::new())
+        .known(&current)
+        .ok_or_else(|| refuse(&format!(" for part {}", file.part)))?;
+    control.check_nothing_written()?;
+
+    dev.delete_object(handle)
+        .map_err(|e| discard_note(&path, handle, Error::from(e)))?;
+    let sha256 = sha256_hex(&current);
+    let id = new_id("del", &info.filename, &sha256);
+    append(
+        log,
+        &Entry::Deleted {
+            id: id.clone(),
+            at: now(),
+            name: info.filename.clone(),
+            part: file.part.clone(),
+            handle,
+            sha256: sha256.clone(),
+            bytes: current.len() as u64,
+            identified_as,
+        },
+    )?;
+    mark_removed(log, &entries, &info.filename, &sha256)?;
+    Ok(MtpDeleteOutput {
+        id,
+        handle,
+        name: info.filename,
+        path,
+        part: file.part,
+        bytes: current.len() as u64,
+        sha256,
+        identified_as,
+    })
 }

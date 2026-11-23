@@ -140,20 +140,27 @@ configuration: `{"command": "georgian-for-garmin", "args": ["mcp"]}`.
 ### Development operations
 
 A development build (`cargo build -p georgian-for-garmin --features dev`, debug only; release
-builds never have them, and `--release` with the feature fails to compile) adds three commands
-for experiments with fonts this build doesn't install:
+builds never have them, and `--release` with the feature fails to compile) adds commands for
+experiments with fonts this build doesn't install:
 
 | Command | What it does |
 |---|---|
 | `read-file --name D844870.fnt --path out.fnt` | Copies one ExtData file, from either listing, to a new local file and prints its SHA-256. Never overwrites a local file. |
 | `stage-file --source font.tmp --name D844870.tmp` | Writes a local file as `GARMIN/ExtData/<name>` and reads it back by SHA-256. `name` is `<part>.tmp` for a part the watch declares under `Garmin/ExtData`, as `006-D8448-70.tmp` or its short form `D844870.tmp`. Like `install`, it checks every file for that part first: a file under `name` is replaced only when it is identical (`already_staged`), Garmin's original or one of this program's Georgian builds (by content), one this tool staged, or has a SHA-256 given with `--garmin-sha256` (Garmin's file, from a pinned catalog); an imported `<part>.fnt` must be one of those too, and another waiting `.tmp` for the part is a `conflict`. `--dry-run` checks and writes nothing. Prints an id. |
-| `remove-staged --id stg-…` | Deletes the file staged under that id, only while the watch's file under its name still has the staged SHA-256 (otherwise `conflict`); `not_found` once it's gone (imported at a restart, for example), `already_removed` when this tool removed it before. |
+| `remove-staged --id stg-…` | Deletes the file staged (or created by `mtp-create`) under that id, only while the watch's file under its name still has the logged SHA-256 (otherwise `conflict`); `not_found` once it's gone (imported at a restart, for example), `already_removed` when this tool removed it before. |
 
-`stage-file` logs each id with the file's name and SHA-256 in `staged.jsonl`, in
+`stage-file` and `mtp-create` log each id with the file's name and SHA-256 in `staged.jsonl`, in
 `GEORGIAN_FOR_GARMIN_STATE_DIR` or the per-user state folder (`~/Library/Application Support/georgian-for-garmin`
 on macOS, `%LOCALAPPDATA%\georgian-for-garmin` on Windows, `$XDG_STATE_HOME/georgian-for-garmin`
 or `~/.local/state/georgian-for-garmin` elsewhere), so an id from an `rpc` session works in a
 later one-shot `remove-staged`.
+
+It also adds the raw MTP operations, for debugging from a script over `rpc` or `mcp`:
+`mtp-device-info`, `mtp-storage-ids`, `mtp-storage-info`, `mtp-handles`, `mtp-object-info`,
+`mtp-read`, a read-only `ptp-transaction`, the checked writes `mtp-create` and `mtp-delete`
+(each needs `--allow-write`), and `mtp_trace` (sessions only), which sends every PTP
+transaction as `notifications/trace`. They print JSON. What each does and the checks are in
+[Development](development.md#debugging-with-raw-mtp).
 
 ## JSON output
 

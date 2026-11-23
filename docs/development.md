@@ -75,6 +75,30 @@ lists the dependencies for use outside nix.
 `codec.round_trips` re-compresses every glyph of a "Compressed" font in pure Python: 10 to 30
 seconds for the large ones; plain fonts take milliseconds.
 
+#### Debugging with raw MTP from Python
+
+A dev build's raw MTP operations ([below](#debugging-with-raw-mtp)) are `Watch.mtp`,
+`Watch.ptp` and `Watch.trace`, with the core's checks and masking:
+
+```python
+with Watch("../target/debug/georgian-for-garmin") as watch:   # a `--features dev` build
+    storage = watch.mtp.storage_ids()[0]
+    with watch.trace() as transactions:                       # mtp_trace on for the block
+        garmin = next(h for h in watch.mtp.handles(storage, 0xFFFFFFFF)
+                      if watch.mtp.object_info(h)["filename"] == "GARMIN")
+        names = {watch.mtp.object_info(h)["filename"]: h for h in watch.mtp.handles(storage, garmin)}
+        ext = next(h for h in watch.mtp.handles(storage, garmin, hidden=True)
+                   if watch.mtp.object_info(h)["filename"] == "ExtData")
+        imports = watch.mtp.handles(storage, ext, hidden=True)  # Garmin's GetObjectIds (0x9002)
+        xml = watch.mtp.read(names["GarminDevice.xml"])         # <Id>, <Ifix>, <AppId> as ****
+        info = watch.ptp(0x1008, [imports[0]])                  # GetObjectInfo, allowlisted
+    print(info.name, len(info.data), [t["operation"] for t in transactions])
+```
+
+`ptp` sends only allowlisted reads; any other opcode is a `WatchError` `invalid_input`, nothing
+sent. `mtp.create` and `mtp.delete` need `allow_write=True` and the core's checks. Identifiers
+stay masked unless `reveal_identifiers=True`; never paste an unmasked result anywhere shared.
+
 ### Using the toolkit from omp's eval
 
 omp's eval kernel runs `<cwd>/.venv/bin/python` when the session's directory has a `.venv`. From
@@ -115,7 +139,7 @@ with Watch("target/debug/georgian-for-garmin") as watch:   # a `--features dev` 
 | `hosts` | The registry's host families |
 | `build` | `add_georgian(font, size_like=…, markers=…)`, deterministic in the pinned environment, with the weight from the registry or an unpinned part's catalog name; `build` writes the asset folder |
 | `render` | `render(fonts, text, replace=[…], family=…)`: a PNG and a per-character trace from the fallback models; `counts()` splits confirmed characters into drawn glyphs and boxes. `render_report(fixture, builds=…)` takes only what install would write there and lists the rest in `not_installed`; `replace=` renders any font |
-| `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods; errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
+| `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods (the raw MTP ones as `mtp`, `ptp` and `trace`); errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
 
 The same as commands, each with `--json`, `--input <file|->` and examples in `--help`
 (`--help --json` prints them as MCP tools):
@@ -170,10 +194,90 @@ declares for the part in `GarminDevice.xml` (the Lily 2 Active's short `D894567.
 2's `006-D9035-03.tmp`), or the part number when it declares none that resolves to the part.
 
 The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
-`remove_staged` (`crates/core/src/dev.rs`): `cargo build -p georgian-for-garmin --features dev`.
-They write files of any content to a watch, so the feature only builds in debug: `--release`
-with it fails to compile, and the release scripts never enable it. The CLI tests check that a
-build without it lists none of them.
+`remove_staged` (`crates/core/src/dev.rs`) and the raw MTP operations below
+(`crates/core/src/raw.rs`): `cargo build -p georgian-for-garmin --features dev`. They write files
+of any content to a watch, so the feature only builds in debug: `--release` with it fails to
+compile, and the release scripts never enable it. The CLI and session tests check that a build
+without it lists none of them.
+
+### Debugging with raw MTP
+
+The raw MTP operations let an experiment be a script over `rpc` or `mcp` instead of a new
+operation. They mirror the core's `Mtp` trait (`crates/core/src/mtp.rs`), so they work over USB
+(macOS, Linux) and Windows Portable Devices alike, except `ptp_transaction`. Handles, storage IDs
+and codes are plain integers in and out; the CLI also takes `0x…`.
+
+| Operation | Input | What it does |
+|---|---|---|
+| `mtp_device_info` | none | The GetDeviceInfo dataset the session read when it opened. |
+| `mtp_storage_ids` | none | GetStorageIDs. |
+| `mtp_storage_info` | `storage` | GetStorageInfo: type, capacity, free space, description. |
+| `mtp_handles` | `storage`, `parent`, `hidden` | GetObjectHandles (`parent` 0xFFFFFFFF: the root; 0: every object), or with `hidden` Garmin's GetObjectIds (0x9002), which also lists the children GetObjectHandles leaves out, such as imported fonts. |
+| `mtp_object_info` | `handle` | GetObjectInfo, and whether the object is read-only. |
+| `mtp_read` | `handle`, `offset`, `length`, `path`, `max_bytes` | The object's bytes, or a range: GetPartialObject when the watch lists it, else the whole object cut to the range. Base64 up to `max_bytes` (default 1 MiB), or a new local file at `path`. |
+| `ptp_transaction` | `opcode`, `params` (up to 5), `path`, `max_bytes` | One transaction with no data-out phase: the response code and its name (a code other than OK is an answer, not an error), the response parameters and the data in. |
+| `mtp_create` | `name`, `data_base64` or `source`, `storage`, `parent`, `allow_write` | One new file in `GARMIN/ExtData`, read back by SHA-256. |
+| `mtp_delete` | `handle`, `allow_write` | Deletes one file in `GARMIN/ExtData`, for good. |
+| `mtp_trace` | `enabled` | Turns the session's live trace on or off. |
+
+The checks, with nothing to override them (AGENTS.md: nothing is written before every target is
+checked):
+
+- The reads, `ptp_transaction` and `mtp_trace` change nothing on the watch.
+- `ptp_transaction` sends only reads: GetDeviceInfo, GetStorageIDs, GetStorageInfo,
+  GetNumObjects, GetObjectHandles, GetObjectInfo, GetObject, GetThumb, GetPartialObject,
+  GetDevicePropDesc, GetDevicePropValue, MTP's GetObjectPropsSupported, GetObjectPropDesc,
+  GetObjectPropValue, GetObjectPropList and GetObjectReferences, and Garmin's 0x9002. Any other
+  code, unknown vendor codes included, is refused as `invalid_input` before anything is sent, with
+  the reason: writes go through `mtp_create` and `mtp_delete`; OpenSession and CloseSession belong
+  to the session; FormatStore, ResetDevice and PowerDown are never sent. A vendor operation that
+  proves useful gets its own checked operation later.
+- `mtp_create` and `mtp_delete` are the only writes. Each needs `allow_write: true` (else
+  `invalid_input`, before the watch is opened) and makes `stage_file`'s checks, sharing its code
+  (`Identify` and `write_target` in `dev.rs`). `mtp_create` writes only into `GARMIN/ExtData`
+  (`storage` and `parent`, if given, must be its), only a file of a part the watch declares
+  (`<part>.tmp`, `.fnt` or `.bin`, either name form), never under a name that is there already
+  or beside a file of the same kind in the normal listing (`mtp_delete` that first), and only
+  when every other file of the part, in either listing, is Garmin's original or one of this
+  program's Georgian builds (by this build's fonts), or a file this tool staged or created (by
+  `staged.jsonl`). `mtp_delete` deletes only a file of `ExtData`'s normal listing identified the
+  same way: never a hidden or read-only import, an unidentified file or anything outside
+  `ExtData`.
+- Every write goes into `staged.jsonl`: `mtp_create` logs its id, name, part and SHA-256 before
+  writing and the created handle after, so `remove_staged` deletes it later; `mtp_delete` logs
+  the deleted file's name, handle, SHA-256 and what it was identified as. Nothing undoes a delete;
+  `remove_staged` refuses its id.
+
+Identifiers are masked by default, since dev output ends up in lab records, pull requests and
+issues: `mtp_device_info`'s `serial_number` reads `"<redacted>"`; in `ptp_transaction` data the
+serial number of GetDeviceInfo and the owner's names in GetDevicePropDesc/GetDevicePropValue of
+SynchronizationPartner (0xD401) and DeviceFriendlyName (0xD402) read as asterisks, keeping the
+data's length so it still parses; and in any object named `GarminDevice.xml` (any case) every
+`<Id>` value (the unit ID), `<Ifix>` value and `<AppId>` value reads as asterisks in `mtp_read`,
+`read_file` and a raw GetObject/GetPartialObject (masked in the whole file, then cut to the
+range, so a range through one is masked too). `<Ifix>` and `<AppId>` hold 10-digit numbers on
+the Venu 2, and no second sample shows they aren't per watch. Data in which an identifier can't
+be found is withheld. Returned SHA-256s are of what is returned. `reveal_identifiers: true`
+returns them unmasked; never paste such a result anywhere shared. The trace carries codes,
+parameters and sizes, and `staged.jsonl` names and hashes of font files; neither holds an
+identifier. Other files read with `mtp_read` come back as they are.
+
+While the trace is on, every PTP transaction of every call is sent before the call's result as
+`notifications/trace` in both `rpc` and `mcp` (in `mcp` a custom notification, since MCP's
+logging is deprecated): `opcode`, `operation` (its name, or null), `params`, `response_code`,
+`response`, `response_params`, `data_out_bytes`, `data_in_bytes`, `duration_ms`, `error` (a
+failed transfer), and the call's `requestId`. It includes the GetStorageIDs the session sends
+before each call to check that the watch still answers. It reuses the stderr trace's module,
+`crates/core/src/trace.rs`; `GEORGIAN_FOR_GARMIN_TRACE=1` still prints the containers and USB
+transfers.
+
+On Windows, `ptp_transaction` answers `unsupported_device` ("ptp_transaction needs the USB
+backend; Windows uses WPD"): WPD sends its own transactions. The trace there shows only the MTP
+commands this program sends through WPD's MTP extension (GetDeviceInfo, GetObjectInfo, Garmin's
+0x9002, GetStorageInfo), not the ones WPD makes for its own calls.
+
+Each has a CLI subcommand (`mtp-read`, `ptp-transaction`, …) that prints JSON, except
+`mtp_trace`: a one-shot call has no session to trace.
 
 ## Desktop app
 

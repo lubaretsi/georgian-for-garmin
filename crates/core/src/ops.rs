@@ -598,15 +598,18 @@ static OPERATIONS: [Operation; 7] = [
 
 // Development operations, only in builds with the `dev` feature (debug builds only): reading a
 // file to the computer, staging any file under a part the watch declares, and removing only
-// what this tool staged.
+// what this tool staged; then the raw MTP operations (`raw`), whose only writes, mtp_create and
+// mtp_delete, make stage_file's checks with nothing to override them, and the live trace.
 #[cfg(feature = "dev")]
-static DEV_OPERATIONS: [Operation; 3] = [
+static DEV_OPERATIONS: [Operation; 13] = [
     Operation {
         name: "read_file",
         title: "Read a file from ExtData (dev)",
         description: "Copy one file from the watch's GARMIN/ExtData folder (normal or hidden \
                       listing, by name) to a new local file at path; an existing local file is \
-                      never overwritten. Returns its size and SHA-256. Development builds only. \
+                      never overwritten. Returns its size and SHA-256. A file named \
+                      GarminDevice.xml has its <Id>, <Ifix> and <AppId> values masked unless \
+                      reveal_identifiers; never share an unmasked copy. Development builds only. \
                       Reads the watch only.",
         read_only: true,
         destructive: false,
@@ -640,17 +643,184 @@ static DEV_OPERATIONS: [Operation; 3] = [
     Operation {
         name: "remove_staged",
         title: "Remove a staged file (dev)",
-        description: "Delete the file stage_file staged under id, from any session: only while \
-                      the watch's file under that name still has the staged SHA-256 (otherwise \
-                      conflict, nothing deleted). not_found when it is gone, for example imported \
-                      at a restart; already_removed when this tool removed it before. Development \
-                      builds only.",
+        description: "Delete the file stage_file or mtp_create wrote under id, from any session: \
+                      only while the watch's file under that name still has the logged SHA-256 \
+                      (otherwise conflict, nothing deleted). not_found when it is gone, for \
+                      example imported at a restart; already_removed when this tool removed it \
+                      before. Development builds only.",
         read_only: false,
         destructive: true,
         idempotent: true,
         open_world: false,
         input: || schema_for!(crate::dev::RemoveStagedInput),
         output: || schema_for!(crate::dev::RemoveStagedOutput),
+    },
+    Operation {
+        name: "mtp_device_info",
+        title: "MTP device info (dev)",
+        description: "The watch's MTP GetDeviceInfo dataset, as the session read it when it \
+                      opened: model, versions, and the operation, event, property and format \
+                      codes it lists. The serial number reads \"<redacted>\" unless \
+                      reveal_identifiers; never paste an unredacted result anywhere shared \
+                      (issues, pull requests, lab records). Development builds only. Reads the \
+                      watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::DeviceInfoInput),
+        output: || schema_for!(crate::raw::DeviceInfoOutput),
+    },
+    Operation {
+        name: "mtp_storage_ids",
+        title: "MTP storage IDs (dev)",
+        description: "The watch's storage IDs (MTP GetStorageIDs). Development builds only. Reads \
+                      the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::NoInput),
+        output: || schema_for!(crate::raw::StorageIdsOutput),
+    },
+    Operation {
+        name: "mtp_storage_info",
+        title: "MTP storage info (dev)",
+        description: "One storage's MTP GetStorageInfo dataset: type, capacity, free space and \
+                      description. Development builds only. Reads the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::StorageInput),
+        output: || schema_for!(crate::raw::StorageInfoOutput),
+    },
+    Operation {
+        name: "mtp_handles",
+        title: "MTP object handles (dev)",
+        description: "The object handles in parent on storage: MTP GetObjectHandles (parent \
+                      4294967295 for the root, 0 for every object), or with hidden Garmin's \
+                      GetObjectIds (0x9002), which also lists children GetObjectHandles leaves \
+                      out, such as imported fonts. Development builds only. Reads the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::HandlesInput),
+        output: || schema_for!(crate::raw::HandlesOutput),
+    },
+    Operation {
+        name: "mtp_object_info",
+        title: "MTP object info (dev)",
+        description: "One object's MTP GetObjectInfo dataset (name, parent, size, format, \
+                      protection, dates) and whether it is read-only. Development builds only. \
+                      Reads the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::HandleInput),
+        output: || schema_for!(crate::raw::ObjectInfoOutput),
+    },
+    Operation {
+        name: "mtp_read",
+        title: "Read an MTP object (dev)",
+        description: "An object's bytes (MTP GetObject), or with offset or length a range of them \
+                      (GetPartialObject when the watch lists it, else the whole object cut to \
+                      the range). Returned as base64 up to max_bytes (default 1 MiB), or written \
+                      to a new local file at path, which must not exist; with the size and \
+                      SHA-256 of what is returned. GarminDevice.xml's <Id>, <Ifix> and <AppId> are masked \
+                      with asterisks unless reveal_identifiers (that file is read whole and \
+                      then cut); never paste an unmasked result anywhere shared. Other files are \
+                      returned as they are. Development builds only. Reads the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::ReadInput),
+        output: || schema_for!(crate::raw::ReadOutput),
+    },
+    Operation {
+        name: "ptp_transaction",
+        title: "Raw PTP read (dev)",
+        description: "Send one PTP transaction with no data-out phase and return the response \
+                      code (OK or not), its parameters and the data in (base64 up to max_bytes, \
+                      or to a new local file at path). Only reads are sent: GetDeviceInfo, \
+                      GetStorageIDs, GetStorageInfo, GetNumObjects, GetObjectHandles, \
+                      GetObjectInfo, GetObject, GetThumb, GetPartialObject, GetDevicePropDesc, \
+                      GetDevicePropValue, MTP's GetObjectPropsSupported, GetObjectPropDesc, \
+                      GetObjectPropValue, GetObjectPropList and GetObjectReferences, and Garmin's \
+                      GetObjectIds (0x9002). Every other code, unknown vendor codes included, is \
+                      refused as invalid_input before anything is sent; writes go through \
+                      mtp_create and mtp_delete. Identifiers in the data read as asterisks, \
+                      keeping its length, unless reveal_identifiers: the serial number in \
+                      GetDeviceInfo, the owner's names in GetDevicePropDesc/GetDevicePropValue of \
+                      0xD401 and 0xD402, the <Id>, <Ifix> and <AppId> in GetObject/GetPartialObject of \
+                      GarminDevice.xml; never paste an unmasked result anywhere shared. USB only: \
+                      on Windows (WPD) it is unsupported_device. Development builds only. Reads \
+                      the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::PtpTransactionInput),
+        output: || schema_for!(crate::raw::PtpTransactionOutput),
+    },
+    Operation {
+        name: "mtp_create",
+        title: "Create a file in ExtData (dev)",
+        description: "Create one file in GARMIN/ExtData from data_base64 or a local source, and \
+                      read it back by SHA-256 (a failed write is deleted). Needs allow_write: \
+                      true. Makes stage_file's checks first, with nothing to override them: the \
+                      name is a file of a part the watch declares (<part>.tmp, .fnt or .bin, \
+                      either name form); storage and parent, if given, are ExtData's; no file \
+                      has the name and no file of the same kind waits in the normal listing \
+                      (mtp_delete it first); and every other file of the part, in either \
+                      listing, is Garmin's original or one of this program's Georgian builds (by \
+                      this build's fonts), or a file this tool staged or created (by the log). \
+                      A refused call writes nothing. The returned id, logged on this computer, \
+                      is what remove_staged takes. Development builds only.",
+        read_only: false,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::dev::MtpCreateInput),
+        output: || schema_for!(crate::dev::MtpCreateOutput),
+    },
+    Operation {
+        name: "mtp_delete",
+        title: "Delete a file in ExtData (dev)",
+        description: "Delete one file of GARMIN/ExtData's normal listing by handle, for good: \
+                      nothing can undo it. Needs allow_write: true. Only a part's file \
+                      identified by content as Garmin's original or one of this program's \
+                      Georgian builds (by this build's fonts), or a file this tool staged or \
+                      created (by the log); never a hidden or read-only import, an unidentified \
+                      file or anything outside ExtData, with nothing to override that. What was \
+                      deleted (name, SHA-256, what it was identified as) is logged on this \
+                      computer under the returned id. Development builds only.",
+        read_only: false,
+        destructive: true,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::dev::MtpDeleteInput),
+        output: || schema_for!(crate::dev::MtpDeleteOutput),
+    },
+    Operation {
+        name: "mtp_trace",
+        title: "Live MTP trace (dev)",
+        description: "Turn this session's live trace on or off. While on, every PTP transaction \
+                      of every call (the session's GetStorageIDs check before each call \
+                      included) is sent before the call's result as a notifications/trace \
+                      notification: opcode and name, params, response code and name, response \
+                      params, data sizes, duration and any transfer error. On Windows only the \
+                      MTP commands this program sends through WPD show. Touches nothing on the \
+                      watch. Development builds only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::raw::TraceInput),
+        output: || schema_for!(crate::raw::TraceOutput),
     },
 ];
 
@@ -1689,6 +1859,34 @@ pub(crate) enum HiddenScan {
     },
 }
 
+impl HiddenScan {
+    /// The hidden children a write checks: `None` when the watch doesn't list GetObjectIds.
+    /// A failed or partial listing is an error, never an empty or shorter list: a file it
+    /// leaves unseen would go unchecked, and could be replaced at the next restart.
+    pub(crate) fn for_write(self) -> Result<Option<Vec<(u32, ObjectInfo)>>, Error> {
+        let why = match self {
+            HiddenScan::Unsupported => return Ok(None),
+            HiddenScan::Listed {
+                objects,
+                note: None,
+            } => return Ok(Some(objects)),
+            HiddenScan::Failed(why) => format!(
+                "Could not read GARMIN/ExtData's hidden listing (Garmin's GetObjectIds): {why}."
+            ),
+            HiddenScan::Listed {
+                note: Some(why), ..
+            } => format!("Could not read every file of GARMIN/ExtData's hidden listing ({why})."),
+        };
+        Err(Error::new(
+            ErrorCode::DeviceError,
+            format!(
+                "{why} A file it leaves unseen could be replaced unchecked, so nothing was \
+                 written. Reconnect the watch and try again."
+            ),
+        ))
+    }
+}
+
 /// Reads `ExtData`'s hidden children: on the Venu 2 exactly the read-only imports. Folders and
 /// objects outside `ExtData` are left out.
 pub(crate) fn scan_hidden(dev: &mut dyn Mtp, storage: u32, ext: &ExtData) -> HiddenScan {
@@ -1724,20 +1922,6 @@ pub(crate) fn scan_hidden(dev: &mut dyn Mtp, storage: u32, ext: &ExtData) -> Hid
         }
     }
     HiddenScan::Listed { objects, note }
-}
-
-/// `ExtData`'s children the normal listing leaves out, with their info, when the watch lists
-/// Garmin's `GetObjectIds` (0x9002); `None` when it doesn't, or listing fails. On the Venu 2
-/// these are exactly the read-only imports.
-fn hidden_objects(
-    dev: &mut dyn Mtp,
-    storage: u32,
-    ext: &ExtData,
-) -> Option<Vec<(u32, ObjectInfo)>> {
-    match scan_hidden(dev, storage, ext) {
-        HiddenScan::Listed { objects, .. } => Some(objects),
-        HiddenScan::Unsupported | HiddenScan::Failed(_) => None,
-    }
 }
 
 /// Decides `font`'s Plan from what its file holds, by content: the part's file in the normal
@@ -1981,12 +2165,12 @@ pub fn stage(
     })?;
 
     // Check every target before writing anything. Files are identified by content; the hidden
-    // listing is read only when a target isn't in the normal one.
+    // listing is read only when a target isn't in the normal one, and must be read whole.
     let needs_hidden = targets
         .iter()
         .any(|(_, font)| staged_in(&ext.files, font).is_empty());
     let hidden = if needs_hidden {
-        hidden_objects(dev, layout.storage, ext)
+        scan_hidden(dev, layout.storage, ext).for_write()?
     } else {
         None
     };

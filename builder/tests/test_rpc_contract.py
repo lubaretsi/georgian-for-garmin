@@ -8,6 +8,7 @@ GEORGIAN_FOR_GARMIN_CLI is a dev build (`cargo build -p georgian-for-garmin --fe
 in CI.
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -16,7 +17,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from registry_data import PINS
 
-from garmin_fonts.watch import Watch
+from garmin_fonts.watch import Mtp, Watch
 
 CLI = os.environ.get("GEORGIAN_FOR_GARMIN_CLI")
 pytestmark = pytest.mark.skipif(not CLI, reason="set GEORGIAN_FOR_GARMIN_CLI to a dev build of the CLI")
@@ -43,7 +44,10 @@ class Recorder(Watch):
             name = f"006-D9035-0{offset // 1000}.fnt"
             return {"files": [{"name": name, "sha256": "0" * 64}],
                     "next_offset": offset + 1000 if offset < 1000 else None}
-        return {}
+        # What the raw operations' methods read from an answer.
+        empty = {"bytes": 0, "sha256": hashlib.sha256(b"").hexdigest(), "base64": "", "path": None}
+        return {"storage_ids": [], "handles": [], "data": empty, "response_code": 0x2001,
+                "response": "OK", "response_params": [], "operation": None}
 
     def close(self):
         pass
@@ -53,6 +57,12 @@ class Recorder(Watch):
 def tools():
     result = subprocess.run([CLI, "--help", "--json"], capture_output=True, text=True, check=True)
     return {tool["name"]: tool for tool in json.loads(result.stdout)["tools"]}
+
+
+def traced(watch):
+    """A trace around one call: mtp_trace on, the call, mtp_trace off."""
+    with watch.trace(on_transaction=print):
+        watch.mtp.storage_ids()
 
 
 def exercise(tmp_path):
@@ -73,7 +83,10 @@ def exercise(tmp_path):
                                   "parts": ["006-D9035-03"]},
                          busy={"holder": {"kind": "unknown", "confirmed": False}}),
         ),
-        "read_file": lambda w: w.read_file("006-D9035-03.fnt", tmp_path / "out.fnt"),
+        "read_file": lambda w: (
+            w.read_file("006-D9035-03.fnt", tmp_path / "out.fnt"),
+            w.read_file("GarminDevice.xml", tmp_path / "id.xml", reveal_identifiers=True),
+        ),
         "stage": lambda w: (
             w.stage(font, "D844870.tmp", dry_run=True),
             w.stage(b"not a font either", "006-D8947-22.tmp", garmin_sha256=[], progress=print),
@@ -82,6 +95,31 @@ def exercise(tmp_path):
         ),
         "remove_staged": lambda w: w.remove_staged("staged-1"),
         "wait_for_watch": lambda w: (w.wait_for_watch(), w.wait_for_watch(0, progress=print)),
+        "ptp": lambda w: (
+            w.ptp(0x1001),
+            w.ptp(0x1008, [0x01000032], max_bytes=4096, reveal_identifiers=True),
+            w.ptp(0x101B, (0x01000032, 0, 64)),
+        ),
+        "trace": traced,
+        "mtp.device_info": lambda w: (w.mtp.device_info(),
+                                      w.mtp.device_info(reveal_identifiers=True)),
+        "mtp.storage_ids": lambda w: w.mtp.storage_ids(),
+        "mtp.storage_info": lambda w: w.mtp.storage_info(0x00020001),
+        "mtp.handles": lambda w: (w.mtp.handles(0x00020001, 0xFFFFFFFF),
+                                  w.mtp.handles(0x00020001, 0x01000009, hidden=True)),
+        "mtp.object_info": lambda w: w.mtp.object_info(0x01000032),
+        "mtp.read": lambda w: (
+            w.mtp.read(0x01000032),
+            w.mtp.read(0x01000032, 10, 20, max_bytes=100, reveal_identifiers=True),
+            w.mtp.read(0x01000040, path=tmp_path / "font.fnt"),
+        ),
+        "mtp.create": lambda w: (
+            w.mtp.create("006-D9035-03.tmp", b"bytes"),
+            w.mtp.create("D844870.tmp", font, allow_write=True, storage=0x00020001,
+                         parent=0x01000009),
+        ),
+        "mtp.delete": lambda w: (w.mtp.delete(0x01000102),
+                                 w.mtp.delete(0x01000102, allow_write=True)),
     }
     recorded = {}
     for method, run in calls.items():
@@ -91,9 +129,14 @@ def exercise(tmp_path):
     return recorded
 
 
+def public_methods(cls):
+    return {name for name, value in vars(cls).items()
+            if not name.startswith("_") and callable(value)}
+
+
 def test_every_method_is_exercised(tmp_path):
-    public = {name for name, value in vars(Watch).items()
-              if not name.startswith("_") and callable(value)}
+    """Watch's methods and those of its `mtp` namespace, so none skips the schema check."""
+    public = public_methods(Watch) | {f"mtp.{name}" for name in public_methods(Mtp)}
     assert public - NOT_OPERATIONS == set(exercise(tmp_path))
 
 

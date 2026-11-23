@@ -4,7 +4,9 @@
 //! before validation), result = its output. Requests run one at a time, in the order they
 //! arrive; the loop keeps reading meanwhile, so `notifications/cancelled` (`requestId`) reaches
 //! a running call. A request whose params carry `_meta.progressToken` gets
-//! `notifications/progress` for each step. Every request gets a response, a cancelled one
+//! `notifications/progress` for each step. With the `dev` feature, while `mtp_trace` is on, a
+//! request's PTP transactions come as `notifications/trace` (the transaction, and the request's
+//! id as `requestId`), before its response. Every request gets a response, a cancelled one
 //! included (error -32800). Errors carry the operation's code in `data.code`. A line that isn't
 //! JSON gets -32700 and the loop goes on. Batches (arrays) aren't supported (-32600). At the end
 //! of input, the calls already read still run and are answered, so a script can pipe its
@@ -78,6 +80,21 @@ impl Out {
         }
         self.send(&json!({"jsonrpc": "2.0", "method": "notifications/progress", "params": params}));
     }
+
+    /// One PTP transaction of request `id`, while the session's trace is on.
+    #[cfg(feature = "dev")]
+    fn trace(&self, id: &Value, transaction: &crate::trace::Transaction) {
+        self.send(&json!({"jsonrpc": "2.0", "method": "notifications/trace",
+                          "params": trace_params(id, transaction)}));
+    }
+}
+
+/// `notifications/trace`'s params: the transaction's fields, and `requestId`.
+#[cfg(feature = "dev")]
+pub fn trace_params(id: &Value, transaction: &crate::trace::Transaction) -> Value {
+    let mut params = json!(transaction);
+    params["requestId"] = id.clone();
+    params
 }
 
 fn invalid(message: impl Into<String>) -> Error {
@@ -192,6 +209,11 @@ fn handle(line: &[u8], out: &Out, pending: &Pending, worker: &Worker) {
         let out = out.clone();
         Box::new(move |p: Progress| out.progress(&token, p)) as Box<dyn Fn(Progress) + Send>
     });
+    #[cfg(feature = "dev")]
+    let trace: crate::trace::Sink = {
+        let (out, id) = (out.clone(), id.clone());
+        Arc::new(move |t: &crate::trace::Transaction| out.trace(&id, t))
+    };
     let done = {
         let (out, pending) = (out.clone(), pending.clone());
         Box::new(move |result: Result<Value, Error>| {
@@ -207,6 +229,8 @@ fn handle(line: &[u8], out: &Out, pending: &Pending, worker: &Worker) {
         input: Value::Object(params),
         progress,
         cancel,
+        #[cfg(feature = "dev")]
+        trace: Some(trace),
         done,
     });
 }

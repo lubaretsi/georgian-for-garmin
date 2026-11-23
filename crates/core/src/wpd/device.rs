@@ -36,7 +36,7 @@ use super::{
     parse_object_id, parse_storage_id, read_only_from_object_info, storage_object_id,
 };
 use crate::error::{Error, ErrorCode};
-use crate::mtp::{CreateError, Mtp, MtpError, NewObject};
+use crate::mtp::{CreateError, Mtp, MtpError, NewObject, RawResponse};
 use crate::ptp::{self, ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op, response};
 use crate::trace;
 
@@ -317,7 +317,27 @@ impl WpdMtp {
 
     /// Runs MTP `operation` with a data-in phase through WPD's MTP extension commands. Only
     /// read-only operations go this way, so the driver's view of the device stays current.
+    /// With a live trace on this thread, the transaction is sent to it.
     fn mtp_read(&self, operation: u16, params: &[u32]) -> Result<Vec<u8>, MtpError> {
+        #[cfg(feature = "dev")]
+        let started = trace::live().then(std::time::Instant::now);
+        let result = self.mtp_exchange(operation, params);
+        #[cfg(feature = "dev")]
+        if let Some(started) = started {
+            let t = crate::mtp::traced(operation, params, 0, &result, started.elapsed());
+            trace::transaction(t);
+        }
+        let response = result?;
+        if response.code != response::OK {
+            return Err(MtpError::Response {
+                operation,
+                code: response.code,
+            });
+        }
+        Ok(response.data)
+    }
+
+    fn mtp_exchange(&self, operation: u16, params: &[u32]) -> Result<RawResponse, MtpError> {
         let fail = || failed(operation, "WPD MTP extension command");
         let start = self
             .command(&WPD_COMMAND_MTP_EXT_EXECUTE_COMMAND_WITH_DATA_TO_READ)
@@ -363,10 +383,11 @@ impl WpdMtp {
             ptp::operation_name(operation),
             data.len()
         );
-        if code != response::OK {
-            return Err(MtpError::Response { operation, code });
-        }
-        Ok(data)
+        Ok(RawResponse {
+            code,
+            params: Vec::new(),
+            data,
+        })
     }
 
     fn read_data(
@@ -736,6 +757,20 @@ impl Mtp for WpdMtp {
     fn garmin_object_ids(&mut self, storage: u32, parent: u32) -> Result<Vec<u32>, MtpError> {
         let data = self.mtp_read(op::GARMIN_GET_OBJECT_IDS, &[storage, parent])?;
         Ok(ptp::Reader::new(&data).u32_array()?)
+    }
+
+    #[cfg(feature = "dev")]
+    fn storage_info(&mut self, storage: u32) -> Result<ptp::StorageInfo, MtpError> {
+        let data = self.mtp_read(op::GET_STORAGE_INFO, &[storage])?;
+        Ok(ptp::StorageInfo::decode(&data)?)
+    }
+
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(&mut self, code: u16, params: &[u32]) -> Result<RawResponse, MtpError> {
+        let _ = (code, params);
+        Err(MtpError::Unsupported(
+            "ptp_transaction needs the USB backend; Windows uses WPD",
+        ))
     }
 
     /// ProtectionStatus from the watch's own ObjectInfo, through WPD's MTP extension command

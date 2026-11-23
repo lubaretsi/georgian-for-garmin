@@ -197,6 +197,7 @@ impl From<MtpError> for Error {
     fn from(e: MtpError) -> Self {
         let code = match &e {
             MtpError::Wpd { hresult, .. } => crate::wpd::error_code(*hresult),
+            MtpError::Unsupported(_) => ErrorCode::UnsupportedDevice,
             _ => ErrorCode::DeviceError,
         };
         Error::new(code, e.to_string())

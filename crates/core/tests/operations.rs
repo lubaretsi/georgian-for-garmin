@@ -2062,6 +2062,18 @@ fn tool_definitions_follow_the_schemas() {
     ];
     if cfg!(feature = "dev") {
         expected.extend(["read_file", "stage_file", "remove_staged"]);
+        expected.extend([
+            "mtp_device_info",
+            "mtp_storage_ids",
+            "mtp_storage_info",
+            "mtp_handles",
+            "mtp_object_info",
+            "mtp_read",
+            "ptp_transaction",
+            "mtp_create",
+            "mtp_delete",
+            "mtp_trace",
+        ]);
     }
     assert_eq!(names, expected);
     for pure in &tools["tools"].as_array().unwrap()[3..7] {
@@ -2085,6 +2097,28 @@ fn tool_definitions_follow_the_schemas() {
         assert_eq!(input["garmin_sha256"]["items"]["pattern"], "^[0-9a-f]{64}$");
         assert_eq!(tools["tools"][7]["annotations"]["readOnlyHint"], true);
         assert_eq!(tools["tools"][9]["annotations"]["destructiveHint"], true);
+        // The raw operations: the reads, ptp_transaction and mtp_trace only read; of the two
+        // writes, only mtp_delete is destructive.
+        let all = tools["tools"].as_array().unwrap();
+        for tool in &all[10..] {
+            let writes = ["mtp_create", "mtp_delete"].contains(&tool["name"].as_str().unwrap());
+            assert_eq!(
+                tool["annotations"]["readOnlyHint"], !writes,
+                "{}",
+                tool["name"]
+            );
+            let destructive = tool["name"] == "mtp_delete";
+            assert_eq!(
+                tool["annotations"]["destructiveHint"], destructive,
+                "{}",
+                tool["name"]
+            );
+            let input = &tool["inputSchema"]["properties"];
+            assert_eq!(input["allow_write"].is_object(), writes, "{}", tool["name"]);
+        }
+        let ptp = &all[16]["inputSchema"]["properties"];
+        assert_eq!(ptp["params"]["maxItems"], 5, "{ptp}");
+        assert!(ptp.get("data_out").is_none(), "{ptp}");
     }
     let install = &tools["tools"][1];
     let parts = &install["inputSchema"]["properties"]["parts"];
