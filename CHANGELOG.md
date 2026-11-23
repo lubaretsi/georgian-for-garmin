@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reason shown for watches that connect only as a USB drive (Forerunner 245, fenix 5) now
   says only what their reports show: the app found no font on the watch it can add Georgian to.
 - The README's first watch table lists only reported models; predicted ones have their own.
+- The Instinct 3 AMOLED 50mm is listed as not working on software 16.12 too (#33, a duplicate of
+  #6), so the app no longer asks it for a report on that version. Its report is a replay fixture.
 
 ## [0.3.2] - 2026-11-22
 
