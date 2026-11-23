@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Forerunner 255 on software 29.52 as tested (#13, #37): Georgian showed in pop-ups, the
+  notification list and opened notifications with 0.2.2, whose eight bitmap Armenian builds are
+  byte for byte today's. The app now shows it as confirmed and no longer asks it for a report on
+  that version. Its 0.2.2 font list is a replay fixture.
 - The fenix 5 (software 25.00, #30, #29) in the support list as not working: it connects only as
   a USB drive, and the app found no font on it that it can add Georgian to. Both reports are
   replay fixtures.

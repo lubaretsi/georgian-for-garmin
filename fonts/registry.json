@@ -88,6 +88,11 @@
           "model_part": "006-B4375-00",
           "software": "26.09",
           "parts": ["006-D9035-00"]
+        },
+        {
+          "model_part": "006-B3992-00",
+          "software": "29.52",
+          "parts": ["006-D9035-00"]
         }
       ]
     },
@@ -178,7 +183,13 @@
           ]
         }
       ],
-      "tested": []
+      "tested": [
+        {
+          "model_part": "006-B3992-00",
+          "software": "29.52",
+          "parts": ["006-D9035-18"]
+        }
+      ]
     },
     {
       "id": "armenian-noto-sans-armenian-bold",
@@ -272,6 +283,11 @@
           "model_part": "006-B4375-00",
           "software": "26.09",
           "parts": ["006-D9035-05", "006-D9035-06", "006-D9035-07", "006-D9035-08"]
+        },
+        {
+          "model_part": "006-B3992-00",
+          "software": "29.52",
+          "parts": ["006-D9035-05", "006-D9035-06", "006-D9035-07", "006-D9035-08", "006-D9035-09", "006-D9035-17"]
         }
       ]
     },
@@ -388,7 +404,7 @@
     {"model": "Forerunner 165 Music", "model_part": "006-B4433-00", "issues": [5, 7]},
     {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2]},
     {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5, 9]},
-    {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13, 35]},
+    {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13, 35, 37]},
     {
       "model": "fenix 6S Pro",
       "model_part": "006-B3288-00",

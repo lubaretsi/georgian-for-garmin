@@ -957,3 +957,25 @@ fn an_unrecognised_imported_font_is_never_written_over() {
     assert!(watch.0.borrow().written.is_empty());
     assert!(watch.0.borrow().violations.is_empty());
 }
+
+/// The Forerunner 255 on 29.52: Georgian confirmed with 0.2.2 (#13), its font list from that
+/// install (#37, 0.2.2) and from 0.3.2 (#35). Every part install writes is tested there, so it
+/// is `tested` with no report wanted; on other software it is `expected` again.
+#[test]
+fn the_forerunner_255_on_29_52_is_tested() {
+    for name in ["issue-35.json", "issue-37.json"] {
+        let (watch, fonts) = Watch::from_fixture(&fixture(name));
+        let out = watch.call("inspect", &fonts).unwrap();
+        assert_eq!(out["tested"]["status"], "tested", "{name}");
+        assert_eq!(out["support"]["status"], "tested", "{name}");
+        assert_eq!(out["support"]["issue"], 13, "{name}");
+        assert_eq!(out["support"]["report_wanted"], false, "{name}");
+    }
+    let mut newer = fixture("issue-35.json");
+    newer["software"] = json!("30.00");
+    let (watch, fonts) = Watch::from_fixture(&newer);
+    let out = watch.call("inspect", &fonts).unwrap();
+    assert_eq!(out["tested"]["status"], "tested_other_software");
+    assert_eq!(out["support"]["status"], "expected");
+    assert_eq!(out["support"]["report_wanted"], true);
+}
