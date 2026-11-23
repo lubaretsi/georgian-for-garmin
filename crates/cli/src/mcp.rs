@@ -8,8 +8,8 @@ use std::pin::pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::session::{Job, Progress, Worker};
+use georgian_for_garmin_core::{Error, ops};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, Implementation, InitializeResult,
     ListToolsResult, PaginatedRequestParams, ProgressNotificationParam, ServerCapabilities,
@@ -85,25 +85,30 @@ impl ServerHandler for Server {
                 let _ = result_tx.send(result);
             }),
         });
-        let mut result_rx = pin!(result_rx);
-        let outcome = loop {
-            tokio::select! {
-                result = &mut result_rx => break result,
-                Some(p) = progress_rx.recv() => {
-                    if let Some(token) = &token {
-                        let mut param = ProgressNotificationParam::new(token.clone(), p.progress)
-                            .with_message(p.message);
-                        if let Some(total) = p.total {
-                            param = param.with_total(total);
-                        }
-                        let _ = context.peer.notify_progress(param).await;
-                    }
+        let notify = |p: Progress| {
+            let param = token.clone().map(|token| {
+                let param =
+                    ProgressNotificationParam::new(token, p.progress).with_message(p.message);
+                match p.total {
+                    Some(total) => param.with_total(total),
+                    None => param,
                 }
-                () = context.ct.cancelled(), if !cancel.load(Ordering::SeqCst) => {
-                    cancel.store(true, Ordering::SeqCst);
+            });
+            let peer = context.peer.clone();
+            async move {
+                if let Some(param) = param {
+                    let _ = peer.notify_progress(param).await;
                 }
             }
         };
+        let outcome = relay(
+            result_rx,
+            &mut progress_rx,
+            context.ct.cancelled(),
+            &cancel,
+            notify,
+        )
+        .await;
         match outcome {
             Ok(Ok(output)) => Ok(CallToolResult::structured(output).into()),
             Ok(Err(e)) => Ok(CallToolResult::structured_error(e.to_json()).into()),
@@ -113,6 +118,38 @@ impl ServerHandler for Server {
             )),
         }
     }
+}
+
+/// Forwards an operation's progress until its result comes, and stops it when `cancelled`
+/// completes. The worker sends every update before the result, but both can be ready at once:
+/// what is still queued then is delivered before the result is returned, so a client sees every
+/// step, the last one included.
+async fn relay<N, F>(
+    result: tokio::sync::oneshot::Receiver<Result<Value, Error>>,
+    progress: &mut tokio::sync::mpsc::UnboundedReceiver<Progress>,
+    cancelled: impl Future<Output = ()>,
+    cancel: &AtomicBool,
+    mut notify: N,
+) -> Result<Result<Value, Error>, tokio::sync::oneshot::error::RecvError>
+where
+    N: FnMut(Progress) -> F,
+    F: Future<Output = ()>,
+{
+    let mut result = pin!(result);
+    let mut cancelled = pin!(cancelled);
+    let outcome = loop {
+        tokio::select! {
+            outcome = &mut result => break outcome,
+            Some(p) = progress.recv() => notify(p).await,
+            () = &mut cancelled, if !cancel.load(Ordering::SeqCst) => {
+                cancel.store(true, Ordering::SeqCst);
+            }
+        }
+    };
+    while let Ok(p) = progress.try_recv() {
+        notify(p).await;
+    }
+    outcome
 }
 
 /// Serves MCP on `transport` until the client closes it.
@@ -260,6 +297,68 @@ mod tests {
         if !cfg!(feature = "dev") {
             let out = client.call(5, "stage_file", json!({})).await;
             assert_eq!(out["error"]["code"], -32602);
+        }
+    }
+
+    /// The worker's last updates and its result ready at once: every update still arrives,
+    /// in order, before the result. With both ready, `select!` picks a branch at random, so
+    /// many rounds make a lost update certain to show.
+    #[tokio::test]
+    async fn every_update_sent_before_the_result_is_delivered_first() {
+        for _ in 0..200 {
+            let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+            let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+            for step in 0..5 {
+                let p = Progress {
+                    progress: f64::from(step),
+                    total: Some(4.0),
+                    message: String::new(),
+                };
+                progress_tx.send(p).unwrap();
+            }
+            result_tx
+                .send(Ok(json!({"status": "staged_verified"})))
+                .unwrap();
+            let seen = std::cell::RefCell::new(Vec::new());
+            let cancel = AtomicBool::new(false);
+            let outcome = relay(
+                result_rx,
+                &mut progress_rx,
+                std::future::pending(),
+                &cancel,
+                |p| {
+                    seen.borrow_mut().push(p.progress);
+                    async {}
+                },
+            )
+            .await;
+            assert!(outcome.unwrap().is_ok());
+            assert_eq!(seen.into_inner(), [0.0, 1.0, 2.0, 3.0, 4.0]);
+        }
+    }
+
+    /// End to end over MCP: every call's full sequence comes before its result.
+    #[tokio::test]
+    async fn every_call_gets_all_of_its_progress_before_its_result() {
+        let watch = Watch::venu2();
+        let mut client = start(&watch).await;
+        for id in 1..=40 {
+            let name = if id % 2 == 1 {
+                "install"
+            } else {
+                "restore_stock"
+            };
+            client.progress.clear();
+            client
+                .send(
+                    json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": {
+                    "name": name, "arguments": {}, "_meta": {"progressToken": id}}}),
+                )
+                .await;
+            let out = client.response(id).await;
+            assert_eq!(out["result"]["isError"], false, "{out}");
+            let steps: Vec<f64> = client.progress.iter().map(|p| p.1).collect();
+            assert_eq!(steps, [0.0, 1.0, 2.0, 3.0, 4.0], "call {id}");
         }
     }
 

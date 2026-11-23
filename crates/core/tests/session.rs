@@ -1164,6 +1164,40 @@ fn rpc_sends_progress_and_stops_on_cancel() {
     rpc.close();
 }
 
+/// Every progress update of a call comes before its response: the worker writes both, in that
+/// order, on its own thread. Many calls back to back, each checked in full.
+#[test]
+fn rpc_sends_all_of_a_calls_progress_before_its_response() {
+    let watch = Watch::venu2();
+    let mut rpc = Rpc::start(&watch);
+    for id in 1..=40 {
+        let method = if id % 2 == 1 {
+            "install"
+        } else {
+            "restore_stock"
+        };
+        rpc.send(
+            &json!({"jsonrpc": "2.0", "id": id, "method": method,
+                    "params": {"_meta": {"progressToken": id}}})
+            .to_string(),
+        );
+        let mut steps = Vec::new();
+        let response = loop {
+            let message = rpc.next();
+            if message["method"] == "notifications/progress" {
+                assert_eq!(message["params"]["progressToken"], id);
+                steps.push(message["params"]["progress"].as_f64().unwrap());
+                continue;
+            }
+            break message;
+        };
+        assert_eq!(response["id"], id);
+        assert!(response["result"].is_object(), "{response}");
+        assert_eq!(steps, [0.0, 1.0, 2.0, 3.0, 4.0], "call {id}");
+    }
+    assert!(rpc.close().is_empty(), "nothing after the last response");
+}
+
 #[test]
 fn rpc_answers_what_was_read_when_input_ends() {
     let watch = Watch::venu2();
