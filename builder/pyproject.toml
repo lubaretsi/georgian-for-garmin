@@ -7,7 +7,7 @@
 name = "garmin-fonts"
 version = "0.2.0"
 requires-python = ">=3.11"
-dependencies = ["fonttools==4.63.0", "jsonschema>=4.20", "pillow==12.3.0"]
+dependencies = ["fonttools==4.63.0", "jsonschema>=4.20", "pillow==13.0.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
