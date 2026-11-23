@@ -5,9 +5,10 @@ import dataclasses
 import json
 import os
 import signal
-import sys
 import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -213,6 +214,61 @@ def test_ctrl_c_in_a_terminal_cancels_the_real_rpc():
     outcome = group_sigint("wait_for_watch", {"timeout_seconds": 60},
                            [os.environ["GEORGIAN_FOR_GARMIN_CLI"]])
     assert outcome == {"alive": True, "after": "invalid_input", "exit": 0}
+
+
+# A Python that opens two sessions, makes a call (one the real core refuses before it looks for a
+# watch), reports its rpc children's pids, then waits to be killed, as omp kills a kernel on
+# reset, timeout or crash. The second session's child must not hold the first's input open.
+KILLED_PARENT = r"""
+import sys, time
+sys.path.insert(0, sys.argv[1])
+from garmin_fonts.watch import Watch, WatchError
+first, second = Watch(sys.argv[2:]), Watch(sys.argv[2:])
+try:
+    first.extdata_list(limit=0)
+except WatchError:
+    pass
+print(first._process.pid, second._process.pid, flush=True)
+time.sleep(600)
+"""
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def children_outlive_a_killed_parent(command):
+    """The rpc children still running 10 s after their Python was SIGKILLed (killed then)."""
+    parent = subprocess.Popen(
+        [sys.executable, "-c", KILLED_PARENT, str(Path(__file__).parents[1]), *command],
+        stdout=subprocess.PIPE, text=True, start_new_session=True,
+    )
+    pids = [int(pid) for pid in parent.stdout.readline().split()]
+    assert len(pids) == 2 and all(map(alive, pids))
+    parent.kill()
+    parent.wait()
+    deadline = time.monotonic() + 10
+    while any(map(alive, pids)) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    left = [pid for pid in pids if alive(pid)]
+    for pid in left:
+        os.kill(pid, signal.SIGKILL)
+    return left
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_a_killed_python_leaves_no_rpc_behind():
+    assert children_outlive_a_killed_parent(FAKE) == []
+
+
+@pytest.mark.skipif(not os.environ.get("GEORGIAN_FOR_GARMIN_CLI") or sys.platform == "win32",
+                    reason="set GEORGIAN_FOR_GARMIN_CLI to a dev build of the CLI")
+def test_a_killed_python_leaves_no_real_rpc_behind():
+    assert children_outlive_a_killed_parent([os.environ["GEORGIAN_FOR_GARMIN_CLI"]]) == []
 
 
 @pytest.mark.skipif(not os.environ.get("GEORGIAN_FOR_GARMIN_CLI"),

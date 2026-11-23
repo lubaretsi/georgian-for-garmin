@@ -94,8 +94,10 @@ class Watch:
                 )
         args = [*command, "rpc"] if isinstance(command, (list, tuple)) else [str(command), "rpc"]
         try:
+            # close_fds: no child holds another session's input open, so each rpc sees the end
+            # of its input as soon as this Python goes, even when killed outright.
             self._process = subprocess.Popen(
-                args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True,
                 env={**os.environ, **(env or {})}, **_ISOLATED,
             )
         except OSError as error:
