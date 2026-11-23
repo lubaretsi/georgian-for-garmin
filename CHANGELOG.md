@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-24
+
 ### Added
 
 - The font builder is a toolkit for font and watch experiments (`garmin_fonts`, from `builder/`;
@@ -468,7 +470,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same files locally.
 - Releases carry one `SHA256SUMS` for every platform.
 
-[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.0...v0.3.1
