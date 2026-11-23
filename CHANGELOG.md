@@ -88,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remove_staged` removes what `mtp_create` wrote. Identifiers are masked unless
   `reveal_identifiers`: the serial number in `mtp_device_info` and a raw GetDeviceInfo, the
   owner's names in the 0xD401/0xD402 device properties, and the `<Id>` (unit ID), `<Ifix>` and
-  `<AppId>` values in `GarminDevice.xml` (also in `read_file`).
+  `<AppId>` values in `GarminDevice.xml` (also in `read_file`). The Python `Watch` client has
+  them as `watch.mtp.*`, `watch.ptp(opcode, params)` and `with watch.trace() as transactions:`.
 - Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
 - Errors after a failed or cancelled write carry `rollback`: `complete` or `incomplete`, with each
   file it tried to delete or put back and whether that worked. An incomplete rollback now says

@@ -4,14 +4,18 @@
 operation name, params = its input, result = its output) and keeps it for its lifetime, so the
 watch connection stays open between calls. Device work stays in the Rust core: its pre-write
 checks, readback and identification apply to every call. The dev operations (`read_file`,
-`stage_file`, `remove_staged`) exist only in a dev build of the CLI (`cargo build -p
-georgian-for-garmin --features dev`); pass its path as `command`.
+`stage_file`, `remove_staged`, and the raw MTP ones under `watch.mtp`, `watch.ptp` and
+`watch.trace`) exist only in a dev build of the CLI (`cargo build -p georgian-for-garmin
+--features dev`); pass its path as `command`.
 
     with Watch() as watch:
         watch.summary()["model"]
         watch.hash("006-D9035-03.fnt")
         staged = watch.stage(add_georgian("006-D8947-22", markers={"ჰ": "გ"}))
         watch.remove_staged(staged["id"])
+        with watch.trace() as transactions:
+            watch.mtp.handles(0x00020001, 0x01000009, hidden=True)
+        transactions[-1]["operation"]   # "GarminGetObjectIds"
 
 Errors become WatchError with the core's code (`no_device`, `device_busy`, `conflict`, …; the
 busy holder in `data`). Ctrl-C during a call cancels it in the core (`notifications/cancelled`)
@@ -19,8 +23,16 @@ and raises KeyboardInterrupt once the core has answered. The rpc process runs in
 process group, so a terminal's Ctrl-C reaches only Python, which forwards it; `close()`, the
 `with` block's end, garbage collection and interpreter exit end the process, and it also exits
 by itself when its input closes (if Python is killed).
+
+The raw reads mask the watch's identifiers (serial number, owner names, GarminDevice.xml's
+`<Id>`, `<Ifix>` and `<AppId>`) unless `reveal_identifiers=True`; never paste an unmasked
+result anywhere shared.
 """
 
+import base64
+import contextlib
+import dataclasses
+import hashlib
 import json
 import os
 import shutil
@@ -83,6 +95,9 @@ class Watch:
     `command` is the CLI (a path or a list of arguments before `rpc`); `env` adds environment
     variables for it (e.g. GEORGIAN_FOR_GARMIN_STATE_DIR, where staged ids are logged).
     """
+
+    # The Trace collecting `notifications/trace` while `trace()` is on.
+    _trace = None
 
     def __init__(self, command=None, *, env=None):
         if command is None:
@@ -164,8 +179,11 @@ class Watch:
                             "params": {"requestId": request_id}})
                 continue
             if "id" not in message:
-                if message.get("method") == "notifications/progress" and progress is not None:
+                method = message.get("method")
+                if method == "notifications/progress" and progress is not None:
                     progress(message["params"])
+                elif method == "notifications/trace" and self._trace is not None:
+                    self._trace._add(message["params"])
                 continue
             if message["id"] != request_id:
                 continue
@@ -226,9 +244,11 @@ class Watch:
         given = {"report": report, "busy": busy, "outcome": outcome, "answers": answers}
         return self.call("issue_link", {k: v for k, v in given.items() if v is not None})
 
-    def read_file(self, name, path):
-        """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist."""
-        return self.call("read_file", {"name": name, "path": str(path)})
+    def read_file(self, name, path, *, reveal_identifiers=False):
+        """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist;
+        a GarminDevice.xml's identifiers masked unless `reveal_identifiers`."""
+        params = {"name": name, "path": str(path)}
+        return self.call("read_file", params | _given(reveal_identifiers=reveal_identifiers or None))
 
     def stage(self, source, name=None, *, dry_run=False, garmin_sha256=None,
               allow_unpinned_env=False, progress=None):
@@ -283,6 +303,152 @@ class Watch:
     def wait_for_watch(self, timeout_seconds=60, progress=None):
         """`wait_for_watch`: wait until a watch is connected; {model, waited_seconds}."""
         return self.call("wait_for_watch", {"timeout_seconds": timeout_seconds}, progress)
+
+    @property
+    def mtp(self):
+        """The raw MTP operations (dev): `watch.mtp.handles(…)`, `watch.mtp.read(…)`, …"""
+        return Mtp(self)
+
+    def ptp(self, opcode, params=(), *, max_bytes=None, reveal_identifiers=False):
+        """`ptp_transaction` (dev): one read-only PTP transaction, as a PtpResponse. The core
+        sends only reads from its allowlist (GetObjectInfo 0x1008, GetStorageInfo 0x1005,
+        Garmin's 0x9002, …); anything else is a WatchError `invalid_input`, nothing sent. A
+        response other than OK is an answer, not an error. USB only: on Windows it is
+        `unsupported_device`."""
+        out = self.call("ptp_transaction", _given(
+            opcode=opcode, params=list(params), max_bytes=max_bytes,
+            reveal_identifiers=reveal_identifiers or None))
+        return PtpResponse(out["response_code"], out["response"], out["response_params"],
+                           _bytes(out["data"]), out["operation"])
+
+    @contextlib.contextmanager
+    def trace(self, on_transaction=None):
+        """`mtp_trace` (dev) on for the `with` block: yields a Trace, the list of the session's
+        PTP transactions (each `notifications/trace`'s params: opcode, operation, params,
+        response_code, response, data sizes, duration_ms, error, requestId), appended in order
+        as they arrive; `on_transaction` is also called with each. The trace is turned off at
+        the block's end, also after an error or Ctrl-C, whose error then propagates."""
+        if self._trace is not None:
+            raise WatchError("invalid_input", "a trace is already on in this session")
+        collected = Trace(on_transaction)
+        self.call("mtp_trace", {"enabled": True})
+        self._trace = collected
+        try:
+            yield collected
+        except BaseException:
+            # The block's own error wins over one turning the trace off (the rpc may be gone).
+            with contextlib.suppress(WatchError):
+                self._trace_off()
+            raise
+        self._trace_off()
+
+    def _trace_off(self):
+        try:
+            self.call("mtp_trace", {"enabled": False})
+        finally:
+            self._trace = None
+
+
+class Trace(list):
+    """The PTP transactions a `Watch.trace()` block saw, in order."""
+
+    def __init__(self, on_transaction=None):
+        super().__init__()
+        self._on_transaction = on_transaction
+
+    def _add(self, transaction):
+        self.append(transaction)
+        if self._on_transaction is not None:
+            self._on_transaction(transaction)
+
+
+@dataclasses.dataclass(frozen=True)
+class PtpResponse:
+    """A PTP transaction's answer: the response `code` (0x2001 is OK) and its `name` (None for
+    one the core doesn't name), the response `params`, the `data` the watch sent (identifiers
+    masked unless revealed), and the `operation`'s name."""
+
+    code: int
+    name: str | None
+    params: list
+    data: bytes
+    operation: str | None
+
+    @property
+    def ok(self):
+        return self.code == 0x2001
+
+
+class Mtp:
+    """The raw MTP operations of a dev build, mirroring the core's Mtp trait. Handles, storage
+    IDs and codes are ints. `create` and `delete` are the only writes: each needs
+    `allow_write=True` and makes `stage_file`'s checks in the core, with nothing to override
+    them (only in GARMIN/ExtData, only over identified files)."""
+
+    def __init__(self, watch):
+        self._watch = watch
+
+    def device_info(self, *, reveal_identifiers=False):
+        """`mtp_device_info`: GetDeviceInfo; `serial_number` is "<redacted>" unless revealed."""
+        return self._watch.call("mtp_device_info",
+                                _given(reveal_identifiers=reveal_identifiers or None))
+
+    def storage_ids(self):
+        """`mtp_storage_ids`: the storage IDs, a list of ints."""
+        return self._watch.call("mtp_storage_ids")["storage_ids"]
+
+    def storage_info(self, storage):
+        """`mtp_storage_info`: one storage's GetStorageInfo."""
+        return self._watch.call("mtp_storage_info", {"storage": storage})
+
+    def handles(self, storage, parent, *, hidden=False):
+        """`mtp_handles`: the handles in `parent` (0xFFFFFFFF: the root; 0: every object); with
+        `hidden`, from Garmin's GetObjectIds, which also lists hidden children such as imported
+        fonts."""
+        params = {"storage": storage, "parent": parent, "hidden": hidden}
+        return self._watch.call("mtp_handles", params)["handles"]
+
+    def object_info(self, handle):
+        """`mtp_object_info`: GetObjectInfo, with `read_only`."""
+        return self._watch.call("mtp_object_info", {"handle": handle})
+
+    def read(self, handle, offset=None, length=None, *, path=None, max_bytes=None,
+             reveal_identifiers=False):
+        """`mtp_read`: the object's bytes, or `length` bytes from `offset`, checked against the
+        SHA-256 the core sends. With `path`, the core writes them to that new local file instead
+        and the Path is returned. Inline reads stop at `max_bytes` (default 1 MiB, at most
+        16 MiB)."""
+        out = self._watch.call("mtp_read", _given(
+            handle=handle, offset=offset, length=length,
+            path=None if path is None else str(path), max_bytes=max_bytes,
+            reveal_identifiers=reveal_identifiers or None))
+        return Path(path) if path is not None else _bytes(out["data"])
+
+    def create(self, name, source, *, allow_write=False, storage=None, parent=None):
+        """`mtp_create`: create GARMIN/ExtData/`name` from `source` (bytes, a build, or a local
+        path), read back by the core. Returns its output, with the `id` remove_staged takes."""
+        data = getattr(source, "data", source)
+        content = ({"data_base64": base64.b64encode(bytes(data)).decode()}
+                   if isinstance(data, (bytes, bytearray)) else {"source": str(source)})
+        return self._watch.call("mtp_create", {"name": name, **content, **_given(
+            storage=storage, parent=parent), "allow_write": bool(allow_write)})
+
+    def delete(self, handle, *, allow_write=False):
+        """`mtp_delete`: delete one identified file of GARMIN/ExtData, for good."""
+        return self._watch.call("mtp_delete", {"handle": handle, "allow_write": bool(allow_write)})
+
+
+def _given(**params):
+    """`params` without the ones left out (None)."""
+    return {k: v for k, v in params.items() if v is not None}
+
+
+def _bytes(data):
+    """The bytes of a raw read's `data` (base64 and SHA-256), checked against the hash."""
+    raw = base64.b64decode(data.get("base64") or "")
+    if hashlib.sha256(raw).hexdigest() != data["sha256"]:
+        raise WatchError("internal", "the data the rpc process returned doesn't match its SHA-256")
+    return raw
 
 
 # The core's code for a JSON-RPC error without data.code.

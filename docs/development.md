@@ -75,6 +75,30 @@ lists the dependencies for use outside nix.
 `codec.round_trips` re-compresses every glyph of a "Compressed" font in pure Python: 10 to 30
 seconds for the large ones; plain fonts take milliseconds.
 
+#### Debugging with raw MTP from Python
+
+A dev build's raw MTP operations ([below](#debugging-with-raw-mtp)) are `Watch.mtp`,
+`Watch.ptp` and `Watch.trace`, with the core's checks and masking:
+
+```python
+with Watch("../target/debug/georgian-for-garmin") as watch:   # a `--features dev` build
+    storage = watch.mtp.storage_ids()[0]
+    with watch.trace() as transactions:                       # mtp_trace on for the block
+        garmin = next(h for h in watch.mtp.handles(storage, 0xFFFFFFFF)
+                      if watch.mtp.object_info(h)["filename"] == "GARMIN")
+        names = {watch.mtp.object_info(h)["filename"]: h for h in watch.mtp.handles(storage, garmin)}
+        ext = next(h for h in watch.mtp.handles(storage, garmin, hidden=True)
+                   if watch.mtp.object_info(h)["filename"] == "ExtData")
+        imports = watch.mtp.handles(storage, ext, hidden=True)  # Garmin's GetObjectIds (0x9002)
+        xml = watch.mtp.read(names["GarminDevice.xml"])         # <Id>, <Ifix>, <AppId> as ****
+        info = watch.ptp(0x1008, [imports[0]])                  # GetObjectInfo, allowlisted
+    print(info.name, len(info.data), [t["operation"] for t in transactions])
+```
+
+`ptp` sends only allowlisted reads; any other opcode is a `WatchError` `invalid_input`, nothing
+sent. `mtp.create` and `mtp.delete` need `allow_write=True` and the core's checks. Identifiers
+stay masked unless `reveal_identifiers=True`; never paste an unmasked result anywhere shared.
+
 ### Using the toolkit from omp's eval
 
 omp's eval kernel runs `<cwd>/.venv/bin/python` when the session's directory has a `.venv`. From
@@ -115,7 +139,7 @@ with Watch("target/debug/georgian-for-garmin") as watch:   # a `--features dev` 
 | `hosts` | The registry's host families |
 | `build` | `add_georgian(font, size_like=…, markers=…)`, deterministic in the pinned environment, with the weight from the registry or an unpinned part's catalog name; `build` writes the asset folder |
 | `render` | `render(fonts, text, replace=[…], family=…)`: a PNG and a per-character trace from the fallback models; `counts()` splits confirmed characters into drawn glyphs and boxes. `render_report(fixture, builds=…)` takes only what install would write there and lists the rest in `not_installed`; `replace=` renders any font |
-| `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods; errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
+| `watch` | `Watch()`: a `georgian-for-garmin rpc` session with the core's operations as methods (the raw MTP ones as `mtp`, `ptp` and `trace`); errors are `WatchError` with the core's code; Ctrl-C cancels the running operation |
 
 The same as commands, each with `--json`, `--input <file|->` and examples in `--help`
 (`--help --json` prints them as MCP tools):

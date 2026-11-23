@@ -120,6 +120,53 @@ def test_an_exited_rpc_process_is_an_error(watch):
     assert error.value.code == "internal"
 
 
+def test_trace_collects_each_transaction_in_order(watch):
+    live = []
+    with watch.trace(on_transaction=live.append) as transactions:
+        assert watch.mtp.handles(0x00020001, 0x01000009, hidden=True) == [0x01000001, 0x01000002]
+        answer = watch.ptp(0x1008, [0x01000001])
+        steps = []
+        assert watch.wait_for_watch(5, progress=steps.append)["model"] == "Venu 2"
+        assert len(transactions) == 7, "appended as they arrive, inside the block"
+    assert (answer.ok, answer.name, answer.data) == (True, "OK", b"answer to GetObjectInfo")
+    assert [s["progress"] for s in steps] == [1, 2], "progress still reaches its callback"
+    assert [t["operation"] for t in transactions] == [
+        "GetStorageIDs", "GarminGetObjectIds", "GetStorageIDs", "GetObjectInfo",
+        "GetStorageIDs", "poll 1", "poll 2"]
+    assert live == transactions
+    sent = [m for m in received(watch) if m.get("method") == "mtp_trace"]
+    assert [m["params"] for m in sent] == [{"enabled": True}, {"enabled": False}]
+    # Off: nothing more is collected.
+    watch.mtp.handles(0x00020001, 0x01000009, hidden=True)
+    assert len(transactions) == 7
+
+
+def test_trace_is_turned_off_after_ctrl_c_and_the_session_goes_on(watch):
+    timer = threading.Timer(0.5, os.kill, (os.getpid(), signal.SIGINT))
+    timer.start()
+    with pytest.raises(KeyboardInterrupt):
+        with watch.trace() as transactions:
+            watch.call("slow")
+    assert [t["operation"] for t in transactions] == ["GetStorageIDs", "GetObject"]
+    sent = [m["params"] for m in received(watch) if m.get("method") == "mtp_trace"]
+    assert sent == [{"enabled": True}, {"enabled": False}]
+    with watch.trace() as again:
+        watch.mtp.read(0x01000032)
+    assert [t["operation"] for t in again] == ["GetStorageIDs", "GetObject"]
+
+
+def test_raw_reads_return_checked_bytes_and_refusals_are_the_cores(watch):
+    assert watch.mtp.read(0x01000032) == b"<Device><Id>**********</Id></Device>"
+    for refused in (lambda: watch.ptp(0x100B, [0xFFFFFFF0]),
+                    lambda: watch.mtp.create("006-D9035-03.tmp", b"x"),
+                    lambda: watch.mtp.delete(0x01000102)):
+        with pytest.raises(WatchError) as error:
+            refused()
+        assert (error.value.code, error.value.rpc_code) == ("invalid_input", -32602)
+    sent = [m for m in received(watch) if m.get("method") in ("mtp_create", "mtp_delete")]
+    assert all(m["params"]["allow_write"] is False for m in sent), "sent as given"
+
+
 def test_a_missing_cli_says_what_to_pass(monkeypatch):
     monkeypatch.delenv("GEORGIAN_FOR_GARMIN_CLI", raising=False)
     monkeypatch.setenv("PATH", "")
@@ -287,4 +334,14 @@ def test_the_real_rpc_checks_input_before_touching_the_watch(tmp_path):
         with pytest.raises(WatchError) as error:
             real.call("no_such_operation")
         assert error.value.rpc_code == -32601
+        # The raw operations' refusals, all before the core opens the watch; mtp_trace itself
+        # never opens it. A write opcode refused, and writes without allow_write.
+        with real.trace() as transactions:
+            for refused in (lambda: real.ptp(0x100B, [0xFFFFFFF0]),
+                            lambda: real.mtp.create("006-D9035-03.tmp", b"x"),
+                            lambda: real.mtp.delete(0xFFFFFFF0)):
+                with pytest.raises(WatchError) as error:
+                    refused()
+                assert (error.value.code, error.value.rpc_code) == ("invalid_input", -32602)
+        assert transactions == [], "nothing was sent to a watch"
     assert real._process.returncode == 0
