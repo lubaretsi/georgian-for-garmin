@@ -181,7 +181,29 @@ export type ScreenModel =
 export type ActionId =
   | "install" | "restore" | "confirm_restore" | "cancel" | "check" | "skip_verify"
   | "send_test_done" | "answer" | "share" | "share_font_list" | "report_problem" | "open_issue"
-  | "restart_again" | "try_again" | "back" | "retry_now" | "done";
+  | "restart_again" | "try_again" | "back" | "retry_now" | "done"
+  | "copy_test_text" | "show_more" | "which_watches" | "help";
+
+/** Extra data some actions carry; every other action carries none. */
+export type ActionPayload =
+  | { action: "answer"; answers: Answers }   // the whole answer set after a change
+  | { action: "share"; what: "result" | "font_list" | "problem" };
+
+/** The More sheet: the flow supplies the data, the shell draws it. */
+export type MoreModel = {
+  restorable: boolean;                               // shows "Restore original font"
+  seen: { label: string; value: string }[] | null;   // "What the app sees"; null with no watch
+  reportText: string | null;                         // the exact report, copyable
+  version: string;                                   // the app's version
+};
+
+/**
+ * The app shell: header (language, More), the screen, the fixed footer with its actions.
+ *   <Shell model={ScreenModel} more={MoreModel} lang={Lang} platform={Platform}
+ *          onAction={(id: ActionId, payload?: ActionPayload) => void}
+ *          onLanguage={(lang: Lang) => void} />
+ * Restoring from More emits `restore`; the flow answers with `confirm_restore`.
+ */
 ```
 
 ### 5.1 `verdictOf(InspectOutput): Verdict`
