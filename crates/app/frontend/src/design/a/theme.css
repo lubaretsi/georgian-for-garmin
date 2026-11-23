@@ -1,0 +1,528 @@
+/*
+ * Direction A, "Warm & illustrated": tokens, scoped base styles and Tailwind.
+ *
+ * Isolation: no global preflight. Tailwind's utilities carry the `wa:` prefix (so only
+ * classes written for this direction are generated, under their own theme variables), the
+ * class scan is limited to this folder and its story, and every token and base rule lives
+ * under `.design-a`.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme) prefix(wa);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "@fontsource-variable/noto-sans-georgian";
+
+@source "./";
+@source "../../stories/design/A.stories.tsx";
+
+@theme inline {
+  --color-*: initial;
+  --color-paper: var(--a-paper);
+  --color-surface: var(--a-surface);
+  --color-sunken: var(--a-sunken);
+  --color-ink: var(--a-ink);
+  --color-ink-2: var(--a-ink-2);
+  --color-line: var(--a-line);
+  --color-control: var(--a-control);
+  --color-accent: var(--a-accent);
+  --color-accent-hover: var(--a-accent-hover);
+  --color-accent-press: var(--a-accent-press);
+  --color-accent-ink: var(--a-accent-ink);
+  --color-on-accent: var(--a-on-accent);
+  --color-accent-soft: var(--a-accent-soft);
+  --color-accent-soft-ink: var(--a-accent-soft-ink);
+  --color-success: var(--a-success);
+  --color-success-soft: var(--a-success-soft);
+  --color-success-ink: var(--a-success-ink);
+  --color-sand: var(--a-sand);
+  --color-sand-ink: var(--a-sand-ink);
+  --color-face: var(--a-face);
+  --color-face-ink: var(--a-face-ink);
+  --color-transparent: transparent;
+
+  --font-sans: "Noto Sans Georgian Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+
+  --shadow-card: var(--a-shadow-card);
+  --shadow-raised: var(--a-shadow-raised);
+  --shadow-button: var(--a-shadow-button);
+  --shadow-footer: var(--a-shadow-footer);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Tokens ---------------------------------------------------------------------------
+ * Contrast (WCAG 2), checked numerically:
+ *   light  ink #2B211C on paper #FAF6F1 14.6:1 · ink-2 #6A5B50 on paper 6.05:1, on sunken 5.56:1
+ *          white on accent #C9243F 5.52:1 · accent-ink #B5203A on paper 6.04:1
+ *          accent-soft-ink #9E1C33 on accent-soft #FCE9EC 6.75:1 · success-ink #1B6E45 on success-soft 5.5:1
+ *          sand-ink #7A4E0A on sand #FBF0DC 6.37:1 · control #9A8878 on surface 3.41:1, on paper 3.16:1
+ *          accent fill on paper 5.13:1
+ *   dark   ink #F4EEE7 on paper #1A1714 15.5:1 · ink-2 #BCAFA3 on paper 8.33:1, on sunken 6.81:1
+ *          white on accent #D8334E 4.66:1 · accent-ink #FF8A9B on paper 7.96:1, on accent-soft 6.68:1
+ *          success-ink #73D39F on success-soft 7.59:1 · control #7F7266 on surface 3.47:1, on paper 3.83:1
+ *          accent fill on paper 3.7:1
+ */
+.design-a {
+  --a-paper: #faf6f1;
+  --a-surface: #ffffff;
+  --a-sunken: #f3ece4;
+  --a-ink: #2b211c;
+  --a-ink-2: #6a5b50;
+  --a-line: #e9e0d5;
+  --a-control: #9a8878;
+  --a-accent: #c9243f;
+  --a-accent-hover: #b21e37;
+  --a-accent-press: #9c1a30;
+  --a-accent-ink: #b5203a;
+  --a-on-accent: #ffffff;
+  --a-accent-soft: #fce9ec;
+  --a-accent-soft-ink: #9e1c33;
+  --a-success: #1e7a4c;
+  --a-success-soft: #e4f2ea;
+  --a-success-ink: #1b6e45;
+  --a-sand: #fbf0dc;
+  --a-sand-ink: #7a4e0a;
+  --a-face: #191411;
+  --a-face-ink: #fff7ef;
+  --a-focus: #c9243f;
+
+  --a-shadow-card: 0 1px 2px rgb(60 35 20 / 0.06), 0 4px 14px -4px rgb(60 35 20 / 0.1);
+  --a-shadow-raised: 0 1px 2px rgb(60 35 20 / 0.08), 0 10px 28px -10px rgb(60 35 20 / 0.22);
+  --a-shadow-button: 0 1px 1px rgb(120 20 35 / 0.18), 0 6px 16px -6px rgb(201 36 63 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.16);
+  --a-shadow-footer: 0 -10px 24px -18px rgb(60 35 20 / 0.35);
+
+  /* Illustrations */
+  --ill-ink: #3a2a22;
+  --ill-case: #fffaf4;
+  --ill-bezel: #3a2f29;
+  --ill-face: #191411;
+  --ill-face-ink: #fff7ef;
+  --ill-face-dim: #8c7d72;
+  --ill-strap: #efc7b6;
+  --ill-strap-2: #e3ad98;
+  --ill-accent: #e0344f;
+  --ill-accent-soft: #f7c9cf;
+  --ill-success: #2f9e66;
+  --ill-success-soft: #cfeadb;
+  --ill-sun: #f2b545;
+  --ill-paper: #ffffff;
+  --ill-line: #eadfd3;
+  --ill-shadow: rgb(70 40 25 / 0.12);
+  --ill-stage-a: #fde6dc;
+  --ill-stage-b: #f6eee6;
+  --ill-blob: #f9d9cf;
+  --ill-stage-success-a: #d6eedf;
+  --ill-stage-success-b: #f4f2eb;
+
+  color-scheme: light;
+}
+
+.design-a[data-theme="dark"] {
+  --a-paper: #1a1714;
+  --a-surface: #24201c;
+  --a-sunken: #2d2823;
+  --a-ink: #f4eee7;
+  --a-ink-2: #bcafa3;
+  --a-line: #3a332d;
+  --a-control: #7f7266;
+  --a-accent: #d8334e;
+  --a-accent-hover: #e2465f;
+  --a-accent-press: #c42a43;
+  --a-accent-ink: #ff8a9b;
+  --a-on-accent: #ffffff;
+  --a-accent-soft: #3a1f24;
+  --a-accent-soft-ink: #ff8a9b;
+  --a-success: #5cc48c;
+  --a-success-soft: #1d3127;
+  --a-success-ink: #73d39f;
+  --a-sand: #352a1b;
+  --a-sand-ink: #f2c879;
+  --a-face: #0d0b0a;
+  --a-face-ink: #fff7ef;
+  --a-focus: #ff8a9b;
+
+  --a-shadow-card: 0 0 0 1px rgb(255 240 225 / 0.06);
+  --a-shadow-raised: 0 0 0 1px rgb(255 240 225 / 0.08), 0 12px 30px -12px rgb(0 0 0 / 0.6);
+  --a-shadow-button: 0 6px 18px -8px rgb(216 51 78 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.14);
+  --a-shadow-footer: 0 -1px 0 rgb(255 240 225 / 0.06);
+
+  --ill-ink: #120e0c;
+  --ill-case: #ece2d8;
+  --ill-bezel: #2a221e;
+  --ill-face: #0d0b0a;
+  --ill-face-ink: #fff7ef;
+  --ill-face-dim: #7f7166;
+  --ill-strap: #b5705e;
+  --ill-strap-2: #9a5b4b;
+  --ill-accent: #ef4a64;
+  --ill-accent-soft: #5a2a32;
+  --ill-success: #5cc48c;
+  --ill-success-soft: #224232;
+  --ill-sun: #e9b04a;
+  --ill-paper: #f6efe7;
+  --ill-line: #4a4038;
+  --ill-shadow: rgb(0 0 0 / 0.35);
+  --ill-stage-a: #3a2420;
+  --ill-stage-b: #26211d;
+  --ill-blob: #4a2c27;
+  --ill-stage-success-a: #1f3a2b;
+  --ill-stage-success-b: #232521;
+
+  color-scheme: dark;
+}
+
+/* ---- Scoped base (what preflight would do, only inside this direction) ---------------- */
+@layer base {
+  .design-a,
+  .design-a :where(*, *::before, *::after) {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--a-line);
+  }
+  .design-a {
+    font-family: "Noto Sans Georgian Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--a-ink);
+    background: var(--a-paper);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+  }
+  .design-a :where(h1, h2, h3, h4) {
+    font-size: inherit;
+    font-weight: inherit;
+    text-wrap: balance;
+  }
+  .design-a :where(p, li) {
+    text-wrap: pretty;
+  }
+  .design-a :where(ol, ul) {
+    list-style: none;
+  }
+  .design-a :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    letter-spacing: inherit;
+  }
+  .design-a :where(button, [role="button"], [role="radio"], [role="checkbox"]) {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .design-a :where(button:disabled) {
+    cursor: default;
+  }
+  .design-a :where(svg) {
+    display: block;
+    flex-shrink: 0;
+  }
+  .design-a :where(svg text) {
+    font-family: "Noto Sans Georgian Variable", system-ui, sans-serif;
+  }
+}
+
+/*
+ * Focus: unlayered on purpose. The existing screens' global `:focus-visible` rule is
+ * unlayered, so this one must be too (and more specific) to win inside the direction.
+ */
+.design-a :focus-visible {
+  outline: 2px solid var(--a-focus);
+  outline-offset: 2px;
+}
+.design-a :where(h1[tabindex="-1"]):focus-visible,
+.design-a :where([data-no-ring]):focus-visible {
+  outline: none;
+}
+.design-a :where([data-ring-inset]):focus-visible {
+  outline-offset: -2px;
+}
+
+/* ---- Composed pieces that read better as CSS than as utilities ------------------------ */
+@layer components {
+  /* The app window's content is a size container: heights adapt to short windows. */
+  .design-a .a-app {
+    container: a-app / size;
+  }
+
+  .design-a .a-stage {
+    background:
+      radial-gradient(120% 90% at 50% 100%, var(--ill-stage-a) 0%, transparent 70%),
+      var(--ill-stage-b);
+  }
+  .design-a .a-stage[data-tone="success"] {
+    background:
+      radial-gradient(120% 90% at 50% 100%, var(--ill-stage-success-a) 0%, transparent 70%),
+      var(--ill-stage-success-b);
+  }
+
+  /* The hero grows with the window, and steps down on short ones. */
+  .design-a .a-hero {
+    height: clamp(184px, 29cqh, 236px);
+  }
+  .design-a .a-hero[data-size="compact"] {
+    height: 112px;
+  }
+  @container a-app (max-height: 660px) {
+    .design-a .a-hero {
+      height: 108px;
+    }
+    .design-a .a-hero[data-size="compact"] {
+      display: none;
+    }
+  }
+
+  /* Titles: Georgian glyphs sit larger on the line, so they get a step down. */
+  .design-a .a-title {
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 650;
+    letter-spacing: -0.012em;
+  }
+  .design-a .a-title:lang(ka) {
+    font-size: 21px;
+    line-height: 1.35;
+    letter-spacing: 0;
+  }
+  .design-a .a-lead {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--a-ink-2);
+  }
+  .design-a .a-lead:lang(ka) {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* The mini watch on answer tiles: straps above and below a round case. */
+  .design-a .a-mini-watch {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 64px;
+    flex-shrink: 0;
+  }
+  .design-a .a-mini-watch::before,
+  .design-a .a-mini-watch::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    width: 26px;
+    height: 14px;
+    translate: -50% 0;
+    background: var(--ill-strap);
+    border: 1.5px solid var(--a-control);
+    z-index: -1;
+  }
+  .design-a .a-mini-watch::before {
+    top: 0;
+    border-radius: 7px 7px 3px 3px;
+  }
+  .design-a .a-mini-watch::after {
+    bottom: 0;
+    border-radius: 3px 3px 7px 7px;
+  }
+  .design-a .a-mini-face {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 999px;
+    background: var(--a-face);
+    color: var(--a-face-ink);
+    box-shadow:
+      0 0 0 3px var(--ill-case),
+      0 0 0 4.5px var(--a-control);
+    transition: box-shadow 160ms ease-out;
+  }
+  .design-a [data-state="checked"] .a-mini-face {
+    box-shadow:
+      0 0 0 3px var(--ill-case),
+      0 0 0 5px var(--a-accent);
+  }
+  .design-a [data-state="checked"] .a-mini-watch::before,
+  .design-a [data-state="checked"] .a-mini-watch::after {
+    border-color: var(--a-accent);
+  }
+
+  /* Collapsible height animation (Radix exposes the measured height). */
+  .design-a .a-collapse[data-state="open"] {
+    animation: a-collapse-open 260ms var(--ease-out-soft, ease-out);
+  }
+  .design-a .a-collapse[data-state="closed"] {
+    animation: a-collapse-close 200ms ease-in;
+  }
+
+  /* Illustration motion */
+  .design-a .a-pulse {
+    animation: a-pulse 2.4s ease-out infinite;
+  }
+  .design-a .a-pulse[data-delay="1"] {
+    animation-delay: 0.4s;
+  }
+  .design-a .a-pulse[data-delay="2"] {
+    animation-delay: 0.8s;
+  }
+  .design-a .a-spin-slow {
+    transform-box: view-box;
+    animation: a-spin 9s linear infinite;
+  }
+  .design-a .a-blink {
+    animation: a-blink 1.4s ease-in-out infinite;
+  }
+  .design-a .a-blink[data-delay="1"] {
+    animation-delay: 0.2s;
+  }
+  .design-a .a-blink[data-delay="2"] {
+    animation-delay: 0.4s;
+  }
+  .design-a .a-float {
+    animation: a-float 4s ease-in-out infinite;
+  }
+  .design-a .a-travel {
+    animation: a-travel 2.6s var(--ease-out-soft, ease-out) infinite;
+  }
+  .design-a .a-twinkle {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: a-twinkle 3.2s ease-in-out infinite;
+  }
+  .design-a .a-twinkle[data-delay="1"] {
+    animation-delay: 1.1s;
+  }
+  .design-a .a-twinkle[data-delay="2"] {
+    animation-delay: 2.1s;
+  }
+  .design-a .a-spinner {
+    animation: a-spin 0.9s linear infinite;
+  }
+  .design-a .a-press {
+    animation: a-press 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes a-collapse-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+@keyframes a-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes a-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes a-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes a-collapse-close {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+@keyframes a-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+@keyframes a-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes a-blink {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes a-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes a-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+@keyframes a-twinkle {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes a-press {
+  0%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+  70%,
+  90% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .design-a *,
+  .design-a *::before,
+  .design-a *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
