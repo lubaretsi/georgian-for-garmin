@@ -38,7 +38,8 @@
       "kind": "bitmap",
       "script": "Korean",
       "size_like": {"x_height": "acemnorsuvwxz", "capitals": "ABCDEFGHIJKLMNOPRSTUVWXYZ"},
-      "marker": {"glyph": "가", "drawn_as": "나"}
+      "marker": {"glyph": "가", "drawn_as": "나"},
+      "confirmed_by": ["venu-2-korean-host", "venu-2-compressed-korean"]
     },
     {
       "id": "chinese",
@@ -468,6 +469,64 @@
         }
       ],
       "tested": []
+    },
+    {
+      "id": "korean-nanum-gothic-medium-compressed",
+      "name": "APAC Font, Nanum Gothic Medium, KOR, Compressed",
+      "kind": "bitmap",
+      "host": "korean",
+      "weight": 500,
+      "parts": [
+        {
+          "part": "006-D8945-67",
+          "size_px": 17,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D8945-67/2.00/full/rel/f111f1a4-13ae-471f-b848-63288be2c027/006-D8945-67.fnt",
+          "sha256": "168171062bc327abab6d457dcaacf2b80203a9120e5a991c93211897a099b3d7"
+        },
+        {
+          "part": "006-D8945-68",
+          "size_px": 22,
+          "version": "2.00",
+          "url": "https://download.garmin.com/gsup/006-D8945-68/2.00/full/rel/61100aaf-52bd-4913-ab14-7db7024ac429/006-D8945-68.fnt",
+          "sha256": "930ecd63027b002c0b36ea1a917e3826b4abae89e3ee625813d1daf72e163933"
+        }
+      ],
+      "tested": []
+    },
+    {
+      "id": "korean-nanum-gothic-medium",
+      "name": "APAC Font, Nanum Gothic Medium, KOR",
+      "kind": "bitmap",
+      "host": "korean",
+      "weight": 500,
+      "parts": [
+        {
+          "part": "006-D8945-22",
+          "size_px": 27,
+          "version": "2.10",
+          "url": "https://download.garmin.com/gsup/006-D8945-22/2.10/full/rel/59cd1225-0959-472c-9adb-e2bf80437511/006-D8945-22.fnt",
+          "sha256": "2497ba9fed3c6124291d204f0bcb7958804110497dfacc24c1a8301f0180b935"
+        }
+      ],
+      "tested": []
+    },
+    {
+      "id": "korean-nanum-gothic-bold",
+      "name": "APAC Font, Nanum Gothic Bold, KOR",
+      "kind": "bitmap",
+      "host": "korean",
+      "weight": 700,
+      "parts": [
+        {
+          "part": "006-D8945-07",
+          "size_px": 19,
+          "version": "2.20",
+          "url": "https://download.garmin.com/gsup/006-D8945-07/2.20/full/rel/403944a4-53e3-4b20-a98c-b66f06ccad37/006-D8945-07.fnt",
+          "sha256": "22b8f0c58dceafa3e04eaaecd29a0f1c4f4be762bb8bbcc73fa50a2d55ccb7d4"
+        }
+      ],
+      "tested": []
     }
   ],
   "stock": [
@@ -513,18 +572,9 @@
     {"part": "006-D8945-21", "name": "APAC Font, Nanum Gothic Medium 24px, KOR", "size_px": 24, "weight": 500, "host": "korean", "version": "2.10",
      "url": "https://download.garmin.com/gsup/006-D8945-21/2.10/full/rel/091fb2a2-11d4-4716-8583-7bec010b0f19/006-D8945-21.fnt",
      "sha256": "d94e315a88696af0c3cbd0e2a224b0ff83a16d802803356b3c3c0c5a5e9d636a"},
-    {"part": "006-D8945-22", "name": "APAC Font, Nanum Gothic Medium 27px, KOR", "size_px": 27, "weight": 500, "host": "korean", "version": "2.10",
-     "url": "https://download.garmin.com/gsup/006-D8945-22/2.10/full/rel/59cd1225-0959-472c-9adb-e2bf80437511/006-D8945-22.fnt",
-     "sha256": "2497ba9fed3c6124291d204f0bcb7958804110497dfacc24c1a8301f0180b935"},
     {"part": "006-D8945-23", "name": "APAC Font, Nanum Gothic Medium 31px, KOR", "size_px": 31, "weight": 500, "host": "korean", "version": "2.10",
      "url": "https://download.garmin.com/gsup/006-D8945-23/2.10/full/rel/d1de9666-0d98-453a-9534-83de70820184/006-D8945-23.fnt",
      "sha256": "9723687a7f0b1dacc142c8d863876320fe7488f855baf4ca0f9555eefff7ad06"},
-    {"part": "006-D8945-67", "name": "APAC Font, Nanum Gothic Medium 17px, KOR, Compressed", "size_px": 17, "weight": 500, "host": "korean", "version": "2.00",
-     "url": "https://download.garmin.com/gsup/006-D8945-67/2.00/full/rel/f111f1a4-13ae-471f-b848-63288be2c027/006-D8945-67.fnt",
-     "sha256": "168171062bc327abab6d457dcaacf2b80203a9120e5a991c93211897a099b3d7"},
-    {"part": "006-D8945-68", "name": "APAC Font, Nanum Gothic Medium 22px, KOR, Compressed", "size_px": 22, "weight": 500, "host": "korean", "version": "2.00",
-     "url": "https://download.garmin.com/gsup/006-D8945-68/2.00/full/rel/61100aaf-52bd-4913-ab14-7db7024ac429/006-D8945-68.fnt",
-     "sha256": "930ecd63027b002c0b36ea1a917e3826b4abae89e3ee625813d1daf72e163933"},
     {"part": "006-D8947-20", "name": "APAC Font, Pridi Medium 21px, THAI", "size_px": 21, "weight": 500, "host": "thai", "version": "2.00",
      "url": "https://download.garmin.com/gsup/006-D8947-20/2.00/full/rel/362f0b7a-8d10-4055-93a7-9f18e16616ec/006-D8947-20.fnt",
      "sha256": "b8812e7d2de13e2e4f3d95de2061195062cb8e0879e7af1929e29ddd4fe9447f"},
@@ -568,18 +618,6 @@
       "unsupported": {"software": ["28.02"], "reason": "font_unused"}
     },
     {
-      "model": "Instinct 3 AMOLED 50mm",
-      "model_part": "006-B4587-00",
-      "issues": [6, 8, 33],
-      "unsupported": {"software": ["15.19", "16.12"], "reason": "font_unused"}
-    },
-    {
-      "model": "Instinct 3 AMOLED 45mm",
-      "model_part": "006-B4586-00",
-      "issues": [6, 23],
-      "unsupported": {"software": ["16.12"], "reason": "font_unused"}
-    },
-    {
       "model": "Forerunner 245",
       "model_part": "006-B3076-00",
       "issues": [16],
@@ -590,12 +628,6 @@
       "model_part": "006-B3077-00",
       "issues": [10],
       "unsupported": {"software": ["13.70"], "reason": "emoji_fonts_only"}
-    },
-    {
-      "model": "Venu",
-      "model_part": "006-B3226-00",
-      "issues": [12],
-      "unsupported": {"software": ["7.80"], "reason": "cjk_bitmap_fonts"}
     },
     {
       "model": "fenix 5",
@@ -1138,6 +1170,39 @@
       }
     },
     {
+      "model": "Instinct 3 AMOLED 50mm",
+      "model_part": "006-B4587-00",
+      "issues": [6, 8, 33],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its reports (15.19, 16.12) declare eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications. Install writes only 006-D8945-07 (Bold 19 px, 2.20): Garmin's catalog serves it at the declared version, with the size of #33's import (1823701 bytes). Not installed: -11, -13, -15, -16 (declared 2.30, catalog 2.20), -63, -64 (declared 2.10, catalog 2.00), whose #33 imports differ in size from the catalog's files (-11: 3286495 against 3267959 bytes), and -46, -50, -51, -66, large data-screen fonts.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/33"
+      }
+    },
+    {
+      "model": "Instinct 3 AMOLED 45mm",
+      "model_part": "006-B4586-00",
+      "issues": [6, 23],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (16.12) declares eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications. Install writes only 006-D8945-07 (Bold 19 px, 2.20), which Garmin's catalog serves at the declared version. Not installed: -09, -11, -12 (declared 2.30, catalog 2.20), -10 (declared 2.40, catalog 2.20), -65 (declared 2.10, catalog 2.00), and -45..-49, large data-screen fonts.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/23"
+      }
+    },
+    {
+      "model": "Lily 2 Active",
+      "model_part": "006-B4477-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (5.10) declares Garmin's Korean bitmap fonts 006-D8945-67 and -68 (17 and 22 px, Compressed) under short names and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22), plain and re-encoded as Compressed, rendered natively in notifications. Garmin's catalog serves both at the declared 2.00, with the sizes of the watch's imports.",
+        "source": "a watch report emailed to the maintainer"
+      }
+    },
+    {
       "model": "MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition",
       "model_part": "006-B4105-00",
       "issues": [],
@@ -1179,6 +1244,17 @@
         "confidence": "high",
         "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
         "source": "https://developer.garmin.com/connect-iq/articles/device-reference/marq3.html"
+      }
+    },
+    {
+      "model": "Venu",
+      "model_part": "006-B3226-00",
+      "issues": [12],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (7.80) declares Garmin's Korean bitmap fonts 006-D8945-13, -21 and -22 at 0.01, below any release Garmin's catalog serves (read as never downloaded), and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the same Korean 27 px font, 006-D8945-22, rendered natively in notifications. Install writes only -22, at 2.10, the version Garmin's catalog serves (what Garmin Express would install); restore puts that original back. The report (0.2.2) has no hidden listing, so an import there is checked by content at install.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/12"
       }
     },
     {
@@ -1252,11 +1328,6 @@
       "id": "emoji_fonts_only",
       "en": "Its only optional fonts are emoji fonts, which have no letters to add Georgian to.",
       "ka": "მისი დამატებითი შრიფტები მხოლოდ ემოჯის შრიფტებია: ასოები არ აქვთ, რომ ქართული დავამატოთ."
-    },
-    {
-      "id": "cjk_bitmap_fonts",
-      "en": "It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet.",
-      "ka": "ქართული მის ჩინურ, იაპონურ და კორეულ ბიტმაპ შრიფტებს უნდა დაემატოს, ამას პროგრამა ჯერ ვერ აკეთებს."
     }
   ]
 }

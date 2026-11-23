@@ -25,6 +25,13 @@ SCHEMA_NAME = "registry.schema.json"
 REGISTRY = Path(__file__).resolve().parents[2] / "fonts" / "registry.json"
 # The stock file's extension, by pack kind: Garmin's download names and the build's file names.
 SUFFIX = {"bitmap": ".fnt", "truetype": ".bin"}
+# The host family each prediction family names: a predicted model is expected to get Georgian
+# in that host's installable packs.
+PREDICTION_HOSTS = {
+    "noto_truetype": "noto-armenian-truetype",
+    "bitmap_armenian": "armenian",
+    "bitmap_korean": "korean",
+}
 
 
 class RegistryError(ValueError):
@@ -78,6 +85,17 @@ def validate(registry, schema, source="registry"):
             problems.append(f"{name}: host {entry['host']} is not in hosts")
         elif host["kind"] != kind:
             problems.append(f"{name}: host {entry['host']} is a {host['kind']} host, not {kind}")
+    # A font family reaches users only once a watch drew Georgian from it: a pack of that host
+    # has a tested entry, or the host cites a lab observation (`confirmed_by`). Every other
+    # pack is restore-only.
+    confirmed = {p["host"] for p in packs if p["tested"]}
+    confirmed |= {h["id"] for h in registry["hosts"] if h.get("confirmed_by")}
+    for pack in packs:
+        if pack.get("install", True) and pack["host"] not in confirmed:
+            problems.append(
+                f"pack {pack['id']}: host {pack['host']} has no tested pack and no confirmed_by; "
+                "set install to false until a watch confirms it"
+            )
     for pack in packs:
         name = f"pack {pack['id']}"
         if pack["kind"] == "bitmap":
@@ -132,6 +150,12 @@ def validate(registry, schema, source="registry"):
             family = source.removeprefix("firmware family of ")
             if family != source and family not in tested_models:
                 problems.append(f"{name}: prediction source names {family}, not a tested model")
+            host = PREDICTION_HOSTS[watch["prediction"]["family"]]
+            if not any(p["host"] == host and p.get("install", True) for p in packs):
+                problems.append(
+                    f"{name}: prediction family {watch['prediction']['family']} names host "
+                    f"{host}, which has no installable pack"
+                )
     for unused in sorted(reasons - used_reasons):
         problems.append(f"reasons: {unused} is not used")
     if problems:

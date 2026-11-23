@@ -23,9 +23,12 @@ flowchart LR
   `MassStorageMode/UpdateFile` entries with `Path` `Garmin/ExtData`. A Venu 2 lists 21 of them;
   the Armenian font comes in four sizes, parts `006-D9035-01` to `-04` (21, 24, 27 and 31 px).
 - **How a font gets onto the watch.** Garmin's updater copies a new font to
-  `GARMIN/ExtData/<part>.tmp`. When the watch restarts it loads the file and deletes the `.tmp`;
-  the Venu 2 keeps what it loaded as a read-only `<part>.fnt`, byte for byte the `.tmp`, which
-  only Garmin's vendor `GetObjectIds` lists ([Hidden files](reporting.md#hidden-files)).
+  `GARMIN/ExtData` under the `FileName` `GarminDevice.xml` gives it: the part number,
+  `006-D9035-03.tmp`, on the Venu 2, Garmin's short form, `D894567.tmp`, on the Lily 2 Active.
+  This project writes the same name. When the watch restarts it loads the file and deletes the
+  `.tmp`; the Venu 2 keeps what it loaded as a read-only `.fnt` of the same name
+  (`006-D9035-03.fnt`), byte for byte the `.tmp`, which only Garmin's vendor `GetObjectIds`
+  lists ([Hidden files](reporting.md#hidden-files)).
   `inspect` reads that `.fnt` to tell whether Georgian is installed after the restart. Install
   and restore never delete it, and the next restart replaces it with the next `.tmp`, so they
   stage one only over an import they recognise (Garmin's original or one of this program's
@@ -102,8 +105,14 @@ Builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Fo
 (29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the fenix 6
 and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reached the watch (its
 hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
-range bit was set, and the watch still drew question marks (#6). Those watches are unsupported;
-the app shows why, links the issue and restores Garmin's originals.
+range bit was set, and the watch still drew question marks (#6). The fenix 6 models are
+unsupported; the app shows why, links the issue and restores Garmin's originals. The Instinct 3
+AMOLED used to be listed with them as not working, though no report shows Georgian tried on it
+(#33's hidden listing has Garmin's own Swiss 721 Hebrew); its reports (#8, #23, #33) also
+declare Garmin's Korean bitmap fonts, so it is now predicted to work through those
+(`bitmap_korean`, [Predicted models](../fonts/README.md#predicted-models)) and gets Georgian in
+its Korean 19 px font (`006-D8945-07`) only, as do the Venu 1st gen (27 px, `006-D8945-22`) and
+the Lily 2 Active (`006-D8945-67/-68`), all untested ([Korean packs](../fonts/README.md#korean-packs)).
 [The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
 These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and

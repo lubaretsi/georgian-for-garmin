@@ -48,6 +48,17 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 `installed` (0.3.1 read `not_installed`, every part `file none`) and imported Garmin fonts
 `not_installed`.
 
+`email-lily2active.json` is a Lily 2 Active's 0.3.2 report that its owner emailed the
+maintainer, run through `scripts/report_fixture.py` like an issue's; its `source` and
+`composed_from` say "maintainer email report, owner anonymized", and it holds nothing that names
+the owner or the watch. It declares Chinese (`006-D8448-70/-71`), Japanese (`006-D8944-66/-67`)
+and Korean (`006-D8945-67/-68`) bitmap fonts and an emoji font (`006-D8952-00`), all under
+Garmin's short names (`D894567.tmp`), and lists its imports so (`D894567.fnt`).
+`the_lily_2_active_round_trips_its_short_names` installs and restores a stand-in pack for its
+Korean parts and checks that only the short names are written and imported;
+`the_lily_2_active_never_writes_over_unknown_imports` checks that, with the imports' contents
+unknown as reported, nothing is written.
+
 | Fixture | Watch, software | App | Source |
 |---|---|---|---|
 | `issue-2.json` | Venu 3 (006-B4260-00), 17.05 | 0.1.0 | [#2](https://github.com/lubaretsi/georgian-for-garmin/issues/2) |
@@ -85,6 +96,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | `issue-46.json` | epix Pro (Gen 2) 51mm (006-B4314-00, "EPIX PRO - 51mm"), 27.18, before installing: bitmap Armenian `006-D9035-09`, `-12`, `-13`, `-14`, with the hidden listing | 0.3.3 | [#46](https://github.com/lubaretsi/georgian-for-garmin/issues/46) (report in Notes) |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
+| `email-lily2active.json` | Lily 2 Active (006-B4477-00), 5.10, before installing: CJK bitmap fonts and an emoji font under short names, with the hidden listing | 0.3.2 | maintainer email report, owner anonymized |
 
 ## What the fake watch does, and what showed it
 
@@ -93,6 +105,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | A written `<part>.tmp` waits in the normal listing until the watch restarts, which imports it and removes the `.tmp`. | The maintainer's Venu 2 ([How it works](../../../../docs/how-it-works.md#what-has-been-tested)) |
 | An imported font becomes a hidden read-only object, `<part>.fnt` for a bitmap part, that only Garmin's `GetObjectIds` (0x9002) lists. | The Venu 2 ([Reporting](../../../../docs/reporting.md#hidden-files)); `006-D8168-00.fnt ro` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)); on the Instinct 3 AMOLED 50mm, 16.12, every declared ExtData font, the bitmap `.fnt` and TrueType `.bin` files (`006-D0952-07/-08.bin ro stock`), while its normal listing is empty ([#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33)) |
 | The import keeps the `.tmp`'s bytes unchanged and replaces the earlier `<part>.fnt`: Georgian, then Garmin's original, then Georgian again, each time with the staged file's size and SHA-256. | The maintainer's Venu 2, 19.05, with the 0.3.1 CLI (2026-11-22): hidden `006-D9035-01..04.fnt` held our Georgian build; restore-stock staged Garmin's `.tmp` (13181, 16676, 20720, 27831 bytes) and after the restart the `.fnt` had those sizes and hashes and the watch showed boxes; install staged Georgian and after the next restart the `.fnt` were Georgian again (23101, 28341, 35638, 48004 bytes) and the watch showed Georgian |
+| A watch that declares its fonts under Garmin's short names keeps their imports under the same short names: a staged `D894567.tmp` becomes `D894567.fnt`. | The Lily 2 Active, 5.10 (`email-lily2active.json`): declares `D894567.tmp` and the rest, lists `D894567.fnt ro` and the rest. That it imports a `.tmp` under the name it declares is inferred from that; whether it would import a long-named one is unknown, which is why install writes the declared name |
 | Watches with TrueType fonts keep their `.bin` files out of the normal listing: the report declares them, `extdata:` is empty. | Forerunner 165 (#18, #19), fenix 6S Pro (#20), Instinct 3 AMOLED 50mm (#33, its declared `.tmp` bitmap fonts too) |
 | A new `<part>.bin` written next to the hidden import is taken up at the restart and replaces it; the import itself is never deleted. | Forerunner 165: installed by 0.3.0-beta.2 with only the `.bin` write, Georgian showed (#19, #5) |
 | After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)) and the fenix 6X Pro (2.10 right after installing, [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24); 0.00 after the restart, [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)), 0.01 on the Forerunner 165 ([#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), restore error) |

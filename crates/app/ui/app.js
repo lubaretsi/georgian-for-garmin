@@ -301,6 +301,9 @@ function showReady(report) {
     $("ready-support").className = `tested ${support.status === "tested" ? "yes" : "no"}`;
     $("ready-support").textContent = supportHeadline(report);
     $("ready-untested").hidden = support.status !== "expected";
+    // A model the support list only predicts to work: no one has confirmed anything on it, so
+    // say that and that Restore original font puts Garmin's fonts back, and promise no more.
+    $("ready-untested").textContent = support.prediction ? T.predictedBody : T.untestedBody;
     const note = supportNote(report);
     $("ready-note").hidden = !note;
     $("ready-note").textContent = note || "";

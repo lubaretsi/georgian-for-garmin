@@ -83,6 +83,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so plainly, names the files that may be left, and points to Restore original font
   (`restore-stock`); the app shows it in both languages. Before, the message said "Rolled back"
   even when a step had failed.
+- The Lily 2 Active (`006-B4477-00`, 5.10) in the support list, predicted to work through
+  Garmin's Korean bitmap fonts (`prediction` family `bitmap_korean`): its report, emailed to the
+  maintainer, declares Korean `006-D8945-67/-68` (Compressed, 17 and 22 px) under short names,
+  and on the maintainer's Venu 2 (19.05) Georgian added to Garmin's Korean 27 px font
+  (`006-D8945-22`), plain and re-encoded as Compressed, showed in notifications. Its report is a
+  replay fixture (`email-lily2active.json`, owner anonymized). Install and restore on it are
+  untested.
+- On a watch the support list only predicts to work, the app says under its status that no one
+  has confirmed Georgian on that model yet and that Restore original font puts Garmin's fonts
+  back, in Georgian and English, instead of the note for partly tested models.
+- Georgian in Garmin's Korean bitmap fonts, for watches that list no font this app installed
+  before: the Lily 2 Active gets it in `006-D8945-67/-68` (17 and 22 px, Compressed), the Venu
+  (1st gen) in `006-D8945-22` (27 px, the font the Venu 2 drew Georgian from in the lab), the
+  Instinct 3 AMOLED 50mm and 45mm in `006-D8945-07` (19 px). Three new packs, untested on any
+  watch; these models stay "not yet confirmed", and restoring the original fonts on them is
+  untested too. Each part is Garmin's file at the version the watch declares and Garmin's
+  catalog serves; Instinct 3 parts declared at a version the catalog doesn't serve are left out.
 
 ### Changed
 
@@ -91,6 +108,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of holding a line to paste over, and the app says to paste into that empty box. GitHub
   then asks for the paste if it's missed; before, the instructions could be posted as the report
   (#35, #46). `issue_link`'s `fields` no longer lists `report` when it didn't fit.
+- The Venu (1st gen, #12) and the Instinct 3 AMOLED 50mm and 45mm (#8, #33, #23) are no longer
+  listed as not working: their reports declare Garmin's Korean bitmap fonts, so they are
+  predicted to work through them (`bitmap_korean`) and move to the README's **Likely to work, not
+  confirmed** table. The Instinct 3's old reason was wrong: it was grouped with the fenix 6 as
+  having our font and not using it, but no report shows Georgian tried on it (#33 lists Garmin's
+  own Swiss 721 Hebrew), and Swiss 721 Hebrew stays restore-only. The `cjk_bitmap_fonts` reason
+  is gone with the Venu's entry. Install and restore on these models are untested.
+- A watch gets Georgian in one family of fonts: bitmap Armenian if it lists any, else the
+  TrueType fonts as before, else Korean. Watches already tested with Armenian fonts (fenix 7 Pro,
+  Forerunner 255, epix Pro, Venu 2, Venu 2 Plus) keep exactly their install, Korean fonts
+  untouched. Restore original font still puts back the restore-only Swiss 721 Hebrew fonts
+  wherever a watch lists them, whatever family install chooses.
 
 ### Fixed
 
@@ -98,10 +127,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows it) is now identified before install or restore writes a `.tmp` that would replace it at
   the next restart, and `inspect` reports it; before, only the hidden listing was checked.
 - Install, restore and `inspect` recognize a part's files under Garmin's short name too
-  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting short-named file
-  is identified before anything is written, replaced under this build's name when it is
-  Garmin's or this program's, and refused otherwise, so a part never ends up with two waiting
-  files. Two files for one part are named in the `conflict` error.
+  (`D903502.tmp` for `006-D9035-02.tmp`, `.fnt` and `.bin` alike): a waiting file under either
+  name is identified before anything is written, replaced when it is Garmin's or this
+  program's, and refused otherwise, so a part never ends up with two waiting files. Two files
+  for one part are named in the `conflict` error.
+- Install and restore write each font under the file name the watch declares for it in
+  `GarminDevice.xml`: the short `D894567.tmp` on a watch that declares short names, as the Lily 2
+  Active does, so it imports `D894567.fnt`; the part number, `006-D9035-03.tmp`, on the Venu 2
+  and every watch reported before. A waiting copy under the other name is moved to the declared
+  one.
 
 ## [0.3.3] - 2026-11-23
 

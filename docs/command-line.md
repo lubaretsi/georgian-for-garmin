@@ -174,10 +174,10 @@ later one-shot `remove-staged`.
 - `support`: the watch's status in the support list ([How it works](how-it-works.md)):
   `status` (`tested`, `expected`, `unsupported` or `unknown`), `listed` (the model's part
   number is in the list), `issue` (the GitHub issue to follow, or null), `reason` (for
-  `unsupported`: `en` and `ka` sentences, else null), `prediction` (`noto_truetype` or
-  `bitmap_armenian` for a model the list only predicts to work, else null; it changes neither
-  the status nor `report_wanted`) and `report_wanted` (a report from this watch adds
-  information). `inspect-drive --json` has it too;
+  `unsupported`: `en` and `ka` sentences, else null), `prediction` (`noto_truetype`,
+  `bitmap_armenian` or `bitmap_korean` for a model the list only predicts to work, else null; it
+  changes neither the status nor `report_wanted`) and `report_wanted` (a report from this watch
+  adds information). `inspect-drive --json` has it too;
 - `hosts`: which kind of font gets Georgian on this watch: `kind` (`bitmap` when it lists any
   bundled bitmap part, otherwise `truetype`; null when it lists no bundled part), `reason` (that
   choice in a sentence), `skipped_parts` (parts of the other kind it lists, left alone; the
@@ -206,9 +206,10 @@ later one-shot `remove-staged`.
 
 `install --json` and `restore-stock --json` return an overall `status` (`staged_verified` or
 `already_staged`) and `packs`: each pack written to, with its `kind` and its parts' paths on the
-watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `<part>.tmp`; a
-TrueType part replaces the watch's `<part>.bin`, and a failed run tries to write the original
-back ([Failed writes](#failed-writes)).
+watch, sizes in bytes, SHA-256s and statuses. A bitmap part is staged as a new `.tmp` under the
+file name the watch declares for it (`006-D9035-03.tmp`, or the short form, as `D894567.tmp`, on
+a watch that declares that); a TrueType part replaces the watch's `<part>.bin`, and a failed run
+tries to write the original back ([Failed writes](#failed-writes)).
 
 ## Exit codes and errors
 

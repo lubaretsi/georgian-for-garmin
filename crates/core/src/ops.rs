@@ -794,15 +794,6 @@ pub(crate) fn read_garmin_device(
     garmin_device::parse(&dev.get_object(handle)?)
 }
 
-/// What `font`'s own file is ([`names`]): a bitmap part's waiting `.tmp`, a TrueType part's
-/// `.bin`.
-fn target_role(font: &Font) -> Role {
-    match font.kind {
-        Kind::Bitmap => Role::Waiting,
-        Kind::Truetype => Role::Bin,
-    }
-}
-
 /// What the watch imports `font`'s file as: a bitmap part's `.tmp` becomes `<part>.fnt` at a
 /// restart (the Venu 2 hides it; the watch in #38 lists it); a TrueType part keeps its `.bin`,
 /// which only the hidden listing shows when the normal one doesn't.
@@ -816,7 +807,7 @@ fn imported_role(font: &Font) -> Role {
 /// Whether `name` is one of `font`'s files, its own or its import, in either name form.
 fn names_font(name: &str, font: &Font) -> bool {
     names::resolve(name).is_some_and(|f| {
-        f.part == font.part && (f.role == target_role(font) || f.role == imported_role(font))
+        f.part == font.part && (f.role == font.target_role() || f.role == imported_role(font))
     })
 }
 
@@ -825,7 +816,7 @@ fn names_font(name: &str, font: &Font) -> bool {
 fn staged_in<'a>(files: &'a [Object], font: &Font) -> Vec<&'a Object> {
     files
         .iter()
-        .filter(|o| names::is(&o.info.filename, &font.part, target_role(font)))
+        .filter(|o| names::is(&o.info.filename, &font.part, font.target_role()))
         .collect()
 }
 
@@ -842,8 +833,10 @@ pub(crate) fn extdata_path(name: &str) -> String {
     format!("GARMIN/ExtData/{name}")
 }
 
-fn staged_path(font: &Font) -> String {
-    extdata_path(&font.file_name())
+/// Where install and restore write `font` on the watch `device` describes: the name it declares
+/// ([`Font::file_name`]).
+fn staged_path(font: &Font, device: &GarminDevice) -> String {
+    extdata_path(&font.file_name(device))
 }
 
 /// Whether `part` of `pack` was verified on this watch.
@@ -1029,22 +1022,21 @@ fn host_choice(hosts: &Hosts<'_>) -> HostChoice {
     let restore_only_parts: Vec<String> =
         hosts.restore_only.iter().map(|f| f.part.clone()).collect();
     let mut reason = match hosts.kind {
-        Some(Kind::Bitmap) if skipped_parts.is_empty() => {
-            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
-             those."
-                .to_owned()
-        }
-        Some(Kind::Bitmap) => format!(
-            "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into \
-             those, as before TrueType support; its TrueType fonts {} stay Garmin's. TrueType \
-             fonts get Georgian only on watches that list none of this build's bitmap fonts.",
-            and_list(&skipped_parts)
-        ),
-        Some(Kind::Truetype) => "This watch lists none of this build's bitmap fonts, so Georgian \
-                                 goes into the TrueType fonts it lists."
+        Some(Kind::Bitmap) => "This watch lists bitmap fonts this build adds Georgian to, so \
+                               Georgian goes into those."
+            .to_owned(),
+        Some(Kind::Truetype) => "This watch lists none of this build's bitmap Armenian fonts, so \
+                                 Georgian goes into the TrueType fonts it lists."
             .to_owned(),
         None => "This watch lists none of the fonts this build adds Georgian to.".to_owned(),
     };
+    if !skipped_parts.is_empty() {
+        reason.push_str(&format!(
+            " Its fonts {} stay Garmin's: a watch gets Georgian in one family of fonts, bitmap \
+             Armenian first, then TrueType, then Korean bitmap fonts.",
+            and_list(&skipped_parts)
+        ));
+    }
     if !restore_only_parts.is_empty() {
         reason.push_str(&format!(
             " Its fonts {} didn't show Georgian on a watch, so this build only restores \
@@ -1753,15 +1745,16 @@ fn hidden_objects(
 /// other watches list it, as in #38; a TrueType part's hidden `.bin`, from `hidden` when the
 /// watch lists 0x9002), each under either name form ([`names`]). Garmin's original or one of
 /// this program's builds is replaced (an imported one by writing a new file, which the watch
-/// imports over it at the next restart; one under the short name by deleting it and writing
-/// this build's name, so a part never has two waiting files); anything else is refused,
-/// imported or not, since a new file would replace it one restart later, and so are several
-/// files for one part. Only a file that can't be read (not shown, or a hidden import whose read
-/// fails) falls back to what the watch declares, for a TrueType part: install accepts only
-/// Garmin's version, restore also a version below 1.00 ([`below_one`]), since it only ever puts
-/// Garmin's own file back. A bitmap part with no file to read is simply staged. A failed read
-/// of a file in the normal listing stops the call: replacing it would delete a file that
-/// couldn't be kept for rollback, and an import there is never left unidentified.
+/// imports over it at the next restart; one under the other name form by deleting it and
+/// writing the name the watch declares, [`Font::file_name`], so a part never has two waiting
+/// files); anything else is refused, imported or not, since a new file would replace it one
+/// restart later, and so are several files for one part. Only a file that can't be read (not
+/// shown, or a hidden import whose read fails) falls back to what the watch declares, for a
+/// TrueType part: install accepts only Garmin's version, restore also a version below 1.00
+/// ([`below_one`]), since it only ever puts Garmin's own file back. A bitmap part with no file
+/// to read is simply staged. A failed read of a file in the normal listing stops the call:
+/// replacing it would delete a file that couldn't be kept for rollback, and an import there is
+/// never left unidentified.
 fn plan(
     dev: &mut dyn Mtp,
     ext: &ExtData,
@@ -1771,7 +1764,7 @@ fn plan(
     variant: Variant,
 ) -> Result<Result<Plan, Refusal>, Error> {
     let target = variant.bytes(font);
-    let own_name = font.file_name();
+    let own_name = font.file_name(device);
     match staged_in(&ext.files, font).as_slice() {
         [one] => {
             let name = &one.info.filename;
@@ -1870,7 +1863,7 @@ fn plan(
         Variant::Stock if below_one(version) => Ok(Plan::Create),
         Variant::Georgian if below_one(version) => Err(Refusal::RestoreFirst(format!(
             "{} (declared as version {})",
-            staged_path(font),
+            staged_path(font, device),
             md(version)
         ))),
         _ => Err(Refusal::Version(described)),
@@ -2082,12 +2075,13 @@ pub fn stage(
             return Err(roll_back(dev, storage, ext, &undo, cause, RESTORE_HINT));
         }
         let bytes = variant.bytes(font);
-        let own_path = staged_path(font);
+        let own_name = font.file_name(&device);
+        let own_path = extdata_path(&own_name);
         let (status, handle, path) = match plan {
             Plan::Already(handle, name) => {
                 (StageStatus::AlreadyStaged, handle, extdata_path(&name))
             }
-            Plan::Create => match write_verified(dev, storage, ext, &font.file_name(), bytes) {
+            Plan::Create => match write_verified(dev, storage, ext, &own_name, bytes) {
                 Ok(handle) => {
                     undo.push(Undo::Created {
                         handle,
@@ -2103,7 +2097,7 @@ pub fn stage(
                 original,
             } => {
                 let existing_path = extdata_path(&name);
-                let renamed = !name.eq_ignore_ascii_case(&font.file_name());
+                let renamed = !name.eq_ignore_ascii_case(&own_name);
                 undo.push(Undo::Replaced { name, original });
                 let deleted = dev.delete_object(existing).map_err(|e| {
                     let e = Error::from(e);
@@ -2116,12 +2110,10 @@ pub fn stage(
                         ),
                     )
                 });
-                match deleted
-                    .and_then(|()| write_verified(dev, storage, ext, &font.file_name(), bytes))
-                {
+                match deleted.and_then(|()| write_verified(dev, storage, ext, &own_name, bytes)) {
                     Ok(handle) => {
-                        // Written under this build's name beside the short one: rollback puts
-                        // the short one back and deletes this.
+                        // Written under the declared name beside the other name form: rollback
+                        // puts the old one back and deletes this.
                         if renamed {
                             undo.push(Undo::Created {
                                 handle,

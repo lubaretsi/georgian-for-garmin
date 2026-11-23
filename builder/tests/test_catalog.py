@@ -6,7 +6,7 @@ import io
 import json
 
 import pytest
-from registry_data import ENTRIES, PINS, STOCK_PART_IDS
+from registry_data import ENTRIES, PINS
 
 from garmin_fonts import catalog
 from garmin_fonts.catalog import CatalogError, fetch_stock
@@ -39,7 +39,7 @@ def isolated(monkeypatch, tmp_path):
 
 
 def test_every_stock_part_is_pinned_with_its_host_and_size():
-    for part in STOCK_PART_IDS:
+    for part in (s["part"] for s in ENTRIES["stock"]):
         pin = PINS[part]
         assert pin.kind == "bitmap" and pin.pack is None
         assert f"{pin.size_px}px" in pin.name and pin.url.endswith(f"/{part}.fnt")

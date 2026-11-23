@@ -82,6 +82,10 @@ def test_predicted_models_are_grouped_by_family_one_row_per_name():
     assert by_name["fenix 7S Pro"] == (
         "Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar"
     )
+    assert by_name["Venu"] == f"Korean bitmap fonts in its watch report ([#12]({ISSUES}/12))"
+    assert by_name["Lily 2 Active"] == (
+        "Korean bitmap fonts in its watch report, emailed to the maintainer"
+    )
 
 
 def test_tested_software_versions_are_merged_and_sorted():

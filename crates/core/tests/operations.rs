@@ -444,6 +444,7 @@ fn pack(id: &str, parts: &[(&str, u16)], tested: Vec<Tested>) -> Pack {
         id: id.into(),
         name: format!("{id} pack"),
         kind: Kind::Bitmap,
+        host: "armenian".into(),
         weight: 400,
         install: true,
         fonts: parts
@@ -469,6 +470,7 @@ fn truetype_pack() -> Pack {
         id: "hebrew".into(),
         name: "hebrew pack".into(),
         kind: Kind::Truetype,
+        host: "noto-hebrew-truetype".into(),
         weight: 400,
         install: true,
         fonts: HEBREW
@@ -2527,7 +2529,7 @@ fn reported_watch(model_part: &str, software: &str, list: &[(&str, &str, &str)])
     let mut handle = 0x0100_0050;
     for (_, font) in bundled.fonts().filter(|(p, _)| p.kind == Kind::Truetype) {
         if list.iter().any(|(part, ..)| *part == font.part) {
-            s.file(handle, EXTDATA, &font.file_name(), &font.stock);
+            s.file(handle, EXTDATA, &font.long_file_name(), &font.stock);
             handle += 1;
         }
     }
@@ -2540,16 +2542,18 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
     assert_eq!(inspect["hosts"]["kind"], "bitmap");
+    // Its Swiss 721 Hebrew parts are restore-only (no watch confirmed that family): install
+    // leaves them alone, restore may put Garmin's originals back.
+    assert_eq!(inspect["hosts"]["skipped_parts"], json!([]));
     assert_eq!(
-        inspect["hosts"]["skipped_parts"],
+        inspect["hosts"]["restore_only_parts"],
         json!(["006-D0952-08", "006-D0952-07"])
     );
     assert_eq!(
         inspect["hosts"]["reason"],
-        "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those, \
-         as before TrueType support; its TrueType fonts 006-D0952-08 and 006-D0952-07 stay \
-         Garmin's. TrueType fonts get Georgian only on watches that list none of this build's \
-         bitmap fonts."
+        "This watch lists bitmap fonts this build adds Georgian to, so Georgian goes into those. \
+         Its fonts 006-D0952-08 and 006-D0952-07 didn't show Georgian on a watch, so this build \
+         only restores Garmin's originals there."
     );
     assert_eq!(
         pack_ids(&inspect),
@@ -2597,26 +2601,40 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
 }
 
 #[test]
-fn the_instinct_3_gets_no_georgian_in_any_build() {
+fn the_instinct_3_gets_georgian_only_in_its_korean_font() {
     // Swiss 721 Hebrew is restore-only in every build: the fenix 6S Pro had our font and still
-    // drew question marks (#6). The Instinct 3 is unsupported, and restore still works.
+    // drew question marks (#6). Of the Instinct 3's fonts, this build installs only the Korean
+    // 006-D8945-07 (its Korean host was confirmed on the Venu 2); the model stays predicted.
     let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
-    assert_eq!(inspect["supported"], false);
+    assert_eq!(inspect["supported"], true);
     assert_eq!(inspect["restorable"], true);
-    assert_eq!(inspect["state"], "unsupported");
+    assert_eq!(inspect["hosts"]["kind"], "bitmap");
+    assert_eq!(targets(&inspect), ["006-D8945-07"]);
+    assert_eq!(pack_ids(&inspect), ["korean-nanum-gothic-bold"]);
     assert_eq!(
         inspect["hosts"]["restore_only_parts"],
         json!(["006-D0952-08", "006-D0952-07"])
     );
-    assert_eq!(inspect["support"]["status"], "unsupported");
+    assert_eq!(inspect["support"]["status"], "expected");
+    assert_eq!(inspect["support"]["prediction"], "bitmap_korean");
+    assert_eq!(inspect["support"]["reason"], Value::Null);
     assert_eq!(inspect["support"]["issue"], 6);
-    assert_eq!(
-        error_code(fake.call("install", json!({}), &fonts)),
-        ErrorCode::UnsupportedDevice
+    let out = fake.call("install", json!({}), &fonts).unwrap();
+    let paths: Vec<&str> = staged_parts(&out)
+        .iter()
+        .map(|p| p["path"].as_str().unwrap())
+        .collect();
+    assert_eq!(paths, ["GARMIN/ExtData/006-D8945-07.tmp"]);
+    assert!(
+        !fake
+            .writes()
+            .iter()
+            .any(|w| w.contains(".bin") || w.starts_with("delete_object")),
+        "{:?}",
+        fake.writes()
     );
-    assert!(fake.writes().is_empty(), "{:?}", fake.writes());
 }
 
 /// The bundled registry: pre-release and stable builds install the same packs (Swiss 721
@@ -2638,7 +2656,8 @@ fn the_bundled_fonts_follow_the_release_channel() {
             "{}",
             pack.id
         );
-        for font in &pack.fonts {
+        // Korean packs came after 0.3.0-beta.2, which installed none.
+        for font in pack.fonts.iter().filter(|_| pack.host != "korean") {
             assert!(
                 font.earlier.iter().any(|e| e.build == "0.3.0-beta.2"),
                 "{}",
