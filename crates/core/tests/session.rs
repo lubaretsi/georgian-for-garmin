@@ -155,6 +155,48 @@ fn install_and_restore_refuse_an_incomplete_hidden_listing() {
     }
 }
 
+/// A way the hidden listing comes back incomplete: its name, and how the fake fails.
+type Failure = (&'static str, fn(&Watch));
+
+/// The same on a watch declaring its fonts under their short names, as the Lily 2 Active does
+/// (`D903503.tmp`, import `D903503.fnt`): GetObjectIds failing, or GetObjectInfo failing for the
+/// part's own import; with and without a long-named waiting copy, which install and restore
+/// would otherwise move to the declared short name. Nothing is written, moved or deleted.
+#[test]
+fn a_short_name_watch_refuses_an_incomplete_hidden_listing() {
+    let failures: [Failure; 2] = [
+        ("GetObjectIds fails", |w| {
+            w.state().fail_object_ids_of = Some(fake::EXTDATA);
+        }),
+        ("GetObjectInfo fails for the part's import", |w| {
+            w.state().fail_object_info_of = Some(fake::IMPORTED_ARMENIAN);
+        }),
+    ];
+    for (case, fail) in failures {
+        for long_copy in [false, true] {
+            let watch = Watch::declaring_short_names();
+            if long_copy {
+                watch.add_file("006-D9035-02.tmp", fake::georgian("006-D9035-02"));
+            }
+            let before = watch.listed();
+            fail(&watch);
+            let mut s = session(&watch);
+            for name in ["install", "restore_stock"] {
+                let error = call(&mut s, name, json!({})).unwrap_err();
+                let what = format!("{case}, long copy {long_copy}, {name}");
+                assert_eq!(error.code, ErrorCode::DeviceError, "{what}: {error}");
+                assert!(error.message.contains("hidden listing"), "{what}: {error}");
+                assert!(
+                    error.message.contains("nothing was written"),
+                    "{what}: {error}"
+                );
+            }
+            assert!(!wrote(&watch), "{case}: {:?}", watch.state().log);
+            assert_eq!(watch.listed(), before, "{case}, long copy {long_copy}");
+        }
+    }
+}
+
 /// The read-only listings still answer, and flag what they couldn't read.
 #[test]
 fn listings_flag_an_incomplete_hidden_listing() {
