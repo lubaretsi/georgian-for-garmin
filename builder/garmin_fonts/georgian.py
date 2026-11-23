@@ -3,7 +3,8 @@
 Garmin's nominal "N px" for an Armenian part is about the height of an Armenian capital, not the
 font size, so Georgian drawn at N px comes out about a quarter smaller than the letters around
 it. The size is measured instead: Noto Sans Georgian is drawn at the font size whose Mkhedruli
-x-height comes closest to the stock Armenian lowercase x-height, both measured on the 2-bit
+x-height comes closest to the x-height of the host's own letters (its host family's
+`x_height`, the Armenian lowercase in Garmin's Armenian packs), both measured on the 2-bit
 bitmaps, with its descenders shortened to fit the rows below the baseline (`choose_sizing`).
 """
 
@@ -18,14 +19,27 @@ from .codec import GEORGIAN, decode, encode
 # faintest 2-bit level; they are dropped.
 MAX_CLIPPED_PIXELS = 2
 # Letters without ascenders or descenders, and capitals, measured to size Georgian.
-ARMENIAN_X = "աոսռւ"
-ARMENIAN_CAPITALS = "".join(map(chr, range(0x531, 0x557)))
 MKHEDRULI_X = "ათიო"
 MTAVRULI = "".join(map(chr, range(0x1C90, 0x1CB1)))
 # Font units below the baseline that shortening leaves alone: round letters' overshoot.
 OVERSHOOT = 10
 # Shortest descender, in percent of the designed length, that `choose_sizing` tries.
 MIN_DESCENDER = 50
+
+
+def rasterizer():
+    """The libraries that draw Georgian here: {"pillow", "freetype2", "raqm", "fonttools"}
+    versions, raqm None when Pillow lacks it. The same inputs give other bytes in another
+    environment: Pillow without raqm (PyPI's wheels) measures a glyph's advance with its basic
+    layout engine, which gives 22 of the 66 Georgian glyphs of the Korean 27 px build another
+    width, with the same FreeType. The registry's `georgian_font.rasterizer` is the environment
+    the pinned builds come from."""
+    import fontTools
+    import PIL
+    from PIL import features
+
+    return {"pillow": PIL.__version__, "freetype2": features.version("freetype2"),
+            "raqm": features.version("raqm"), "fonttools": fontTools.version}
 
 
 @dataclass(frozen=True)
@@ -173,22 +187,25 @@ def _glyph_heights(font, height, baseline, letters):
     )
 
 
-def choose_sizing(data, outlines, nominal):
-    """The Sizing for Georgian in the stock font `data`, whose nominal size is `nominal` px.
+def choose_sizing(data, outlines, nominal, host):
+    """The Sizing for Georgian in the stock font `data`, whose nominal size is `nominal` px,
+    sized like the letters of its host family `host` (hosts.Host).
 
     The size is the font size from 1 to twice `nominal` whose Mkhedruli x-height (MKHEDRULI_X)
-    is closest to the stock Armenian x-height (ARMENIAN_X); ties go to the Mtavruli height
-    closest to the Armenian capitals', then to the smaller size. Georgian descenders are longer
-    than Armenian ones, so the outlines below OVERSHOOT are shortened, by whole percent, until
-    every glyph fits the row. Raises ValueError when nothing down to MIN_DESCENDER fits.
+    is closest to the median height of the host's `x_height` letters; ties go to the Mtavruli
+    height closest to the host's `capitals`, then to the smaller size. Georgian descenders are
+    longer than Armenian ones, so the outlines below OVERSHOOT are shortened, by whole percent,
+    until every glyph fits the row. Raises ValueError when nothing down to MIN_DESCENDER fits.
     """
     header, _, cmap = decode(data)
     height, baseline = header[7:9]
-    missing = "".join(c for c in ARMENIAN_X + ARMENIAN_CAPITALS if ord(c) not in cmap)
+    missing = "".join(c for c in host.x_height + host.capitals if ord(c) not in cmap)
     if missing:
-        raise ValueError(f"stock font lacks the Armenian letters Georgian is sized by: {missing}")
-    x_height = measure(cmap, height, ARMENIAN_X)
-    capitals = measure(cmap, height, ARMENIAN_CAPITALS)
+        raise ValueError(
+            f"stock font lacks the {host.script} host's letters Georgian is sized by: {missing}"
+        )
+    x_height = measure(cmap, height, host.x_height)
+    capitals = measure(cmap, height, host.capitals)
 
     def distance(size):
         font = outlines.font(size)
@@ -237,19 +254,25 @@ def add_bar(inside, width, height, baseline, sides):
     return bytes(levels)
 
 
-def with_georgian(data, outlines, sizing, mark=None):
+def with_georgian(data, outlines, sizing, mark=None, markers=None):
     """Return (`data` with GEORGIAN glyphs drawn from `outlines` at `sizing`, clipped pixels).
 
-    Existing glyphs are kept. Glyphs are drawn on the template's own row height and baseline.
+    Existing glyphs are kept; a font that already maps a Georgian code point is rejected.
+    Glyphs are drawn on the template's own row height and baseline.
     Ink outside the row is dropped only when it is at most MAX_CLIPPED_PIXELS faintest (level 1)
     pixels; the second value maps each code point that lost pixels to how many. Any other
     overflow raises ValueError. A test `mark` (marks.Mark) adds its bar to the marked capital
-    (`add_bar`).
+    (`add_bar`). `markers` ({glyph: drawn_as}, characters) then give each glyph the tile of
+    another, Georgian ones included, as activation markers for test builds.
     """
-    header, footer, cmap = decode(data)
+    streams = {}
+    header, footer, cmap = decode(data, streams)
     height, baseline = header[7:9]
     font = outlines.font(sizing.size, sizing.descender)
     clipped = {}
+    present = [cp for cp in GEORGIAN if cp in cmap]
+    if present:
+        raise ValueError(f"font already maps Georgian: {', '.join(f'U+{cp:04X}' for cp in present)}")
     for cp in GEORGIAN:
         width, inside, lost = draw(font, chr(cp), height, baseline)
         if width > 255 or not fits(lost):
@@ -266,4 +289,8 @@ def with_georgian(data, outlines, sizing, mark=None):
             y, col = divmod(i, width)
             packed[y * stride + col // 4] |= level << (2 * (col % 4))
         cmap[cp] = (width, bytes(packed))
-    return encode(header, footer, cmap), clipped
+    for glyph, drawn_as in (markers or {}).items():
+        if ord(glyph) not in cmap or ord(drawn_as) not in cmap:
+            raise ValueError(f"marker {glyph} -> {drawn_as} needs both glyphs in the font")
+        cmap[ord(glyph)] = cmap[ord(drawn_as)]
+    return encode(header, footer, cmap, streams), clipped

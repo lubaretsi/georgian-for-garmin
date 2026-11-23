@@ -1,12 +1,15 @@
 # Font registry
 
-`registry.json` lists every Garmin stock font pack that gets Georgian, the font the Georgian
-glyphs come from, the watches each pack was verified on, and the support list: every watch model
-the project knows of. `registry.schema.json` defines its format. `nix build .#fonts` downloads
-every part listed here by its SHA-256, adds Georgian to it and writes `pack`, `packs` and
+`registry.json` lists every Garmin stock font pack that gets Georgian, the host families those
+packs belong to, other Garmin stock fonts pinned for experiments, the font the Georgian glyphs
+come from, the watches each pack was verified on, and the support list: every watch model the
+project knows of. `registry.schema.json` defines its format. `nix build .#fonts` downloads
+every pack part listed here by its SHA-256, adds Georgian to it and writes `pack`, `packs` and
 `watches` into the asset manifest. `nix flake check` validates the registry against the schema,
-checks each stock file against its entry, rebuilds every font and checks the README's watch table
-against the support list.
+checks each stock file against its entry, rebuilds every font, round-trips every pinned stock
+font through the codec, renders the test text over every watch report fixture
+([Fallback models](#fallback-models)) and checks the README's watch table against the support
+list.
 
 A pack has a `kind`:
 
@@ -15,6 +18,39 @@ A pack has a `kind`:
 - `truetype`: Garmin's TrueType `.bin` fonts, one part per weight. The watch keeps them as
   `GARMIN/ExtData/<part>.bin`; the installer replaces that file (see
   [TrueType packs](#truetype-packs)).
+
+## Host families
+
+`hosts` lists the kinds of Garmin font Georgian is added to; every pack and `stock` entry names
+one by `id`, of its own `kind`. A host gives:
+
+| Field       | Value |
+| ----------- | ----- |
+| `script`    | The script its fonts are for: Armenian, Thai, Japanese, Korean, Chinese, Hebrew |
+| `size_like` | What Georgian is sized by: `x_height` letters (and for bitmap hosts `capitals`, the tie-break), measured in each font itself ([Size](#size), [TrueType Size](#size-1)). Armenian: ա ո ս ռ ւ and Ա to Ֆ. Thai, which has no Latin: 28 Thai consonants with neither ascender nor descender, and the digit 0. Japanese, Korean and Chinese: their fonts' own Latin letters. TrueType hosts: Latin `oces`, else the em |
+| `marker`    | A test build's activation marker in the host's own script (`glyph` drawn as `drawn_as`, e.g. ก as ข), so a photo shows a build is active even where the watch takes no Georgian from it |
+
+The builder's `add_georgian` (`builder/garmin_fonts/build.py`) draws Georgian the same way for
+every host; only the letters it measures differ. The builds of the Thai, Japanese, Korean and
+Chinese fonts reproduce the lab's test builds byte for byte (`builder/tests/test_hosts.py`),
+including the Thai 27 px build that drew Georgian on the Venu 2. Kosugi's 31 px (`006-D8944-23`)
+and 17 px (`006-D8944-66`) rows are too short for Georgian at the matched size, and the build
+says so.
+
+## Other stock fonts
+
+`stock` pins Garmin bitmap fonts that are in no pack: the Venu 2's Chinese, Japanese, Korean and
+Thai fonts (`006-D8448-25..28`, `006-D8944-20..23`, `006-D8945-20..23`, `006-D8947-20..23`) and
+the Lily 2 Active's "Compressed" ones (`006-D8448-70/-71`, `006-D8944-66/-67`,
+`006-D8945-67/-68`). Each entry has its catalog `name`, `size_px`, `weight` (500 Medium, 700
+Bold), `host`, `version`, `url` and `sha256`. They are never built into the app's fonts: a font
+family moves into `packs` only after a watch confirms it. `nix develop` and the flake check fetch
+them by hash (`GFG_CATALOG_DIR`), and the builder's `catalog.fetch_stock` finds them there, in
+its cache or by their pinned URL.
+
+"Compressed" fonts (header flags `0x0603` instead of `0x0403`) store each glyph as the
+Connect IQ SDK's per-glyph RLE stream of its plain bitmap; the codec reads both and writes each
+font back in its own format, byte for byte (`builder/garmin_fonts/codec.py`).
 
 ## Support list
 
@@ -108,6 +144,8 @@ table.
      Georgian's `wght` axis (100 to 900; 400 is Regular, 700 Bold). Georgian is drawn at it so it
      matches the stock letters. Go by the glyphs, not the product name (see [Weight](#weight)).
    - `kind`: `bitmap` for `.fnt` parts, `truetype` for `.bin` parts.
+   - `host`: the pack's host family in `hosts` ([Host families](#host-families)), e.g.
+     `armenian`; it decides what Georgian is sized by.
    - `parts`: for a bitmap pack, one entry per size, smallest first, each with `part` (part
      number), `size_px` (nominal pixel size; see step 4 for reading it from the file), `version`
      (as in the catalog, `2.10`), `url` (the official `https://download.garmin.com/…/<part>.fnt`
@@ -164,7 +202,8 @@ stock file's own 2-bit bitmaps:
 
 - **Letter height**: each row of a glyph counts as its darkest pixel's level, a full-strength
   row being 1 px, so antialiased top and bottom rows count by coverage.
-- **Armenian x-height**: the median height of ա ո ս ռ ւ. **Capitals**: the median of Ա to Ֆ.
+- **Armenian x-height**: the median height of ա ո ս ռ ւ. **Capitals**: the median of Ա to Ֆ
+  (the `armenian` host's `size_like`; other hosts measure their own letters).
 - **Font size**: Noto Sans Georgian, at the part's weight, at the size from 1 px to twice the
   nominal size whose Mkhedruli x-height (median of ა თ ი ო) is closest to the Armenian
   x-height. Ties go to the Mtavruli height closest to the Armenian capitals, then to the smaller
@@ -355,14 +394,48 @@ marks capital i mod 8, and draws its bar below for parts 0 to 7, above for 8 to 
 sides from 16. Adding or moving a part changes the variants after it.
 
 `nix build .#fonts` builds with marks exactly when the version is a pre-release;
-`.#fonts-stable` never does and `.#fonts-marked` always does (`python -m garmin_fonts
+`.#fonts-stable` never does and `.#fonts-marked` always does (`python -m garmin_fonts build
 --test-marks`). A marked build sets `test_marks` in the manifest and gives each font a `mark`:
 its variant, marked code point, position and style, and a picture of the marked capitals,
 `previews/mark-<part>.png`, with its SHA-256. `python -m garmin_fonts.preview --marks <fonts dir>
 --out marks.png` draws all of them on one sheet.
+
+## Fallback models
+
+`fallback-models.json` (format: `fallback-models.schema.json`) says, per watch view, which font
+draws a character, as far as recorded observations show; the builder's `render` uses it. A
+model applies to the watch model parts and software it was observed on, and only to the code
+points the watch's built-in font was seen to lack (`system_lacks`). For those it lists the
+ExtData parts the view takes them from, first match first (`order`), parts seen to supply them
+when no other font had them, whose place in the order is unknown (`sole`), the parts it was seen
+not to use (`unused`: other sizes), the Garmin originals present while such characters drew as
+boxes (`stock_without_effect`, by part and version), and what backs drawing a box (`missing`).
+Every step cites entries of `evidence`: what was seen, and where it is recorded (paths in this
+repository, which the tests check exist, or lab records by name and section). `caveats` keeps
+observations a model doesn't explain.
+
+`render` marks each character `confirmed` (every input known and the step that picks the font
+backed by cited evidence), `coverage_only` (a font the watch has includes the glyph, but the
+model doesn't place that font, or places it only as the sole supplier while another font has
+the glyph too), or `unknown` (a font's bytes are unavailable, the watch's built-in font may
+draw it, or no model fits). A report fixture lists the declared files, not the renderer's order,
+so it never confirms an order on its own. A font given as bytes counts as Garmin's original only
+when it is the registry's pinned file.
+
+The one model so far is the Venu 2's notification pop-up (19.05): Georgian comes from the Thai
+27 px font (`006-D8947-22`) before the Armenian one (`006-D9035-03`); the Korean 27 px font
+(`006-D8945-22`, plain or Compressed) supplies it when it is the only one with Georgian; the
+other sizes aren't used. Add a model or step only with an observation to cite; anything else
+stays `unknown` or `coverage_only`.
 
 ## Georgian source
 
 `georgian_font` holds the TrueType font the glyphs are rendered from and its license, each with
 a URL and SHA-256. Changing it changes every Georgian build, including the parts tested on a
 watch, and may change the sizes in the table above; the builder's tests pin those bytes.
+
+Its `rasterizer` names the library versions that draw the glyphs (Pillow, FreeType, raqm,
+fontTools), as in `nix develop`: other versions, or Pillow without raqm, give other bytes for the
+same inputs. A builder test checks that the environment matches it, so a nixpkgs update that
+changes them fails until the new builds are tested on a watch and the pins updated together;
+builds made elsewhere are marked `rasterizer_pinned: false`.

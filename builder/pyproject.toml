@@ -1,3 +1,14 @@
+# The builder runs from this directory (nix develop, the flake checks, or the .venv that
+# `nix run .#omp-venv` writes for omp's eval); it isn't installed as a package. The
+# dependencies are for use outside nix: the same versions as the pinned nix environment, but
+# Pillow's PyPI wheels lack raqm, so Georgian drawn there may differ from the pinned builds
+# (add_georgian marks it `rasterizer_pinned=False` and warns).
+[project]
+name = "garmin-fonts"
+version = "0.2.0"
+requires-python = ">=3.11"
+dependencies = ["fonttools==4.63.0", "jsonschema>=4.20", "pillow==12.3.0"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
