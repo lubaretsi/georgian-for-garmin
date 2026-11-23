@@ -112,3 +112,41 @@ jobs:
                 $features -- -D warnings
             done
           done
+
+  # The new app UI (crates/app/frontend): the generated core types match the CLI, typecheck,
+  # Vitest (flow, copy, components) and every story with its play function and axe in Chromium
+  # and WebKit. Node and pnpm come from the dev shell; Playwright's browsers, at the lockfile's
+  # version, are installed outside nix.
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: crates/app/frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ github.token }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: pnpm install
+        run: nix develop --command pnpm install --frozen-lockfile
+
+      - name: Generated types match the CLI
+        run: |
+          nix develop --command pnpm gen:types
+          git diff --exit-code -- src/core/types.gen.ts
+
+      - name: Typecheck
+        run: nix develop --command pnpm typecheck
+
+      - name: Playwright browsers
+        run: nix develop --command pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Vitest and story tests
+        run: nix develop --command pnpm test
