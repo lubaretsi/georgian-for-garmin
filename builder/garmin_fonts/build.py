@@ -27,7 +27,9 @@ class Built:
 
     `sizing` is the georgian.Sizing (bitmap) or truetype.TrueTypeSizing it was drawn at;
     `clipped` maps "U+XXXX" to the faint pixels dropped outside a bitmap row; `markers` are the
-    activation markers applied ({glyph: drawn_as}).
+    activation markers applied ({glyph: drawn_as}). `stock_sha256` is the input font's SHA-256
+    and `stock_pinned` whether it is the file the registry pins for the part (Garmin's
+    original at the pinned version), as opposed to other bytes given for it.
     """
 
     part: str
@@ -38,6 +40,8 @@ class Built:
     sizing: object
     clipped: dict
     markers: dict
+    stock_sha256: str
+    stock_pinned: bool
     data: bytes = field(repr=False)
 
     @property
@@ -60,7 +64,8 @@ class Built:
                       "georgian_descender_percent": self.sizing.descender}
         return {"part": self.part, "version": self.version, "kind": self.kind, "host": self.host,
                 "weight": self.weight, **sizing, "clipped": self.clipped,
-                "markers": self.markers, "bytes": len(self.data), "sha256": self.sha256}
+                "markers": self.markers, "stock_sha256": self.stock_sha256,
+                "stock_pinned": self.stock_pinned, "bytes": len(self.data), "sha256": self.sha256}
 
 
 @cache
@@ -161,7 +166,9 @@ def add_georgian(font, size_like=None, markers=None, *, weight=None, nominal=Non
             raise ValueError(f"size_like for a bitmap font: a host or Sizing, not {size_like!r}")
         out, lost = with_georgian(data, outlines, sizing, mark, markers)
         clipped = {f"U+{cp:04X}": pixels for cp, pixels in lost.items()}
-    return Built(part, version, kind, host, weight, sizing, clipped, markers, out)
+    stock_sha256 = hashlib.sha256(data).hexdigest()
+    return Built(part, version, kind, host, weight, sizing, clipped, markers, stock_sha256,
+                 pin is not None and stock_sha256 == pin.sha256, out)
 
 
 def build(registry, stock_dir, noto, license_file, out, test_marks=False):

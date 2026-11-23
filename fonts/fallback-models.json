@@ -16,8 +16,12 @@
         {"part": "006-D8947-22", "evidence": ["venu-2-thai-host", "venu-2-thai-before-armenian"]},
         {"part": "006-D9035-03", "evidence": ["venu-2-armenian-27px", "venu-2-thai-before-armenian"]}
       ],
+      "sole": [
+        {"part": "006-D8945-22", "evidence": ["venu-2-korean-host", "venu-2-compressed-korean"]}
+      ],
       "unused": [
         {"parts": ["006-D8947-20", "006-D8947-21", "006-D8947-23"], "evidence": ["venu-2-thai-host"]},
+        {"parts": ["006-D8945-20", "006-D8945-21", "006-D8945-23"], "evidence": ["venu-2-korean-host"]},
         {"parts": ["006-D9035-01", "006-D9035-02", "006-D9035-04"], "evidence": ["venu-2-armenian-27px"]}
       ],
       "stock_without_effect": {
@@ -68,7 +72,21 @@
       "id": "venu-2-thai-host",
       "observed": "Venu 2, 19.05: with Garmin's original Armenian fonts restored and Georgian added to the four Thai sizes (006-D8947-20..23), each drawing ჰ as a different Mkhedruli letter and ก as ข, a Gmail notification drew both ქართული and ᲥᲐᲠᲗᲣᲚᲘ as Georgian, ჰჰ as გგ (the 27 px build, 006-D8947-22) and กข as one Thai glyph twice.",
       "sources": [
-        {"lab": "2026-11-23-cjk-bitmap-host", "section": "Test (a), Thai host (derived/a-thai-host-watch.png)"}
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (a) Thai host"}
+      ]
+    },
+    {
+      "id": "venu-2-korean-host",
+      "observed": "Venu 2, 19.05: with Garmin's original Armenian and Thai fonts and Georgian added to the four Korean sizes (006-D8945-20..23), each drawing ჰ as a different Mkhedruli letter and 가 as 나, a Gmail notification drew both ქართული and ᲥᲐᲠᲗᲣᲚᲘ as Georgian, ჰჰ as ზზ (the 27 px build, 006-D8945-22) and 가나 as one Korean glyph twice; the 21, 24 and 31 px markers didn't appear.",
+      "sources": [
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (b) Korean host"}
+      ]
+    },
+    {
+      "id": "venu-2-compressed-korean",
+      "observed": "Venu 2, 19.05: with Garmin's original Armenian and Thai fonts, a Compressed (per-glyph RLE) Georgian build of 006-D8945-22 from the builder's encoder, every other Korean part Garmin's, drew both Georgian cases and its own markers.",
+      "sources": [
+        {"lab": "2026-11-23-cjk-bitmap-host", "section": "On the watch (Venu 2 006-B3703-00, 19.05) › (c) Compressed Korean"}
       ]
     },
     {

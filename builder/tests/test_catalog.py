@@ -128,6 +128,25 @@ def test_unknown_and_malformed_parts(isolated):
         fetch_stock("006-D8947-98", offline=True)
 
 
+def test_a_corrupt_unpinned_cache_entry_is_refused_offline(isolated, catalog_stock):
+    data = catalog_stock["006-D8947-20"]
+    url, answer = catalog_answer("006-D8947-99", data)
+    isolated.responses |= {catalog.ENDPOINT: answer, url: data}
+    path = fetch_stock("006-D8947-99").path
+    path.write_bytes(data[:-1] + b"\x01")  # same size, different MD5
+    with pytest.raises(CatalogError, match="doesn't match the size and MD5"):
+        fetch_stock("006-D8947-99", offline=True)
+    path.write_bytes(data + b"\x00")
+    with pytest.raises(CatalogError, match="doesn't match the size and MD5"):
+        fetch_stock("006-D8947-99", offline=True)
+    (path.parent / "catalog.json").unlink()
+    with pytest.raises(CatalogError, match="no readable catalog entry"):
+        fetch_stock("006-D8947-99", offline=True)
+    # Online, the corrupt file is fetched again.
+    assert fetch_stock("006-D8947-99").source == "catalog"
+    assert fetch_stock("006-D8947-99", offline=True).data == data
+
+
 def test_gfg_offline_means_offline(isolated, monkeypatch):
     monkeypatch.setenv("GFG_OFFLINE", "1")
     with pytest.raises(CatalogError, match="offline"):

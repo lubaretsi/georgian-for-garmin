@@ -84,6 +84,17 @@ def test_stage_writes_bytes_and_vouches_for_the_pinned_original(watch, tmp_path)
         watch.stage(font)
 
 
+def test_stage_refuses_a_font_for_another_part(watch, catalog_stock):
+    thai = catalog_stock["006-D8947-22"]
+    with pytest.raises(WatchError, match="the font is 006-D8947-22, but the staging name") as error:
+        watch.stage(thai, "006-D9035-03.tmp", dry_run=True)
+    assert error.value.code == "invalid_input"
+    # The vouched Garmin hash is always the staging name's part's.
+    staged = watch.stage(thai, dry_run=True)
+    assert staged["name"] == "006-D8947-22.tmp"
+    assert staged["garmin_sha256"] == [PINS["006-D8947-22"].sha256]
+
+
 def test_short_staging_names_name_their_part():
     assert _part_of("D844870.tmp") == "006-D8448-70"
     assert _part_of("006-D8448-70.tmp") == "006-D8448-70"
@@ -129,6 +140,7 @@ def test_the_real_rpc_checks_input_before_touching_the_watch(tmp_path):
             real.extdata_list(limit=0)
         assert (error.value.code, error.value.rpc_code) == ("invalid_input", -32602)
         with pytest.raises(WatchError) as error:
+            (tmp_path / "x.fnt").write_bytes(b"not a font")
             real.stage(tmp_path / "x.fnt", "../escape.tmp", garmin_sha256=[])
         assert error.value.code == "invalid_input"
         with pytest.raises(WatchError) as error:

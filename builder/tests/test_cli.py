@@ -83,6 +83,16 @@ def test_build_one_font_with_markers(catalog_stock, tmp_path, inputs):
     assert again.returncode == 2 and "exists" in json.loads(again.stderr)["error"]["message"]
 
 
+def test_render_a_font_given_as_a_file(catalog_stock, tmp_path, inputs):
+    built = cli("build", "006-D9035-03", "--out", str(tmp_path), "--offline", "--json")
+    path = json.loads(built.stdout)["fonts"][0]["path"]
+    result = cli("render", "006-D8947-22@2.00", path, "--family", "006-B3703-00", "--text", "მ",
+                 "--offline", "--json")
+    assert result.returncode == 0, result.stderr
+    (item,) = json.loads(result.stdout)["trace"]
+    assert (item["state"], item["font"]) == ("confirmed", "006-D9035-03")
+
+
 def test_render_a_report(catalog_stock, tmp_path, inputs):
     png = tmp_path / "venu2.png"
     report = REPORTS / "maintainer-venu2-stock-imported.json"

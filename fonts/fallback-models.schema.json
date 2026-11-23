@@ -32,7 +32,7 @@
     "model": {
       "description": "One watch view's font fallback, for the watch models and software it was observed on.",
       "type": "object",
-      "required": ["id", "watch", "model_parts", "software", "view", "kind", "system_lacks", "order", "unused", "stock_without_effect", "missing", "caveats"],
+      "required": ["id", "watch", "model_parts", "software", "view", "kind", "system_lacks", "order", "sole", "unused", "stock_without_effect", "missing", "caveats"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/id" },
@@ -68,6 +68,19 @@
         "order": {
           "description": "ExtData parts the view takes such a character from, first match first.",
           "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["part", "evidence"],
+            "additionalProperties": false,
+            "properties": {
+              "part": { "$ref": "#/$defs/part_number" },
+              "evidence": { "$ref": "#/$defs/cites" }
+            }
+          }
+        },
+        "sole": {
+          "description": "ExtData parts the view took such a character from when no other font it takes them from had it. Where they stand in the order is unknown, so they decide only when they are the only one.",
+          "type": "array",
           "items": {
             "type": "object",
             "required": ["part", "evidence"],

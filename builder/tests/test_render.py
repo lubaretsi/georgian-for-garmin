@@ -171,3 +171,75 @@ def test_a_png_is_drawn(catalog_stock, ours):
     rendering = render_report(REPORTS / "maintainer-venu2-stock-imported.json", builds=ours)
     assert rendering.png()[:8] == b"\x89PNG\r\n\x1a\n"
     assert rendering.image.width > 100
+
+
+def our_build(ours, part):
+    return next(data for data in ours if identify(data)[1] == part)
+
+
+@pytest.fixture
+def fetched(monkeypatch):
+    """The parts render fetches from the catalog, recorded."""
+    from garmin_fonts import render as render_module
+
+    parts, fetch = [], render_module.catalog.fetch_stock
+
+    def recording(part, **kwargs):
+        parts.append(part)
+        return fetch(part, **kwargs)
+
+    monkeypatch.setattr(render_module.catalog, "fetch_stock", recording)
+    return parts
+
+
+def with_font(declared, font):
+    """The declared list with `font` given in place of its part's entry."""
+    part = identify(font if isinstance(font, bytes) else Path(font).read_bytes())[1]
+    return [font if entry["part"] == part else entry for entry in declared]
+
+
+@pytest.mark.parametrize("given", ["bytes", "file"])
+def test_fonts_given_as_bytes_render_from_those_bytes(catalog_stock, ours, fetched, tmp_path,
+                                                      given):
+    data = our_build(ours, "006-D9035-03")
+    font = data
+    if given == "file":
+        font = tmp_path / "ours.fnt"
+        font.write_bytes(data)
+    rendering = render(with_font(VENU_2["declared"], font), family="006-B3703-00",
+                       software="19.05", offline=True)
+    assert "006-D9035-03" not in fetched and "006-D8947-22" in fetched
+    for char in GEORGIAN_TEXT:
+        item = by_char(rendering)[char]
+        assert (item["state"], item["font"]) == ("confirmed", "006-D9035-03"), item
+
+
+def test_given_bytes_count_as_garmins_only_when_pinned(catalog_stock, fetched):
+    stock_thai = catalog_stock["006-D8947-22"]
+    rendering = render(with_font(VENU_2["declared"], stock_thai), family="006-B3703-00")
+    assert (by_char(rendering)["მ"]["state"], by_char(rendering)["მ"]["font"]) == \
+        ("confirmed", "missing")
+    assert "006-D8947-22" not in fetched
+
+
+def test_replace_must_name_a_declared_part(catalog_stock, thai_build):
+    declared = [e for e in VENU_2["declared"] if e["part"] != "006-D8947-22"]
+    with pytest.raises(ValueError, match="006-D8947-22, which the watch doesn't declare"):
+        render(declared, replace=[thai_build], family="006-B3703-00")
+
+
+@pytest.fixture(scope="session")
+def korean_build(catalog_stock, inputs):
+    from garmin_fonts.build import add_georgian
+
+    return add_georgian(catalog_stock["006-D8945-22"], offline=True)
+
+
+def test_the_korean_27_px_font_supplies_georgian_alone(catalog_stock, ours, korean_build):
+    alone = by_char(render(VENU_2["declared"], replace=[korean_build], family="006-B3703-00"))
+    item = alone["მ"]
+    assert (item["state"], item["font"]) == ("confirmed", "006-D8945-22")
+    assert {"venu-2-korean-host", "venu-2-compressed-korean"} <= set(item["evidence"])
+    replace = [korean_build, *installed_builds(VENU_2["declared"], ours)]
+    both = by_char(render(VENU_2["declared"], replace=replace, family="006-B3703-00"))["მ"]
+    assert both["state"] == "coverage_only" and "006-D8945-22" in both["reason"]

@@ -15,9 +15,11 @@ image and a trace with one entry per character, in one of three states:
 
 The models are data, `fonts/fallback-models.json`, each step citing observations. A report
 fixture gives the declared files, not the renderer's order, so it never confirms an order on
-its own. A font the call doesn't replace counts as Garmin's original.
+its own. A declared font whose bytes are unavailable counts as Garmin's original; one whose
+bytes are given counts as Garmin's only when they are the registry's pinned file.
 """
 
+import hashlib
 import io
 import json
 from collections import Counter
@@ -64,7 +66,7 @@ def load_models(path=MODELS):
     for model in data["models"]:
         cited = [*model["system_lacks"]["evidence"], *model["missing"]["evidence"],
                  *model["stock_without_effect"]["evidence"]]
-        for group in (model["order"], model["unused"], model["caveats"]):
+        for group in (model["order"], model["sole"], model["unused"], model["caveats"]):
             cited += [i for entry in group for i in entry["evidence"]]
         missing = sorted(set(cited) - known)
         if missing:
@@ -90,9 +92,11 @@ def find_model(family, software=None, models=None):
 
 @dataclass
 class Font:
-    """One declared font as the render sees it: its part and declared version, its decoded
-    glyphs when its bytes are known (`cmap`: code point to a bitmap tile, or True for a TrueType
-    glyph), where they came from (`stock`, `replace`) and why not when they aren't (`why`)."""
+    """One declared font as the render sees it: its part and version (declared, or the given
+    bytes' own), its decoded glyphs when its bytes are known (`cmap`: code point to a bitmap
+    tile, or True for a TrueType glyph), where they came from (`stock`, `supplied` with the
+    declared list, `replace`), why not when they aren't (`why`), and whether it is Garmin's
+    original (`original`: the pinned file, or bytes unavailable and none given)."""
 
     part: str
     version: str | None = None
@@ -103,6 +107,7 @@ class Font:
     baseline: int = 0
     cmap: dict | None = None
     plain: bytes | None = field(default=None, repr=False)
+    original: bool = True
 
     @property
     def known(self):
@@ -126,12 +131,15 @@ def _decoded(data):
 
 
 def _load(entry, replaced, offline, registry):
-    """The Font for a declared entry {"part", "version"?}."""
+    """The Font for a declared entry {"part", "version"?, "data"?}: `replaced` bytes for its
+    part first, then bytes the entry carries, then the pinned stock file."""
     part, version = entry["part"], entry.get("version")
+    pin = font_registry.parts(registry).get(part)
     if part in replaced:
         data, origin = replaced[part], "replace"
+    elif "data" in entry:
+        data, origin = entry["data"], "supplied"
     else:
-        pin = font_registry.parts(registry).get(part)
         if pin is None:
             return Font(part, version, why="not pinned in the registry")
         if version is not None and version != pin.version:
@@ -142,24 +150,29 @@ def _load(entry, replaced, offline, registry):
         except catalog.CatalogError as error:
             return Font(part, version, kind=pin.kind, why=str(error))
         origin = "stock"
-    kind, _, _, height, baseline, cmap, plain = _decoded(data)
-    return Font(part, version, kind, origin, None, height, baseline, cmap, plain)
+    kind, _, own_version, height, baseline, cmap, plain = _decoded(data)
+    original = pin is not None and hashlib.sha256(data).hexdigest() == pin.sha256
+    if origin != "stock":
+        version = own_version
+    return Font(part, version, kind, origin, None, height, baseline, cmap, plain, original)
 
 
 def _entries(fonts):
-    """Declared entries {"part", "version"?} from part numbers, (part, version) pairs, dicts or
-    font bytes (identified by their footer or trailer)."""
+    """Declared entries {"part", "version"?, "data"?} from part numbers, (part, version) pairs,
+    dicts, or fonts given as bytes, paths, catalog.Stock or Built (identified by their footer
+    or trailer, their bytes kept)."""
     out = []
     for font in fonts:
-        if isinstance(font, str):
+        if isinstance(font, str) and catalog.PART_NUMBER.match(font):
             out.append({"part": font})
         elif isinstance(font, dict):
-            out.append({k: font[k] for k in ("part", "version") if k in font})
+            out.append({k: font[k] for k in ("part", "version", "data") if k in font})
         elif isinstance(font, tuple):
             out.append({"part": font[0], "version": font[1]})
         else:
-            _, part, version = identify(font_bytes(font))
-            out.append({"part": part, "version": version})
+            data = font_bytes(font)
+            _, part, version = identify(data)
+            out.append({"part": part, "version": version, "data": data})
     return out
 
 
@@ -222,7 +235,7 @@ def _trace(char, fonts, model, family):
     for font in fonts:
         if font.part in unused:
             evidence += [i for g in model["unused"] if font.part in g["parts"] for i in g["evidence"]]
-        elif (font.part, font.version) in without_effect and font.origin != "replace":
+        elif (font.part, font.version) in without_effect and font.original:
             evidence += model["stock_without_effect"]["evidence"]
         else:
             considered.append(font)
@@ -256,11 +269,19 @@ def _trace(char, fonts, model, family):
             "evidence": [], "reason": f"fonts whose bytes are unavailable may have it: "
                                       f"{', '.join(others_unknown)}",
         }
+    sole = {step["part"]: step for step in model["sole"]}
+    if hit is None and len(others_having) == 1 and others_having[0] in sole:
+        part = others_having[0]
+        return entry | common | {
+            "state": "confirmed", "font": part,
+            "evidence": _unique(evidence + sole[part]["evidence"]),
+            "reason": f"{part} is the only font the view takes it from that has it",
+        }
     if others_having:
         return entry | common | {
             "state": "coverage_only", "font": hit.part if hit else others_having[0],
-            "evidence": [], "reason": f"the model doesn't place {', '.join(others_having)}, "
-                                      "which also has it",
+            "evidence": [], "reason": f"the model doesn't place {', '.join(others_having)} "
+                                      "among the other fonts that have it",
         }
     if hit is not None:
         return entry | common | {
@@ -283,20 +304,27 @@ def render(fonts, text=TEST_TEXT, replace=(), family=None, *, software=None, lab
     """Render `text` from the watch fonts `fonts`, as a Rendering.
 
     `fonts` lists the fonts the watch declares, in its order: part numbers, (part, version)
-    pairs, {"part", "version"} dicts (a report's `declared`), or font bytes. Bytes come from
-    `replace` (fonts identified by their footer or trailer: bytes, paths, Built results), else
-    from catalog.fetch_stock for parts the registry pins at the declared version. `family` is a
-    fallback model id or the watch's model part (006-B3703-00); with `software`, a model applies
-    only to the versions it was observed on. `label` heads the image. Offline by default
-    unless `offline=False`.
+    pairs, {"part", "version"} dicts (a report's `declared`), or fonts given as bytes, paths or
+    Built results, rendered from those bytes. `replace` swaps declared parts for other bytes
+    (identified by their footer or trailer; a part the watch doesn't declare is an error). The
+    rest come from catalog.fetch_stock for parts the registry pins at the declared version.
+    `family` is a fallback model id or the watch's model part (006-B3703-00); with `software`, a
+    model applies only to the versions it was observed on. `label` heads the image. Offline by
+    default unless `offline=False`.
     """
     registry = font_registry.default() if registry is None else registry
     offline = True if offline is None else offline
+    declared = _entries(fonts)
+    parts = {entry["part"] for entry in declared}
     replaced = {}
     for font in replace:
         data = font_bytes(font, offline=offline, registry=registry)
-        replaced[identify(data)[1]] = data
-    declared = _entries(fonts)
+        part = identify(data)[1]
+        if part not in parts:
+            raise ValueError(f"replace has a font for {part}, which the watch doesn't declare")
+        if part in replaced and replaced[part] != data:
+            raise ValueError(f"replace has two different fonts for {part}")
+        replaced[part] = data
     loaded = [_load(entry, replaced, offline, registry) for entry in declared]
     model = find_model(family, software, models) if family else None
     trace = [_trace(char, loaded, model, family) for char in text]

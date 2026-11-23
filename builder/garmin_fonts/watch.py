@@ -182,26 +182,37 @@ class Watch:
         """`stage_file` (dev): stage `source` as GARMIN/ExtData/`name`.
 
         `source` is a local path, bytes, or a build (build.Built); `name` defaults to a build's
-        `<part>.tmp`. `garmin_sha256` (hashes vouched to be Garmin's own file for the part)
-        defaults to the registry's pin for that part, so Garmin's original may be replaced.
+        `<part>.tmp`. A Garmin font whose footer or trailer names another part than `name` is
+        refused. `garmin_sha256` (hashes vouched to be Garmin's own file for the part)
+        defaults to the registry's pin for the part `name` stands for, so Garmin's original
+        may be replaced. The bytes checked here are the bytes staged (from a private copy).
         Returns the core's output, with the staged `id` for `remove_staged`.
         """
-        part = getattr(source, "part", None)
+        from .build import identify
+
+        data = getattr(source, "data", source)
+        if not isinstance(data, (bytes, bytearray)):
+            data = Path(source).read_bytes()
+        try:
+            _, own_part, _ = identify(bytes(data))
+        except ValueError:
+            own_part = getattr(source, "part", None)
         if name is None:
-            if part is None:
+            if own_part is None:
                 raise WatchError("invalid_input", "pass name, e.g. 006-D8448-70.tmp or D844870.tmp")
-            name = f"{part}.tmp"
+            name = f"{own_part}.tmp"
+        part = _part_of(name)
+        if own_part is not None and own_part != part:
+            raise WatchError("invalid_input",
+                             f"the font is {own_part}, but the staging name {name} is for {part}")
         if garmin_sha256 is None:
-            pin = font_registry.parts(font_registry.default()).get(part or _part_of(name))
+            pin = font_registry.parts(font_registry.default()).get(part)
             garmin_sha256 = [pin.sha256] if pin is not None else []
         params = {"name": name, "dry_run": dry_run, "garmin_sha256": list(garmin_sha256)}
-        data = getattr(source, "data", source)
-        if isinstance(data, (bytes, bytearray)):
-            with tempfile.TemporaryDirectory() as folder:
-                path = Path(folder) / name
-                path.write_bytes(data)
-                return self.call("stage_file", params | {"source": str(path)}, progress)
-        return self.call("stage_file", params | {"source": str(source)}, progress)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / (Path(name).name or "source")
+            path.write_bytes(data)
+            return self.call("stage_file", params | {"source": str(path)}, progress)
 
     def remove_staged(self, staged_id):
         """`remove_staged` (dev): delete a file this tool staged, by its id."""

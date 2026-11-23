@@ -406,23 +406,27 @@ its variant, marked code point, position and style, and a picture of the marked 
 draws a character, as far as recorded observations show; the builder's `render` uses it. A
 model applies to the watch model parts and software it was observed on, and only to the code
 points the watch's built-in font was seen to lack (`system_lacks`). For those it lists the
-ExtData parts the view takes them from, first match first (`order`), the parts it was seen not
-to use (`unused`: other sizes), the Garmin originals present while such characters drew as boxes
-(`stock_without_effect`, by part and version), and what backs drawing a box (`missing`). Every
-step cites entries of `evidence`: what was seen, and where it is recorded (paths in this
+ExtData parts the view takes them from, first match first (`order`), parts seen to supply them
+when no other font had them, whose place in the order is unknown (`sole`), the parts it was seen
+not to use (`unused`: other sizes), the Garmin originals present while such characters drew as
+boxes (`stock_without_effect`, by part and version), and what backs drawing a box (`missing`).
+Every step cites entries of `evidence`: what was seen, and where it is recorded (paths in this
 repository, which the tests check exist, or lab records by name and section). `caveats` keeps
 observations a model doesn't explain.
 
 `render` marks each character `confirmed` (every input known and the step that picks the font
 backed by cited evidence), `coverage_only` (a font the watch has includes the glyph, but the
-model doesn't place that font), or `unknown` (a font's bytes are unavailable, the watch's
-built-in font may draw it, or no model fits). A report fixture lists the declared files, not the
-renderer's order, so it never confirms an order on its own.
+model doesn't place that font, or places it only as the sole supplier while another font has
+the glyph too), or `unknown` (a font's bytes are unavailable, the watch's built-in font may
+draw it, or no model fits). A report fixture lists the declared files, not the renderer's order,
+so it never confirms an order on its own. A font given as bytes counts as Garmin's original only
+when it is the registry's pinned file.
 
 The one model so far is the Venu 2's notification pop-up (19.05): Georgian comes from the Thai
-27 px font (`006-D8947-22`) before the Armenian one (`006-D9035-03`), and the other sizes aren't
-used. Add a model or step only with an observation to cite; anything else stays `unknown` or
-`coverage_only`.
+27 px font (`006-D8947-22`) before the Armenian one (`006-D9035-03`); the Korean 27 px font
+(`006-D8945-22`, plain or Compressed) supplies it when it is the only one with Georgian; the
+other sizes aren't used. Add a model or step only with an observation to cite; anything else
+stays `unknown` or `coverage_only`.
 
 ## Georgian source
 

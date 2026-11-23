@@ -187,32 +187,48 @@ def _stock(pin, data, pinned, source, path):
                  Path(path), data)
 
 
+def _matches(data, deliverable):
+    """Whether `data` has the size and MD5 Garmin's catalog gives for the file."""
+    return (len(data) == deliverable["sizeInBytes"]
+            and hashlib.md5(data).hexdigest() == deliverable["md5"])
+
+
 def _fetch_unpinned(part, kind, offline):
     suffix = font_registry.SUFFIX[kind]
     folder = cache_dir() / part
     if offline:
-        # The newest release fetched before, with the catalog entry saved beside it.
+        # The newest release fetched before, checked against the catalog entry saved beside it.
         found = sorted(folder.glob(f"*/{part}{suffix}"), key=lambda p: _version_key(p.parent.name))
         if not found:
             raise CatalogError(
                 f"{part} is not pinned in the registry and was never fetched; fetch it online first"
             )
         path = found[-1]
-        meta = json.loads((path.parent / "catalog.json").read_text())
-        return Stock(part, path.parent.name, kind, meta["productName"],
-                     _sha256(path.read_bytes()), False, "cache", path, path.read_bytes())
+        try:
+            entry = json.loads((path.parent / "catalog.json").read_text())
+            deliverable = entry["deliverable"]
+            version = entry["version"]
+        except (OSError, ValueError, KeyError) as error:
+            raise CatalogError(f"{path}: no readable catalog entry beside it ({error}); "
+                               "fetch it online again") from None
+        data = path.read_bytes()
+        if version != path.parent.name or not _matches(data, deliverable):
+            raise CatalogError(f"{path} doesn't match the size and MD5 Garmin's catalog gave for "
+                               f"{part} {version}; fetch it online again")
+        return Stock(part, version, kind, entry["productName"], _sha256(data), False, "cache",
+                     path, data)
     entry = catalog_entry(part, kind)
     deliverable = entry["deliverable"]
     path = folder / entry["version"] / f"{part}{suffix}"
     data = path.read_bytes() if path.is_file() else b""
     source = "cache"
-    if hashlib.md5(data).hexdigest() != deliverable["md5"]:
+    if not _matches(data, deliverable):
         data = _download(deliverable["secureDownloadUrl"])
-        if len(data) != deliverable["sizeInBytes"] or hashlib.md5(data).hexdigest() != deliverable["md5"]:
+        if not _matches(data, deliverable):
             raise CatalogError(f"{part}: the download doesn't match the catalog's size and MD5")
         _store(path, data)
-        _store(path.parent / "catalog.json", json.dumps(entry, indent=2).encode())
         source = "catalog"
+    _store(path.parent / "catalog.json", json.dumps(entry, indent=2).encode())
     return Stock(part, entry["version"], kind, entry["productName"], _sha256(data), False,
                  source, path, data)
 

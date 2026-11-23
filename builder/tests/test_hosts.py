@@ -9,7 +9,7 @@ from registry_data import ENTRIES, HOSTS, PINS, SCHEMA, STOCK_PART_IDS
 
 from garmin_fonts import hosts
 from garmin_fonts.build import add_georgian
-from garmin_fonts.codec import GEORGIAN, decode
+from garmin_fonts.codec import GEORGIAN, decode, encode
 from garmin_fonts.registry import RegistryError, validate
 
 # The lab's Georgian builds in Garmin's Thai, Korean, Japanese and Chinese fonts (lab record
@@ -87,6 +87,11 @@ def test_size_like_another_host_and_explicit_sizing(catalog_stock, inputs):
     thai = add_georgian(data, offline=True)
     assert add_georgian(data, "thai", offline=True).data == thai.data
     assert add_georgian(data, hosts.get("thai"), offline=True).data == thai.data
+    assert thai.stock_pinned and thai.stock_sha256 == PINS["006-D8947-22"].sha256
+    header, footer, cmap = decode(data)
+    cmap[ord("ก")] = cmap[ord("ข")]
+    changed = add_georgian(encode(header, footer, cmap), offline=True)
+    assert not changed.stock_pinned and changed.summary()["stock_pinned"] is False
     assert add_georgian(data, thai.sizing, offline=True).data == thai.data
     with pytest.raises(ValueError, match="host noto-hebrew-truetype is a truetype host"):
         add_georgian(data, "noto-hebrew-truetype", offline=True)
