@@ -73,9 +73,39 @@ enum Command {
     /// Stage a local file as ExtData/<part>.tmp and read it back (development builds)
     #[cfg(feature = "dev")]
     StageFile(StageFileArgs),
-    /// Delete a file stage-file staged, by its id (development builds)
+    /// Delete a file stage-file or mtp-create wrote, by its id (development builds)
     #[cfg(feature = "dev")]
     RemoveStaged(RemoveStagedArgs),
+    /// Print the watch's MTP GetDeviceInfo (development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpDeviceInfo(InputArgs),
+    /// Print the watch's MTP storage IDs (development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpStorageIds(InputArgs),
+    /// Print one storage's MTP GetStorageInfo (development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpStorageInfo(StorageArgs),
+    /// List object handles in a folder, hidden ones too with --hidden (development builds;
+    /// reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpHandles(HandlesArgs),
+    /// Print one object's MTP GetObjectInfo (development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpObjectInfo(HandleArgs),
+    /// Read an object, or a range of it, as base64 or to a new local file (development builds;
+    /// reads the watch only)
+    #[cfg(feature = "dev")]
+    MtpRead(MtpReadArgs),
+    /// Send one read-only PTP transaction (USB only; development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    PtpTransaction(PtpTransactionArgs),
+    /// Create one file in ExtData after stage-file's checks; needs --allow-write (development
+    /// builds)
+    #[cfg(feature = "dev")]
+    MtpCreate(MtpCreateArgs),
+    /// Delete one identified file in ExtData, for good; needs --allow-write (development builds)
+    #[cfg(feature = "dev")]
+    MtpDelete(MtpDeleteArgs),
     /// Serve the operations as JSON-RPC 2.0, one message per line on stdin and stdout, keeping
     /// the watch open until stdin ends
     Rpc,
@@ -100,6 +130,24 @@ impl Command {
             Command::StageFile(_) => "stage_file",
             #[cfg(feature = "dev")]
             Command::RemoveStaged(_) => "remove_staged",
+            #[cfg(feature = "dev")]
+            Command::MtpDeviceInfo(_) => "mtp_device_info",
+            #[cfg(feature = "dev")]
+            Command::MtpStorageIds(_) => "mtp_storage_ids",
+            #[cfg(feature = "dev")]
+            Command::MtpStorageInfo(_) => "mtp_storage_info",
+            #[cfg(feature = "dev")]
+            Command::MtpHandles(_) => "mtp_handles",
+            #[cfg(feature = "dev")]
+            Command::MtpObjectInfo(_) => "mtp_object_info",
+            #[cfg(feature = "dev")]
+            Command::MtpRead(_) => "mtp_read",
+            #[cfg(feature = "dev")]
+            Command::PtpTransaction(_) => "ptp_transaction",
+            #[cfg(feature = "dev")]
+            Command::MtpCreate(_) => "mtp_create",
+            #[cfg(feature = "dev")]
+            Command::MtpDelete(_) => "mtp_delete",
             Command::Rpc | Command::Mcp => unreachable!("sessions are served before operations"),
         }
     }
@@ -233,9 +281,145 @@ struct StageFileArgs {
 #[cfg(feature = "dev")]
 #[derive(Args)]
 struct RemoveStagedArgs {
-    /// The id stage-file printed
+    /// The id stage-file or mtp-create printed
     #[arg(long)]
     id: Option<String>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+/// A number in decimal or with a 0x prefix, as handles and operation codes are often written.
+#[cfg(feature = "dev")]
+fn number<T: TryFrom<u64>>(text: &str) -> Result<T, String> {
+    let value = match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        Some(hex) => u64::from_str_radix(hex, 16),
+        None => text.parse(),
+    }
+    .map_err(|e| e.to_string())?;
+    T::try_from(value).map_err(|_| format!("{text} is out of range"))
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct StorageArgs {
+    /// The storage ID, e.g. 0x00020001
+    #[arg(long, value_parser = number::<u32>)]
+    storage: Option<u32>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct HandlesArgs {
+    /// The storage ID, e.g. 0x00020001
+    #[arg(long, value_parser = number::<u32>)]
+    storage: Option<u32>,
+
+    /// A folder's handle; 0xFFFFFFFF for the root, 0 for every object
+    #[arg(long, value_parser = number::<u32>)]
+    parent: Option<u32>,
+
+    /// List with Garmin's GetObjectIds (0x9002), which shows hidden children too
+    #[arg(long)]
+    hidden: bool,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct HandleArgs {
+    /// The object's handle, e.g. 0x01000040
+    #[arg(long, value_parser = number::<u32>)]
+    handle: Option<u32>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct MtpReadArgs {
+    /// The object's handle, e.g. 0x01000040
+    #[arg(long, value_parser = number::<u32>)]
+    handle: Option<u32>,
+
+    /// The first byte to read [default: 0]
+    #[arg(long, value_parser = number::<u32>)]
+    offset: Option<u32>,
+
+    /// Bytes to read at most [default: to the end]
+    #[arg(long, value_parser = number::<u32>)]
+    length: Option<u32>,
+
+    /// A new local file for the bytes instead of base64 on stdout; it must not exist
+    #[arg(long, value_name = "FILE")]
+    path: Option<String>,
+
+    /// The most bytes printed as base64 [default: 1048576]
+    #[arg(long)]
+    max_bytes: Option<u64>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct PtpTransactionArgs {
+    /// The operation code, e.g. 0x1007; only reads are sent
+    #[arg(long, value_parser = number::<u16>)]
+    opcode: Option<u16>,
+
+    /// Up to five parameters, comma-separated, e.g. 0x00020001,0,0xFFFFFFFF
+    #[arg(long, value_name = "N,...", value_delimiter = ',', num_args = 1.., value_parser = number::<u32>)]
+    params: Vec<u32>,
+
+    /// A new local file for the data instead of base64 on stdout; it must not exist
+    #[arg(long, value_name = "FILE")]
+    path: Option<String>,
+
+    /// The most bytes printed as base64 [default: 1048576]
+    #[arg(long)]
+    max_bytes: Option<u64>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct MtpCreateArgs {
+    /// The new file's name in ExtData: <part>.tmp, .fnt or .bin, e.g. 006-D8448-70.tmp
+    #[arg(long)]
+    name: Option<String>,
+
+    /// The local file with the contents
+    #[arg(long, value_name = "FILE")]
+    source: Option<String>,
+
+    /// Write to the watch; without it nothing is written
+    #[arg(long)]
+    allow_write: bool,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct MtpDeleteArgs {
+    /// The object's handle, e.g. 0x01000102
+    #[arg(long, value_parser = number::<u32>)]
+    handle: Option<u32>,
+
+    /// Delete from the watch, for good; without it nothing is deleted
+    #[arg(long)]
+    allow_write: bool,
 
     #[command(flatten)]
     input: InputArgs,
@@ -337,6 +521,62 @@ fn request(command: &Command) -> Result<Value, Error> {
             flag(&mut flags, "id", args.id.as_ref().map(|i| json!(i)));
             &args.input
         }
+        #[cfg(feature = "dev")]
+        Command::MtpDeviceInfo(input) | Command::MtpStorageIds(input) => input,
+        #[cfg(feature = "dev")]
+        Command::MtpStorageInfo(args) => {
+            flag(&mut flags, "storage", args.storage.map(|n| json!(n)));
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpHandles(args) => {
+            flag(&mut flags, "storage", args.storage.map(|n| json!(n)));
+            flag(&mut flags, "parent", args.parent.map(|n| json!(n)));
+            flag(
+                &mut flags,
+                "hidden",
+                args.hidden.then_some(Value::Bool(true)),
+            );
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpObjectInfo(args) => {
+            flag(&mut flags, "handle", args.handle.map(|n| json!(n)));
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpRead(args) => {
+            flag(&mut flags, "handle", args.handle.map(|n| json!(n)));
+            flag(&mut flags, "offset", args.offset.map(|n| json!(n)));
+            flag(&mut flags, "length", args.length.map(|n| json!(n)));
+            flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
+            flag(&mut flags, "max_bytes", args.max_bytes.map(|n| json!(n)));
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::PtpTransaction(args) => {
+            flag(&mut flags, "opcode", args.opcode.map(|n| json!(n)));
+            let params = (!args.params.is_empty()).then(|| json!(args.params));
+            flag(&mut flags, "params", params);
+            flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
+            flag(&mut flags, "max_bytes", args.max_bytes.map(|n| json!(n)));
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpCreate(args) => {
+            flag(&mut flags, "name", args.name.as_ref().map(|n| json!(n)));
+            flag(&mut flags, "source", args.source.as_ref().map(|s| json!(s)));
+            let allow = args.allow_write.then_some(Value::Bool(true));
+            flag(&mut flags, "allow_write", allow);
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::MtpDelete(args) => {
+            flag(&mut flags, "handle", args.handle.map(|n| json!(n)));
+            let allow = args.allow_write.then_some(Value::Bool(true));
+            flag(&mut flags, "allow_write", allow);
+            &args.input
+        }
         Command::Rpc | Command::Mcp => unreachable!("sessions are served before operations"),
     };
     build_input(input, flags)
@@ -359,6 +599,10 @@ fn size(part: &Value) -> String {
 }
 
 fn print_human(operation: &str, out: &Value) {
+    // The raw MTP operations are for scripts and people reading MTP: their JSON is the output.
+    if operation.starts_with("mtp_") || operation == "ptp_transaction" {
+        return print_json(out);
+    }
     match operation {
         "issue_link" => {
             println!("{}", text(&out["url"]));

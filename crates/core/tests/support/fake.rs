@@ -252,19 +252,33 @@ struct Connection {
 }
 
 impl Connection {
-    /// The state, while this connection is alive.
+    /// The state, while this connection is alive. Each call is one transaction: with the `dev`
+    /// feature it goes to the live trace (as answered OK, unless the watch is gone).
     fn live(&self, operation: u16) -> Result<MutexGuard<'_, State>, MtpError> {
         let mut s = self.watch.state();
-        if !s.plugged || s.generation != self.generation {
-            return Err(MtpError::Transport {
+        let result = if !s.plugged || s.generation != self.generation {
+            Err(MtpError::Transport {
                 operation,
                 phase: Phase::Command,
                 error: TransportError::Disconnected,
+            })
+        } else {
+            s.log
+                .push(georgian_for_garmin_core::ptp::operation_name(operation).to_owned());
+            Ok(())
+        };
+        #[cfg(feature = "dev")]
+        {
+            use georgian_for_garmin_core::mtp::{RawResponse, traced};
+            let answer = result.clone().map(|()| RawResponse {
+                code: 0x2001,
+                params: vec![],
+                data: vec![],
             });
+            let t = traced(operation, &[], 0, &answer, Duration::ZERO);
+            georgian_for_garmin_core::trace::transaction(t);
         }
-        s.log
-            .push(georgian_for_garmin_core::ptp::operation_name(operation).to_owned());
-        Ok(s)
+        result.map(|()| s)
     }
 }
 
@@ -398,5 +412,81 @@ impl Mtp for Connection {
                     .is_some_and(|(i, _)| i.storage_id == storage && i.parent == parent)
             })
             .collect())
+    }
+
+    #[cfg(feature = "dev")]
+    fn storage_info(
+        &mut self,
+        storage: u32,
+    ) -> Result<georgian_for_garmin_core::ptp::StorageInfo, MtpError> {
+        drop(self.live(op::GET_STORAGE_INFO)?);
+        if storage != STORAGE {
+            return Err(MtpError::Response {
+                operation: op::GET_STORAGE_INFO,
+                code: 0x2008,
+            });
+        }
+        Ok(georgian_for_garmin_core::ptp::StorageInfo {
+            storage_type: 3,
+            filesystem_type: 2,
+            access_capability: 0,
+            max_capacity: 8 << 30,
+            free_space_in_bytes: 4 << 30,
+            free_space_in_objects: u32::MAX,
+            storage_description: "Internal Storage".into(),
+            volume_identifier: String::new(),
+        })
+    }
+
+    /// The reads the tests send, answered from the state; any other code is answered
+    /// OperationNotSupported.
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(
+        &mut self,
+        code: u16,
+        params: &[u32],
+    ) -> Result<georgian_for_garmin_core::mtp::RawResponse, MtpError> {
+        let p = |i: usize| params.get(i).copied().unwrap_or(0);
+        let array = |values: Vec<u32>| {
+            let mut w = georgian_for_garmin_core::ptp::Writer::default();
+            w.u32_array(&values);
+            w.0
+        };
+        let answer = match code {
+            op::GET_STORAGE_IDS => self.storage_ids().map(|ids| (vec![], array(ids))),
+            op::GET_OBJECT_HANDLES => self.object_handles(p(0), p(2)).map(|h| (vec![], array(h))),
+            op::GET_NUM_OBJECTS => self
+                .object_handles(p(0), p(2))
+                .map(|h| (vec![h.len() as u32], vec![])),
+            op::GET_OBJECT_INFO => self
+                .object_info(p(0))
+                .and_then(|i| Ok((vec![], i.encode()?))),
+            op::GET_OBJECT => self.get_object(p(0)).map(|d| (vec![], d)),
+            op::GARMIN_GET_OBJECT_IDS => self
+                .garmin_object_ids(p(0), p(1))
+                .map(|h| (vec![], array(h))),
+            _ => {
+                drop(self.live(code)?);
+                Err(MtpError::Response {
+                    operation: code,
+                    code: 0x2005,
+                })
+            }
+        };
+        match answer {
+            Ok((params, data)) => Ok(georgian_for_garmin_core::mtp::RawResponse {
+                code: 0x2001,
+                params,
+                data,
+            }),
+            Err(MtpError::Response { code, .. }) => {
+                Ok(georgian_for_garmin_core::mtp::RawResponse {
+                    code,
+                    params: vec![],
+                    data: vec![],
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 }

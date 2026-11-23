@@ -62,10 +62,76 @@ Which part a file in `ExtData` belongs to, and whether it is a waiting `.tmp`, a
 it; don't match file names anywhere else.
 
 The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
-`remove_staged` (`crates/core/src/dev.rs`): `cargo build -p georgian-for-garmin --features dev`.
-They write files of any content to a watch, so the feature only builds in debug: `--release`
-with it fails to compile, and the release scripts never enable it. The CLI tests check that a
-build without it lists none of them.
+`remove_staged` (`crates/core/src/dev.rs`) and the raw MTP operations below
+(`crates/core/src/raw.rs`): `cargo build -p georgian-for-garmin --features dev`. They write files
+of any content to a watch, so the feature only builds in debug: `--release` with it fails to
+compile, and the release scripts never enable it. The CLI and session tests check that a build
+without it lists none of them.
+
+### Debugging with raw MTP
+
+The raw MTP operations let an experiment be a script over `rpc` or `mcp` instead of a new
+operation. They mirror the core's `Mtp` trait (`crates/core/src/mtp.rs`), so they work over USB
+(macOS, Linux) and Windows Portable Devices alike, except `ptp_transaction`. Handles, storage IDs
+and codes are plain integers in and out; the CLI also takes `0x…`.
+
+| Operation | Input | What it does |
+|---|---|---|
+| `mtp_device_info` | none | The GetDeviceInfo dataset the session read when it opened. |
+| `mtp_storage_ids` | none | GetStorageIDs. |
+| `mtp_storage_info` | `storage` | GetStorageInfo: type, capacity, free space, description. |
+| `mtp_handles` | `storage`, `parent`, `hidden` | GetObjectHandles (`parent` 0xFFFFFFFF: the root; 0: every object), or with `hidden` Garmin's GetObjectIds (0x9002), which also lists the children GetObjectHandles leaves out, such as imported fonts. |
+| `mtp_object_info` | `handle` | GetObjectInfo, and whether the object is read-only. |
+| `mtp_read` | `handle`, `offset`, `length`, `path`, `max_bytes` | The object's bytes, or a range: GetPartialObject when the watch lists it, else the whole object cut to the range. Base64 up to `max_bytes` (default 1 MiB), or a new local file at `path`. |
+| `ptp_transaction` | `opcode`, `params` (up to 5), `path`, `max_bytes` | One transaction with no data-out phase: the response code and its name (a code other than OK is an answer, not an error), the response parameters and the data in. |
+| `mtp_create` | `name`, `data_base64` or `source`, `storage`, `parent`, `allow_write` | One new file in `GARMIN/ExtData`, read back by SHA-256. |
+| `mtp_delete` | `handle`, `allow_write` | Deletes one file in `GARMIN/ExtData`, for good. |
+| `mtp_trace` | `enabled` | Turns the session's live trace on or off. |
+
+The checks, with nothing to override them (AGENTS.md: nothing is written before every target is
+checked):
+
+- The reads, `ptp_transaction` and `mtp_trace` change nothing on the watch.
+- `ptp_transaction` sends only reads: GetDeviceInfo, GetStorageIDs, GetStorageInfo,
+  GetNumObjects, GetObjectHandles, GetObjectInfo, GetObject, GetThumb, GetPartialObject,
+  GetDevicePropDesc, GetDevicePropValue, MTP's GetObjectPropsSupported, GetObjectPropDesc,
+  GetObjectPropValue, GetObjectPropList and GetObjectReferences, and Garmin's 0x9002. Any other
+  code, unknown vendor codes included, is refused as `invalid_input` before anything is sent, with
+  the reason: writes go through `mtp_create` and `mtp_delete`; OpenSession and CloseSession belong
+  to the session; FormatStore, ResetDevice and PowerDown are never sent. A vendor operation that
+  proves useful gets its own checked operation later.
+- `mtp_create` and `mtp_delete` are the only writes. Each needs `allow_write: true` (else
+  `invalid_input`, before the watch is opened) and makes `stage_file`'s checks, sharing its code
+  (`Identify` and `write_target` in `dev.rs`). `mtp_create` writes only into `GARMIN/ExtData`
+  (`storage` and `parent`, if given, must be its), only a file of a part the watch declares
+  (`<part>.tmp`, `.fnt` or `.bin`, either name form), never under a name that is there already
+  or beside a file of the same kind in the normal listing (`mtp_delete` that first), and only
+  when every other file of the part, in either listing, is Garmin's original or one of this
+  program's Georgian builds (by this build's fonts), or a file this tool staged or created (by
+  `staged.jsonl`). `mtp_delete` deletes only a file of `ExtData`'s normal listing identified the
+  same way: never a hidden or read-only import, an unidentified file or anything outside
+  `ExtData`.
+- Every write goes into `staged.jsonl`: `mtp_create` logs its id, name, part and SHA-256 before
+  writing and the created handle after, so `remove_staged` deletes it later; `mtp_delete` logs
+  the deleted file's name, handle, SHA-256 and what it was identified as. Nothing undoes a delete;
+  `remove_staged` refuses its id.
+
+While the trace is on, every PTP transaction of every call is sent before the call's result as
+`notifications/trace` in both `rpc` and `mcp` (in `mcp` a custom notification, since MCP's
+logging is deprecated): `opcode`, `operation` (its name, or null), `params`, `response_code`,
+`response`, `response_params`, `data_out_bytes`, `data_in_bytes`, `duration_ms`, `error` (a
+failed transfer), and the call's `requestId`. It includes the GetStorageIDs the session sends
+before each call to check that the watch still answers. It reuses the stderr trace's module,
+`crates/core/src/trace.rs`; `GEORGIAN_FOR_GARMIN_TRACE=1` still prints the containers and USB
+transfers.
+
+On Windows, `ptp_transaction` answers `unsupported_device` ("ptp_transaction needs the USB
+backend; Windows uses WPD"): WPD sends its own transactions. The trace there shows only the MTP
+commands this program sends through WPD's MTP extension (GetDeviceInfo, GetObjectInfo, Garmin's
+0x9002, GetStorageInfo), not the ones WPD makes for its own calls.
+
+Each has a CLI subcommand (`mtp-read`, `ptp-transaction`, …) that prints JSON, except
+`mtp_trace`: a one-shot call has no session to trace.
 
 ## Desktop app
 

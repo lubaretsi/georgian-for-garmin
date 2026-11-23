@@ -36,11 +36,14 @@ pub struct Progress {
 }
 
 /// What a caller sees of a running operation and how it stops it: a progress sink and a
-/// cancellation flag, both optional.
+/// cancellation flag, both optional, and with the `dev` feature where the session's live trace
+/// goes while it is on.
 #[derive(Clone, Copy)]
 pub struct Control<'a> {
     progress: Option<&'a (dyn Fn(Progress) + 'a)>,
     cancel: Option<&'a AtomicBool>,
+    #[cfg(feature = "dev")]
+    trace: Option<&'a crate::trace::Sink>,
 }
 
 impl<'a> Control<'a> {
@@ -48,13 +51,27 @@ impl<'a> Control<'a> {
     pub const NONE: Control<'static> = Control {
         progress: None,
         cancel: None,
+        #[cfg(feature = "dev")]
+        trace: None,
     };
 
     pub fn new(
         progress: Option<&'a (dyn Fn(Progress) + 'a)>,
         cancel: Option<&'a AtomicBool>,
     ) -> Self {
-        Control { progress, cancel }
+        Control {
+            progress,
+            cancel,
+            #[cfg(feature = "dev")]
+            trace: None,
+        }
+    }
+
+    /// Where this call's PTP transactions go while the session's trace (`mtp_trace`) is on.
+    #[cfg(feature = "dev")]
+    pub fn with_trace(mut self, trace: Option<&'a crate::trace::Sink>) -> Self {
+        self.trace = trace;
+        self
     }
 
     pub fn cancelled(&self) -> bool {
@@ -119,6 +136,9 @@ pub struct Session<'a> {
     watch: Watch<'a>,
     #[cfg(feature = "dev")]
     staged_log: Option<std::path::PathBuf>,
+    /// Whether `mtp_trace` turned the live trace on.
+    #[cfg(feature = "dev")]
+    tracing: bool,
 }
 
 /// The watch connection of a [`Session`].
@@ -144,6 +164,8 @@ impl<'a> Session<'a> {
             },
             #[cfg(feature = "dev")]
             staged_log: crate::dev::default_log(),
+            #[cfg(feature = "dev")]
+            tracing: false,
         }
     }
 
@@ -169,7 +191,8 @@ impl<'a> Session<'a> {
     }
 
     /// Runs operation `name` with JSON `input`. Input is validated before the watch is touched;
-    /// output is validated before it is returned.
+    /// output is validated before it is returned. While the live trace is on, every PTP
+    /// transaction of the call goes to `control`'s trace sink.
     pub fn call(
         &mut self,
         name: &str,
@@ -178,6 +201,11 @@ impl<'a> Session<'a> {
     ) -> Result<Value, Error> {
         let op = ops::known(name)?;
         ops::validate_input(op, &input)?;
+        #[cfg(feature = "dev")]
+        let _trace = control
+            .trace
+            .filter(|_| self.tracing)
+            .map(|sink| crate::trace::install(sink.clone()));
         let output = self.dispatch(name, input, control);
         if !self.watch.keep_open {
             self.watch.dev = None;
@@ -246,6 +274,66 @@ impl<'a> Session<'a> {
                     return to_value(done);
                 }
                 to_value(watch.run(|dev, _| crate::dev::remove_staged(dev, log, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_device_info" => {
+                let crate::raw::NoInput {} = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::device_info(dev))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_storage_ids" => {
+                let crate::raw::NoInput {} = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::storage_ids(dev))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_storage_info" => {
+                let input: crate::raw::StorageInput = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::storage_info(dev, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_handles" => {
+                let input: crate::raw::HandlesInput = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::handles(dev, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_object_info" => {
+                let input: crate::raw::HandleInput = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::object_info(dev, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_read" => {
+                let input: crate::raw::ReadInput = parse(input)?;
+                to_value(watch.run(|dev, _| crate::raw::read(dev, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "ptp_transaction" => {
+                let input: crate::raw::PtpTransactionInput = parse(input)?;
+                crate::raw::check_read(&input)?;
+                to_value(watch.run(|dev, _| crate::raw::ptp_transaction(dev, &input))?)
+            }
+            #[cfg(feature = "dev")]
+            "mtp_create" => {
+                let input: crate::dev::MtpCreateInput = parse(input)?;
+                crate::dev::check_allowed(name, input.allow_write)?;
+                let log = staged_log(&self.staged_log)?;
+                to_value(
+                    watch.run(|dev, _| crate::dev::mtp_create(dev, fonts, log, &input, control))?,
+                )
+            }
+            #[cfg(feature = "dev")]
+            "mtp_delete" => {
+                let input: crate::dev::MtpDeleteInput = parse(input)?;
+                crate::dev::check_allowed(name, input.allow_write)?;
+                let log = staged_log(&self.staged_log)?;
+                to_value(
+                    watch.run(|dev, _| crate::dev::mtp_delete(dev, fonts, log, &input, control))?,
+                )
+            }
+            #[cfg(feature = "dev")]
+            "mtp_trace" => {
+                let crate::raw::TraceInput { enabled } = parse(input)?;
+                self.tracing = enabled;
+                to_value(crate::raw::TraceOutput { enabled })
             }
             _ => Err(Error::new(
                 ErrorCode::Internal,
@@ -371,6 +459,9 @@ pub struct Job {
     pub progress: Option<Box<dyn Fn(Progress) + Send>>,
     /// Set to cancel the call, before it starts or while it runs.
     pub cancel: Arc<AtomicBool>,
+    /// Where the call's PTP transactions go while the session's trace is on (`mtp_trace`).
+    #[cfg(feature = "dev")]
+    pub trace: Option<crate::trace::Sink>,
     /// Receives the result, on the worker's thread.
     pub done: Box<dyn FnOnce(Result<Value, Error>) + Send>,
 }
@@ -400,6 +491,8 @@ impl Worker {
                 } else {
                     let progress = job.progress.as_deref().map(|p| p as &dyn Fn(Progress));
                     let control = Control::new(progress, Some(&job.cancel));
+                    #[cfg(feature = "dev")]
+                    let control = control.with_trace(job.trace.as_ref());
                     let name = job.name.clone();
                     catch_unwind(AssertUnwindSafe(|| {
                         session.call(&name, job.input, &control)

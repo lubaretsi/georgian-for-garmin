@@ -623,7 +623,22 @@ fn a_failed_rename_puts_the_short_named_file_back() {
 #[cfg(not(feature = "dev"))]
 #[test]
 fn development_operations_are_absent_without_the_dev_feature() {
-    for name in ["read_file", "stage_file", "remove_staged"] {
+    let dev = [
+        "read_file",
+        "stage_file",
+        "remove_staged",
+        "mtp_device_info",
+        "mtp_storage_ids",
+        "mtp_storage_info",
+        "mtp_handles",
+        "mtp_object_info",
+        "mtp_read",
+        "ptp_transaction",
+        "mtp_create",
+        "mtp_delete",
+        "mtp_trace",
+    ];
+    for name in dev {
         assert!(ops::operation(name).is_none(), "{name}");
         let watch = Watch::venu2();
         let error = call(&mut session(&watch), name, json!({})).unwrap_err();
@@ -634,7 +649,9 @@ fn development_operations_are_absent_without_the_dev_feature() {
             error.message
         );
     }
-    assert!(!ops::tools().to_string().contains("stage_file"));
+    let tools = ops::tools().to_string();
+    assert!(dev.iter().all(|name| !tools.contains(name)), "{tools}");
+    assert!(!tools.contains("notifications/trace"));
 }
 
 #[cfg(feature = "dev")]

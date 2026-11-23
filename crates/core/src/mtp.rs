@@ -72,6 +72,8 @@ pub enum MtpError {
         hresult: u32,
         message: String,
     },
+    /// This backend can't do it; the message says what and why.
+    Unsupported(&'static str),
 }
 
 impl fmt::Display for MtpError {
@@ -100,6 +102,7 @@ impl fmt::Display for MtpError {
                 hresult,
                 message,
             } => write!(f, "{action} failed: {message} (HRESULT {hresult:#010x})"),
+            MtpError::Unsupported(m) => f.write_str(m),
         }
     }
 }
@@ -110,6 +113,15 @@ impl From<ProtocolError> for MtpError {
     fn from(e: ProtocolError) -> Self {
         MtpError::Protocol(e.0)
     }
+}
+
+/// What the device answered to one transaction: the response code (OK or not), its parameters
+/// and the data it sent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawResponse {
+    pub code: u16,
+    pub params: Vec<u32>,
+    pub data: Vec<u8>,
 }
 
 /// Where the device placed a new object.
@@ -172,6 +184,48 @@ pub trait Mtp {
         let _ = handle;
         Some(info.protection_status != 0)
     }
+
+    /// `GetStorageInfo` for `storage`.
+    #[cfg(feature = "dev")]
+    fn storage_info(&mut self, storage: u32) -> Result<ptp::StorageInfo, MtpError> {
+        let _ = storage;
+        Err(MtpError::Unsupported(
+            "this backend can't read storage information",
+        ))
+    }
+
+    /// Up to `len` bytes of object `handle` from byte `offset` (fewer at its end). A backend
+    /// that can't read part of an object reads all of it and returns the range.
+    #[cfg(feature = "dev")]
+    fn get_partial_object(
+        &mut self,
+        handle: u32,
+        offset: u32,
+        len: u32,
+    ) -> Result<Vec<u8>, MtpError> {
+        Ok(byte_range(self.get_object(handle)?, offset, len))
+    }
+
+    /// One PTP transaction without a data-out phase, sent as it is: the caller checks that it
+    /// only reads. A non-OK response is an answer, not an error. Only a backend that speaks PTP
+    /// itself (USB) can send any transaction.
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(&mut self, code: u16, params: &[u32]) -> Result<RawResponse, MtpError> {
+        let _ = (code, params);
+        Err(MtpError::Unsupported(
+            "this backend can't send raw PTP transactions",
+        ))
+    }
+}
+
+/// Bytes `offset..offset + len` of `data`, cut at its end.
+#[cfg(feature = "dev")]
+pub fn byte_range(mut data: Vec<u8>, offset: u32, len: u32) -> Vec<u8> {
+    let start = (offset as usize).min(data.len());
+    let end = start.saturating_add(len as usize).min(data.len());
+    data.truncate(end);
+    data.drain(..start);
+    data
 }
 
 /// The still-image class `Get Device Status` answer.
@@ -467,21 +521,46 @@ impl<L: Link> Session<L> {
         Ok(header)
     }
 
-    /// Runs one transaction: command, optional data out, optional data in, response.
-    /// Returns the response parameters and any data the device sent. A failed transfer or
-    /// unparsable reply leaves the device mid-transaction, so it is cancelled before returning.
+    /// Runs one transaction and returns the response parameters and any data the device sent;
+    /// a response other than OK is an [`MtpError::Response`].
     fn transaction(
         &mut self,
         code: u16,
         params: &[u32],
         data_out: Option<&[u8]>,
     ) -> Result<(Vec<u32>, Vec<u8>), MtpError> {
+        let response = self.exchange(code, params, data_out)?;
+        if response.code != response::OK {
+            return Err(MtpError::Response {
+                operation: code,
+                code: response.code,
+            });
+        }
+        Ok((response.params, response.data))
+    }
+
+    /// Runs one transaction: command, optional data out, optional data in, response. A failed
+    /// transfer or unparsable reply leaves the device mid-transaction, so it is cancelled
+    /// before returning. With a live trace on this thread, the transaction is sent to it.
+    fn exchange(
+        &mut self,
+        code: u16,
+        params: &[u32],
+        data_out: Option<&[u8]>,
+    ) -> Result<RawResponse, MtpError> {
+        #[cfg(feature = "dev")]
+        let started = trace::live().then(std::time::Instant::now);
         let tid = self.next_transaction;
         self.next_transaction = self.next_transaction.wrapping_add(1).max(1);
         let result = self.run(code, tid, params, data_out);
         if let Err(e @ (MtpError::Transport { .. } | MtpError::Protocol(_))) = &result {
             trace!("{e}: recovering");
             self.recover(tid);
+        }
+        #[cfg(feature = "dev")]
+        if let Some(started) = started {
+            let out = data_out.map_or(0, <[u8]>::len);
+            trace::transaction(traced(code, params, out, &result, started.elapsed()));
         }
         result
     }
@@ -492,7 +571,7 @@ impl<L: Link> Session<L> {
         tid: u32,
         params: &[u32],
         data_out: Option<&[u8]>,
-    ) -> Result<(Vec<u32>, Vec<u8>), MtpError> {
+    ) -> Result<RawResponse, MtpError> {
         let name = ptp::operation_name(code);
         trace!("-> Command {name} ({code:#06x}) tid={tid} params={params:#x?}");
         self.write(
@@ -600,19 +679,45 @@ impl<L: Link> Session<L> {
             ))
             .into());
         }
-        if response.code != response::OK {
-            return Err(MtpError::Response {
-                operation: code,
-                code: response.code,
-            });
-        }
-        Ok((response.params, data))
+        Ok(RawResponse {
+            code: response.code,
+            params: response.params,
+            data,
+        })
     }
 }
 
 impl<L: Link> Drop for Session<L> {
     fn drop(&mut self) {
         let _ = self.close();
+    }
+}
+
+/// The live trace's record of one transaction.
+#[cfg(feature = "dev")]
+pub fn traced(
+    code: u16,
+    params: &[u32],
+    data_out: usize,
+    result: &Result<RawResponse, MtpError>,
+    took: Duration,
+) -> trace::Transaction {
+    let (response_code, response_params, data_in, error) = match result {
+        Ok(r) => (Some(r.code), r.params.clone(), r.data.len(), None),
+        Err(MtpError::Response { code, .. }) => (Some(*code), Vec::new(), 0, None),
+        Err(e) => (None, Vec::new(), 0, Some(e.to_string())),
+    };
+    trace::Transaction {
+        opcode: code,
+        operation: ptp::known_operation_name(code),
+        params: params.to_vec(),
+        response_code,
+        response: response_code.and_then(ptp::response_name),
+        response_params,
+        data_out_bytes: data_out as u64,
+        data_in_bytes: data_in as u64,
+        duration_ms: took.as_secs_f64() * 1000.0,
+        error,
     }
 }
 
@@ -717,6 +822,35 @@ impl<L: Link> Mtp for Session<L> {
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
         self.transaction(op::DELETE_OBJECT, &[handle, 0], None)
             .map(drop)
+    }
+
+    #[cfg(feature = "dev")]
+    fn storage_info(&mut self, storage: u32) -> Result<ptp::StorageInfo, MtpError> {
+        let (_, data) = self.transaction(op::GET_STORAGE_INFO, &[storage], None)?;
+        Ok(ptp::StorageInfo::decode(&data)?)
+    }
+
+    #[cfg(feature = "dev")]
+    fn get_partial_object(
+        &mut self,
+        handle: u32,
+        offset: u32,
+        len: u32,
+    ) -> Result<Vec<u8>, MtpError> {
+        let partial = self
+            .device_info()?
+            .operations_supported
+            .contains(&op::GET_PARTIAL_OBJECT);
+        if !partial {
+            return Ok(byte_range(self.get_object(handle)?, offset, len));
+        }
+        let (_, data) = self.transaction(op::GET_PARTIAL_OBJECT, &[handle, offset, len], None)?;
+        Ok(data)
+    }
+
+    #[cfg(feature = "dev")]
+    fn ptp_transaction(&mut self, code: u16, params: &[u32]) -> Result<RawResponse, MtpError> {
+        self.exchange(code, params, None)
     }
 }
 
@@ -995,6 +1129,66 @@ mod tests {
         // A response code is a complete transaction: no recovery.
         assert!(s.link.take_events().is_empty());
         close(&mut s, 3);
+    }
+
+    /// A raw transaction returns a non-OK response as an answer, a traced thread gets every
+    /// transaction with its response, and the device's lack of GetPartialObject falls back to
+    /// reading the whole object.
+    #[cfg(feature = "dev")]
+    #[test]
+    fn raw_transactions_are_answered_and_traced() {
+        use std::sync::{Arc, Mutex};
+
+        let mut pipe = ScriptedPipe::new(512);
+        let mut s = opened(&mut pipe);
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let guard = {
+            let seen = seen.clone();
+            trace::install(Arc::new(move |t: &trace::Transaction| {
+                seen.lock().unwrap().push(t.clone());
+            }))
+        };
+        s.link
+            .expect(ptp::encode_command(op::GET_NUM_OBJECTS, 2, &[1, 0, 0]));
+        s.link.device_sends(
+            &Response {
+                code: 0x2008,
+                transaction: 2,
+                params: vec![],
+            }
+            .encode(),
+            true,
+        );
+        let answer = s.ptp_transaction(op::GET_NUM_OBJECTS, &[1, 0, 0]).unwrap();
+        assert_eq!((answer.code, answer.data.len()), (0x2008, 0));
+
+        let object: Vec<u8> = (0..40u8).collect();
+        s.link.expect(ptp::encode_command(op::GET_OBJECT, 3, &[7]));
+        s.link
+            .device_sends(&ptp::encode_data(op::GET_OBJECT, 3, &object).unwrap(), true);
+        s.link.device_sends(&ok(3, &[]), true);
+        assert_eq!(s.get_partial_object(7, 30, 100).unwrap(), &object[30..]);
+        drop(guard);
+        assert!(!trace::live());
+
+        let seen = seen.lock().unwrap();
+        let summary: Vec<_> = seen
+            .iter()
+            .map(|t| (t.operation, t.response, t.data_in_bytes))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (Some("GetNumObjects"), Some("InvalidStorageID"), 0),
+                (Some("GetObject"), Some("OK"), 40),
+            ]
+        );
+        assert_eq!(seen[0].params, [1, 0, 0]);
+        assert!(
+            seen.iter()
+                .all(|t| t.error.is_none() && t.duration_ms >= 0.0)
+        );
+        close(&mut s, 4);
     }
 
     fn object_info() -> ObjectInfo {

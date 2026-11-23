@@ -8,11 +8,12 @@ repository.workspace = true
 build = "build.rs"
 
 [features]
-# Development operations (read_file, stage_file, remove_staged): debug builds only; a release
-# build with it fails to compile.
-dev = []
+# Development operations (read_file, stage_file, remove_staged, and the raw MTP operations and
+# live trace of `ops.rs`): debug builds only; a release build with it fails to compile.
+dev = ["dep:base64"]
 
 [dependencies]
+base64 = { workspace = true, optional = true }
 jsonschema.workspace = true
 roxmltree.workspace = true
 schemars.workspace = true
