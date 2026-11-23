@@ -184,8 +184,19 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.problem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 360px;
+}
+
 #waiting-problem button {
   margin-top: 6px;
+}
+
+#waiting-problem .share {
+  margin-top: 14px;
 }
 
 /* The waiting screen's help, which fades in when no watch has turned up for a while (app.js). */

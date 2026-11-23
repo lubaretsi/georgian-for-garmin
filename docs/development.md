@@ -59,8 +59,10 @@ expected Venu 3 listing parts from two packs with a conflict, an unsupported fen
 Restore, and an unsupported Venu), and a Forerunner 245 mounted as a USB
 drive. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names) attaches that watch first;
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
-its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
-shows that platform's words.
+its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
+`garmin_express`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a program on
+every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`) shows that
+platform's words.
 Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
 tests check that.
 

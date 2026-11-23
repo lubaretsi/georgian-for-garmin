@@ -3,6 +3,7 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::busy::Busy;
 use crate::mtp::MtpError;
 
 /// Stable, machine-readable error codes.
@@ -15,7 +16,7 @@ pub enum ErrorCode {
     NoDevice,
     /// More than one Garmin MTP device is connected.
     MultipleDevices,
-    /// Another program (usually Garmin Express) holds the watch.
+    /// Another program holds the watch; the error's `busy` names it when the system tells.
     DeviceBusy,
     /// This user may not open the watch's USB device (on Linux: no udev rule).
     PermissionDenied,
@@ -71,6 +72,8 @@ impl ErrorCode {
 pub struct Error {
     pub code: ErrorCode,
     pub message: String,
+    /// `device_busy`: who holds the watch, as far as the system tells.
+    pub busy: Option<Box<Busy>>,
 }
 
 impl Error {
@@ -78,6 +81,16 @@ impl Error {
         Error {
             code,
             message: message.into(),
+            busy: None,
+        }
+    }
+
+    /// `device_busy` with what is known about the holder, and the message for it.
+    pub fn busy(busy: Busy) -> Self {
+        Error {
+            code: ErrorCode::DeviceBusy,
+            message: crate::busy::message(&busy),
+            busy: Some(Box::new(busy)),
         }
     }
 
@@ -90,9 +103,13 @@ impl Error {
         }
     }
 
-    /// `{"error": {"code": …, "message": …}}`
+    /// `{"error": {"code": …, "message": …}}`, with `busy` for `device_busy`.
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({"error": {"code": self.code.as_str(), "message": self.message}})
+        let mut error = serde_json::json!({"code": self.code.as_str(), "message": self.message});
+        if let Some(busy) = &self.busy {
+            error["busy"] = serde_json::to_value(busy).expect("Busy serializes");
+        }
+        serde_json::json!({ "error": error })
     }
 }
 
@@ -111,5 +128,44 @@ impl From<MtpError> for Error {
             _ => ErrorCode::DeviceError,
         };
         Error::new(code, e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::busy::{Holder, UsbInterface};
+
+    #[test]
+    fn busy_errors_carry_the_holder_in_json() {
+        assert_eq!(
+            Error::new(ErrorCode::NoDevice, "none").to_json(),
+            json!({"error": {"code": "no_device", "message": "none"}})
+        );
+        let error = Error::busy(Busy {
+            holder: Holder::named("Garmin Express", Some(812), true),
+            product_id: Some(0x4E77),
+            product_name: None,
+            interface: Some(UsbInterface {
+                class: 255,
+                subclass: 255,
+                protocol: 0,
+            }),
+        });
+        assert_eq!(error.code, ErrorCode::DeviceBusy);
+        let value = error.to_json();
+        assert_eq!(value["error"]["code"], "device_busy");
+        assert_eq!(value["error"]["message"], error.message);
+        assert_eq!(
+            value["error"]["busy"],
+            json!({
+                "holder": {"kind": "garmin_express", "name": "Garmin Express", "pid": 812, "confirmed": true},
+                "product_id": 20087,
+                "product_name": null,
+                "interface": {"class": 255, "subclass": 255, "protocol": 0}
+            })
+        );
     }
 }

@@ -3,8 +3,10 @@
 //!
 //! [`ops::call`] runs an operation from JSON input; [`connect`] opens the attached watch.
 //! [`report`] builds the shareable watch report, [`drive`] reads watches that mount as a drive,
-//! [`support`] derives a watch's status in the support list.
+//! [`support`] derives a watch's status in the support list, [`busy`] names what holds a busy
+//! watch.
 
+pub mod busy;
 pub mod drive;
 pub mod error;
 pub mod extdata;

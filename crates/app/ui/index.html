@@ -14,9 +14,14 @@
     <main id="waiting" class="view">
       <h1 data-t="waitingTitle"></h1>
       <p data-t="waitingBody"></p>
-      <div id="waiting-problem" hidden>
+      <div id="waiting-problem" class="problem" hidden>
         <p id="waiting-hint" class="hint"></p>
         <button id="waiting-retry" class="secondary" data-t="tryAgain"></button>
+        <div id="waiting-share-box" class="share" hidden>
+          <p id="waiting-share-why" class="quiet small" data-t="busyShareWhy"></p>
+          <button id="waiting-share" class="link" data-t="shareGithub"></button>
+          <p id="waiting-share-result" class="quiet small result" role="status" hidden></p>
+        </div>
       </div>
       <p class="quiet"><span class="spinner small"></span><span data-t="looking"></span></p>
       <section id="waiting-help" class="help" aria-live="polite" hidden>

@@ -10,6 +10,7 @@ use nusb::transfer::{
 use nusb::{Endpoint, ErrorKind, Interface, MaybeFuture};
 
 use crate::GARMIN_VENDOR_ID;
+use crate::busy::{self, Busy, UsbInterface};
 use crate::error::{Error, ErrorCode};
 use crate::mtp::{
     CreateError, DeviceStatus, Link, Mtp, MtpError, NewObject, Session, TransportError,
@@ -68,15 +69,6 @@ fn find_mtp_endpoints(config: &ConfigurationDescriptor<'_>) -> Option<MtpEndpoin
     })
 }
 
-/// What usually holds the watch's USB connection on this system, and how to release it.
-#[cfg(target_os = "linux")]
-const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually the desktop's \
-     file manager. On GNOME, eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, \
-     run `kquitapp6 kiod6`. Then try again.";
-#[cfg(not(target_os = "linux"))]
-const BUSY_HINT: &str = "Another program is using the watch's USB connection, usually Garmin Express. \
-     Quit Garmin Express (including its background helper) and try again.";
-
 /// The shipped udev rules file; the permission error's one-line fix writes its rule line.
 const UDEV_RULES_FILE: &str = include_str!("../../../packaging/linux/70-georgian-for-garmin.rules");
 
@@ -90,7 +82,7 @@ fn udev_rules() -> impl Iterator<Item = &'static str> {
 
 fn device_error(context: &str, e: nusb::Error) -> Error {
     match e.kind() {
-        ErrorKind::Busy => Error::new(ErrorCode::DeviceBusy, BUSY_HINT),
+        ErrorKind::Busy => Error::busy(Busy::unknown()),
         ErrorKind::Disconnected => Error::new(ErrorCode::NoDevice, "The watch disconnected."),
         ErrorKind::PermissionDenied => Error::new(
             ErrorCode::PermissionDenied,
@@ -384,6 +376,39 @@ fn unresponsive(e: &MtpError) -> Error {
 /// How long to wait for the watch to come back after a USB reset.
 const REENUMERATE_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// A `device_busy` failure for `info` with who holds the watch, as far as the system tells
+/// ([`crate::busy`]); other failures unchanged.
+fn name_holder(e: Error, info: &nusb::DeviceInfo) -> Error {
+    if e.code != ErrorCode::DeviceBusy {
+        return e;
+    }
+    let interface = info
+        .interfaces()
+        .find(|i| is_mtp_class(i.class(), i.subclass(), i.protocol()))
+        .map(|i| UsbInterface {
+            class: i.class(),
+            subclass: i.subclass(),
+            protocol: i.protocol(),
+        });
+    // nusb's product string on macOS can be a hub's when the watch has none (the Venu 2's), so
+    // there it comes from the watch's own registry entry.
+    #[cfg(target_os = "macos")]
+    let (holder, product_name) = busy::macos(info.registry_entry_id());
+    #[cfg(target_os = "linux")]
+    let (holder, product_name) = (
+        busy::linux(info.busnum(), info.device_address()),
+        info.product_string().map(str::to_owned),
+    );
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    let (holder, product_name) = (busy::Holder::unknown(), None);
+    Error::busy(Busy {
+        holder,
+        product_id: Some(info.product_id()),
+        product_name,
+        interface,
+    })
+}
+
 /// Finds the single Garmin device with an MTP interface, claims it and opens a session.
 ///
 /// If the watch's MTP responder takes no commands even after the class-level recovery in
@@ -391,7 +416,7 @@ const REENUMERATE_TIMEOUT: Duration = Duration::from_secs(30);
 /// would), and the session opened again.
 pub fn connect() -> Result<UsbMtp, Error> {
     let info = find_watch()?;
-    let (device, link) = open_link(&info)?;
+    let (device, link) = open_link(&info).map_err(|e| name_holder(e, &info))?;
     let error = match Session::open(link) {
         Ok(session) => return Ok(UsbMtp(session)),
         Err(e @ MtpError::Transport { .. }) => e,
@@ -423,7 +448,7 @@ pub fn connect() -> Result<UsbMtp, Error> {
         }
     };
     trace!("watch re-enumerated");
-    let (_device, link) = open_link(&info)?;
+    let (_device, link) = open_link(&info).map_err(|e| name_holder(e, &info))?;
     Session::open(link)
         .map(UsbMtp)
         .map_err(|e| unresponsive(&e))

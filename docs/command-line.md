@@ -69,7 +69,7 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `install` | Copies the Georgian font into every part of the bundled packs that the watch lists, across all packs, then reads each file back. |
 | `restore-stock` | The same with Garmin's original fonts. |
 | `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
-| `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …}` (`report` as `inspect --report --json` prints it). Touches nothing. |
+| `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …, "busy": …}` (`report` as `inspect --report --json` prints it; `busy` as a `device_busy` error gives it, alone for a watch that couldn't be read). Touches nothing. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
@@ -80,7 +80,8 @@ Options:
   `inspect` lists the watch's parts. Part numbers, not pixel sizes, because packs share sizes
   (15, 21, 24 and 25 px each come in two packs).
 - `--json`: print one JSON value on stdout; errors go to stderr as
-  `{"error": {"code": "…", "message": "…"}}`.
+  `{"error": {"code": "…", "message": "…"}}`, and `device_busy` adds `busy`
+  ([below](#busy-watch)).
 - `--input FILE` or `--input -`: take the input as a JSON object keyed like the command's input
   schema, e.g. `{"parts": ["006-D9035-03"]}`. Flags given too override it.
 - `--help --json`: print every command's definition, with JSON Schemas for its input and output,
@@ -149,7 +150,7 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | Code | Meaning | What to do |
 |---|---|---|
 | `no_device` | No Garmin watch in USB file-transfer mode | Connect it with a data cable; try another port or cable. |
-| `device_busy` | Another program holds the watch's USB connection | Quit Garmin Express; on Linux, release it from the desktop (above). Then try again. |
+| `device_busy` | Another program holds the watch's USB connection | The message names it when the system tells ([below](#busy-watch)) and says how to free it on this system. Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
 | `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
@@ -162,6 +163,36 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `font_unavailable` | This build doesn't include a requested part | Check the part number, or download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
+
+### Busy watch
+
+`device_busy` names what holds the watch when the system tells, and never stops or signals it:
+
+```json
+{"error": {"code": "device_busy", "message": "…", "busy": {
+  "holder": {"kind": "macos_camera_service", "name": "ptpcamerad", "pid": 512, "confirmed": true},
+  "product_id": 20087, "product_name": null,
+  "interface": {"class": 6, "subclass": 1, "protocol": 1}}}}
+```
+
+- `holder.kind`: `garmin_express`, `macos_camera_service` (`ptpcamerad`, which takes still-image
+  devices for Photos and Image Capture), `desktop_mtp` (GNOME's `gvfsd-mtp`, KDE's `kiod`,
+  Android File Transfer, OpenMTP, MacDroid…), `other` (a program none of these lists knows) or
+  `unknown`. The known names are listed in one place, `crates/core/src/busy.rs`.
+- macOS: the IOKit registry's `UsbExclusiveOwner` on the watch's `IOUSBHostInterface` (and its
+  `IOUSBHostDevice`), `"pid 1234, name"`, read with `ioreg`; any user can read it. Process names
+  there are cut to 16 bytes. `product_name` is the device's own `USB Product Name`, null for a
+  watch without a product string, as the Venu 2.
+- Linux: the process with the watch's `/dev/bus/usb/BBB/DDD` open, from `/proc/*/fd` (the user's
+  own processes).
+- Windows doesn't say who holds a device: the holder is Garmin Express when it is running
+  (`tasklist`), with `confirmed` false, and otherwise `unknown`; `product_id` and `interface`
+  are null.
+
+The message says how to free the watch on this system. For macOS's camera service: quit Photos,
+Image Capture, Preview and other photo importers, then unplug and reconnect the watch; if it is
+still busy, share the error in an issue so we can look. No Garmin watch has been seen held by it
+yet.
 
 ## Troubleshooting
 

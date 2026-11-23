@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cable. It goes away as soon as a watch is found.
 - The demo build's `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, and
   `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` shows another platform's words.
+- When another program holds the watch (`device_busy`), the app names it when the system tells
+  and gives that program's steps for this system only: Garmin Express (quit it from its menu-bar
+  or notification-area icon, or in Activity Monitor or Task Manager), macOS's camera service
+  `ptpcamerad` (quit photo apps and reconnect, then share it on GitHub if it's still busy), the
+  desktop's file access on Linux (eject the watch), another named program (quit it), or an
+  unknown one (restart the computer as a test, look in Activity Monitor or Task Manager). It no
+  longer shows Linux steps on macOS or Windows. **Share on GitHub** on that screen sends what the
+  app found.
+- `device_busy` errors carry `busy`: the holder (`kind`: `garmin_express`,
+  `macos_camera_service`, `desktop_mtp`, `other` or `unknown`; process `name`, `pid`,
+  `confirmed`), the watch's USB `product_id` and `product_name`, and its MTP `interface` class.
+  macOS reads the IOKit registry's `UsbExclusiveOwner`, Linux `/proc`, Windows only whether Garmin
+  Express is running. Nothing is stopped or signalled. The CLI's message names the holder too.
+- `issue_link` takes `busy`: alone (no `report`) it makes a report with the `app` and `busy`
+  lines, titled `Busy watch: …`; with a report, the `busy` line follows `connection`.
+  `GEORGIAN_FOR_GARMIN_DEMO_BUSY` shows each case in the demo build.
+
+### Changed
+
+- `issue_link`'s `report` is optional when `busy` is given (JSON input change ahead of 1.0).
 
 ## [0.3.3] - 2026-11-23
 

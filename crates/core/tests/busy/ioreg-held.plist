@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- `ioreg -a -l -r -c IOUSBHostDevice` on macOS 27, cut down to the keys the parser reads and
+     a few it must skip. Device 4297301549 is a Venu 2 (no product string) behind a hub, its MTP
+     interface claimed by a test program (the real capture's values, serial number left out).
+     Device 4297400001 is made up: a watch with a product name and a still-image interface held
+     by ptpcamerad, registry-owned on the interface only. -->
+<plist version="1.0">
+<array>
+	<dict>
+		<key>IOObjectClass</key>
+		<string>IOUSBHostDevice</string>
+		<key>IORegistryEntryChildren</key>
+		<array>
+			<dict>
+				<key>IOObjectClass</key>
+				<string>AppleUSB20HubPort</string>
+				<key>IORegistryEntryChildren</key>
+				<array>
+					<dict>
+						<key>IOObjectClass</key>
+						<string>IOUSBHostDevice</string>
+						<key>IORegistryEntryChildren</key>
+						<array>
+							<dict>
+								<key>IOObjectClass</key>
+								<string>AppleUSBHostCompositeDevice</string>
+								<key>IORegistryEntryID</key>
+								<integer>4297301553</integer>
+							</dict>
+							<dict>
+								<key>IOObjectClass</key>
+								<string>IOUSBHostInterface</string>
+								<key>IORegistryEntryChildren</key>
+								<array>
+									<dict>
+										<key>IOObjectClass</key>
+										<string>AppleUSBHostInterfaceUserClient</string>
+										<key>IOUserClientCreator</key>
+										<string>pid 77818, gfg-hold</string>
+									</dict>
+								</array>
+								<key>IORegistryEntryID</key>
+								<integer>4297301554</integer>
+								<key>IORegistryEntryName</key>
+								<string>MTP</string>
+								<key>UsbExclusiveOwner</key>
+								<string>pid 77818, gfg-hold</string>
+								<key>bInterfaceClass</key>
+								<integer>255</integer>
+								<key>bInterfaceProtocol</key>
+								<integer>0</integer>
+								<key>bInterfaceSubClass</key>
+								<integer>255</integer>
+								<key>idProduct</key>
+								<integer>20087</integer>
+								<key>idVendor</key>
+								<integer>2334</integer>
+								<key>kUSBString</key>
+								<string>MTP</string>
+							</dict>
+							<dict>
+								<key>IOObjectClass</key>
+								<string>AppleUSBHostDeviceUserClient</string>
+								<key>IOUserClientCreator</key>
+								<string>pid 3607, Spotify</string>
+							</dict>
+						</array>
+						<key>IORegistryEntryID</key>
+						<integer>4297301549</integer>
+						<key>UsbExclusiveOwner</key>
+						<string>pid 77818, gfg-hold</string>
+						<key>iProduct</key>
+						<integer>0</integer>
+						<key>idProduct</key>
+						<integer>20087</integer>
+						<key>idVendor</key>
+						<integer>2334</integer>
+					</dict>
+					<dict>
+						<key>IOObjectClass</key>
+						<string>IOUSBHostDevice</string>
+						<key>IORegistryEntryChildren</key>
+						<array>
+							<dict>
+								<key>IOObjectClass</key>
+								<string>IOUSBHostInterface</string>
+								<key>IORegistryEntryID</key>
+								<integer>4297400002</integer>
+								<key>UsbExclusiveOwner</key>
+								<string>pid 512, ptpcamerad</string>
+								<key>bInterfaceClass</key>
+								<integer>6</integer>
+								<key>bInterfaceProtocol</key>
+								<integer>1</integer>
+								<key>bInterfaceSubClass</key>
+								<integer>1</integer>
+							</dict>
+						</array>
+						<key>IORegistryEntryID</key>
+						<integer>4297400001</integer>
+						<key>USB Product Name</key>
+						<string>Example Watch</string>
+						<key>idVendor</key>
+						<integer>2334</integer>
+					</dict>
+				</array>
+			</dict>
+		</array>
+		<key>IORegistryEntryID</key>
+		<integer>4295000100</integer>
+		<key>USB Product Name</key>
+		<string>TS4 USB2.0 HUB</string>
+		<key>UsbExclusiveOwner</key>
+		<string>pid 8977, usbaudiod</string>
+	</dict>
+</array>
+</plist>

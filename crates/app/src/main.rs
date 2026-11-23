@@ -3,7 +3,8 @@
 //! The frontend (`ui/`) calls the watch commands below; each runs one core operation on a
 //! blocking thread, and a mutex keeps the watch to one operation at a time, so the frontend's
 //! `inspect` polling never overlaps an install. Commands return core output unchanged, and
-//! errors as `{code, message}`; the frontend turns codes into words (`ui/strings.json`).
+//! errors as `{code, message}` (and `busy`, who holds a busy watch); the frontend turns codes
+//! into words (`ui/strings.json`).
 //! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, and
 //! `open_issue` a watch's issue from the support list; `share` draws the check screen's QR code
 //! and test-mark pictures.
@@ -24,6 +25,7 @@ mod window;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use georgian_for_garmin_core::busy::Busy;
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::mtp::Mtp;
 use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
@@ -33,11 +35,13 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 
-/// An operation failure as the frontend receives it.
+/// An operation failure as the frontend receives it; `busy` only for `device_busy`.
 #[derive(Debug, Serialize)]
 struct Failure {
     code: &'static str,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    busy: Option<Box<Busy>>,
 }
 
 impl From<Error> for Failure {
@@ -45,6 +49,7 @@ impl From<Error> for Failure {
         Failure {
             code: e.code.as_str(),
             message: e.message,
+            busy: e.busy,
         }
     }
 }
@@ -520,6 +525,109 @@ mod tests {
         }
     }
 
+    /// Words of one platform's steps, which no other platform's words may use.
+    const PLATFORM_WORDS: [(&str, &[&str]); 3] = [
+        (
+            "macos",
+            &[
+                "Activity Monitor",
+                "menu bar",
+                "მენიუს ზოლ",
+                "Mac",
+                "Terminal",
+            ],
+        ),
+        (
+            "windows",
+            &[
+                "Task Manager",
+                "notification area",
+                "შეტყობინებების არე",
+                "დროის გვერდით",
+                "Windows",
+            ],
+        ),
+        ("linux", &["file manager", "ფაილების მენეჯერ", "Linux"]),
+    ];
+
+    /// Each platform's strings under `key` in `table` (a table by platform).
+    fn by_platform<'a>(table: &'a Value, key: &str) -> Vec<(&'a str, Vec<(String, String)>)> {
+        let platforms = table[key].as_object().expect("a table by platform");
+        platforms
+            .iter()
+            .map(|(platform, words)| {
+                let mut out = Vec::new();
+                leaves(&format!("{key}.{platform}."), words, &mut out);
+                (platform.as_str(), out)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_platform_shows_another_platforms_steps() {
+        for (language, table) in strings() {
+            for key in ["busy", "waitingHelpExpress"] {
+                for (platform, words) in by_platform(&table, key) {
+                    assert!(PLATFORMS.contains(&platform), "{language}.{key}.{platform}");
+                    for (other, foreign) in PLATFORM_WORDS.iter().filter(|(p, _)| *p != platform) {
+                        for (path, text) in &words {
+                            let found: Vec<_> =
+                                foreign.iter().filter(|w| text.contains(*w)).collect();
+                            assert!(
+                                found.is_empty(),
+                                "{language}.{path} has {other}'s {found:?}"
+                            );
+                        }
+                    }
+                    if platform == "linux" {
+                        for (path, text) in &words {
+                            assert!(!text.contains("Garmin Express"), "{language}.{path}");
+                        }
+                    }
+                }
+            }
+            // The generic busy message is for any platform.
+            let generic = table["errors"]["device_busy"].as_str().unwrap();
+            for (platform, foreign) in PLATFORM_WORDS {
+                assert!(
+                    !foreign.iter().any(|w| generic.contains(w)),
+                    "{language}: {platform}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_platform_has_words_for_every_holder() {
+        let schema = schemars::schema_for!(georgian_for_garmin_core::busy::HolderKind).to_value();
+        let mut kinds = BTreeSet::new();
+        constants(&schema, &mut kinds);
+        assert!(kinds.contains("unknown"), "unexpected schema: {schema}");
+        for (language, table) in strings() {
+            let busy = table["busy"].as_object().expect("a busy table");
+            let platforms: BTreeSet<&str> = busy.keys().map(String::as_str).collect();
+            assert_eq!(platforms, PLATFORMS.into(), "{language}.busy");
+            for (platform, words) in busy {
+                let words = words.as_object().expect("a table by holder kind");
+                // Kinds without their own words get `other` (named) or `unknown`.
+                for key in ["other", "unknown"] {
+                    assert!(
+                        words.contains_key(key),
+                        "{language}.busy.{platform} lacks {key}"
+                    );
+                }
+                assert!(words["other"].as_str().unwrap().contains("{name}"));
+                let strays: Vec<_> = words.keys().filter(|k| !kinds.contains(*k)).collect();
+                assert!(strays.is_empty(), "{language}.busy.{platform}: {strays:?}");
+            }
+        }
+        // Busy words ask for no Terminal commands: steps in the app and sharing only.
+        let json = include_str!("../ui/strings.json");
+        for word in ["pkill", "Terminal", "sudo"] {
+            assert!(!json.contains(word), "strings.json asks for {word}");
+        }
+    }
+
     #[test]
     fn failures_keep_core_codes() {
         let failure = Failure::from(Error::new(ErrorCode::DeviceBusy, "held"));
@@ -527,6 +635,10 @@ mod tests {
             serde_json::to_value(failure).unwrap(),
             json!({"code": "device_busy", "message": "held"})
         );
+        let busy = Failure::from(Error::busy(Busy::unknown()));
+        let value = serde_json::to_value(busy).unwrap();
+        assert_eq!(value["code"], "device_busy");
+        assert_eq!(value["busy"]["holder"]["kind"], "unknown");
     }
 
     static ACTIVE: AtomicUsize = AtomicUsize::new(0);
