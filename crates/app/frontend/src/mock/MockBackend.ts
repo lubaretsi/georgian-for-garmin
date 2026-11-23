@@ -1,0 +1,310 @@
+// A `Backend` over a simulated watch, for Storybook and the tests. It never opens a device.
+//
+// The watch is a small physical model: connected over MTP, as a USB drive, or unplugged; the
+// font it uses and the one waiting for a restart (each a real fixture step, see watches.ts);
+// a restart (the USB connection drops for a moment) imports what waits; a program holding the
+// watch; a write that fails and leaves files behind; what the next test notification shows.
+
+import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
+import type { HolderKind, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
+import { shareKeyId } from "../flow/state";
+import type { Result } from "../model/screens";
+import { PHONE_PAGE_QR } from "../stories/screens/phone-qr";
+import { failure, fixtureFile, output } from "./fixtures";
+import { busyStep, type Step, WATCH_DEFS, type WatchDef, type WatchId } from "./watches";
+
+export type Connection = "mtp" | "drive" | "unplugged";
+
+/** What the simulator panel shows and changes. */
+export type Simulation = {
+  watch: WatchId;
+  connection: Connection;
+  /** The connection to come back to after a restart. */
+  restartingTo: Connection | null;
+  /** What `inspect` reads now, and what the next restart imports. */
+  current: Step | null;
+  pending: Step | null;
+  holder: HolderKind | null;
+  /** A connect problem every read fails with (e.g. Linux permission denied). */
+  problem: Step | null;
+  failNextWrite: boolean;
+  /** The next restart doesn't import what waits. */
+  skipNextImport: boolean;
+  /** A failed write left files: restore uses the failure scenario's fixtures. */
+  afterFailedWrite: boolean;
+  /** What the next test notification shows on the watch; `auto` follows the font. */
+  phoneResult: Result | "auto";
+  /** Every link the app opened, newest last. */
+  opened: string[];
+};
+
+export type MockOptions = {
+  watch: WatchId;
+  connection?: Connection;
+  platform?: Platform;
+  holder?: HolderKind | null;
+  problem?: Step | null;
+  /** Keys already shared (`sharedBefore` answers true). */
+  sharedBefore?: ShareKey[];
+  marks?: MarkPicture[];
+  /** Divides every delay: faster in the story tests. */
+  speed?: number;
+};
+
+const INSPECT_MS = 120;
+const PART_MS = 350;
+const RESTART_MS = 3000;
+const NEW_ISSUE = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
+const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#watches";
+const NO_DEVICE: Step = "connect-problems/inspect-no_device";
+
+/** `<scenario>/<step>` → its two parts. */
+function split(step: Step): [string, string] {
+  const slash = step.indexOf("/");
+  return [step.slice(0, slash), step.slice(slash + 1)];
+}
+
+export class MockBackend implements Backend {
+  private sim: Simulation;
+  private readonly listeners = new Set<() => void>();
+  private readonly shared: Set<string>;
+  private readonly platformName: Platform;
+  private readonly marks: MarkPicture[];
+  private readonly speed: number;
+  private language: Lang | null = null;
+
+  constructor(options: MockOptions) {
+    const def: WatchDef = WATCH_DEFS[options.watch];
+    this.sim = {
+      watch: options.watch,
+      connection: options.connection ?? "mtp",
+      restartingTo: null,
+      current: def.start,
+      pending: def.startPending ?? null,
+      holder: options.holder ?? null,
+      problem: options.problem ?? null,
+      failNextWrite: false,
+      skipNextImport: false,
+      afterFailedWrite: false,
+      phoneResult: "auto",
+      opened: [],
+    };
+    this.shared = new Set((options.sharedBefore ?? []).map(shareKeyId));
+    this.platformName = options.platform ?? "macos";
+    this.marks = options.marks ?? [];
+    this.speed = options.speed ?? 1;
+  }
+
+  get def(): WatchDef {
+    return WATCH_DEFS[this.sim.watch];
+  }
+
+  // The simulator's side.
+
+  simulation = (): Simulation => this.sim;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  private change(patch: Partial<Simulation>): void {
+    this.sim = { ...this.sim, ...patch };
+    for (const listener of this.listeners) listener();
+  }
+
+  plugIn(connection: "mtp" | "drive"): void {
+    this.change({ connection, restartingTo: null });
+  }
+
+  unplug(): void {
+    this.change({ connection: "unplugged", restartingTo: null });
+  }
+
+  /** Restarts the watch: it imports what waits, and a connected watch drops off USB meanwhile. */
+  restart(): void {
+    const { pending, skipNextImport, connection } = this.sim;
+    const imported = skipNextImport ? {} : { current: pending ?? this.sim.current, pending: null };
+    if (connection === "unplugged") {
+      this.change({ ...imported, skipNextImport: false });
+      return;
+    }
+    this.change({ ...imported, skipNextImport: false, connection: "unplugged", restartingTo: connection });
+    setTimeout(() => {
+      if (this.sim.restartingTo) this.change({ connection: this.sim.restartingTo, restartingTo: null });
+    }, RESTART_MS / this.speed);
+  }
+
+  hold(holder: HolderKind | null): void {
+    this.change({ holder });
+  }
+
+  setProblem(problem: Step | null): void {
+    this.change({ problem });
+  }
+
+  failNextWrite(): void {
+    this.change({ failNextWrite: true });
+  }
+
+  skipNextImport(): void {
+    this.change({ skipNextImport: true });
+  }
+
+  setPhoneResult(phoneResult: Result | "auto"): void {
+    this.change({ phoneResult });
+  }
+
+  /** What the watch shows for the next test notification. */
+  notification(): Result {
+    if (this.sim.phoneResult !== "auto") return this.sim.phoneResult;
+    const current = this.sim.current;
+    return current && this.inspectAt(current).state === "installed" ? "georgian" : "boxes";
+  }
+
+  // The backend's side.
+
+  private wait(ms: number): Promise<void> {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    setTimeout(resolve, ms / this.speed);
+    return promise;
+  }
+
+  private inspectAt(step: Step): InspectOutput {
+    return output(...split(step), "inspect");
+  }
+
+  private failureAt(step: Step): Failure {
+    return failure(...split(step));
+  }
+
+  async inspect(): Promise<InspectOutput> {
+    await this.wait(INSPECT_MS);
+    const { connection, problem, holder, current } = this.sim;
+    if (connection !== "mtp" || !this.def.mtp || !current) throw this.failureAt(NO_DEVICE);
+    if (problem) throw this.failureAt(problem);
+    if (holder) throw this.failureAt(busyStep(holder, this.platformName));
+    return this.inspectAt(current);
+  }
+
+  async inspectDrive(): Promise<InspectDriveOutput> {
+    await this.wait(INSPECT_MS);
+    const drive = this.def.drive;
+    if (this.sim.connection !== "drive" || !drive) throw this.failureAt(NO_DEVICE);
+    return output(...split(drive), "inspect_drive");
+  }
+
+  private async write(
+    plan: { output: Step; staged: Step; imported: Step } | { failure: Step } | undefined,
+    onProgress?: (p: Progress) => void,
+  ): Promise<StageOutput> {
+    await this.wait(INSPECT_MS);
+    if (this.sim.connection !== "mtp") throw this.failureAt(NO_DEVICE);
+    if (this.sim.holder) throw this.failureAt(busyStep(this.sim.holder, this.platformName));
+    if (!plan) throw this.failureAt("forerunner265/install");
+    if ("failure" in plan) throw this.failureAt(plan.failure);
+    const [scenario, name] = split(plan.output);
+    const stage = output(scenario, name, fixtureFile(scenario, name).operation === "install" ? "install" : "restore_stock");
+    const total = stage.packs.reduce((n, pack) => n + pack.parts.length, 0);
+    for (let done = 1; done <= total; done++) {
+      await this.wait(PART_MS);
+      const failed = this.def.failedWrite;
+      if (this.sim.failNextWrite && failed && done === 2) {
+        this.change({ failNextWrite: false, afterFailedWrite: true, current: failed.after, pending: null });
+        throw this.failureAt(failed.failure);
+      }
+      onProgress?.({ done, total });
+    }
+    this.change({ current: plan.staged, pending: plan.imported });
+    return stage;
+  }
+
+  install(onProgress?: (p: Progress) => void): Promise<StageOutput> {
+    return this.write(this.def.install, onProgress);
+  }
+
+  restoreStock(onProgress?: (p: Progress) => void): Promise<StageOutput> {
+    const failed = this.def.failedWrite;
+    const plan = this.sim.afterFailedWrite && failed ? failed.restore : this.def.restore;
+    return this.write(plan, onProgress).then((stage) => {
+      this.change({ afterFailedWrite: false });
+      return stage;
+    });
+  }
+
+  async issueLink(input: IssueLinkRequest): Promise<IssueLink> {
+    await this.wait(INSPECT_MS);
+    if (input.error) return pendingErrorLink(input.error);
+    if (!input.report) return output("busy", "issue_link-problem", "issue_link");
+    const step = this.def.links[input.answers?.result ?? "font_list"] ?? Object.values(this.def.links)[0];
+    if (step) return output(...split(step), "issue_link");
+    // No fixture for this watch: the report as inspect gave it.
+    return { title: input.report.title, url: NEW_ISSUE, report_in_url: false, report_text: input.report.text, fields: [] };
+  }
+
+  async shareReport(input: IssueLinkRequest): Promise<Shared> {
+    const link = await this.issueLink(input);
+    this.change({ opened: [...this.sim.opened, link.url] });
+    return { complete: link.report_in_url, url: link.url };
+  }
+
+  async openIssue(issue: number): Promise<string> {
+    const url = `https://github.com/lubaretsi/georgian-for-garmin/issues/${issue}`;
+    this.change({ opened: [...this.sim.opened, url] });
+    return url;
+  }
+
+  async openWatchList(): Promise<string> {
+    this.change({ opened: [...this.sim.opened, WATCH_LIST] });
+    return WATCH_LIST;
+  }
+
+  async phonePage(language: Lang): Promise<PhonePage> {
+    return PHONE_PAGE_QR[language];
+  }
+
+  async testMarks(): Promise<MarkPicture[]> {
+    return this.marks;
+  }
+
+  async platform(): Promise<Platform> {
+    return this.platformName;
+  }
+
+  async demoMode(): Promise<boolean> {
+    return false;
+  }
+
+  async savedLanguage(): Promise<Lang | null> {
+    return this.language;
+  }
+
+  async saveLanguage(language: Lang): Promise<void> {
+    this.language = language;
+  }
+
+  async sharedBefore(key: ShareKey): Promise<boolean> {
+    return this.shared.has(shareKeyId(key));
+  }
+
+  async markShared(key: ShareKey): Promise<void> {
+    this.shared.add(shareKeyId(key));
+  }
+}
+
+/**
+ * PENDING (phase 2): the core's `issue_link` doesn't take an `error` alone yet (contract §6).
+ * This is the shape it is planned to return, typed by hand: the app, the platform and the error,
+ * and no watch.
+ */
+function pendingErrorLink(error: { code: string; message: string }): IssueLink {
+  const text = `app 0.3.4 "Mac OS" 15.6.1 aarch64\nerror ${error.code}\n${error.message}`;
+  return {
+    title: `Problem: ${error.code}`,
+    url: `${NEW_ISSUE}?template=watch-report.yml&title=${encodeURIComponent(`Problem: ${error.code}`)}`,
+    report_in_url: true,
+    report_text: text,
+    fields: [{ id: "report", value: text }],
+  };
+}

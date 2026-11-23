@@ -34,6 +34,8 @@ export default defineConfig({
         // Every story rendered in a real browser, with its play function and axe.
         extends: true,
         plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+        // The flow stories' polls, timers and simulated watch run 10 times faster here.
+        define: { "import.meta.env.VITE_FLOW_SPEED": JSON.stringify("10") },
         test: {
           name: "storybook",
           browser: {

@@ -3,7 +3,14 @@
 // `MarkPicture`) and crates/core/src/error.rs (`Rollback`). Phase 2 derives `JsonSchema` for
 // them and generates these too.
 
-import type { Busy, ErrorCode, Kind } from "./types.gen";
+import type { Busy, ErrorCode, IssueLinkInput, Kind } from "./types.gen";
+
+/**
+ * `issue_link`'s input, with the `error` it is planned to take alone, as it takes `busy` alone:
+ * a connect problem with no watch read (contract §6). PENDING: the core doesn't take it yet
+ * (phase 2); until then only the mock answers it.
+ */
+export type IssueLinkRequest = IssueLinkInput & { error?: { code: ErrorCode; message: string } | null };
 
 /** An operation failure as the frontend receives it; `busy` only for `device_busy`. */
 export type Failure = {

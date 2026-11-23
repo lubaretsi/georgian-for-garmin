@@ -1,0 +1,252 @@
+// toScreen for each screen, and the More sheet, from flow states the reducer reached with the
+// core's real results.
+
+import { describe, expect, test } from "vitest";
+
+import type { Failure } from "../core/app-types";
+import type { InspectOutput } from "../core/types.gen";
+import { failure, output } from "../mock/fixtures";
+import type { ActionId, ActionPayload } from "../model/screens";
+import { moreModel, toScreen } from "./screen";
+import { type FlowState, initialState, reduce } from "./state";
+
+const inspect = (scenario: string, step: string) => output(scenario, step, "inspect");
+const NO_DEVICE = failure("connect-problems", "inspect-no_device");
+const VENU2 = inspect("venu2", "inspect");
+const VENU2_INFO = { model: "Venu 2", modelPart: "006-B3703-00", software: "19.05", confirmedSoftware: ["19.05"] };
+
+const started = (lang: "ka" | "en" = "en") => reduce(initialState(lang, "0.3.4"), { type: "start" });
+const read = (state: FlowState, result: InspectOutput | Failure): FlowState =>
+  reduce(
+    state,
+    "code" in result
+      ? { type: "inspect_failed", token: state.token, failure: result }
+      : { type: "inspected", token: state.token, output: result },
+  );
+const act = (state: FlowState, id: ActionId, payload?: ActionPayload) =>
+  reduce(state, { type: "action", id, ...(payload && { payload }) });
+const atWatch = () => read(started(), VENU2);
+const written = () => reduce(act(atWatch(), "install"), { type: "op_done", op: "install", output: output("venu2", "install", "install") });
+const atResult = () => read(read(written(), NO_DEVICE), inspect("venu2", "inspect-restarted"));
+
+describe("toScreen", () => {
+  test("connect: searching, then with help", () => {
+    const state = started();
+    expect(toScreen(state)).toEqual({ screen: "connect", mode: "searching", showHelp: false });
+    expect(toScreen(reduce(state, { type: "help_due", token: state.helpToken }))).toEqual({
+      screen: "connect",
+      mode: "searching",
+      showHelp: true,
+    });
+  });
+
+  test("connect: busy, with the holder as the core named it", () => {
+    expect(toScreen(read(started(), failure("busy", "inspect-garmin_express-windows")))).toEqual({
+      screen: "connect",
+      mode: "busy",
+      busy: { kind: "garmin_express", name: "ExpressTray.exe", confirmed: false },
+    });
+    expect(toScreen(read(started(), failure("busy", "inspect-unknown-linux")))).toMatchObject({
+      busy: { kind: "unknown", name: null, confirmed: false },
+    });
+  });
+
+  test("connect: a problem, with the core's message as the detail; unknown codes are internal", () => {
+    const denied = failure("connect-problems", "inspect-permission_denied");
+    expect(toScreen(read(started(), denied))).toEqual({
+      screen: "connect",
+      mode: "problem",
+      problem: "permission_denied",
+      detail: denied.message,
+    });
+    const odd: Failure = { code: "invalid_input", message: "x" };
+    expect(toScreen(read(started(), odd))).toMatchObject({ problem: "internal" });
+  });
+
+  test("drive: drive-only and MTP-capable", () => {
+    const drive = (scenario: string) => {
+      const state = read(started(), NO_DEVICE);
+      const out = output(scenario, "inspect_drive", "inspect_drive");
+      return toScreen(reduce(state, { type: "drive_inspected", token: state.token, output: out }));
+    };
+    expect(drive("forerunner245-drive")).toEqual({
+      screen: "drive",
+      watch: { model: "Forerunner 245", modelPart: "006-B3076-00", software: "13.70", confirmedSoftware: [] },
+      driveOnly: true,
+      issue: 16,
+      reportWanted: false,
+      sharedBefore: false,
+    });
+    expect(drive("venu2-drive")).toMatchObject({ driveOnly: false, issue: null });
+  });
+
+  test("watch: the verdict, issue, report wanted and shared before", () => {
+    expect(toScreen(atWatch())).toEqual({
+      screen: "watch",
+      watch: VENU2_INFO,
+      verdict: { kind: "install", confidence: "confirmed" },
+      issue: null,
+      reportWanted: false,
+      sharedBefore: false,
+    });
+    const fr265 = read(started(), inspect("forerunner265", "inspect"));
+    const shared = reduce(fr265, {
+      type: "shared_before",
+      key: { modelPart: "006-B4257-00", software: "29.52", result: "font_list" },
+      value: true,
+    });
+    expect(toScreen(shared)).toMatchObject({ verdict: { kind: "no_font" }, reportWanted: true, sharedBefore: true });
+  });
+
+  test("watch: confirmed on other software carries the confirmed versions", () => {
+    const fr255 = read(started(), inspect("forerunner255-newer", "inspect"));
+    expect(toScreen(fr255)).toMatchObject({
+      watch: { software: "30.00", confirmedSoftware: ["29.52"] },
+      verdict: { kind: "install", confidence: "confirmed_other_software" },
+    });
+  });
+
+  test("confirm_restore and working, with progress", () => {
+    expect(toScreen(act(atWatch(), "restore"))).toEqual({ screen: "confirm_restore", watch: VENU2_INFO });
+    const working = act(atWatch(), "install");
+    expect(toScreen(working)).toEqual({ screen: "working", op: "install", watch: VENU2_INFO, progress: null });
+    expect(toScreen(reduce(working, { type: "progress", progress: { done: 1, total: 4 } }))).toMatchObject({
+      progress: { done: 1, total: 4 },
+    });
+  });
+
+  test("restart: phase, attempt, verifiable", () => {
+    expect(toScreen(written())).toEqual({
+      screen: "restart",
+      op: "install",
+      watch: VENU2_INFO,
+      phase: "unplug",
+      attempt: 1,
+      verifiable: true,
+    });
+    const again = read(read(written(), NO_DEVICE), inspect("venu2", "inspect-staged"));
+    expect(toScreen(read(again, NO_DEVICE))).toMatchObject({ phase: "restart", attempt: 2 });
+  });
+
+  test("result: install, with the confidence", () => {
+    expect(toScreen(atResult())).toEqual({ screen: "result", op: "install", watch: VENU2_INFO, confidence: "confirmed" });
+  });
+
+  test("check: answers, phone page and marks as the core gives them", () => {
+    let state = act(atResult(), "check");
+    expect(toScreen(state)).toEqual({
+      screen: "check",
+      watch: VENU2_INFO,
+      step: "send",
+      answers: { views: [] },
+      phone: null,
+      markPictures: [],
+    });
+    const page = { url: "https://lubaretsi.github.io/georgian-for-garmin/?lang=en", qr: "data:image/svg+xml;base64,AA" };
+    const mark = { part: "006-D9035-01", kind: "bitmap" as const, variant: "A", style: "bar", picture: "data:image/png;base64,AA" };
+    state = reduce(state, { type: "phone_loaded", lang: "en", page });
+    state = reduce(state, { type: "marks_loaded", marks: [mark] });
+    state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "boxes", views: [] } });
+    expect(toScreen(state)).toMatchObject({
+      step: "answer",
+      answers: { result: "boxes", views: [] },
+      phone: { url: page.url, qr: page.qr },
+      markPictures: [{ variant: "A", picture: mark.picture }],
+    });
+  });
+
+  test("outcome: kind, restarts, shared before", () => {
+    let state = act(act(atResult(), "check"), "send_test_done");
+    state = act(act(state, "answer", { action: "answer", answers: { result: "boxes", views: [] } }), "done");
+    expect(toScreen(state)).toEqual({
+      screen: "outcome",
+      watch: VENU2_INFO,
+      kind: "didnt_show",
+      restarts: 1,
+      sharedBefore: false,
+    });
+  });
+
+  test("share: summary in the state's language, the report text, the state and thanks", () => {
+    let state = act(act(atResult(), "check"), "send_test_done");
+    state = act(state, "answer", { action: "answer", answers: { result: "georgian", views: ["popup", "list"], phone: "android" } });
+    state = act(act(state, "done"), "share", { action: "share", what: "result" });
+    const link = output("venu2", "issue_link-georgian", "issue_link");
+    state = reduce(state, { type: "link_ready", link });
+    expect(toScreen(state)).toEqual({
+      screen: "share",
+      watch: VENU2_INFO,
+      what: "result",
+      summary: [
+        { label: "Watch", value: "Venu 2" },
+        { label: "Software", value: "19.05" },
+        { label: "What the app installed", value: "4 fonts" },
+        { label: "What the watch showed", value: "Georgian letters" },
+        { label: "Where", value: "When the notification arrived and In the notification list" },
+        { label: "Phone", value: "Android" },
+        { label: "The watch's font list", value: expect.stringMatching(/^\d+ fonts$/) },
+      ],
+      reportText: link.report_text,
+      state: "ready",
+      thanks: null,
+    });
+    const opened = reduce(state, { type: "shared", shared: { complete: false, url: link.url } });
+    expect(toScreen(opened)).toMatchObject({ state: "opened_paste", thanks: "tested_next" });
+  });
+
+  test("share from connect has no watch", () => {
+    const busy = read(started(), failure("busy", "inspect-garmin_express-macos"));
+    const state = act(busy, "share", { action: "share", what: "problem" });
+    expect(toScreen(state)).toMatchObject({
+      screen: "share",
+      watch: null,
+      summary: [{ label: "What happened", value: "Garmin Express" }],
+      thanks: null,
+    });
+  });
+
+  test("error: code, rollback (what may be left) and detail", () => {
+    const fail = failure("venu2-write-fails", "install-rollback-incomplete");
+    const state = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: fail });
+    expect(toScreen(state)).toEqual({
+      screen: "error",
+      op: "install",
+      watch: VENU2_INFO,
+      code: "device_error",
+      rollback: { status: "incomplete", files: ["GARMIN/ExtData/006-D9035-02.tmp", "GARMIN/ExtData/006-D9035-01.tmp"] },
+      detail: fail.message,
+    });
+    const complete = failure("venu2-write-fails", "install-rollback-complete");
+    const undone = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: complete });
+    expect(toScreen(undone)).toMatchObject({ rollback: { status: "complete", files: complete.rollback?.files.map((f) => f.path) } });
+  });
+});
+
+describe("moreModel", () => {
+  test("no watch: nothing seen, no restore", () => {
+    expect(moreModel(started())).toEqual({ restorable: false, seen: null, reportText: null, version: "0.3.4" });
+  });
+
+  test("a watch: what the app sees, its report, restore", () => {
+    expect(moreModel(atWatch())).toEqual({
+      restorable: true,
+      seen: [
+        { label: "Model", value: "Venu 2" },
+        { label: "Part number", value: "006-B3703-00" },
+        { label: "Software", value: "19.05" },
+        { label: "What install writes", value: VENU2.packs.map((p) => p.name).join(", ") },
+        { label: "Font state", value: "not_installed" },
+      ],
+      reportText: VENU2.report.text,
+      version: "0.3.4",
+    });
+  });
+
+  test("Restore stays in More where the screen leads with Follow updates (issue 6)", () => {
+    expect(moreModel(read(started(), inspect("fenix6", "inspect"))).restorable).toBe(true);
+  });
+
+  test("no restore while writing", () => {
+    expect(moreModel(act(atWatch(), "install")).restorable).toBe(false);
+  });
+});
