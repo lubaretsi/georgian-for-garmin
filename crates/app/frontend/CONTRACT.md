@@ -180,14 +180,15 @@ export type ScreenModel =
 /** What the screen's buttons do. Screens emit these; only the flow acts on them. */
 export type ActionId =
   | "install" | "restore" | "confirm_restore" | "cancel" | "check" | "skip_verify"
-  | "send_test_done" | "answer" | "share" | "share_font_list" | "report_problem" | "open_issue"
+  | "send_test_done" | "answer" | "share" | "open_issue"
   | "restart_again" | "try_again" | "back" | "retry_now" | "done"
   | "copy_test_text" | "show_more" | "which_watches" | "help";
 
 /** Extra data some actions carry; every other action carries none. */
 export type ActionPayload =
   | { action: "answer"; answers: Answers }   // the whole answer set after a change
-  | { action: "share"; what: "result" | "font_list" | "problem" };
+  | { action: "share"; what: "result" | "font_list" | "problem" }; // the only way to share:
+  // "Share the font list" and "Report this problem" are `share` with that `what`.
 
 /** The More sheet: the flow supplies the data, the shell draws it. */
 export type MoreModel = {

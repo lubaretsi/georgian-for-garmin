@@ -165,6 +165,9 @@
             clippy
             cargo-tauri
             pkg-config
+            # The app's frontend (crates/app/frontend): Vite, Storybook and Vitest.
+            nodejs
+            pnpm
           ];
           # Tauri's Linux backend (GTK and WebKitGTK), to build and test the app on Linux.
           buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
