@@ -22,7 +22,7 @@ export const SearchingWithHelp: ScreenStoryObj = {
 
 // Busy: each holder kind × platform. Holders come from the core's busy fixtures; the
 // combinations no fixture has reuse the same kind's holder as that platform reports it.
-const busy = (b: BusyView) => ({ screen: "connect", mode: "busy", busy: b }) as const;
+const busy = (b: BusyView, duringRestart = false) => ({ screen: "connect", mode: "busy", busy: b, duringRestart }) as const;
 const express = busyFrom("inspect-garmin_express-macos");
 const expressWindows = busyFrom("inspect-garmin_express-windows");
 const camera = busyFrom("inspect-macos_camera_service-macos");
@@ -53,6 +53,8 @@ export const BusyOtherLinux: ScreenStoryObj = { args: { platform: "linux", model
 export const BusyUnknownMacos: ScreenStoryObj = { args: { platform: "macos", model: busy(unknown) } };
 export const BusyUnknownWindows: ScreenStoryObj = { args: { platform: "windows", model: busy(unknown) } };
 export const BusyUnknownLinux: ScreenStoryObj = { args: { platform: "linux", model: busy(unknown) } };
+/** Garmin Express takes the watch while the app waits for it after a restart. */
+export const BusyDuringRestart: ScreenStoryObj = { args: { platform: "macos", model: busy(express, true) } };
 
 const problem = (p: "permission_denied" | "multiple_devices" | "garmin_folder_not_found" | "extdata_not_found" | "device_error" | "internal", detail: string) =>
   ({ screen: "connect", mode: "problem", problem: p, detail }) as const;

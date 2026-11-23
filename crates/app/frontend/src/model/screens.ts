@@ -26,9 +26,9 @@ export type RollbackView = { status: "complete" | "incomplete"; files: string[] 
 
 export type ScreenModel =
   | { screen: "connect"; mode: "searching"; showHelp: boolean }
-  | { screen: "connect"; mode: "busy"; busy: BusyView }
+  | { screen: "connect"; mode: "busy"; busy: BusyView; duringRestart: boolean } // duringRestart: the step indicator stays on Restart
   | { screen: "connect"; mode: "problem"; problem: ConnectProblem; detail: string }
-  | { screen: "drive"; watch: WatchInfo; driveOnly: boolean; issue: number | null; reportWanted: boolean; sharedBefore: boolean }
+  | { screen: "drive"; watch: WatchInfo; driveOnly: boolean; issue: number | null; reportWanted: boolean; sharedBefore: boolean; duringRestart: boolean }
   | { screen: "watch"; watch: WatchInfo; verdict: Verdict; issue: number | null; reportWanted: boolean; sharedBefore: boolean }
   | { screen: "confirm_restore"; watch: WatchInfo }
   | { screen: "working"; op: Op; watch: WatchInfo; progress: { done: number; total: number } | null }

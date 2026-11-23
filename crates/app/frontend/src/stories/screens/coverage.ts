@@ -24,10 +24,12 @@ export const REQUIRED: string[] = [
   "connect/searching",
   "connect/searching/help",
   ...HOLDERS.flatMap((kind) => PLATFORMS.map((p) => `connect/busy/${kind}/${p}`)),
+  "connect/busy/during_restart",
   ...PROBLEMS.map((p) => `connect/problem/${p}`),
   // drive: switch to MTP, drive-only
   "drive/mtp",
   "drive/drive_only",
+  "drive/during_restart",
   // watch: every verdict, every confidence, every note
   "watch/install",
   "watch/installed",
@@ -88,13 +90,16 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
         case "searching":
           return [model.showHelp ? "connect/searching/help" : "connect/searching"];
         case "busy":
-          return [`connect/busy/${model.busy.kind}/${platform}`];
+          return [
+            `connect/busy/${model.busy.kind}/${platform}`,
+            ...(model.duringRestart ? ["connect/busy/during_restart"] : []),
+          ];
         case "problem":
           return [`connect/problem/${model.problem}`];
       }
       return [];
     case "drive":
-      return [model.driveOnly ? "drive/drive_only" : "drive/mtp"];
+      return [model.driveOnly ? "drive/drive_only" : "drive/mtp", ...(model.duringRestart ? ["drive/during_restart"] : [])];
     case "watch": {
       const v = model.verdict;
       switch (v.kind) {

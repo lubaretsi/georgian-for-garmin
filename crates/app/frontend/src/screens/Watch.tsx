@@ -25,7 +25,8 @@ export function DriveScreen(model: Drive, ctx: ScreenContext): ScreenView {
   const offer = fontListOffer(ctx, model);
   const follow = model.driveOnly && model.issue !== null;
   return {
-    step: "connect",
+    // Back as a drive while the app follows a restart: the journey stays on Restart.
+    step: model.duringRestart ? "restart" : "connect",
     title: fmt(d.title, { model: model.watch.model }),
     illustration: { icon: "cable", tone: model.driveOnly ? "muted" : "accent" },
     status: model.driveOnly ? undefined : d.mtp.waiting,
@@ -42,6 +43,7 @@ export function DriveScreen(model: Drive, ctx: ScreenContext): ScreenView {
           <p>{d.mtp.how}</p>
         </Notice>
         <Waiting>{d.mtp.waiting}</Waiting>
+        {model.duringRestart ? <p>{d.duringRestart}</p> : null}
         {offer.line ? <p className="muted">{offer.line}</p> : null}
       </>
     ),

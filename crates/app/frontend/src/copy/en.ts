@@ -159,6 +159,8 @@ export const en = {
         },
       },
       retrying: "The app tries again every few seconds.",
+      /** Busy while the app follows a restart. */
+      duringRestart: "Once the watch is free, the app goes on checking the restart.",
     },
     problem: {
       permission_denied: {
@@ -189,6 +191,8 @@ export const en = {
   },
 
   drive: {
+    /** In drive mode while the app follows a restart. */
+    duringRestart: "Once the watch connects over MTP, the app goes on checking the restart.",
     title: "Your {model} is connected as a USB drive",
     mtp: {
       body: "The app can add Georgian only when the watch connects in its other mode, MTP, which shares its files with the computer.",

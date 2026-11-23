@@ -105,7 +105,13 @@ const NEVER_WORDS: RegExp[] = [
 ];
 
 /** "MTP" only where the watch shows it, with an explanation (§2.3). */
-const MTP_KEYS = new Set(["connect.help.replug", "drive.mtp.body", "drive.mtp.how", "more.help.mtp"]);
+const MTP_KEYS = new Set([
+  "connect.help.replug",
+  "drive.mtp.body",
+  "drive.mtp.how",
+  "drive.duringRestart", // on the drive screen, under drive.mtp.body's explanation
+  "more.help.mtp",
+]);
 
 describe("plain words in the main flow (§2.3, §7)", () => {
   for (const lang of ["ka", "en"] as const) {

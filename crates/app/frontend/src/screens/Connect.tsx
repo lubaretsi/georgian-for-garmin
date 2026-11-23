@@ -90,7 +90,8 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
   const { program, cut } = programName(ctx.copy, ctx.platform, model.busy);
   const steps = b.steps[model.busy.kind][ctx.platform];
   return {
-    step: "connect",
+    // Busy while the app follows a restart: the journey stays on Restart.
+    step: model.duringRestart ? "restart" : "connect",
     title: fmt(model.busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program }),
     illustration: { icon: "watch", tone: "muted" },
     content: (
@@ -107,6 +108,7 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
           <p>{steps[0]}</p>
         )}
         <Waiting>{b.retrying}</Waiting>
+        {model.duringRestart ? <p>{b.duringRestart}</p> : null}
       </>
     ),
     primary: emitting(ctx, ctx.copy.actions.tryAgainNow, "retry_now"),
