@@ -7,6 +7,7 @@
 //! `inspect_drive` reads a watch that connects as a USB drive instead, and `issue_link` makes
 //! the link that shares a watch report in a GitHub issue (`report`).
 
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
@@ -19,12 +20,14 @@ use crate::error::{Error, ErrorCode};
 use crate::extdata::{self, ExtData, FoundBy, Layout, Object};
 use crate::fonts::{Content, Font, FontSet, Hosts, Kind, Listed, Pack, sha256_hex};
 use crate::garmin_device::{self, GarminDevice};
+use crate::listing;
 use crate::mtp::{CreateError, Mtp, MtpError};
 use crate::ptp::{self, ObjectInfo, op};
 use crate::report::{
     self, Connection, HiddenFile, HiddenListing, HiddenStatus, IssueLink, IssueLinkInput,
     ListedFile, ReportInput, ReportedHosts, ReportedPart, WatchReport,
 };
+use crate::session::{self, Control, Session};
 use crate::support::{self, Support};
 
 /// This program's version, as reported in the watch report.
@@ -455,7 +458,9 @@ impl Operation {
 // Garmin's original or this build's Georgian one, both of which restore_stock and install can
 // write back. Repeating either returns `already_staged`. `inspect_drive` only reads a mounted
 // volume, and `issue_link` computes a link from its input without touching anything.
-pub static OPERATIONS: [Operation; 5] = [
+// `extdata_list` and `wait_for_watch` only read; `extdata_list` writes a local file only when
+// asked to.
+static OPERATIONS: [Operation; 7] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
@@ -552,78 +557,175 @@ pub static OPERATIONS: [Operation; 5] = [
         input: || schema_for!(IssueLinkInput),
         output: || schema_for!(IssueLink),
     },
+    Operation {
+        name: "extdata_list",
+        title: "List the watch's ExtData folder",
+        description: "List every file in the watch's hidden GARMIN/ExtData folder: the normal \
+                      MTP listing plus, when the watch lists Garmin's GetObjectIds (0x9002), the \
+                      files it leaves out there (on the Venu 2 the read-only fonts it imported), \
+                      each with its name, handle, size, whether it is hidden and whether the \
+                      watch marks it read-only. hash names files to read and give a SHA-256 for \
+                      (the watch sends their whole contents; hashes are kept for the session). \
+                      The list is sorted by name and pages with offset and limit; output_file \
+                      writes the whole list to a local JSON file instead. Read-only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(listing::ExtdataListInput),
+        output: || schema_for!(listing::ExtdataListOutput),
+    },
+    Operation {
+        name: "wait_for_watch",
+        title: "Wait for the watch",
+        description: "Wait until a Garmin watch in MTP mode can be opened, for example after it \
+                      was unplugged and restarted, checking twice a second for up to \
+                      timeout_seconds. Returns at once when the session already holds a working \
+                      connection. Other failures than no watch (device_busy, permission_denied, \
+                      multiple_devices) end the wait with that error. Reports progress and stops \
+                      on cancellation. Read-only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(session::WaitInput),
+        output: || schema_for!(session::WaitOutput),
+    },
 ];
 
+// Development operations, only in builds with the `dev` feature (debug builds only): reading a
+// file to the computer, staging any file under a part the watch declares, and removing only
+// what this tool staged.
+#[cfg(feature = "dev")]
+static DEV_OPERATIONS: [Operation; 3] = [
+    Operation {
+        name: "read_file",
+        title: "Read a file from ExtData (dev)",
+        description: "Copy one file from the watch's GARMIN/ExtData folder (normal or hidden \
+                      listing, by name) to a new local file at path; an existing local file is \
+                      never overwritten. Returns its size and SHA-256. Development builds only. \
+                      Reads the watch only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::dev::ReadFileInput),
+        output: || schema_for!(crate::dev::ReadFileOutput),
+    },
+    Operation {
+        name: "stage_file",
+        title: "Stage a local file in ExtData (dev)",
+        description: "Write the local file source as GARMIN/ExtData/<name>, where name is \
+                      <part>.tmp for a part the watch declares under Garmin/ExtData, as \
+                      006-D8448-70.tmp or its short form D844870.tmp, and read it back by \
+                      SHA-256. Every existing file for that part is checked first, like install: \
+                      a file under name is replaced only when it is identical (already_staged), \
+                      Garmin's original or this build's Georgian font (by content), one this tool \
+                      staged, or has a SHA-256 in garmin_sha256; an imported <part>.fnt must be \
+                      one of those too, and another waiting .tmp for the part is a conflict. A \
+                      failed write is undone. dry_run checks everything and writes nothing. The \
+                      returned id, logged on this computer, is what remove_staged takes. Reports \
+                      progress and stops on cancellation. Development builds only.",
+        read_only: false,
+        destructive: true,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::dev::StageFileInput),
+        output: || schema_for!(crate::dev::StageFileOutput),
+    },
+    Operation {
+        name: "remove_staged",
+        title: "Remove a staged file (dev)",
+        description: "Delete the file stage_file staged under id, from any session: only while \
+                      the watch's file under that name still has the staged SHA-256 (otherwise \
+                      conflict, nothing deleted). not_found when it is gone, for example imported \
+                      at a restart; already_removed when this tool removed it before. Development \
+                      builds only.",
+        read_only: false,
+        destructive: true,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::dev::RemoveStagedInput),
+        output: || schema_for!(crate::dev::RemoveStagedOutput),
+    },
+];
+
+#[cfg(not(feature = "dev"))]
+static DEV_OPERATIONS: [Operation; 0] = [];
+
+/// Every operation this build has, in order: development ones only with the `dev` feature.
+pub fn operations() -> impl Iterator<Item = &'static Operation> {
+    OPERATIONS.iter().chain(DEV_OPERATIONS.iter())
+}
+
 pub fn operation(name: &str) -> Option<&'static Operation> {
-    OPERATIONS.iter().find(|o| o.name == name)
+    operations().find(|o| o.name == name)
 }
 
 /// `{"tools": [...]}`, as MCP's `tools/list` returns them.
 pub fn tools() -> Value {
-    json!({"tools": OPERATIONS.iter().map(Operation::tool).collect::<Vec<_>>()})
+    json!({"tools": operations().map(Operation::tool).collect::<Vec<_>>()})
 }
 
 /// Opens a session with the watch.
 pub type Connect<'a> = dyn FnMut() -> Result<Box<dyn Mtp>, Error> + 'a;
 
-/// Runs operation `name` with JSON `input`. Input is validated before the watch is touched;
-/// output is validated before it is returned.
+/// Runs operation `name` with JSON `input`, opening the watch for this call only. Input is
+/// validated before the watch is touched; output is validated before it is returned.
 pub fn call(
     name: &str,
     input: Value,
     fonts: &FontSet,
     connect: &mut Connect<'_>,
 ) -> Result<Value, Error> {
-    let op = operation(name).ok_or_else(|| {
+    Session::one_shot(Cow::Borrowed(fonts), Box::new(connect)).call(name, input, &Control::NONE)
+}
+
+/// Operation `name`, or `invalid_input` naming it.
+pub(crate) fn known(name: &str) -> Result<&'static Operation, Error> {
+    operation(name).ok_or_else(|| {
         Error::new(
             ErrorCode::InvalidInput,
             format!("unknown operation {name:?}"),
         )
-    })?;
-    check(&op.input_schema(), &input).map_err(|m| Error::new(ErrorCode::InvalidInput, m))?;
-    let output = match name {
-        "inspect" => {
-            let InspectInput {} = parse(input)?;
-            to_value(inspect(&mut *connect()?, fonts)?)
-        }
-        "inspect_drive" => {
-            let InspectDriveInput { path } = parse(input)?;
-            to_value(inspect_drive(path.as_deref(), fonts)?)
-        }
-        "issue_link" => {
-            let input: IssueLinkInput = parse(input)?;
-            to_value(report::issue_link(&input)?)
-        }
-        _ => {
-            let StageInput { parts } = parse(input)?;
-            let variant = if name == "install" {
-                Variant::Georgian
-            } else {
-                Variant::Stock
-            };
-            if let Some(part) = parts.iter().flatten().find(|p| !fonts.has_part(p)) {
-                return Err(Error::new(
-                    ErrorCode::FontUnavailable,
-                    format!("This build has no font part {part}."),
-                ));
-            }
-            to_value(stage(&mut *connect()?, fonts, variant, parts.as_ref())?)
-        }
-    }?;
-    check(&op.output_schema(), &output).map_err(|m| {
-        Error::new(
-            ErrorCode::Internal,
-            format!("{name} produced invalid output: {m}"),
-        )
-    })?;
-    Ok(output)
+    })
 }
 
-fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T, Error> {
+/// The `parts` of install and restore_stock, checked against this build.
+pub(crate) fn stage_parts(
+    input: Value,
+    fonts: &FontSet,
+) -> Result<Option<BTreeSet<String>>, Error> {
+    let StageInput { parts } = parse(input)?;
+    if let Some(part) = parts.iter().flatten().find(|p| !fonts.has_part(p)) {
+        return Err(Error::new(
+            ErrorCode::FontUnavailable,
+            format!("This build has no font part {part}."),
+        ));
+    }
+    Ok(parts)
+}
+
+/// Checks `input` against `op`'s input schema.
+pub(crate) fn validate_input(op: &Operation, input: &Value) -> Result<(), Error> {
+    check(&op.input_schema(), input).map_err(|m| Error::new(ErrorCode::InvalidInput, m))
+}
+
+/// Checks `output` against `op`'s output schema.
+pub(crate) fn validate_output(op: &Operation, output: &Value) -> Result<(), Error> {
+    check(&op.output_schema(), output).map_err(|m| {
+        Error::new(
+            ErrorCode::Internal,
+            format!("{} produced invalid output: {m}", op.name),
+        )
+    })
+}
+
+pub(crate) fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T, Error> {
     serde_json::from_value(input).map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()))
 }
 
-fn to_value<T: Serialize>(value: T) -> Result<Value, Error> {
+pub(crate) fn to_value<T: Serialize>(value: T) -> Result<Value, Error> {
     serde_json::to_value(value).map_err(|e| Error::new(ErrorCode::Internal, e.to_string()))
 }
 
@@ -654,7 +756,7 @@ fn check(schema: &Value, instance: &Value) -> Result<(), String> {
     }
 }
 
-fn hex_handle(handle: u32) -> String {
+pub(crate) fn hex_handle(handle: u32) -> String {
     format!("{handle:#010x}")
 }
 
@@ -666,7 +768,7 @@ const WRITE_OPERATIONS: [u16; 4] = [
     op::DELETE_OBJECT,
 ];
 
-fn missing_write_operations(dev: &mut dyn Mtp) -> Result<Vec<&'static str>, Error> {
+pub(crate) fn missing_write_operations(dev: &mut dyn Mtp) -> Result<Vec<&'static str>, Error> {
     let info = dev.device_info()?;
     Ok(WRITE_OPERATIONS
         .iter()
@@ -675,7 +777,10 @@ fn missing_write_operations(dev: &mut dyn Mtp) -> Result<Vec<&'static str>, Erro
         .collect())
 }
 
-fn read_garmin_device(dev: &mut dyn Mtp, layout: &Layout) -> Result<GarminDevice, Error> {
+pub(crate) fn read_garmin_device(
+    dev: &mut dyn Mtp,
+    layout: &Layout,
+) -> Result<GarminDevice, Error> {
     let handle = layout.garmin_device_xml.ok_or_else(|| {
         Error::new(
             ErrorCode::GarminFolderNotFound,
@@ -692,6 +797,10 @@ fn staged_in<'a>(ext: &'a ExtData, font: &Font) -> Vec<&'a Object> {
         .iter()
         .filter(|o| o.info.filename.eq_ignore_ascii_case(&name))
         .collect()
+}
+
+pub(crate) fn extdata_path(name: &str) -> String {
+    format!("GARMIN/ExtData/{name}")
 }
 
 fn staged_path(font: &Font) -> String {
@@ -1211,7 +1320,7 @@ pub fn inspect_drive(
 }
 
 /// Deletes the object this run created after a failed transfer and says so in `cause`.
-fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
+pub(crate) fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
     let message = match dev.delete_object(handle) {
         Ok(()) => format!(
             "{}. A new object was created as {path} ({}) and has been deleted.",
@@ -1229,7 +1338,7 @@ fn discard(dev: &mut dyn Mtp, handle: u32, path: &str, cause: Error) -> Error {
 }
 
 /// The objects in `parent` named `name` (case-insensitively), from a fresh listing.
-fn named_objects(
+pub(crate) fn named_objects(
     dev: &mut dyn Mtp,
     storage: u32,
     parent: u32,
@@ -1274,17 +1383,17 @@ fn discard_unconfirmed(
         .fold(cause, |cause, handle| discard(dev, handle, path, cause))
 }
 
-/// Writes `bytes` as `font`'s file in `ExtData`, which holds none under that name, and reads it
+/// Writes `bytes` as `name` in `ExtData`, which holds no file under that name, and reads it
 /// back. On failure the new object is deleted and the error says how that went.
-fn write_verified(
+pub(crate) fn write_verified(
     dev: &mut dyn Mtp,
     storage: u32,
     ext: &ExtData,
-    font: &Font,
+    name: &str,
     bytes: &[u8],
 ) -> Result<u32, Error> {
-    let name = font.file_name();
-    let path = staged_path(font);
+    let name = name.to_owned();
+    let path = extdata_path(&name);
     let size = u32::try_from(bytes.len()).map_err(|_| {
         Error::new(
             ErrorCode::Internal,
@@ -1339,27 +1448,27 @@ fn write_verified(
 }
 
 /// A change a failed call undoes.
-enum Undo<'a> {
+pub(crate) enum Undo {
     /// A file this call created (a bitmap part's `.tmp`, or a `.bin` where the normal listing
     /// showed none): deleted.
     Created { handle: u32, path: String },
-    /// A file this call set out to replace: `original`, read from the watch before anything was
-    /// written, is put back.
-    Replaced { font: &'a Font, original: Vec<u8> },
+    /// The file `name` this call set out to replace: `original`, read from the watch before
+    /// anything was written, is put back.
+    Replaced { name: String, original: Vec<u8> },
 }
 
-/// Puts `font`'s file back as it was before this call: `original`. A single file already
+/// Puts the file `name` back as it was before this call: `original`. A single file already
 /// holding it is left alone; anything else under the name is deleted first, and `original` is
 /// written and read back. Returns what happened, for the error.
 fn restore_original(
     dev: &mut dyn Mtp,
     storage: u32,
     ext: &ExtData,
-    font: &Font,
+    name: &str,
     original: &[u8],
 ) -> String {
-    let path = staged_path(font);
-    let current = match named_objects(dev, storage, ext.handle, &font.file_name()) {
+    let path = extdata_path(name);
+    let current = match named_objects(dev, storage, ext.handle, name) {
         Ok(current) => current,
         Err(e) => {
             return format!(
@@ -1380,7 +1489,7 @@ fn restore_original(
             );
         }
     }
-    match write_verified(dev, storage, ext, font, original) {
+    match write_verified(dev, storage, ext, name, original) {
         Ok(handle) => format!(
             "{path} written back from the original and verified ({})",
             hex_handle(handle)
@@ -1391,11 +1500,11 @@ fn restore_original(
 
 /// After a part failed: undoes this run's changes, in order, and adds each result to `cause`.
 /// Files staged by earlier runs were never changed.
-fn roll_back(
+pub(crate) fn roll_back(
     dev: &mut dyn Mtp,
     storage: u32,
     ext: &ExtData,
-    undo: &[Undo<'_>],
+    undo: &[Undo],
     cause: Error,
 ) -> Error {
     if undo.is_empty() {
@@ -1415,9 +1524,9 @@ fn roll_back(
                     ),
                 }
             }
-            Undo::Replaced { font, original } => {
+            Undo::Replaced { name, original } => {
                 replaced = true;
-                restore_original(dev, storage, ext, font, original)
+                restore_original(dev, storage, ext, name, original)
             }
         });
     }
@@ -1464,6 +1573,57 @@ enum Refusal {
     RestoreFirst(String),
 }
 
+/// `ExtData`'s children the normal listing leaves out, from Garmin's `GetObjectIds` (0x9002).
+pub(crate) enum HiddenScan {
+    /// The watch doesn't list the operation.
+    Unsupported,
+    /// Asking failed, with why.
+    Failed(String),
+    /// The children with their info; `note` says why some info couldn't be read (those stay
+    /// unseen, like objects the watch doesn't list).
+    Listed {
+        objects: Vec<(u32, ObjectInfo)>,
+        note: Option<String>,
+    },
+}
+
+/// Reads `ExtData`'s hidden children: on the Venu 2 exactly the read-only imports. Folders and
+/// objects outside `ExtData` are left out.
+pub(crate) fn scan_hidden(dev: &mut dyn Mtp, storage: u32, ext: &ExtData) -> HiddenScan {
+    match dev.device_info() {
+        Ok(info)
+            if info
+                .operations_supported
+                .contains(&op::GARMIN_GET_OBJECT_IDS) => {}
+        Ok(_) => return HiddenScan::Unsupported,
+        Err(e) => return HiddenScan::Failed(short(e)),
+    }
+    let handles = match dev.garmin_object_ids(storage, ext.handle) {
+        Ok(handles) => handles,
+        Err(e) => return HiddenScan::Failed(short(e)),
+    };
+    let listed: BTreeSet<u32> = ext.files.iter().map(|o| o.handle).collect();
+    let mut objects = Vec::new();
+    let mut note = None;
+    for handle in handles.into_iter().collect::<BTreeSet<_>>() {
+        if listed.contains(&handle) {
+            continue;
+        }
+        match dev.object_info(handle) {
+            Ok(info)
+                if info.parent == ext.handle && info.storage_id == storage && !info.is_folder() =>
+            {
+                objects.push((handle, info));
+            }
+            Ok(_) => {}
+            Err(e) => {
+                note.get_or_insert_with(|| short(format!("{}: {e}", hex_handle(handle))));
+            }
+        }
+    }
+    HiddenScan::Listed { objects, note }
+}
+
 /// `ExtData`'s children the normal listing leaves out, with their info, when the watch lists
 /// Garmin's `GetObjectIds` (0x9002); `None` when it doesn't, or listing fails. On the Venu 2
 /// these are exactly the read-only imports.
@@ -1472,30 +1632,10 @@ fn hidden_objects(
     storage: u32,
     ext: &ExtData,
 ) -> Option<Vec<(u32, ObjectInfo)>> {
-    let info = dev.device_info().ok()?;
-    if !info
-        .operations_supported
-        .contains(&op::GARMIN_GET_OBJECT_IDS)
-    {
-        return None;
+    match scan_hidden(dev, storage, ext) {
+        HiddenScan::Listed { objects, .. } => Some(objects),
+        HiddenScan::Unsupported | HiddenScan::Failed(_) => None,
     }
-    let handles = dev.garmin_object_ids(storage, ext.handle).ok()?;
-    let listed: BTreeSet<u32> = ext.files.iter().map(|o| o.handle).collect();
-    let mut hidden = Vec::new();
-    for handle in handles.into_iter().collect::<BTreeSet<_>>() {
-        if listed.contains(&handle) {
-            continue;
-        }
-        // An object whose info can't be read stays unseen, like one the watch doesn't list.
-        if let Ok(info) = dev.object_info(handle)
-            && info.parent == ext.handle
-            && info.storage_id == storage
-            && !info.is_folder()
-        {
-            hidden.push((handle, info));
-        }
-    }
-    Some(hidden)
 }
 
 /// The name of the font the watch imported for `font`, which only the hidden listing shows: a
@@ -1618,11 +1758,14 @@ fn and_list(items: &[String]) -> String {
 
 /// Stages `variant` of every part of this build's packs that the watch lists, across all packs,
 /// or of `parts`: a bitmap part as a new `<part>.tmp`, a TrueType part over `<part>.bin`.
+/// `control` gets one progress step per part and can cancel between files: cancelled before
+/// the first write, nothing is written; after it, this call's changes are rolled back.
 pub fn stage(
     dev: &mut dyn Mtp,
     fonts: &FontSet,
     variant: Variant,
     parts: Option<&BTreeSet<String>>,
+    control: &Control<'_>,
 ) -> Result<StageOutput, Error> {
     let missing = missing_write_operations(dev)?;
     if !missing.is_empty() {
@@ -1726,6 +1869,7 @@ pub fn stage(
     let mut plans = Vec::with_capacity(targets.len());
     let (mut others, mut versions, mut restore_first) = (Vec::new(), Vec::new(), Vec::new());
     for (_, font) in &targets {
+        control.check_nothing_written()?;
         match plan(dev, ext, hidden.as_deref(), &device, font, variant)? {
             Ok(plan) => plans.push(plan),
             Err(Refusal::Other(path)) => others.push(path),
@@ -1780,14 +1924,24 @@ pub fn stage(
     }
 
     let storage = layout.storage;
-    let mut undo: Vec<Undo<'_>> = Vec::new();
+    let total = targets.len();
+    control.progress(0, total, &format!("Checked {total} files; writing"));
+    let mut undo: Vec<Undo> = Vec::new();
     let mut packs: Vec<StagedPack> = Vec::new();
-    for ((pack, font), plan) in targets.into_iter().zip(plans) {
+    for (done, ((pack, font), plan)) in targets.into_iter().zip(plans).enumerate() {
+        if let Err(cause) = control.check_nothing_written() {
+            let cause = if undo.is_empty() {
+                cause
+            } else {
+                Error::new(ErrorCode::Cancelled, "Cancelled.")
+            };
+            return Err(roll_back(dev, storage, ext, &undo, cause));
+        }
         let bytes = variant.bytes(font);
         let path = staged_path(font);
         let (status, handle) = match plan {
             Plan::Already(handle) => (StageStatus::AlreadyStaged, handle),
-            Plan::Create => match write_verified(dev, storage, ext, font, bytes) {
+            Plan::Create => match write_verified(dev, storage, ext, &font.file_name(), bytes) {
                 Ok(handle) => {
                     undo.push(Undo::Created {
                         handle,
@@ -1798,7 +1952,10 @@ pub fn stage(
                 Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
             },
             Plan::Replace { existing, original } => {
-                undo.push(Undo::Replaced { font, original });
+                undo.push(Undo::Replaced {
+                    name: font.file_name(),
+                    original,
+                });
                 let deleted = dev.delete_object(existing).map_err(|e| {
                     let e = Error::from(e);
                     Error::new(
@@ -1810,12 +1967,19 @@ pub fn stage(
                         ),
                     )
                 });
-                match deleted.and_then(|()| write_verified(dev, storage, ext, font, bytes)) {
+                match deleted
+                    .and_then(|()| write_verified(dev, storage, ext, &font.file_name(), bytes))
+                {
                     Ok(handle) => (StageStatus::StagedVerified, handle),
                     Err(e) => return Err(roll_back(dev, storage, ext, &undo, e)),
                 }
             }
         };
+        let word = match status {
+            StageStatus::AlreadyStaged => "already staged",
+            StageStatus::StagedVerified => "staged and verified",
+        };
+        control.progress(done + 1, total, &format!("{path}: {word}"));
         if packs.last().is_none_or(|p| p.id != pack.id) {
             packs.push(StagedPack {
                 id: pack.id.clone(),

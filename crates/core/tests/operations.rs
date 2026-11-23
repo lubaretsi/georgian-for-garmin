@@ -2015,19 +2015,40 @@ fn tool_definitions_follow_the_schemas() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        names,
-        [
-            "inspect",
-            "install",
-            "restore_stock",
-            "inspect_drive",
-            "issue_link"
-        ]
-    );
-    for pure in &tools["tools"].as_array().unwrap()[3..] {
+    let mut expected = vec![
+        "inspect",
+        "install",
+        "restore_stock",
+        "inspect_drive",
+        "issue_link",
+        "extdata_list",
+        "wait_for_watch",
+    ];
+    if cfg!(feature = "dev") {
+        expected.extend(["read_file", "stage_file", "remove_staged"]);
+    }
+    assert_eq!(names, expected);
+    for pure in &tools["tools"].as_array().unwrap()[3..7] {
         assert_eq!(pure["annotations"]["readOnlyHint"], true);
         assert_eq!(pure["annotations"]["destructiveHint"], false);
+    }
+    for tool in tools["tools"].as_array().unwrap() {
+        assert_eq!(
+            tool["inputSchema"]["additionalProperties"], false,
+            "{}",
+            tool["name"]
+        );
+        assert_eq!(tool["outputSchema"]["type"], "object", "{}", tool["name"]);
+        assert_eq!(tool["annotations"]["openWorldHint"], false);
+    }
+    if cfg!(feature = "dev") {
+        let stage = &tools["tools"][8];
+        assert_eq!(stage["annotations"]["destructiveHint"], true);
+        let input = &stage["inputSchema"]["properties"];
+        assert!(input["name"]["pattern"].is_string(), "{input}");
+        assert_eq!(input["garmin_sha256"]["items"]["pattern"], "^[0-9a-f]{64}$");
+        assert_eq!(tools["tools"][7]["annotations"]["readOnlyHint"], true);
+        assert_eq!(tools["tools"][9]["annotations"]["destructiveHint"], true);
     }
     let install = &tools["tools"][1];
     let parts = &install["inputSchema"]["properties"]["parts"];

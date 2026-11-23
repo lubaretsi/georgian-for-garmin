@@ -6,8 +6,8 @@
 |---|---|
 | `fonts/registry.json` | Garmin font packs that get Georgian: parts, download URLs, SHA-256s, tested watches, and the support list of every known watch model ([how to add one](../fonts/README.md)) |
 | `builder/` | Python font builder: decodes Garmin's font format, adds Georgian, writes the asset folder |
-| `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`), the watch's font list, the hidden-folder search, and MTP over USB |
-| `crates/cli` | The `georgian-for-garmin` command |
+| `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`, `extdata_list`, …), sessions that keep the watch open (`session.rs`), the JSON-RPC loop (`rpc.rs`), the watch's font list, the hidden-folder search, and MTP over USB |
+| `crates/cli` | The `georgian-for-garmin` command, with its `rpc` and `mcp` (`mcp.rs`, the official Rust MCP SDK `rmcp`) sessions |
 | `crates/app` | The desktop app (Tauri 2; plain HTML, CSS and JavaScript in `ui/`, strings in `ui/strings.json`) |
 | `scripts/` | The release builds (macOS, Windows, Linux) |
 | `.github/workflows/` | `check.yml` on every push and pull request; `release.yml` on version tags and manual runs |
@@ -41,10 +41,25 @@ pinned hashes only after testing the new fonts on a watch.
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p georgian-for-garmin -- inspect
+cargo test -p georgian-for-garmin-core -p georgian-for-garmin --features dev   # the dev operations
 ```
 
 The core's tests run against an in-memory watch; no hardware is needed. To trace a real watch,
-set `GEORGIAN_FOR_GARMIN_TRACE=1`.
+set `GEORGIAN_FOR_GARMIN_TRACE=1`. `tests/support/fake.rs` in `crates/core` is a Venu 2 that can
+be unplugged and plugged back in; the session, `rpc` and `mcp` tests share it.
+
+Every operation is declared once in `crates/core/src/ops.rs`: JSON Schemas for its input and
+output, from the Rust types, and its read-only, destructive, idempotent and open-world hints. The
+one-shot commands, `rpc`, `mcp`, `--help --json` and the app all go through those declarations;
+a new operation needs its declaration, its branch in `crates/core/src/session.rs`, and a subcommand in
+`crates/cli`. The `rpc` and `mcp` protocols are described in
+[Command line](command-line.md#sessions-rpc-and-mcp).
+
+The cargo feature `dev` adds the development operations `read_file`, `stage_file` and
+`remove_staged` (`crates/core/src/dev.rs`): `cargo build -p georgian-for-garmin --features dev`.
+They write files of any content to a watch, so the feature only builds in debug: `--release`
+with it fails to compile, and the release scripts never enable it. The CLI tests check that a
+build without it lists none of them.
 
 ## Desktop app
 

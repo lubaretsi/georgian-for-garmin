@@ -1,5 +1,12 @@
-//! `georgian-for-garmin`: a thin CLI over the core operations.
+//! `georgian-for-garmin`: a thin CLI over the core operations, and its `rpc` and `mcp`
+//! sessions.
 
+#[cfg(test)]
+#[path = "../../core/tests/support/fake.rs"]
+mod fake;
+mod mcp;
+
+use std::borrow::Cow;
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
@@ -7,7 +14,8 @@ use std::process::ExitCode;
 use clap::error::ErrorKind;
 use clap::{Args, Parser, Subcommand};
 use georgian_for_garmin_core::fonts::FontSet;
-use georgian_for_garmin_core::{Error, ErrorCode, connect, ops, report};
+use georgian_for_garmin_core::session::{Session, Worker};
+use georgian_for_garmin_core::{Error, ErrorCode, connect, ops, report, rpc};
 use serde_json::{Map, Value, json};
 
 const EXAMPLES: &str = "\
@@ -20,10 +28,15 @@ Examples:
   echo '{\"parts\": [\"006-D9035-03\"]}' | georgian-for-garmin restore-stock --input -
   georgian-for-garmin inspect --report --json | jq '{report: ., answers: {result: \"georgian\"}}' \\
     | georgian-for-garmin issue-link --input -   # a prefilled GitHub issue link
+  georgian-for-garmin extdata-list --hash 006-D9035-03.fnt   # every ExtData file, hidden ones too
+  georgian-for-garmin wait-for-watch --timeout-seconds 120   # after a restart
+  echo '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"inspect\"}' | georgian-for-garmin rpc
+  georgian-for-garmin mcp                  # an MCP server on stdio
   georgian-for-garmin --help --json        # MCP tool definitions
 
 After install or restore-stock, disconnect the USB cable and restart the watch.
-Quit Garmin Express first; it holds the watch's USB connection.
+Quit Garmin Express first; it holds the watch's USB connection. rpc and mcp keep the watch open
+until they end.
 Set GEORGIAN_FOR_GARMIN_TRACE=1 to print each MTP container and USB transfer to stderr.";
 
 /// Install a Georgian-extended font on a Garmin watch over USB.
@@ -50,6 +63,25 @@ enum Command {
     InspectDrive(InspectDriveArgs),
     /// Print the GitHub link that files a watch report with the issue form filled in
     IssueLink(InputArgs),
+    /// List every file in the watch's ExtData folder, hidden ones included (read-only)
+    ExtdataList(ExtdataListArgs),
+    /// Wait until a watch can be opened, e.g. after a restart (read-only)
+    WaitForWatch(WaitArgs),
+    /// Copy one ExtData file to a new local file (development builds; reads the watch only)
+    #[cfg(feature = "dev")]
+    ReadFile(ReadFileArgs),
+    /// Stage a local file as ExtData/<part>.tmp and read it back (development builds)
+    #[cfg(feature = "dev")]
+    StageFile(StageFileArgs),
+    /// Delete a file stage-file staged, by its id (development builds)
+    #[cfg(feature = "dev")]
+    RemoveStaged(RemoveStagedArgs),
+    /// Serve the operations as JSON-RPC 2.0, one message per line on stdin and stdout, keeping
+    /// the watch open until stdin ends
+    Rpc,
+    /// Serve the operations as MCP tools on stdin and stdout, keeping the watch open until the
+    /// client disconnects
+    Mcp,
 }
 
 impl Command {
@@ -60,6 +92,15 @@ impl Command {
             Command::RestoreStock(_) => "restore_stock",
             Command::InspectDrive(_) => "inspect_drive",
             Command::IssueLink(_) => "issue_link",
+            Command::ExtdataList(_) => "extdata_list",
+            Command::WaitForWatch(_) => "wait_for_watch",
+            #[cfg(feature = "dev")]
+            Command::ReadFile(_) => "read_file",
+            #[cfg(feature = "dev")]
+            Command::StageFile(_) => "stage_file",
+            #[cfg(feature = "dev")]
+            Command::RemoveStaged(_) => "remove_staged",
+            Command::Rpc | Command::Mcp => unreachable!("sessions are served before operations"),
         }
     }
 
@@ -117,6 +158,89 @@ struct StageArgs {
     input: InputArgs,
 }
 
+#[derive(Args)]
+struct ExtdataListArgs {
+    /// Read these files and print their SHA-256s: names, comma-separated, e.g.
+    /// 006-D9035-03.fnt
+    #[arg(long, value_name = "NAME,...", value_delimiter = ',', num_args = 1..)]
+    hash: Vec<String>,
+
+    /// Files to skip, in name order [default: 0]
+    #[arg(long)]
+    offset: Option<u64>,
+
+    /// Files to list at most, 1 to 1000 [default: 200]
+    #[arg(long)]
+    limit: Option<u64>,
+
+    /// Write the whole list to this JSON file instead of printing a page
+    #[arg(long, value_name = "FILE")]
+    output_file: Option<String>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[derive(Args)]
+struct WaitArgs {
+    /// Seconds to wait at most, up to 3600; 0 checks once [default: 60]
+    #[arg(long, value_name = "SECONDS")]
+    timeout_seconds: Option<f64>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct ReadFileArgs {
+    /// The file's name in ExtData, from either listing
+    #[arg(long)]
+    name: Option<String>,
+
+    /// The local file to create; it must not exist
+    #[arg(long)]
+    path: Option<String>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct StageFileArgs {
+    /// The local file to stage
+    #[arg(long, value_name = "FILE")]
+    source: Option<String>,
+
+    /// The name in ExtData: <part>.tmp for a part the watch declares, e.g. 006-D8448-70.tmp or
+    /// D844870.tmp
+    #[arg(long)]
+    name: Option<String>,
+
+    /// Check everything and write nothing
+    #[arg(long)]
+    dry_run: bool,
+
+    /// SHA-256s of Garmin's own file for this part, comma-separated: such a file may be replaced
+    #[arg(long, value_name = "HEX,...", value_delimiter = ',', num_args = 1..)]
+    garmin_sha256: Vec<String>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[cfg(feature = "dev")]
+#[derive(Args)]
+struct RemoveStagedArgs {
+    /// The id stage-file printed
+    #[arg(long)]
+    id: Option<String>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
 fn invalid(message: impl Into<String>) -> Error {
     Error::new(ErrorCode::InvalidInput, message)
 }
@@ -148,25 +272,74 @@ fn build_input(input: &InputArgs, flags: Map<String, Value>) -> Result<Value, Er
     Ok(Value::Object(object))
 }
 
+/// `flags` with `name` set to `value` when it is given.
+fn flag(flags: &mut Map<String, Value>, name: &str, value: Option<Value>) {
+    if let Some(value) = value {
+        flags.insert(name.into(), value);
+    }
+}
+
 fn request(command: &Command) -> Result<Value, Error> {
-    match command {
-        Command::Inspect(args) => build_input(&args.input, Map::new()),
-        Command::IssueLink(input) => build_input(input, Map::new()),
+    let mut flags = Map::new();
+    let input = match command {
+        Command::Inspect(args) => &args.input,
+        Command::IssueLink(input) => input,
         Command::InspectDrive(args) => {
-            let mut flags = Map::new();
-            if let Some(path) = &args.path {
-                flags.insert("path".into(), json!(path));
-            }
-            build_input(&args.input, flags)
+            flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
+            &args.input
         }
         Command::Install(args) | Command::RestoreStock(args) => {
-            let mut flags = Map::new();
-            if !args.parts.is_empty() {
-                flags.insert("parts".into(), json!(args.parts));
-            }
-            build_input(&args.input, flags)
+            let parts = (!args.parts.is_empty()).then(|| json!(args.parts));
+            flag(&mut flags, "parts", parts);
+            &args.input
         }
-    }
+        Command::ExtdataList(args) => {
+            flag(
+                &mut flags,
+                "hash",
+                (!args.hash.is_empty()).then(|| json!(args.hash)),
+            );
+            flag(&mut flags, "offset", args.offset.map(|n| json!(n)));
+            flag(&mut flags, "limit", args.limit.map(|n| json!(n)));
+            let output_file = args.output_file.as_ref().map(|p| json!(p));
+            flag(&mut flags, "output_file", output_file);
+            &args.input
+        }
+        Command::WaitForWatch(args) => {
+            flag(
+                &mut flags,
+                "timeout_seconds",
+                args.timeout_seconds.map(|n| json!(n)),
+            );
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::ReadFile(args) => {
+            flag(&mut flags, "name", args.name.as_ref().map(|n| json!(n)));
+            flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::StageFile(args) => {
+            flag(&mut flags, "source", args.source.as_ref().map(|s| json!(s)));
+            flag(&mut flags, "name", args.name.as_ref().map(|n| json!(n)));
+            flag(
+                &mut flags,
+                "dry_run",
+                args.dry_run.then_some(Value::Bool(true)),
+            );
+            let garmin = (!args.garmin_sha256.is_empty()).then(|| json!(args.garmin_sha256));
+            flag(&mut flags, "garmin_sha256", garmin);
+            &args.input
+        }
+        #[cfg(feature = "dev")]
+        Command::RemoveStaged(args) => {
+            flag(&mut flags, "id", args.id.as_ref().map(|i| json!(i)));
+            &args.input
+        }
+        Command::Rpc | Command::Mcp => unreachable!("sessions are served before operations"),
+    };
+    build_input(input, flags)
 }
 
 fn text(value: &Value) -> &str {
@@ -216,6 +389,63 @@ fn print_human(operation: &str, out: &Value) {
             } else {
                 println!("Nothing can be installed while the watch is a USB drive; it needs MTP.");
             }
+            return;
+        }
+        "extdata_list" => return print_listing(out),
+        "wait_for_watch" => {
+            println!(
+                "{} can be opened (waited {:.1} s).",
+                text(&out["model"]),
+                out["waited_seconds"].as_f64().unwrap_or_default()
+            );
+            return;
+        }
+        "read_file" => {
+            println!(
+                "GARMIN/ExtData/{} ({} bytes, SHA-256 {}) copied to {}",
+                text(&out["name"]),
+                out["bytes"],
+                text(&out["sha256"]),
+                text(&out["path"])
+            );
+            return;
+        }
+        "stage_file" => {
+            let what = match text(&out["status"]) {
+                "staged_verified" => "written and verified",
+                "already_staged" => "already there",
+                _ => match text(&out["action"]) {
+                    "create" => "would be written (dry run)",
+                    "replace" => "would replace the file there (dry run)",
+                    _ => "already there (dry run)",
+                },
+            };
+            println!(
+                "{}: {what} ({} bytes, SHA-256 {})",
+                text(&out["path"]),
+                out["bytes"],
+                text(&out["sha256"])
+            );
+            if let Some(replaced) = out["replaces"].as_object() {
+                println!(
+                    "Replaces {} (SHA-256 {}, {}).",
+                    text(&replaced["name"]),
+                    text(&replaced["sha256"]),
+                    text(&replaced["identified_as"])
+                );
+            }
+            if let Some(id) = out["id"].as_str() {
+                println!("Id: {id} (georgian-for-garmin remove-staged --id {id})");
+            }
+            return;
+        }
+        "remove_staged" => {
+            let what = match text(&out["status"]) {
+                "removed" => "deleted",
+                "already_removed" => "was deleted before",
+                _ => "is not on the watch",
+            };
+            println!("{} ({}) {what}.", text(&out["path"]), text(&out["id"]));
             return;
         }
         _ => {}
@@ -357,6 +587,45 @@ fn print_human(operation: &str, out: &Value) {
     }
 }
 
+/// `extdata_list` as a table.
+fn print_listing(out: &Value) {
+    let ext = &out["extdata"];
+    println!(
+        "ExtData folder: {} on storage {} (found by {}); {} file(s); hidden listing: {}",
+        text(&ext["handle"]),
+        text(&ext["storage_id"]),
+        text(&ext["found_by"]).replace('_', " "),
+        out["total"],
+        text(&out["hidden_listing"]),
+    );
+    if let Some(note) = out["note"].as_str() {
+        println!("Note: {note}");
+    }
+    if let Some(path) = out["output_file"].as_str() {
+        println!("Wrote the list to {path}.");
+    }
+    for file in items(&out["files"]) {
+        let flags = [
+            (file["hidden"] == true).then_some("hidden"),
+            (file["read_only"] == true).then_some("read-only"),
+        ];
+        let flags: Vec<&str> = flags.into_iter().flatten().collect();
+        println!(
+            "  {:<24} {:>10}  {:<18} {}",
+            text(&file["name"]),
+            file["bytes"],
+            flags.join(", "),
+            file["sha256"].as_str().unwrap_or_default()
+        );
+    }
+    if let Some(next) = out["next_offset"].as_u64() {
+        println!("More: --offset {next}");
+    }
+    for name in items(&out["hash_not_found"]) {
+        println!("No file named {}", text(name));
+    }
+}
+
 /// `inspect`'s `support` in a sentence, with the issue to follow.
 fn support_words(support: &Value) -> String {
     let mut line = match text(&support["status"]) {
@@ -409,17 +678,40 @@ fn print_json(value: &Value) {
 
 /// `--help --json`: MCP tool definitions, for one subcommand if one is named.
 fn tool_help(args: &[OsString]) -> Value {
-    let named = args.iter().skip(1).find_map(|a| match a.to_str()? {
-        "inspect" => Some("inspect"),
-        "install" => Some("install"),
-        "restore-stock" => Some("restore_stock"),
-        "inspect-drive" => Some("inspect_drive"),
-        "issue-link" => Some("issue_link"),
-        _ => None,
-    });
-    match named.and_then(ops::operation) {
+    let named = args
+        .iter()
+        .skip(1)
+        .filter_map(|a| a.to_str())
+        .filter(|a| !a.starts_with('-'))
+        .find_map(|a| ops::operation(&a.replace('-', "_")));
+    match named {
         Some(op) => json!({"tools": [op.tool()]}),
         None => ops::tools(),
+    }
+}
+
+/// A session that keeps the watch open between calls, on its own thread.
+fn worker() -> Worker {
+    Worker::spawn(|| Session::new(Cow::Owned(FontSet::bundled()), Box::new(connect)))
+}
+
+fn serve_mcp() -> ExitCode {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            eprintln!("error: cannot start the MCP server: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match runtime.block_on(mcp::serve(worker(), rmcp::transport::stdio())) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
@@ -451,6 +743,14 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    match cli.command {
+        Command::Rpc => {
+            rpc::serve(io::stdin().lock(), io::stdout(), worker());
+            return ExitCode::SUCCESS;
+        }
+        Command::Mcp => return serve_mcp(),
+        _ => {}
+    }
     let operation = cli.command.operation();
     let report_only = cli.command.report_only();
     let result = request(&cli.command)

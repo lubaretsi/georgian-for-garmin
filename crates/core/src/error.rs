@@ -44,6 +44,9 @@ pub enum ErrorCode {
     DeviceError,
     /// A bug: the operation produced output that violates its own schema.
     Internal,
+    /// The caller cancelled the call (`notifications/cancelled` in `rpc` and `mcp`). Files a
+    /// write had already changed were rolled back.
+    Cancelled,
 }
 
 impl ErrorCode {
@@ -63,6 +66,7 @@ impl ErrorCode {
             ErrorCode::VerificationFailed => "verification_failed",
             ErrorCode::DeviceError => "device_error",
             ErrorCode::Internal => "internal",
+            ErrorCode::Cancelled => "cancelled",
         }
     }
 }

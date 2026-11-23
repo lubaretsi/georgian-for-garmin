@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 fn run(args: &[&str], stdin: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_georgian-for-garmin"))
@@ -33,12 +33,53 @@ fn json_error(out: &Output) -> Value {
     serde_json::from_slice(&out.stderr).expect("stderr is one JSON value")
 }
 
+const OPERATIONS: [&str; 7] = [
+    "inspect",
+    "install",
+    "restore_stock",
+    "inspect_drive",
+    "issue_link",
+    "extdata_list",
+    "wait_for_watch",
+];
+const DEV_OPERATIONS: [&str; 3] = ["read_file", "stage_file", "remove_staged"];
+
+fn tool_names(tools: &Value) -> Vec<&str> {
+    tools["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect()
+}
+
+/// The development operations exist only with the `dev` feature, which release builds never
+/// have (a release build with it fails to compile).
 #[test]
 fn help_json_prints_mcp_tools() {
     let out = run(&["--help", "--json"], "");
     assert_eq!(out.status.code(), Some(0));
     let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(tools["tools"].as_array().unwrap().len(), 5);
+    let mut expected = OPERATIONS.to_vec();
+    if cfg!(feature = "dev") {
+        expected.extend(DEV_OPERATIONS);
+    }
+    assert_eq!(tool_names(&tools), expected);
+    for tool in tools["tools"].as_array().unwrap() {
+        let hints = &tool["annotations"];
+        for hint in [
+            "readOnlyHint",
+            "destructiveHint",
+            "idempotentHint",
+            "openWorldHint",
+        ] {
+            assert!(hints[hint].is_boolean(), "{}: {hint}", tool["name"]);
+        }
+    }
+
+    let out = run(&["extdata-list", "--help", "--json"], "");
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(tool_names(&tools), ["extdata_list"]);
 
     let out = run(&["restore-stock", "--json", "-h"], "");
     let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -186,6 +227,132 @@ fn issue_link_needs_no_watch() {
         &format!(r#"{{"report": {leaky}}}"#),
     );
     assert_eq!(json_error(&out)["error"]["code"], "invalid_input");
+}
+
+fn messages(out: &Output) -> Vec<Value> {
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout.clone())
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("one JSON message per line"))
+        .collect()
+}
+
+fn by_id(messages: &[Value], id: Value) -> &Value {
+    messages
+        .iter()
+        .find(|m| m["id"] == id)
+        .unwrap_or_else(|| panic!("no response to {id}: {messages:?}"))
+}
+
+/// Over stdin and stdout, without touching USB: a malformed line is answered and the session
+/// goes on; the development operations are unknown methods without the `dev` feature.
+#[test]
+fn rpc_over_stdio() {
+    let report: Value = serde_json::from_str(REPORT).unwrap();
+    let request = |id: u32, method: &str, params: Value| {
+        json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}).to_string()
+    };
+    let lines = [
+        "this is not JSON".to_owned(),
+        request(
+            1,
+            "issue_link",
+            json!({"report": report, "_meta": {"progressToken": 1}}),
+        ),
+        request(2, "issue_link", json!({"report": report, "bogus": 1})),
+        request(3, "stage_file", json!({})),
+        request(4, "unknown", json!({})),
+    ];
+    let out = run(&["rpc"], &(lines.join("\n") + "\n"));
+    let messages = messages(&out);
+    assert_eq!(messages.len(), 5, "{messages:?}");
+    let parse = by_id(&messages, Value::Null);
+    assert_eq!(parse["error"]["code"], -32700);
+    assert!(
+        by_id(&messages, json!(1))["result"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://github.com/")
+    );
+    let invalid = &by_id(&messages, json!(2))["error"];
+    assert_eq!(invalid["code"], -32602);
+    assert_eq!(invalid["data"]["code"], "invalid_input");
+    let dev = &by_id(&messages, json!(3))["error"];
+    if cfg!(feature = "dev") {
+        assert_eq!(dev["code"], -32602, "stage_file without its source");
+    } else {
+        assert_eq!(dev["code"], -32601, "no stage_file without the dev feature");
+    }
+    assert_eq!(by_id(&messages, json!(4))["error"]["code"], -32601);
+}
+
+/// The official SDK over stdin and stdout: the handshake, the tool list and a call.
+#[test]
+fn mcp_over_stdio() {
+    let report: Value = serde_json::from_str(REPORT).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_georgian-for-garmin"))
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+    let mut exchange = |message: Value, id: Option<u32>| -> Option<Value> {
+        writeln!(stdin, "{message}").unwrap();
+        let id = id?;
+        loop {
+            let mut line = String::new();
+            assert_ne!(
+                std::io::BufRead::read_line(&mut stdout, &mut line).unwrap(),
+                0
+            );
+            let message: Value = serde_json::from_str(&line).unwrap();
+            if message["id"] == id {
+                return Some(message);
+            }
+        }
+    };
+    let init = exchange(
+        json!({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"}}}),
+        Some(0),
+    )
+    .unwrap();
+    assert_eq!(init["result"]["serverInfo"]["name"], "georgian-for-garmin");
+    exchange(
+        json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+        None,
+    );
+    let list = exchange(
+        json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+        Some(1),
+    )
+    .unwrap();
+    let tools = &list["result"];
+    let mut expected = OPERATIONS.to_vec();
+    if cfg!(feature = "dev") {
+        expected.extend(DEV_OPERATIONS);
+    }
+    assert_eq!(tool_names(tools), expected);
+    let call = exchange(
+        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "issue_link", "arguments": {"report": report}}}),
+        Some(2),
+    )
+    .unwrap();
+    assert_eq!(call["result"]["isError"], false, "{call}");
+    assert!(call["result"]["structuredContent"]["url"].is_string());
+    drop(stdin);
+    assert!(child.wait().unwrap().success());
 }
 
 #[test]

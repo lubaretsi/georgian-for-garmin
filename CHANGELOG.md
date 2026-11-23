@@ -32,6 +32,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `issue_link` takes `busy`: alone (no `report`) it makes a report with the `app` and `busy`
   lines, titled `Busy watch: …`; with a report, the `busy` line follows `connection`.
   `GEORGIAN_FOR_GARMIN_DEMO_BUSY` shows each case in the demo build.
+- `georgian-for-garmin rpc` (JSON-RPC 2.0, one message per line) and `georgian-for-garmin mcp`
+  (MCP over stdio, with the official Rust SDK) run every operation in one long-lived session that
+  keeps the watch open between calls and opens it again after an unplug and replug (`no_device`
+  meanwhile). `install`, `restore_stock`, `stage_file` and `wait_for_watch` send
+  `notifications/progress` for a `_meta.progressToken` and stop on `notifications/cancelled`; a
+  cancelled install or restore undoes what it wrote. A line that isn't JSON gets -32700 and the
+  session goes on.
+- `extdata-list` (`extdata_list`) lists every file in `GARMIN/ExtData`, including the read-only
+  fonts the watch imported, which only Garmin's `GetObjectIds` shows, with size, read-only flag
+  and, with `--hash`, SHA-256s. It pages, or writes the whole list to a file.
+- `wait-for-watch` (`wait_for_watch`) waits until a watch can be opened, as after a restart.
+- Development builds (cargo feature `dev`, never in releases) add `read-file`, `stage-file` and
+  `remove-staged` for font experiments: stage any file under a part the watch declares (also by
+  short name, as `D844870.tmp`), with install's checks and readback, and remove it later by the
+  id it logged.
+- Error code `cancelled`, for a call cancelled in `rpc` or `mcp`.
 
 ### Changed
 

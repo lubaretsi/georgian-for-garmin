@@ -70,6 +70,10 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `restore-stock` | The same with Garmin's original fonts. |
 | `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
 | `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …, "busy": …}` (`report` as `inspect --report --json` prints it; `busy` as a `device_busy` error gives it, alone for a watch that couldn't be read). Touches nothing. |
+| `extdata-list` | Lists every file in the watch's hidden `GARMIN/ExtData` folder: the normal listing plus, on watches that answer Garmin's `GetObjectIds` (0x9002), the files it leaves out (on the Venu 2 the read-only fonts the watch imported), with size, `hidden` and `read_only`. `--hash 006-D9035-03.fnt,…` reads those files and adds their SHA-256s. Pages with `--offset` and `--limit` (default 200); `--output-file FILE` writes the whole list as JSON instead. Read-only. |
+| `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait. Read-only. |
+| `rpc` | Serves every command as JSON-RPC 2.0 on stdin and stdout, keeping the watch open between calls ([below](#sessions-rpc-and-mcp)). |
+| `mcp` | Serves every command as an MCP tool over stdio, with the official MCP SDK, keeping the watch open between calls. |
 
 After `install` or `restore-stock`, unplug the watch and restart it; it loads the fonts on
 restart. Quit Garmin Express first: it holds the watch's USB connection.
@@ -88,6 +92,66 @@ Options:
   as MCP tools.
 
 Running `install` again after it succeeded changes nothing and reports `already_staged`.
+
+## Sessions: rpc and mcp
+
+`georgian-for-garmin rpc` and `georgian-for-garmin mcp` are long-lived: they open the watch at the
+first call that needs it and keep it open until they end, so a program or an agent can run many
+steps without reconnecting. While one runs, no other program (Garmin Express, the app, another
+`georgian-for-garmin`) can use the watch. When the watch stops answering, as after an unplug, a
+call fails with `no_device` (or `device_error`) and the next call opens it again;
+`wait_for_watch` waits for it. Calls run one at a time, in the order they arrive. Both modes take
+the operations and schemas `--help --json` prints.
+
+`rpc` reads one JSON-RPC 2.0 message per line and writes one per line:
+
+```sh
+$ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params": {"hash": ["006-D9035-03.fnt"]}}' \
+    | georgian-for-garmin rpc
+{"jsonrpc":"2.0","id":1,"result":{"extdata":{…},"files":[…],"total":…}}
+```
+
+- The method is the operation's name, `params` its input (an object; absent means `{}`), the
+  result its output. `params._meta` is protocol metadata, removed before the input is checked.
+- Errors: `{"code": …, "message": …, "data": {"code": "<error code>", "message": …}}`, with `busy`
+  in `data` for `device_busy`. `code` is -32602 for `invalid_input`, -32800 for `cancelled`,
+  -32000 for any other error code ([below](#exit-codes-and-errors)), -32601 for an unknown
+  method, -32600 for a message that isn't a request (batches aren't supported) and -32700 for a
+  line that isn't JSON; after any of them the session goes on.
+- Progress: a request with `params._meta.progressToken` gets
+  `{"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progressToken": …, "progress": …, "total": …, "message": …}}`
+  at each step: one per file for `install` and `restore_stock` (0 when every file was checked,
+  then each file written), two for `stage_file`, the seconds waited for `wait_for_watch`.
+- Cancellation: `{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": …}}`
+  stops a queued or running call. It answers with -32800 (`cancelled`). `install`,
+  `restore_stock` and `stage_file` stop between files: before the first write nothing is written;
+  after it, what the call wrote is undone, as when a write fails. A single file transfer is never
+  cut off.
+- At the end of stdin, the calls already read still run and are answered, then `rpc` exits.
+
+`mcp` speaks MCP over stdio: `tools/list` returns the same definitions, `tools/call` runs one
+(an error is a result with `isError` and `{"error": {"code", "message"}}` as structured content).
+Progress and cancellation use MCP's `notifications/progress` (with `_meta.progressToken`) and
+`notifications/cancelled`, with the same steps as `rpc`. For example, in an MCP client's
+configuration: `{"command": "georgian-for-garmin", "args": ["mcp"]}`.
+
+### Development operations
+
+A development build (`cargo build -p georgian-for-garmin --features dev`, debug only; release
+builds never have them, and `--release` with the feature fails to compile) adds three commands
+for experiments with fonts this build doesn't install:
+
+| Command | What it does |
+|---|---|
+| `read-file --name D844870.fnt --path out.fnt` | Copies one ExtData file, from either listing, to a new local file and prints its SHA-256. Never overwrites a local file. |
+| `stage-file --source font.tmp --name D844870.tmp` | Writes a local file as `GARMIN/ExtData/<name>` and reads it back by SHA-256. `name` is `<part>.tmp` for a part the watch declares under `Garmin/ExtData`, as `006-D8448-70.tmp` or its short form `D844870.tmp`. Like `install`, it checks every file for that part first: a file under `name` is replaced only when it is identical (`already_staged`), Garmin's original or one of this program's Georgian builds (by content), one this tool staged, or has a SHA-256 given with `--garmin-sha256` (Garmin's file, from a pinned catalog); an imported `<part>.fnt` must be one of those too, and another waiting `.tmp` for the part is a `conflict`. `--dry-run` checks and writes nothing. Prints an id. |
+| `remove-staged --id stg-…` | Deletes the file staged under that id, only while the watch's file under its name still has the staged SHA-256 (otherwise `conflict`); `not_found` once it's gone (imported at a restart, for example), `already_removed` when this tool removed it before. |
+
+`stage-file` logs each id with the file's name and SHA-256 in `staged.jsonl`, in
+`GEORGIAN_FOR_GARMIN_STATE_DIR` or the per-user state folder (`~/Library/Application Support/georgian-for-garmin`
+on macOS, `%LOCALAPPDATA%\georgian-for-garmin` on Windows, `$XDG_STATE_HOME/georgian-for-garmin`
+or `~/.local/state/georgian-for-garmin` elsewhere), so an id from an `rpc` session works in a
+later one-shot `remove-staged`.
 
 ## JSON output
 
@@ -163,6 +227,7 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `font_unavailable` | This build doesn't include a requested part | Check the part number, or download the release again. |
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
+| `cancelled` | `rpc` or `mcp`: the client cancelled the call; anything it had written was undone | Nothing; run it again when wanted. |
 
 ### Busy watch
 
