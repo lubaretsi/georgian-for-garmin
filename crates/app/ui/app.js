@@ -88,9 +88,11 @@ let helpDue = false;
 
 function show(view, draw) {
   if (view !== current) {
-    // Leaving a screen cancels the help's timer; coming to the waiting screen starts it.
+    // Leaving a screen cancels the help's timer and forgets a busy share; coming to the waiting
+    // screen starts the timer.
     clearTimeout(helpTimer);
     helpDue = false;
+    busyShared = null;
     if (view === "waiting") {
       helpTimer = setTimeout(() => {
         helpDue = true;
@@ -112,7 +114,40 @@ function failure(e) {
   return { code: "internal", message: String(e) };
 }
 
-const errorText = (f) => T.errors[f.code] || T.errors.internal;
+/** The Terminal command for macOS's camera service, as the core's `busy::CAMERA_COMMAND`. */
+const CAMERA_COMMAND = "while true; do pkill -9 ptpcamerad; sleep 1; done";
+
+/**
+ * What to do about a busy watch, from the core's `busy` (who holds it), in this platform's
+ * words only. A holder kind without words of its own gets `other` when it has a name.
+ */
+function busyText(busy) {
+  const words = T.busy[platform];
+  const holder = busy ? busy.holder : { kind: "unknown", name: null };
+  const text = words[holder.kind] || (holder.name ? words.other : words.unknown);
+  return fill(text, { name: holder.name });
+}
+
+const errorText = (f) =>
+  f.code === "device_busy" ? busyText(f.busy) : T.errors[f.code] || T.errors.internal;
+
+/** The command under a busy hint, when macOS's camera service holds the watch. */
+function drawCommand(id, f) {
+  const camera = f && f.busy && f.busy.holder.kind === "macos_camera_service";
+  $(id).hidden = !(camera && platform === "macos");
+  $(id).textContent = CAMERA_COMMAND;
+}
+
+/** What sharing a busy watch did on this visit to the waiting screen: `{key, result, url}`. */
+let busyShared = null;
+const busyKey = (busy) => JSON.stringify(busy);
+
+/** Shares what holds the watch: the report form with only the `app` and `busy` lines. */
+async function shareBusy(busy) {
+  const done = await openIssue({ busy });
+  busyShared = { key: busyKey(busy), ...done };
+  if (current === "waiting") redraw();
+}
 
 function showWaiting(error) {
   show("waiting", () => {
@@ -120,6 +155,16 @@ function showWaiting(error) {
     // `no_device` is what the waiting screen already says.
     problem.hidden = !error || error.code === "no_device";
     if (!problem.hidden) $("waiting-hint").textContent = errorText(error);
+    drawCommand("waiting-command", problem.hidden ? null : error);
+    const busy = !problem.hidden && error.code === "device_busy" ? error.busy : null;
+    $("waiting-share-box").hidden = !busy;
+    if (busy) {
+      $("waiting-share").onclick = () => shareBusy(busy);
+      const mine = busyShared && busyShared.key === busyKey(busy);
+      $("waiting-share-why").hidden = mine;
+      $("waiting-share-result").hidden = !mine;
+      $("waiting-share-result").textContent = mine ? sharedText(busyShared) : "";
+    }
     // A watch that answers with a problem has been found; its hint says what to do.
     $("waiting-help").hidden = !helpDue || !problem.hidden;
     $("waiting-help-express").textContent = T.waitingHelpExpress[platform];
@@ -200,9 +245,10 @@ function sharedText(s) {
 const ANSWER_FIELDS = ["result", "views", "phone", "marker", "connect_version"];
 
 /** `issue_link`'s input: only the core's answer fields, without empty ones. */
-function linkInput(report, outcome, answers) {
+function linkInput(report, outcome, answers, busy) {
   const input = { report };
   if (outcome) input.outcome = outcome;
+  if (busy) input.busy = busy;
   if (answers) {
     const a = {};
     for (const key of ANSWER_FIELDS) {
@@ -331,6 +377,7 @@ function showStaged(output) {
 function showError(f) {
   show("error", () => {
     $("error-message").textContent = errorText(f);
+    drawCommand("error-command", f);
     $("error-details").textContent = `${f.code}: ${f.message}`;
     // A failed install or restore can be reported with what led to it.
     $("error-report").hidden = !(lastRun && lastRun.outcome.error);
@@ -452,7 +499,7 @@ async function preview() {
   const asked = answers;
   try {
     const link = await invoke("issue_link", {
-      input: linkInput(lastRun.report, lastRun.outcome, asked),
+      input: linkInput(lastRun.report, lastRun.outcome, asked, lastRun.busy),
     });
     if (asked !== answers) return;
     $("check-text").textContent = link.report_text;
@@ -472,7 +519,9 @@ function showCheck(result) {
 
 async function shareCheck() {
   const asked = answers;
-  asked.shared = await openIssue(linkInput(lastRun.report, lastRun.outcome, asked));
+  asked.shared = await openIssue(
+    linkInput(lastRun.report, lastRun.outcome, asked, lastRun.busy),
+  );
   if (!$("checking").hidden && asked === answers) redraw();
 }
 
@@ -522,7 +571,9 @@ async function stage(command) {
     showStaged(output);
   } catch (e) {
     const f = failure(e);
-    lastRun = report ? { report, outcome: { operation: command, error: f.code } } : null;
+    lastRun = report
+      ? { report, outcome: { operation: command, error: f.code }, busy: f.busy }
+      : null;
     showError(f);
   }
 }

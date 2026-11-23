@@ -19,6 +19,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::busy::{Busy, HolderKind};
 use crate::error::{Error, ErrorCode};
 use crate::fonts::Kind;
 use crate::garmin_device::GarminDevice;
@@ -437,8 +438,13 @@ pub struct Answers {
 #[serde(deny_unknown_fields)]
 pub struct IssueLinkInput {
     /// The `report` from `inspect` or `inspect_drive`. Its `title` and `text` are ignored and
-    /// rebuilt from the other fields.
-    pub report: WatchReport,
+    /// rebuilt from the other fields. Absent for a watch another program held before it could
+    /// be read: then `busy` is needed, and `outcome` and `answers` aren't taken.
+    #[serde(default)]
+    pub report: Option<WatchReport>,
+    /// `device_busy`'s `busy`: who held the watch. Adds the report's `busy` line.
+    #[serde(default)]
+    pub busy: Option<Busy>,
     /// The last install or restore on this watch, if any.
     #[serde(default)]
     pub outcome: Option<Outcome>,
@@ -478,10 +484,36 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
             "outcome needs exactly one of status and error",
         ));
     }
-    let report = &input.report;
     let answers = input.answers.as_ref();
-    let title = title(report);
-    let report_text = text(report, input.outcome.as_ref(), answers);
+    let (title, report_text) = match (&input.report, &input.busy) {
+        (Some(report), busy) => {
+            let mut text = text(report, input.outcome.as_ref(), answers);
+            if let Some(busy) = busy {
+                // After the `app` and `connection` lines.
+                let at = text
+                    .match_indices('\n')
+                    .nth(1)
+                    .map_or(text.len(), |(i, _)| i + 1);
+                text.insert_str(at, &format!("{}\n", busy_line(busy)));
+            }
+            (title(report), text)
+        }
+        (None, Some(busy)) => {
+            if input.outcome.is_some() || answers.is_some() {
+                return Err(Error::new(
+                    ErrorCode::InvalidInput,
+                    "outcome and answers need a report",
+                ));
+            }
+            (busy_title(busy), busy_text(busy))
+        }
+        (None, None) => {
+            return Err(Error::new(
+                ErrorCode::InvalidInput,
+                "issue_link needs a report, busy, or both",
+            ));
+        }
+    };
     let mut fields: Vec<(&str, String)> = Vec::new();
     if let Some(answers) = answers {
         if let Some(result) = answers.result {
@@ -581,6 +613,60 @@ fn title(report: &WatchReport) -> String {
         one_line(&report.model),
         one_line(&report.model_part),
         one_line(&report.software_version)
+    )
+}
+
+/// A busy watch's title: its product and its holder, as far as they are known.
+fn busy_title(busy: &Busy) -> String {
+    let watch = match (&busy.product_name, busy.product_id) {
+        (Some(name), _) => one_line(name),
+        (None, Some(id)) => format!("USB product {id:04x}"),
+        (None, None) => "unknown model".into(),
+    };
+    let holder = busy
+        .holder
+        .name
+        .as_deref()
+        .map_or_else(|| snake(&busy.holder.kind), one_line);
+    format!("Busy watch: {watch}, held by {holder}")
+}
+
+/// The `busy` line: `busy <kind> confirmed|running|unknown name=… pid=… product_id=<hex>
+/// product=… interface=<class>/<subclass>/<protocol>`, `-` for what isn't known.
+fn busy_line(busy: &Busy) -> String {
+    let h = &busy.holder;
+    let seen = match (h.confirmed, h.kind) {
+        (true, _) => "confirmed",
+        (false, HolderKind::Unknown) => "unknown",
+        (false, _) => "running",
+    };
+    let pid = h.pid.map_or_else(|| "-".to_owned(), |p| p.to_string());
+    let product_id = busy
+        .product_id
+        .map_or_else(|| "-".to_owned(), |p| format!("{p:04x}"));
+    let interface = busy.interface.map_or_else(
+        || "-".to_owned(),
+        |i| format!("{:02x}/{:02x}/{:02x}", i.class, i.subclass, i.protocol),
+    );
+    format!(
+        "busy {} {seen} name={} pid={pid} product_id={product_id} product={} interface={interface}",
+        snake(&h.kind),
+        column(h.name.as_deref().unwrap_or("")),
+        column(busy.product_name.as_deref().unwrap_or("")),
+    )
+}
+
+/// The report field's text for a busy watch that couldn't be read: this program and computer,
+/// and the `busy` line.
+fn busy_text(busy: &Busy) -> String {
+    let p = Platform::current();
+    format!(
+        "app {} {} {} {}\n{}\n",
+        column(APP_VERSION),
+        column(&p.os),
+        column(&p.os_version),
+        column(&p.arch),
+        busy_line(busy)
     )
 }
 
@@ -863,7 +949,8 @@ mod tests {
 
     fn input(report: WatchReport, answers: Option<Answers>) -> IssueLinkInput {
         IssueLinkInput {
-            report,
+            report: Some(report),
+            busy: None,
             outcome: Some(Outcome {
                 operation: StageOperation::Install,
                 status: Some(StageStatus::StagedVerified),
@@ -872,6 +959,93 @@ mod tests {
             }),
             answers,
         }
+    }
+
+    fn busy() -> Busy {
+        use crate::busy::{Holder, UsbInterface};
+        Busy {
+            holder: Holder::named("ptpcamerad", Some(512), true),
+            product_id: Some(0x4E77),
+            product_name: Some("Lily 2 Active".into()),
+            interface: Some(UsbInterface {
+                class: 6,
+                subclass: 1,
+                protocol: 1,
+            }),
+        }
+    }
+
+    #[test]
+    fn a_busy_watch_is_reported_without_a_watch_report() {
+        let link = issue_link(&IssueLinkInput {
+            report: None,
+            busy: Some(busy()),
+            outcome: None,
+            answers: None,
+        })
+        .unwrap();
+        assert_eq!(link.title, "Busy watch: Lily 2 Active, held by ptpcamerad");
+        let lines: Vec<&str> = link.report_text.lines().collect();
+        assert_eq!(lines.len(), 2, "{}", link.report_text);
+        assert!(lines[0].starts_with("app "), "{}", lines[0]);
+        assert_eq!(
+            lines[1],
+            "busy macos_camera_service confirmed name=ptpcamerad pid=512 product_id=4e77 \
+             product=\"Lily 2 Active\" interface=06/01/01"
+        );
+        assert!(link.report_in_url);
+        assert!(query(&link.url).contains(&("report".into(), link.report_text.clone())));
+
+        // Nothing known: dashes, and the kind for a title.
+        let unknown = Busy::unknown();
+        assert_eq!(
+            busy_title(&unknown),
+            "Busy watch: unknown model, held by unknown"
+        );
+        assert_eq!(
+            busy_line(&unknown),
+            "busy unknown unknown name=- pid=- product_id=- product=- interface=-"
+        );
+        let running = Busy {
+            holder: crate::busy::Holder::named("express.exe", Some(4), false),
+            ..Busy::unknown()
+        };
+        assert!(busy_line(&running).starts_with("busy garmin_express running name=express.exe"));
+    }
+
+    #[test]
+    fn a_busy_line_follows_connection_in_a_watch_report() {
+        let mut with_busy = input(report(), None);
+        with_busy.busy = Some(busy());
+        let text = issue_link(&with_busy).unwrap().report_text;
+        let lines: Vec<&str> = text.lines().collect();
+        assert!(lines[1].starts_with("connection "), "{text}");
+        assert!(lines[2].starts_with("busy macos_camera_service "), "{text}");
+        assert!(lines[3].starts_with("watch "), "{text}");
+        let without = issue_link(&input(report(), None)).unwrap().report_text;
+        assert_eq!(
+            text.replace(&format!("{}\n", busy_line(&busy())), ""),
+            without
+        );
+    }
+
+    #[test]
+    fn issue_link_needs_a_report_or_busy() {
+        let mut nothing = input(report(), None);
+        nothing.report = None;
+        nothing.outcome = None;
+        assert_eq!(
+            issue_link(&nothing).unwrap_err().code,
+            ErrorCode::InvalidInput
+        );
+        // A busy watch was never read: no outcome, no answers.
+        let mut outcome = input(report(), None);
+        outcome.report = None;
+        outcome.busy = Some(busy());
+        assert_eq!(
+            issue_link(&outcome).unwrap_err().code,
+            ErrorCode::InvalidInput
+        );
     }
 
     #[test]

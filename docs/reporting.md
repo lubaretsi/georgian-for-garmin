@@ -182,6 +182,23 @@ shows the installed parts' marks as pictures for the marker question.
 
 ![Every part's test mark, drawn from its own Georgian build](images/test-marks.png)
 
+## A busy watch
+
+When another program holds the watch (`device_busy`), the app's **Share on GitHub** sends a
+report without a watch report, since the watch couldn't be read: the `app` line and a `busy`
+line, titled `Busy watch: <product>, held by <program>`:
+
+```text
+app 0.3.3 "Mac OS" 26.1 aarch64
+busy macos_camera_service confirmed name=ptpcamerad pid=512 product_id=4e77 product=- interface=06/01/01
+```
+
+The fields are the error's `busy` ([Command line](command-line.md#busy-watch)): the holder's kind,
+`confirmed` (the system named it), `running` (Windows: only known to be running) or `unknown`,
+its process name and pid, the watch's USB product ID and name, and its MTP interface's class,
+subclass and protocol in hex; `-` for what isn't known. A failed install or restore that ends in
+`device_busy` adds the same line after `connection` in its report.
+
 ## Watches that connect as a USB drive
 
 Some watches mount as a drive instead of MTP (the Forerunner 245 in issue #16). The app finds a

@@ -25,14 +25,17 @@
 //! still refuses: the next restart would replace that font.
 //! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first; set to `none`,
 //! no watch is ever found, over MTP or as a drive, so the waiting screen stays (and shows its
-//! help). `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`, `windows`, `linux`) shows another
-//! platform's words.
+//! help). `GEORGIAN_FOR_GARMIN_DEMO_BUSY` set to a holder kind (`garmin_express`,
+//! `macos_camera_service`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a
+//! program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`, `windows`,
+//! `linux`) shows another platform's words, and its holders' names.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
+use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
 use georgian_for_garmin_core::fonts::{FontSet, Kind};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
@@ -89,6 +92,10 @@ struct State {
     connects: usize,
     /// `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none`: no watch, over MTP or as a drive, ever.
     unplugged: bool,
+    /// What holds the watch in the script's busy connections.
+    busy: Busy,
+    /// `GEORGIAN_FOR_GARMIN_DEMO_BUSY`: every connection finds the watch busy.
+    always_busy: bool,
     /// Each watch's objects, kept while the other one is attached.
     watches: Vec<Objects>,
     current: usize,
@@ -227,6 +234,8 @@ impl Demo {
         Demo(Arc::new(Mutex::new(State {
             connects: 0,
             unplugged: false,
+            busy: busy_sample(HolderKind::GarminExpress, "macos"),
+            always_busy: false,
             watches,
             current: 0,
             next_handle: 0x0100_0100,
@@ -242,16 +251,15 @@ impl Demo {
     pub fn open(&self) -> Result<Box<dyn Mtp>, Error> {
         let mut s = self.state();
         s.connects += 1;
-        if s.unplugged || s.connects <= ABSENT {
+        if s.always_busy {
+            Err(Error::busy(s.busy.clone()))
+        } else if s.unplugged || s.connects <= ABSENT {
             Err(Error::new(
                 ErrorCode::NoDevice,
                 "Demo: no watch is connected yet.",
             ))
         } else if s.connects <= ABSENT + BUSY {
-            Err(Error::new(
-                ErrorCode::DeviceBusy,
-                "Demo: another program holds the watch.",
-            ))
+            Err(Error::busy(s.busy.clone()))
         } else {
             Ok(Box::new(self.clone()))
         }
@@ -304,7 +312,48 @@ impl Demo {
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn drive_mounted(&self) -> bool {
         let s = self.state();
-        !s.unplugged && s.connects <= ABSENT
+        !s.unplugged && !s.always_busy && s.connects <= ABSENT
+    }
+
+    /// Names holders as on `platform`; with `kind`, every connection finds the watch held by a
+    /// program of that kind.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn hold(&self, kind: Option<HolderKind>, platform: &str) {
+        let mut s = self.state();
+        s.busy = busy_sample(kind.unwrap_or(HolderKind::GarminExpress), platform);
+        s.always_busy = kind.is_some();
+    }
+}
+
+/// What holds a demo watch for `kind`, named as on `platform`. Windows names no holder, only a
+/// running Garmin Express, and shows no USB interface.
+fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
+    let windows = platform == "windows";
+    let holder = match kind {
+        HolderKind::GarminExpress if windows => Holder::named("ExpressTray.exe", Some(6312), false),
+        HolderKind::GarminExpress => Holder::named("Garmin Express", Some(812), true),
+        HolderKind::MacosCameraService => Holder::named("ptpcamerad", Some(512), true),
+        HolderKind::DesktopMtp if platform == "linux" => {
+            Holder::named("gvfsd-mtp", Some(2301), true)
+        }
+        HolderKind::DesktopMtp => Holder::named("Android File Tra", Some(1450), true),
+        HolderKind::Other => Holder::named("usb-helper", Some(3070), true),
+        HolderKind::Unknown => Holder::unknown(),
+    };
+    // A still-image interface where macOS's camera service takes it, Garmin's MTP one elsewhere.
+    let interface = match kind {
+        HolderKind::MacosCameraService => (6, 1, 1),
+        _ => (255, 255, 0),
+    };
+    Busy {
+        holder,
+        product_id: Some(0x4E77),
+        product_name: None,
+        interface: (!windows).then_some(UsbInterface {
+            class: interface.0,
+            subclass: interface.1,
+            protocol: interface.2,
+        }),
     }
 }
 
@@ -316,6 +365,17 @@ static WATCH: std::sync::LazyLock<Demo> = std::sync::LazyLock::new(|| {
     {
         eprintln!("GEORGIAN_FOR_GARMIN_DEMO_WATCH: no demo watch is called {model:?}");
     }
+    let platform = platform().unwrap_or_else(crate::built_for);
+    let busy = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_BUSY")
+        .ok()
+        .and_then(|name| {
+            let kind = serde_json::from_value(serde_json::Value::String(name.clone())).ok();
+            if kind.is_none() {
+                eprintln!("GEORGIAN_FOR_GARMIN_DEMO_BUSY: {name:?} is no holder kind");
+            }
+            kind
+        });
+    demo.hold(busy, platform);
     demo
 });
 
@@ -615,6 +675,29 @@ mod tests {
         for _ in 0..ABSENT + BUSY + 3 {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
             assert!(!demo.drive_mounted());
+        }
+    }
+
+    #[test]
+    fn busy_holds_the_watch_on_every_connection() {
+        let kinds = [
+            HolderKind::GarminExpress,
+            HolderKind::MacosCameraService,
+            HolderKind::DesktopMtp,
+            HolderKind::Other,
+            HolderKind::Unknown,
+        ];
+        for kind in kinds {
+            for platform in crate::PLATFORMS {
+                let demo = Demo::new(Duration::ZERO);
+                demo.hold(Some(kind), platform);
+                for _ in 0..ABSENT + BUSY + 2 {
+                    let error = demo.open().err().expect("busy");
+                    assert_eq!(error.code, ErrorCode::DeviceBusy);
+                    assert_eq!(error.busy.expect("details").holder.kind, kind);
+                    assert!(!demo.drive_mounted());
+                }
+            }
         }
     }
 }

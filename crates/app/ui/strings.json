@@ -14,6 +14,25 @@
     },
     "waitingHelpReplug": "გამოაერთეთ საათი და ისევ შეაერთეთ. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
     "waitingHelpCable": "გამოიყენეთ მონაცემების გადასაცემი კაბელი: ზოგი კაბელი მხოლოდ მუხტავს.",
+    "busy": {
+      "macos": {
+        "garmin_express": "საათს Garmin Express ({name}) იყენებს. დახურეთ: მენიუს ზოლში მის ხატულაზე დააჭირეთ და აირჩიეთ Quit. თუ ფონურ რეჟიმში მაინც მუშაობს, Activity Monitor-ში მოძებნეთ {name} და დახურეთ.",
+        "macos_camera_service": "საათი macOS-ის კამერის სერვისმა ({name}) დაიკავა. დახურეთ Photos, Image Capture, Preview და ფოტოების გადმოსატანი სხვა პროგრამები, მერე გამოაერთეთ საათი და ისევ შეაერთეთ. თუ სერვისი საათს ისევ დაიკავებს, Terminal-ში გაუშვით ქვემოთ მოცემული ბრძანება და სანამ ქართულს დააყენებთ, ნუ გათიშავთ (Control-C აჩერებს).",
+        "other": "საათს {name} იყენებს. დახურეთ ეს პროგრამა (თუ ფანჯარა არ აქვს, Activity Monitor-ში) და სცადეთ თავიდან.",
+        "unknown": "საათს სხვა პროგრამა იყენებს. მარტივი შემოწმება: გადატვირთეთ Mac და სხვა პროგრამების გახსნამდე სცადეთ თავიდან. პროგრამის საპოვნელად Activity Monitor-ში მოძებნეთ Garmin Express ან ტელეფონისა და კამერის პროგრამები."
+      },
+      "windows": {
+        "garmin_express": "Garmin Express ჩართულია ({name}) და შეიძლება საათს იყენებდეს. დახურეთ: ეკრანის ქვედა კუთხეში, დროის გვერდით, მის ხატულაზე მარჯვენა ღილაკით დააჭირეთ და აირჩიეთ Exit. თუ მაინც მუშაობს, Task Manager-ში დაასრულეთ {name}.",
+        "other": "საათს შეიძლება {name} იყენებდეს. დახურეთ ეს პროგრამა და სცადეთ თავიდან.",
+        "unknown": "საათს სხვა პროგრამა იყენებს. მარტივი შემოწმება: გადატვირთეთ კომპიუტერი და სხვა პროგრამების გახსნამდე სცადეთ თავიდან. პროგრამის საპოვნელად Task Manager-ში მოძებნეთ Garmin Express ან ტელეფონისა და კამერის პროგრამები."
+      },
+      "linux": {
+        "desktop_mtp": "საათს ფაილების მენეჯერი იყენებს ({name}). იქ ამოიღეთ საათი და სცადეთ თავიდან.",
+        "other": "საათს {name} იყენებს. დახურეთ ეს პროგრამა და სცადეთ თავიდან.",
+        "unknown": "საათს სხვა პროგრამა იყენებს, ხშირად ფაილების მენეჯერი. იქ ამოიღეთ საათი ან გადატვირთეთ კომპიუტერი და სცადეთ თავიდან."
+      }
+    },
+    "busyShareWhy": "ისევ არ გამოდის? გაგვიზიარეთ GitHub-ზე, რა იპოვა პროგრამამ: რომელი პროგრამა იყენებს საათს და საათის USB მონაცემები.",
 
     "softwareVersion": "ვერსია {version}",
     "install": "ქართულის დაყენება",
@@ -114,7 +133,7 @@
       "invalid_input": "პროგრამაში შეცდომა მოხდა. გთხოვთ, შეგვატყობინოთ.",
       "no_device": "შეაერთეთ საათი კომპიუტერთან USB კაბელით. თუ საათი შეერთების ხერხს გკითხავთ, აირჩიეთ MTP.",
       "multiple_devices": "მიერთებულია ერთზე მეტი Garmin-ის საათი. დატოვეთ მხოლოდ ერთი.",
-      "device_busy": "დახურეთ Garmin Express (Linux-ზე ფაილების მენეჯერში ამოიღეთ საათი) და სცადეთ თავიდან.",
+      "device_busy": "საათს სხვა პროგრამა იყენებს. დახურეთ ის და სცადეთ თავიდან.",
       "permission_denied": "ამ მომხმარებელს საათთან წვდომა არ აქვს. Linux-ზე დააყენეთ პროგრამის udev წესი (დეტალებში წერია როგორ) და ისევ შეაერთეთ საათი.",
       "unsupported_device": "ამ საათზე ქართული შრიფტი ვერ დაყენდება.",
       "font_unavailable": "პროგრამას შრიფტი აკლია. ჩამოტვირთეთ პროგრამა თავიდან.",
@@ -142,6 +161,25 @@
     },
     "waitingHelpReplug": "Unplug the watch and plug it back in. If the watch asks how to connect, choose MTP.",
     "waitingHelpCable": "Use a data cable: some cables only charge.",
+    "busy": {
+      "macos": {
+        "garmin_express": "Garmin Express ({name}) is using the watch. Quit it: click its icon in the menu bar and choose Quit. If it keeps running in the background, find {name} in Activity Monitor and quit it.",
+        "macos_camera_service": "macOS’s camera service ({name}) has taken the watch. Quit Photos, Image Capture, Preview and other apps that import photos, then unplug the watch and plug it back in. If the service takes it again, run the command below in Terminal and leave it running until Georgian is installed (Control-C stops it).",
+        "other": "{name} is using the watch. Quit it (in Activity Monitor if it has no window) and try again.",
+        "unknown": "Another program is using the watch. A simple test: restart the Mac and try again before opening other apps. To find the program, look in Activity Monitor for Garmin Express or apps for phones and cameras."
+      },
+      "windows": {
+        "garmin_express": "Garmin Express is running ({name}) and may be using the watch. Quit it: right-click its icon in the notification area next to the clock and choose Exit. If it keeps running, end {name} in Task Manager.",
+        "other": "{name} may be using the watch. Quit it and try again.",
+        "unknown": "Another program is using the watch. A simple test: restart the computer and try again before opening other apps. To find the program, look in Task Manager for Garmin Express or apps for phones and cameras."
+      },
+      "linux": {
+        "desktop_mtp": "Your file manager is using the watch ({name}). Eject the watch there, then try again.",
+        "other": "{name} is using the watch. Quit it and try again.",
+        "unknown": "Another program is using the watch, often your file manager. Eject the watch there, or restart the computer, then try again."
+      }
+    },
+    "busyShareWhy": "Still stuck? Share what the app found on GitHub: which program holds the watch, and the watch’s USB details.",
 
     "softwareVersion": "Software {version}",
     "install": "Install Georgian",
@@ -242,7 +280,7 @@
       "invalid_input": "Something went wrong inside the app. Please report it.",
       "no_device": "Connect your watch with its USB cable. If the watch asks how to connect, choose MTP.",
       "multiple_devices": "More than one Garmin watch is connected. Unplug all but one.",
-      "device_busy": "Quit Garmin Express (on Linux, eject the watch in your file manager), then try again.",
+      "device_busy": "Another program is using the watch. Quit it and try again.",
       "permission_denied": "This user isn’t allowed to open the watch. On Linux, install the app’s udev rule (Details shows how), then reconnect the watch.",
       "unsupported_device": "This watch can’t use the Georgian font.",
       "font_unavailable": "This copy of the app is missing its font. Download the app again.",

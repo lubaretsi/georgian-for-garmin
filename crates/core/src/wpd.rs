@@ -176,11 +176,17 @@ pub fn open_error(context: &str, hresult: u32, message: &str) -> Error {
         format!("{message} (HRESULT {hresult:#010x})")
     };
     match classify(hresult) {
-        Failure::Busy => Error::new(
-            ErrorCode::DeviceBusy,
-            "Another program is using the watch, usually Garmin Express. Quit Garmin Express \
-             (including its background helper) and try again.",
-        ),
+        Failure::Busy => {
+            // Windows doesn't say who holds a device; only whether Garmin Express runs.
+            #[cfg(windows)]
+            let holder = crate::busy::windows();
+            #[cfg(not(windows))]
+            let holder = crate::busy::Holder::unknown();
+            Error::busy(crate::busy::Busy {
+                holder,
+                ..crate::busy::Busy::unknown()
+            })
+        }
         Failure::Gone | Failure::NotFound => {
             Error::new(ErrorCode::NoDevice, "The watch disconnected.")
         }
