@@ -114,9 +114,6 @@ function failure(e) {
   return { code: "internal", message: String(e) };
 }
 
-/** The Terminal command for macOS's camera service, as the core's `busy::CAMERA_COMMAND`. */
-const CAMERA_COMMAND = "while true; do pkill -9 ptpcamerad; sleep 1; done";
-
 /**
  * What to do about a busy watch, from the core's `busy` (who holds it), in this platform's
  * words only. A holder kind without words of its own gets `other` when it has a name.
@@ -130,13 +127,6 @@ function busyText(busy) {
 
 const errorText = (f) =>
   f.code === "device_busy" ? busyText(f.busy) : T.errors[f.code] || T.errors.internal;
-
-/** The command under a busy hint, when macOS's camera service holds the watch. */
-function drawCommand(id, f) {
-  const camera = f && f.busy && f.busy.holder.kind === "macos_camera_service";
-  $(id).hidden = !(camera && platform === "macos");
-  $(id).textContent = CAMERA_COMMAND;
-}
 
 /** What sharing a busy watch did on this visit to the waiting screen: `{key, result, url}`. */
 let busyShared = null;
@@ -155,7 +145,6 @@ function showWaiting(error) {
     // `no_device` is what the waiting screen already says.
     problem.hidden = !error || error.code === "no_device";
     if (!problem.hidden) $("waiting-hint").textContent = errorText(error);
-    drawCommand("waiting-command", problem.hidden ? null : error);
     const busy = !problem.hidden && error.code === "device_busy" ? error.busy : null;
     $("waiting-share-box").hidden = !busy;
     if (busy) {
@@ -377,7 +366,6 @@ function showStaged(output) {
 function showError(f) {
   show("error", () => {
     $("error-message").textContent = errorText(f);
-    drawCommand("error-command", f);
     $("error-details").textContent = `${f.code}: ${f.message}`;
     // A failed install or restore can be reported with what led to it.
     $("error-report").hidden = !(lastRun && lastRun.outcome.error);

@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When another program holds the watch (`device_busy`), the app names it when the system tells
   and gives that program's steps for this system only: Garmin Express (quit it from its menu-bar
   or notification-area icon, or in Activity Monitor or Task Manager), macOS's camera service
-  `ptpcamerad` (quit photo apps and reconnect, or keep a one-line Terminal command running), the
+  `ptpcamerad` (quit photo apps and reconnect, then share it on GitHub if it's still busy), the
   desktop's file access on Linux (eject the watch), another named program (quit it), or an
   unknown one (restart the computer as a test, look in Activity Monitor or Task Manager). It no
   longer shows Linux steps on macOS or Windows. **Share on GitHub** on that screen sends what the

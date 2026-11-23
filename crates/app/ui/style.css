@@ -199,24 +199,6 @@ button:focus-visible {
   margin-top: 14px;
 }
 
-/* A Terminal command to copy: the one selectable line in a busy hint. */
-.command {
-  display: block;
-  max-width: 360px;
-  margin: 6px 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  text-align: left;
-  word-break: break-word;
-  -webkit-user-select: all;
-  user-select: all;
-  cursor: text;
-}
-
 /* The waiting screen's help, which fades in when no watch has turned up for a while (app.js). */
 .help {
   width: 100%;

@@ -323,10 +323,6 @@ pub(crate) fn windows() -> Holder {
         .unwrap_or_else(Holder::unknown)
 }
 
-/// The Terminal command that keeps stopping macOS's camera service, which takes the watch
-/// back otherwise; Control-C ends it. The app shows the same command.
-pub const CAMERA_COMMAND: &str = "while true; do pkill -9 ptpcamerad; sleep 1; done";
-
 /// Where Garmin Express keeps its helper on this system.
 const EXPRESS_HELPER: &str = if cfg!(windows) {
     "its icon in the notification area"
@@ -350,8 +346,9 @@ pub fn message(busy: &Busy) -> String {
         HolderKind::MacosCameraService => format!(
             "macOS's camera service, {who}, is using the watch's USB connection. Quit Photos, \
              Image Capture, Preview and other apps that import photos, then unplug the watch \
-             and plug it back in. If it takes the watch again, keep `{CAMERA_COMMAND}` running \
-             in Terminal while you install, then press Control-C."
+             and plug it back in. If it is still busy, please open an issue with this error at \
+             {} so we can look.",
+            crate::report::ISSUES
         ),
         HolderKind::DesktopMtp if cfg!(target_os = "linux") => format!(
             "{who}, the desktop's file access, is using the watch's USB connection. On GNOME, \
@@ -513,7 +510,14 @@ mod tests {
             "{express}"
         );
         let camera = message(&busy(Holder::named("ptpcamerad", Some(7), true)));
-        assert!(camera.contains(CAMERA_COMMAND), "{camera}");
+        assert!(
+            camera.contains("Photos") && camera.contains("/issues"),
+            "{camera}"
+        );
+        assert!(
+            !camera.contains("pkill") && !camera.contains("Terminal"),
+            "{camera}"
+        );
         let other = message(&busy(Holder::named("gfg-hold", Some(9), true)));
         assert!(other.starts_with("gfg-hold (pid 9) is using"), "{other}");
         for text in [express, other, message(&Busy::unknown())] {

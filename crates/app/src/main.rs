@@ -621,9 +621,11 @@ mod tests {
                 assert!(strays.is_empty(), "{language}.busy.{platform}: {strays:?}");
             }
         }
-        // The camera service's command is the core's.
-        let js = include_str!("../ui/app.js");
-        assert!(js.contains(georgian_for_garmin_core::busy::CAMERA_COMMAND));
+        // Busy words ask for no Terminal commands: steps in the app and sharing only.
+        let json = include_str!("../ui/strings.json");
+        for word in ["pkill", "Terminal", "sudo"] {
+            assert!(!json.contains(word), "strings.json asks for {word}");
+        }
     }
 
     #[test]

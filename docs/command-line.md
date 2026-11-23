@@ -190,10 +190,9 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
   are null.
 
 The message says how to free the watch on this system. For macOS's camera service: quit Photos,
-Image Capture, Preview and other photo importers, unplug and reconnect the watch, and if it takes
-the watch again, keep `while true; do pkill -9 ptpcamerad; sleep 1; done` running in Terminal
-while installing (Control-C ends it): macOS restarts the service as soon as it stops, and System
-Integrity Protection keeps it from being turned off.
+Image Capture, Preview and other photo importers, then unplug and reconnect the watch; if it is
+still busy, share the error in an issue so we can look. No Garmin watch has been seen held by it
+yet.
 
 ## Troubleshooting
 
