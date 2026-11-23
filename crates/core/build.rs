@@ -50,6 +50,7 @@ struct PredictionEntry {
 enum PredictionFamily {
     NotoTruetype,
     BitmapArmenian,
+    BitmapKorean,
 }
 
 #[derive(Deserialize)]

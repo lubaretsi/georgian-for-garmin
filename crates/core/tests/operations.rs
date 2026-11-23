@@ -2597,9 +2597,11 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
 }
 
 #[test]
-fn the_instinct_3_gets_no_georgian_in_any_build() {
+fn the_instinct_3_gets_no_georgian_in_its_hebrew_fonts() {
     // Swiss 721 Hebrew is restore-only in every build: the fenix 6S Pro had our font and still
-    // drew question marks (#6). The Instinct 3 is unsupported, and restore still works.
+    // drew question marks (#6). The Instinct 3 isn't listed as unsupported: the list predicts it
+    // to work through its Korean bitmap fonts, which this build has no pack for, so its status
+    // comes from the fonts it lists (`unknown`), and restore still works.
     let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
@@ -2610,7 +2612,9 @@ fn the_instinct_3_gets_no_georgian_in_any_build() {
         inspect["hosts"]["restore_only_parts"],
         json!(["006-D0952-08", "006-D0952-07"])
     );
-    assert_eq!(inspect["support"]["status"], "unsupported");
+    assert_eq!(inspect["support"]["status"], "unknown");
+    assert_eq!(inspect["support"]["prediction"], "bitmap_korean");
+    assert_eq!(inspect["support"]["reason"], Value::Null);
     assert_eq!(inspect["support"]["issue"], 6);
     assert_eq!(
         error_code(fake.call("install", json!({}), &fonts)),

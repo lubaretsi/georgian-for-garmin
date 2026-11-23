@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so plainly, names the files that may be left, and points to Restore original font
   (`restore-stock`); the app shows it in both languages. Before, the message said "Rolled back"
   even when a step had failed.
+- The Lily 2 Active (`006-B4477-00`, 5.10) in the support list, predicted to work through
+  Garmin's Korean bitmap fonts (`prediction` family `bitmap_korean`): its report, emailed to the
+  maintainer, declares Korean `006-D8945-67/-68` (Compressed, 17 and 22 px) under short names,
+  and on the maintainer's Venu 2 (19.05) Georgian added to Garmin's Korean 27 px font
+  (`006-D8945-22`), plain and re-encoded as Compressed, showed in notifications. Its report is a
+  replay fixture (`email-lily2active.json`, owner anonymized). Install and restore on it are
+  untested.
+- On a watch the support list only predicts to work, the app says under its status that no one
+  has confirmed Georgian on that model yet and that Restore original font puts Garmin's fonts
+  back, in Georgian and English, instead of the note for partly tested models.
 
 ### Changed
 
@@ -66,6 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of holding a line to paste over, and the app says to paste into that empty box. GitHub
   then asks for the paste if it's missed; before, the instructions could be posted as the report
   (#35, #46). `issue_link`'s `fields` no longer lists `report` when it didn't fit.
+- The Venu (1st gen, #12) and the Instinct 3 AMOLED 50mm and 45mm (#8, #33, #23) are no longer
+  listed as not working: their reports declare Garmin's Korean bitmap fonts, so they are
+  predicted to work through them (`bitmap_korean`) and move to the README's **Likely to work, not
+  confirmed** table. The Instinct 3's old reason was wrong: it was grouped with the fenix 6 as
+  having our font and not using it, but no report shows Georgian tried on it (#33 lists Garmin's
+  own Swiss 721 Hebrew), and Swiss 721 Hebrew stays restore-only. The `cjk_bitmap_fonts` reason
+  is gone with the Venu's entry. Install and restore on these models are untested.
 
 ### Fixed
 

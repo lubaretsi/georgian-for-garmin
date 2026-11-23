@@ -27,10 +27,10 @@ A pack has a `kind`:
 | `model_part`   | `Model/PartNumber` from the watch's `GARMIN/GarminDevice.xml`, e.g. `006-B3703-00`; unique |
 | `issues`       | Its GitHub issue numbers, the main one first: the one its owners follow, where duplicates are closed into |
 | `unsupported`  | Only for a model known not to work: `software`, the versions it was reported on, and `reason`, the id of an entry in `reasons` |
-| `prediction`   | Only for a model not tested, predicted to work from Garmin's data ([Predicted models](#predicted-models)) |
+| `prediction`   | Only for a model not tested, predicted to work from Garmin's data or its own watch report ([Predicted models](#predicted-models)) |
 
 `reasons` holds each reason once, by `id`, as `en` and `ka` sentences for the app (the fenix 6
-and Instinct 3 models share `font_unused`). Every reason must be used.
+models share `font_unused`). Every reason must be used.
 
 The list holds only what can't be derived. A connected watch's status is worked out from the
 list, the packs' `tested` entries and `install` settings and the fonts the watch lists
@@ -48,16 +48,16 @@ that is missing, repeated or unused, and a prediction on a tested or unsupported
 
 ### Predicted models
 
-A `prediction` lists a model no one has tested yet whose fonts Garmin's own data says this
-project can add Georgian to, so the README can show it as likely to work before anyone has
-downloaded the app. Its fields:
+A `prediction` lists a model no one has tested yet whose fonts Garmin's own data, or the watch's
+own report, says this project can add Georgian to, so the README can show it as likely to work
+before anyone has confirmed it. Its fields:
 
 | Field        | Value |
 | ------------ | ----- |
-| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters |
+| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters. `bitmap_korean`: the model's own report declares Garmin's Korean bitmap fonts (`006-D8945`) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the Korean 27 px font `006-D8945-22`, plain and re-encoded as Compressed, rendered natively in notifications. Today the Venu (1st gen), both Instinct 3 AMOLED and the Lily 2 Active |
 | `confidence` | `high`, the only value allowed: a weaker guess stays out of the list |
 | `basis`      | Why, in a sentence. When one device page gives one name to several part numbers, `model` is that page's name and `basis` says so; don't guess which part is which |
-| `source`     | The device reference page, or `firmware family of <model>` naming a tested model in this list |
+| `source`     | The device reference page, `firmware family of <model>` naming a tested model in this list, the GitHub issue whose watch report declares the font, or `a watch report emailed to the maintainer` (the report's fixture is in `crates/core/tests/reports`) |
 
 A prediction changes nothing on a connected watch: the app still decides from the fonts the watch
 lists, so a watch that lists none of this build's fonts is `unknown` and asked for a report.

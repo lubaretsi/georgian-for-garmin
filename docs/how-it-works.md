@@ -105,8 +105,12 @@ Builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Fo
 (29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the fenix 6
 and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reached the watch (its
 hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
-range bit was set, and the watch still drew question marks (#6). Those watches are unsupported;
-the app shows why, links the issue and restores Garmin's originals.
+range bit was set, and the watch still drew question marks (#6). The fenix 6 models are
+unsupported; the app shows why, links the issue and restores Garmin's originals. The Instinct 3
+AMOLED used to be listed with them as not working, though no report shows Georgian tried on it
+(#33's hidden listing has Garmin's own Swiss 721 Hebrew); its reports (#8, #23, #33) also
+declare Garmin's Korean bitmap fonts, so it is now predicted to work through those
+(`bitmap_korean`, [Predicted models](../fonts/README.md#predicted-models)).
 [The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
 These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and

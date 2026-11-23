@@ -15,7 +15,8 @@
 //!    it ends in a `conflict`: `expected`;
 //! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which no build installs (the watch had our font
 //!    and still drew question marks, #6): `unsupported`, with Restore;
-//! 5. a Venu listing none of this build's fonts: `unsupported`.
+//! 5. a Venu listing none of this build's fonts, which the support list predicts to work through
+//!    its Korean bitmap fonts: `unknown`.
 //!
 //! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
 //! importing every staged `.tmp` file as a hidden read-only `<part>.fnt` (replacing the earlier
@@ -639,12 +640,14 @@ mod tests {
         assert_eq!(fenix["support"]["issue"], 6);
         demo.swap();
 
-        // The Venu: known not to work, on the software the list has; no report asked.
+        // The Venu: predicted to work through its Korean bitmap fonts, which this build has no
+        // pack for: nothing to install, and a report asked.
         let venu = call(&demo, "inspect").unwrap();
         assert_eq!(venu["supported"], false);
-        assert_eq!(venu["support"]["status"], "unsupported");
+        assert_eq!(venu["support"]["status"], "unknown");
+        assert_eq!(venu["support"]["prediction"], "bitmap_korean");
         assert_eq!(venu["support"]["issue"], 12);
-        assert_eq!(venu["support"]["report_wanted"], false);
+        assert_eq!(venu["support"]["report_wanted"], true);
         demo.swap();
 
         // The Forerunner 165 keeps its fonts across restarts.

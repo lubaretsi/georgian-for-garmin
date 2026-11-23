@@ -244,8 +244,8 @@
           "additionalProperties": false,
           "properties": {
             "family": {
-              "description": "The font host it is predicted to have: noto_truetype (Noto Sans Armenian TrueType, as on the Forerunner 165) or bitmap_armenian (bitmap Armenian, as on the fenix 7 Pro).",
-              "enum": ["noto_truetype", "bitmap_armenian"]
+              "description": "The font host it is predicted to have: noto_truetype (Noto Sans Armenian TrueType, as on the Forerunner 165), bitmap_armenian (bitmap Armenian, as on the fenix 7 Pro) or bitmap_korean (Garmin's Korean bitmap fonts, 006-D8945, which carried Georgian on the maintainer's Venu 2).",
+              "enum": ["noto_truetype", "bitmap_armenian", "bitmap_korean"]
             },
             "confidence": { "const": "high" },
             "basis": {
@@ -253,9 +253,9 @@
               "$ref": "#/$defs/text"
             },
             "source": {
-              "description": "The Connect IQ device reference page that lists the font, or \"firmware family of <model>\" naming a tested model in the list.",
+              "description": "The Connect IQ device reference page that lists the font, \"firmware family of <model>\" naming a tested model in the list, the GitHub issue whose watch report declares the font, or \"a watch report emailed to the maintainer\".",
               "type": "string",
-              "pattern": "^(https://developer\\.garmin\\.com/connect-iq/[^\\s]+|firmware family of .+)$"
+              "pattern": "^(https://developer\\.garmin\\.com/connect-iq/[^\\s]+|firmware family of .+|https://github\\.com/lubaretsi/georgian-for-garmin/issues/[0-9]+|a watch report emailed to the maintainer)$"
             }
           }
         }

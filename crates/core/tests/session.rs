@@ -482,10 +482,13 @@ fn by_part(watch: &Watch) -> Vec<(String, Role, Vec<u8>)> {
     files
 }
 
+/// Makes a fresh fake watch: [`Watch::venu2`] or [`Watch::declaring_short_names`].
+type MakeWatch = fn() -> Watch;
+
 /// What inspect says of part 006-D9035-02's file on the watch `watch` makes, and what install
 /// and restore of that part do: their outcome (status or error code) and what the watch holds
 /// afterwards.
-fn outcome(watch: fn() -> Watch, place: &str, name: &str, data: &[u8]) -> Vec<Value> {
+fn outcome(watch: MakeWatch, place: &str, name: &str, data: &[u8]) -> Vec<Value> {
     let mut results = Vec::new();
     for operation in ["inspect", "install", "restore_stock"] {
         let watch = watch();
@@ -543,7 +546,7 @@ fn both_name_forms_give_the_same_result_everywhere() {
         ("normal", Role::Imported),
         ("hidden", Role::Imported),
     ];
-    let watches: [(&str, fn() -> Watch); 2] = [
+    let watches: [(&str, MakeWatch); 2] = [
         ("long", Watch::venu2),
         ("short", Watch::declaring_short_names),
     ];
@@ -581,7 +584,7 @@ fn install_and_restore_write_the_name_the_watch_declares() {
     let (stock, georgian) = (fake::stock(part), fake::georgian(part));
     let mut unknown = stock.clone();
     unknown[7] ^= 0xff;
-    let watches: [(fn() -> Watch, &str, &str); 2] = [
+    let watches: [(MakeWatch, &str, &str); 2] = [
         (Watch::venu2, "006-D9035-02.tmp", "D903502.tmp"),
         (
             Watch::declaring_short_names,

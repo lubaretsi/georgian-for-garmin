@@ -435,18 +435,6 @@
       "unsupported": {"software": ["28.02"], "reason": "font_unused"}
     },
     {
-      "model": "Instinct 3 AMOLED 50mm",
-      "model_part": "006-B4587-00",
-      "issues": [6, 8, 33],
-      "unsupported": {"software": ["15.19", "16.12"], "reason": "font_unused"}
-    },
-    {
-      "model": "Instinct 3 AMOLED 45mm",
-      "model_part": "006-B4586-00",
-      "issues": [6, 23],
-      "unsupported": {"software": ["16.12"], "reason": "font_unused"}
-    },
-    {
       "model": "Forerunner 245",
       "model_part": "006-B3076-00",
       "issues": [16],
@@ -457,12 +445,6 @@
       "model_part": "006-B3077-00",
       "issues": [10],
       "unsupported": {"software": ["13.70"], "reason": "emoji_fonts_only"}
-    },
-    {
-      "model": "Venu",
-      "model_part": "006-B3226-00",
-      "issues": [12],
-      "unsupported": {"software": ["7.80"], "reason": "cjk_bitmap_fonts"}
     },
     {
       "model": "fenix 5",
@@ -1005,6 +987,39 @@
       }
     },
     {
+      "model": "Instinct 3 AMOLED 50mm",
+      "model_part": "006-B4587-00",
+      "issues": [6, 8, 33],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its reports (15.19, 16.12) declare eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/33"
+      }
+    },
+    {
+      "model": "Instinct 3 AMOLED 45mm",
+      "model_part": "006-B4586-00",
+      "issues": [6, 23],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (16.12) declares eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/23"
+      }
+    },
+    {
+      "model": "Lily 2 Active",
+      "model_part": "006-B4477-00",
+      "issues": [],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (5.10) declares Garmin's Korean bitmap fonts 006-D8945-67 and -68 (17 and 22 px, Compressed) under short names and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22), plain and re-encoded as Compressed, rendered natively in notifications.",
+        "source": "a watch report emailed to the maintainer"
+      }
+    },
+    {
       "model": "MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition",
       "model_part": "006-B4105-00",
       "issues": [],
@@ -1046,6 +1061,17 @@
         "confidence": "high",
         "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
         "source": "https://developer.garmin.com/connect-iq/articles/device-reference/marq3.html"
+      }
+    },
+    {
+      "model": "Venu",
+      "model_part": "006-B3226-00",
+      "issues": [12],
+      "prediction": {
+        "family": "bitmap_korean",
+        "confidence": "high",
+        "basis": "Its report (7.80) declares Garmin's Korean bitmap fonts 006-D8945-13, -21 and -22 and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the same Korean 27 px font, 006-D8945-22, rendered natively in notifications.",
+        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/12"
       }
     },
     {
@@ -1119,11 +1145,6 @@
       "id": "emoji_fonts_only",
       "en": "Its only optional fonts are emoji fonts, which have no letters to add Georgian to.",
       "ka": "მისი დამატებითი შრიფტები მხოლოდ ემოჯის შრიფტებია: ასოები არ აქვთ, რომ ქართული დავამატოთ."
-    },
-    {
-      "id": "cjk_bitmap_fonts",
-      "en": "It would need Georgian in its Chinese, Japanese and Korean bitmap fonts, which this app can't build yet.",
-      "ka": "ქართული მის ჩინურ, იაპონურ და კორეულ ბიტმაპ შრიფტებს უნდა დაემატოს, ამას პროგრამა ჯერ ვერ აკეთებს."
     }
   ]
 }

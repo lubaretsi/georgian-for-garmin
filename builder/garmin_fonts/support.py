@@ -29,6 +29,28 @@ PREDICTED_BEGIN = (
 )
 PREDICTED_END = "<!-- /predicted watches -->"
 FIRMWARE_FAMILY = "firmware family of "
+EMAILED_REPORT = "a watch report emailed to the maintainer"
+# What each prediction family's fonts are called where a watch's own report is the source.
+REPORTED_FONTS = {
+    "noto_truetype": "Noto Sans Armenian",
+    "bitmap_armenian": "Bitmap Armenian fonts",
+    "bitmap_korean": "Korean bitmap fonts",
+}
+
+
+def based_on_text(prediction):
+    """The README's "Based on" cell for a prediction, from its source: a Connect IQ device page,
+    a tested model's firmware family, or the watch's own report (an issue, or by email)."""
+    source = prediction["source"]
+    if source.startswith(FIRMWARE_FAMILY):
+        return f"Firmware family of the tested {source.removeprefix(FIRMWARE_FAMILY)}"
+    fonts = REPORTED_FONTS[prediction["family"]]
+    if source.startswith(f"{ISSUES}/"):
+        issue = source.removeprefix(f"{ISSUES}/")
+        return f"{fonts} in its watch report ([#{issue}]({source}))"
+    if source == EMAILED_REPORT:
+        return f"{fonts} in its watch report, emailed to the maintainer"
+    return f"[Connect IQ device reference]({source})"
 
 
 def issue_links(issues):
@@ -78,11 +100,7 @@ def predicted_rows(registry):
     for watch in registry["watches"]:
         if "prediction" not in watch:
             continue
-        source = watch["prediction"]["source"]
-        if source.startswith(FIRMWARE_FAMILY):
-            based_on = f"Firmware family of the tested {source.removeprefix(FIRMWARE_FAMILY)}"
-        else:
-            based_on = f"[Connect IQ device reference]({source})"
+        based_on = based_on_text(watch["prediction"])
         group = groups.setdefault(watch["model"].split()[0], [])
         if (watch["model"], based_on) not in group:
             group.append((watch["model"], based_on))
