@@ -81,6 +81,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | `issue-33.json` | Instinct 3 AMOLED 50mm (006-B4587-00), 16.12, with the hidden listing | 0.3.2 | [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33), closed as a duplicate of #6 |
 | `issue-35.json` | Forerunner 255 (006-B3992-00), 29.52, before installing: 8 bitmap Armenian parts, all Garmin's, with the hidden listing | 0.3.2 | [#35](https://github.com/lubaretsi/georgian-for-garmin/issues/35) (report in Notes), closed as a duplicate of #13 |
 | `issue-37.json` | Forerunner 255 (006-B3992-00), 29.52, the same 8 bitmap Armenian parts (`006-D9035-00` declared twice, as the watch listed it) | 0.2.2 | [#37](https://github.com/lubaretsi/georgian-for-garmin/issues/37), the font list for #13's confirmation |
+| `issue-38.json` | Instinct 2 Solar Tactical (006-B3888-00), 17.22, a USB drive; one emoji font, `006-D8952-00` | 0.3.2 | [#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38) |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 
@@ -95,7 +96,7 @@ say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported G
 | A new `<part>.bin` written next to the hidden import is taken up at the restart and replaces it; the import itself is never deleted. | Forerunner 165: installed by 0.3.0-beta.2 with only the `.bin` write, Georgian showed (#19, #5) |
 | After a restart the watch declares a `.bin`'s version from its 16-byte trailer: Garmin's version for Garmin's originals and this program's builds since 0.3.0; this program's trailer-less builds stay below 1.00. | 0.00 on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)) and the fenix 6X Pro (2.10 right after installing, [#24](https://github.com/lubaretsi/georgian-for-garmin/issues/24); 0.00 after the restart, [#25](https://github.com/lubaretsi/georgian-for-garmin/issues/25)), 0.01 on the Forerunner 165 ([#5 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039), restore error) |
 | Those hidden `.bin` files read back as this program's earlier builds. | `006-D0952-07/-08.bin ro georgian_beta` on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)) |
-| Some watches mount only as a USB drive and declare no ExtData fonts. | Forerunner 245 (#16), fenix 5 (#30, #29: `extdata not found`) |
+| Some watches mount only as a USB drive and declare no ExtData fonts, or only an emoji font. | Forerunner 245 (#16), fenix 5 (#30, #29: `extdata not found`), Instinct 2 Solar Tactical (#38: `006-D8952-00.fnt`, Garmin's Openmoji-Black 22px emoji font, 97,945 bytes) |
 
 The fake can't know everything a report leaves out:
 

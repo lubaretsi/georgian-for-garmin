@@ -460,6 +460,12 @@
       "unsupported": {"software": ["25.00"], "reason": "usb_drive_only"}
     },
     {
+      "model": "Instinct 2 Solar Tactical",
+      "model_part": "006-B3888-00",
+      "issues": [38],
+      "unsupported": {"software": ["17.22"], "reason": "usb_drive_only"}
+    },
+    {
       "model": "D2 Mach 1",
       "model_part": "006-B4079-00",
       "issues": [],
