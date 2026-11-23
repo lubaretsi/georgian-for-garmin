@@ -15,13 +15,14 @@ const RESULTS: { value: Result | "auto"; label: string }[] = [
   { value: "no_notification", label: "Nothing (not passed on)" },
 ];
 
+/** What the watch shows, with words beside the symbols (axe can't judge a symbol-only line). */
 const NOTIFICATION: Record<Result, string> = {
   georgian: "ქართული",
-  boxes: "□□□□□□□",
-  question_marks: "???????",
-  some_letters: "ქა□□□□□",
+  boxes: "□□□□□□□ (boxes)",
+  question_marks: "??????? (question marks)",
+  some_letters: "ქა□□□□□ (some letters)",
   no_notification: "(nothing arrives)",
-  not_installed: "□□□□□□□",
+  not_installed: "□□□□□□□ (boxes)",
 };
 
 const panel: CSSProperties = {
@@ -132,9 +133,13 @@ export function Simulator({ backend }: { backend: MockBackend }) {
       {sim.opened.length > 0 && (
         <div style={group}>
           <h3 style={{ margin: 0, fontSize: 14 }}>Opened in the browser</h3>
-          <ul data-testid="sim-opened" style={{ margin: 0, paddingLeft: 18, wordBreak: "break-all" }}>
+          {/*
+            Shortened: a share link carries the whole report (thousands of characters), and a list
+            item taller than the window leaves axe unable to read its contrast.
+          */}
+          <ul data-testid="sim-opened" style={{ margin: 0, padding: 0, listStyle: "none", overflowWrap: "anywhere" }}>
             {sim.opened.map((url, i) => (
-              <li key={`${i}-${url}`}>{url}</li>
+              <li key={`${i}-${url}`}>{url.length > 120 ? `${url.slice(0, 119)}…` : url}</li>
             ))}
           </ul>
         </div>
