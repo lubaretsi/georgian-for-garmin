@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `issue_link`'s `report` is optional when `busy` is given (JSON input change ahead of 1.0).
+- When the report is too long for the link, the issue form's Watch report box is left empty
+  instead of holding a line to paste over, and the app says to paste into that empty box. GitHub
+  then asks for the paste if it's missed; before, the instructions could be posted as the report
+  (#35, #46). `issue_link`'s `fields` no longer lists `report` when it didn't fit.
 
 ## [0.3.3] - 2026-11-23
 

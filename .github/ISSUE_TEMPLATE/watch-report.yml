@@ -77,7 +77,7 @@ body:
     id: report
     attributes:
       label: Watch report
-      description: Filled in by the app, or the output of `georgian-for-garmin inspect --report`. If the app copied it to your clipboard, paste it here, over the line that's there. It has no unit ID or serial number.
+      description: Filled in by the app, or the output of `georgian-for-garmin inspect --report`. If the app copied it to your clipboard and this box is empty, paste it here, not into Notes. It has no unit ID or serial number.
       render: text
     validations:
       required: true
