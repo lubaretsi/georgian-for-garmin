@@ -112,4 +112,48 @@ describe("Shell", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Boxes/ }));
     expect(onAction).toHaveBeenCalledWith("answer", { action: "answer", answers: { views: [], result: "boxes" } });
   });
+
+  // Every code that can carry a rollback: the body names no file and never says "try again".
+  it.each(["device_error", "verification_failed", "no_device"] as const)(
+    "%s with an incomplete rollback offers Restore and keeps file names in Details",
+    (code) => {
+      for (const lang of ["en", "ka"] as const) {
+        const { onAction } = setup(
+          {
+            screen: "error",
+            op: "install",
+            watch: venu2,
+            code,
+            rollback: { status: "incomplete", files: ["006-D9035-02.tmp"] },
+            detail: "SendObject failed",
+          },
+          lang,
+        );
+        const alert = screen.getByRole("alert");
+        expect(alert.textContent).not.toMatch(/try again|თავიდან/i);
+        expect(alert.textContent).not.toContain(".tmp");
+        const details = document.querySelector("details.disclosure");
+        expect(details?.textContent).toContain("006-D9035-02.tmp");
+        fireEvent.click(document.querySelector<HTMLButtonElement>("[data-main-action]")!);
+        expect(onAction).toHaveBeenCalledWith("restore", undefined);
+        expect(screen.getByRole("button", { name: lang === "en" ? "Back" : "უკან" })).toBeTruthy();
+        cleanup();
+      }
+    },
+  );
+
+  it("shares without a watch naming no model", () => {
+    setup({
+      screen: "share",
+      watch: null,
+      what: "problem",
+      summary: [{ label: "What happened", value: "device busy" }],
+      reportText: "app 0.4.0",
+      state: "opened",
+      thanks: "we_look",
+    });
+    expect(document.body.textContent).not.toContain("Garmin owner");
+    expect(document.querySelector(".watch-card")).toBeNull();
+    expect(screen.getByText("Thank you! We'll look into it and reply on GitHub.")).toBeTruthy();
+  });
 });

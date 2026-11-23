@@ -192,7 +192,7 @@ export const en = {
     title: "Your {model} is connected as a USB drive",
     mtp: {
       body: "The app can add Georgian only when the watch connects in its other mode, MTP, which shares its files with the computer.",
-      how: "On the watch, choose Settings › System › USB Mode › MTP. Then unplug the watch and connect it again.",
+      how: "If the watch asks how to connect, choose MTP. If it doesn't ask, look for USB mode in the watch's system settings and choose MTP there. Then unplug the watch and connect it again.",
       waiting: "The app is waiting for the watch.",
     },
     driveOnly: {
@@ -459,7 +459,10 @@ export const en = {
     },
     rollback: {
       complete: "Everything the app wrote was undone, so the watch is as it was.",
-      incomplete: "Some files on the watch may not be as they were: {files}.",
+      /** Replaces the code's body when the undo was incomplete: no "try again", no file names. */
+      incomplete: "Some fonts on the watch may not be as they were.",
+      /** Under Details. */
+      files: "Files that may have changed: {files}",
       restoreHint: "Restore original font puts Garmin's font back.",
     },
   },

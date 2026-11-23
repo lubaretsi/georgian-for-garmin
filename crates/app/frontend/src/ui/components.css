@@ -561,6 +561,11 @@
   margin-top: var(--space-2);
 }
 
+.detail-files {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+
 .detail-text {
   margin: 0;
   padding: var(--space-3);

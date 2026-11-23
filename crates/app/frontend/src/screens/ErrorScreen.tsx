@@ -84,22 +84,23 @@ export function ErrorScreen(model: ErrorModel, ctx: ScreenContext): ScreenView {
     watch: model.watch,
     content: (
       <>
-        <Notice tone="error" live>
-          <p>{text.body}</p>
-        </Notice>
-        {rollback ? (
-          rollback.status === "incomplete" ? (
-            <Notice tone="warning">
-              <p>{fmt(e.rollback.incomplete, { files: rollback.files.join(", ") })}</p>
-              <p>{e.rollback.restoreHint}</p>
-            </Notice>
-          ) : (
-            <p className="muted">{e.rollback.complete}</p>
-          )
-        ) : null}
-        {model.detail.trim() !== "" ? (
+        {incomplete ? (
+          // The undo left files in an unknown state: say so instead of the code's body (which
+          // may say "try again"), and point at the Restore main action. File names: Details.
+          <Notice tone="error" live>
+            <p>{e.rollback.incomplete}</p>
+            <p>{e.rollback.restoreHint}</p>
+          </Notice>
+        ) : (
+          <Notice tone="error" live>
+            <p>{text.body}</p>
+          </Notice>
+        )}
+        {rollback?.status === "complete" ? <p className="muted">{e.rollback.complete}</p> : null}
+        {incomplete || model.detail.trim() !== "" ? (
           <Disclosure summary={ctx.copy.actions.details}>
-            <pre className="detail-text">{model.detail}</pre>
+            {incomplete ? <p className="detail-files">{fmt(e.rollback.files, { files: rollback.files.join(", ") })}</p> : null}
+            {model.detail.trim() !== "" ? <pre className="detail-text">{model.detail}</pre> : null}
           </Disclosure>
         ) : null}
       </>

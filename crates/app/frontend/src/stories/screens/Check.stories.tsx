@@ -39,7 +39,11 @@ export const AnswerBoxes: ScreenStoryObj = {
   args: { model: check("answer", { result: "boxes", views: [], phone: "iphone" }) },
 };
 
-/** A beta build: which marked capital the watch showed. */
+/**
+ * A beta build: which marked capital the watch showed. The pictures are SVG stand-ins; the
+ * core draws them as PNGs from the marked fonts.
+ */
 export const AnswerBetaMarker: ScreenStoryObj = {
+  name: "Answer, beta marker (stand-in pictures)",
   args: { model: check("answer", { result: "georgian", views: ["popup"] }, { marks: true }) },
 };

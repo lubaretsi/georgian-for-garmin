@@ -85,9 +85,17 @@ export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
 /** share: what goes to GitHub, then what to do there. Nothing is sent without the click. */
 export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
   const s = ctx.copy.share;
-  // No watch: shared from connect (busy, problem), where only `what: "problem"` occurs and its
-  // texts name no model; "Garmin" keeps any other text readable all the same.
-  const values = { model: model.watch?.model ?? "Garmin" };
+  // No watch: shared from connect (busy, problem). Only the texts that name no model are used
+  // then: the problem's why and the "we'll look" thanks; the summary has no watch rows.
+  const watch = model.watch;
+  const why = watch ? fmt(s.why[model.what], { model: watch.model }) : s.why.problem;
+  const thanksText =
+    model.thanks === "tested_next" && watch
+      ? fmt(s.thanks.tested_next, { model: watch.model })
+      : model.thanks
+        ? s.thanks.we_look
+        : null;
+  const step = watch ? "check" : "connect";
   const open: FooterAction = {
     label: ctx.copy.actions.openGithub,
     onPress: () => ctx.emit("share", { action: "share", what: model.what }),
@@ -97,17 +105,17 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
       <CopyBlock text={model.reportText} label={s.exactText} labels={copyLabels(ctx.copy)} variant="report" lang="en" />
     </Disclosure>
   );
-  const thanks = model.thanks ? <p className="lead">{fmt(s.thanks[model.thanks], values)}</p> : null;
+  const thanks = thanksText ? <p className="lead">{thanksText}</p> : null;
   switch (model.state) {
     case "ready":
       return {
-        step: "check",
+        step,
         title: s.title[model.what],
         illustration: { icon: "share" },
-        watch: model.watch ?? undefined,
+        watch: watch ?? undefined,
         content: (
           <>
-            <p className="lead">{fmt(s.why[model.what], values)}</p>
+            <p className="lead">{why}</p>
             <Notice tone="info">
               <p>{s.account}</p>
               <p>{s.nothingSent}</p>
@@ -123,7 +131,7 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
     case "opened":
     case "opened_paste":
       return {
-        step: "check",
+        step,
         title: s.opened.title,
         illustration: { icon: "check", tone: "success" },
         status: s.opened.title,
@@ -145,7 +153,7 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
       };
     case "failed":
       return {
-        step: "check",
+        step,
         title: s.failed.title,
         illustration: { icon: "share", tone: "muted" },
         content: (
