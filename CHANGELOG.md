@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The app has a new design: a guided Connect → Install → Restart → Check journey in Georgian
+  and English, with one main action per screen. After installing or restoring, the app guides
+  you through restarting the watch and checks on its own that the watch loaded the font. The
+  window is resizable, with the title bar part of the app on macOS.
+- More › Diagnostic info: what the app sees of the watch and the computer, with no serial number
+  or watch ID, saved to your Downloads folder or copied, for when we ask for it. Nothing is sent.
+- A user who already shared a result for their watch and software is thanked instead of asked
+  again.
 - The redesigned app UI's first phase, for developers: `crates/app/frontend` (React, TypeScript,
   Vite) with Storybook, where every screen and the Connect → Install → Restart → Check flows run
   over a simulated watch built from the core's real results

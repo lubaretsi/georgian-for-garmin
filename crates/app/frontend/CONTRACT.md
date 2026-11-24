@@ -1,6 +1,6 @@
 # Georgian for Garmin app: UI and flow contract
 
-Status: phase 1 (Storybook). The shipped app keeps `crates/app/ui/` until phase 2 replaces it.
+Status: phase 2. The app runs this UI over its Tauri commands (`TauriBackend`); the old `crates/app/ui/` is gone.
 Evidence behind the decisions: a UX audit of v0.3.4 run in the demo build: every screen in both languages, the flow map, and 24 ranked findings. It was combined with the issues, comments, relayed emails and release download counts (#2–#46). This file is the authority for the new UI; change it before changing behaviour it describes.
 
 ## 1. Goal

@@ -9,7 +9,7 @@
 | `builder/` | Python font toolkit (`garmin_fonts`): Garmin's font formats, the stock font catalog, adding Georgian, rendering as a watch would, the watch over `rpc`; writes the asset folder |
 | `crates/core` | Rust library: the operations (`inspect`, `install`, `restore_stock`, `extdata_list`, …), sessions that keep the watch open (`session.rs`), the JSON-RPC loop (`rpc.rs`), the watch's font list, the hidden-folder search, and MTP over USB |
 | `crates/cli` | The `georgian-for-garmin` command, with its `rpc` and `mcp` (`mcp.rs`, the official Rust MCP SDK `rmcp`) sessions |
-| `crates/app` | The desktop app (Tauri 2; plain HTML, CSS and JavaScript in `ui/`, strings in `ui/strings.json`) |
+| `crates/app` | The desktop app (Tauri 2): commands in `src/`, the UI in `frontend/` (React, TypeScript, Vite; strings in `frontend/src/copy/`) |
 | `scripts/` | The release builds (macOS, Windows, Linux) |
 | `.github/workflows/` | `check.yml` on every push and pull request; `release.yml` on version tags and manual runs |
 
@@ -292,25 +292,35 @@ Each has a CLI subcommand (`mtp-read`, `ptp-transaction`, …) that prints JSON,
 
 ```sh
 cd crates/app
-cargo tauri dev                                            # against a real watch
-cargo tauri build --debug --features demo --bundles app    # a simulated watch, no hardware
+cargo tauri dev                    # against a real watch
+cargo tauri dev --features demo    # a simulated watch, no hardware
+cargo tauri build --debug --features demo --bundles app
 ```
 
-The demo build walks through every support status (a tested Forerunner 165 and Venu 2, an
-expected Venu 3 listing parts from two packs with a conflict, an unsupported fenix 6S Pro with
-Restore, an expected Venu with its Korean font, which the support list only predicts, a Lily 2
-Active with Georgian already installed and an Instinct 3 AMOLED 50mm with it waiting for a
-restart, both only predicted, a tested tactix 7 with Georgian installed, and an unknown
-Forerunner 265 listing none of this build's fonts), and a Forerunner 245 mounted as a USB drive.
-Install or Restore moves on to the next watch. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of
-those names, quoted where it has spaces) attaches that watch first;
-`GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
-its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
+Run them in `nix develop`. Tauri's `beforeDevCommand` and `beforeBuildCommand` install the
+frontend's packages (`pnpm install --frozen-lockfile`) and start Vite (`pnpm dev`, which `cargo
+tauri dev` loads from `http://localhost:5173`) or build it into `frontend/dist`, which the app
+embeds. Plain `cargo build`, `clippy` and `test` don't need the frontend built.
+
+The demo build starts with three connections that find no watch (meanwhile a Forerunner 245 is
+mounted as a USB drive) and two that find it held by Garmin Express, then attaches a tested Venu
+2. After Install or Restore the watch "restarts": a few connections find nothing, then the same
+watch is back with the staged fonts imported, so the app verifies the result. Its other watches
+cover every support status (a tested Forerunner 165, an expected Venu 3 listing parts from two
+packs with a conflict, an unsupported fenix 6S Pro with Restore, an expected Venu with its Korean
+font, which the support list only predicts, a Lily 2 Active with Georgian already installed and
+an Instinct 3 AMOLED 50mm with it waiting for a restart, both only predicted, a tested tactix 7
+with Georgian installed, and an unknown Forerunner 265 listing none of this build's fonts):
+`GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names, quoted where it has spaces) attaches
+that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting
+screen stays and shows its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
 program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
-shows that platform's words.
-Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
-tests check that.
+shows that platform's words. The demo build opens nothing and leaves the clipboard and the app's
+settings alone; its diagnostic info goes to `georgian-for-garmin-demo-downloads` in the temp
+folder.
+Every string is in `frontend/src/copy/{ka,en}.ts`, which must have the same keys; the frontend's
+tests check that ([below](#frontend-and-storybook)).
 
 `tests/replay.rs` in `crates/core` replays every watch report posted in the issues against a fake
 watch; add a new report with `scripts/report_fixture.py` ([fixtures](../crates/core/tests/reports/README.md)).

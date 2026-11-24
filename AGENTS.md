@@ -39,8 +39,9 @@ scripts/build-macos-release.sh  # outside nix develop
   confirmed on a watch (a tested pack, or the host's `confirmed_by`).
 - Nothing is written to a watch before every target is checked. Safe path: extend the core's
   pre-write checks and its fake-watch tests together.
-- User-facing strings exist in both `ka` and `en`. Safe path: add to `crates/app/ui/strings.json`
-  in both tables; the app tests enforce it.
+- User-facing strings exist in both `ka` and `en`. Safe path: add to
+  `crates/app/frontend/src/copy/en.ts` and `ka.ts` together; the compiler and the copy tests
+  enforce it.
 - Native rendering only: never suggest other apps, widgets, images or transliteration, anywhere.
   Safe path: an unsupported watch gets its reason and issue link, nothing else.
 

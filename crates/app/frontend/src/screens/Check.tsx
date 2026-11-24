@@ -11,8 +11,8 @@ import { TITLE_ID, type ScreenContext, type ScreenView } from "./types";
 
 type Check = Extract<ScreenModel, { screen: "check" }>;
 
-/** The answers a user picks; `not_installed` is the flow's own, never offered. */
-const OFFERED: Exclude<Result, "not_installed">[] = ["georgian", "boxes", "question_marks", "some_letters", "no_notification"];
+/** The answers a user picks, in the issue form's order; `not_installed` is the flow's own. */
+export const OFFERED: Exclude<Result, "not_installed">[] = ["georgian", "boxes", "question_marks", "some_letters", "no_notification"];
 const VIEWS: View[] = ["popup", "list", "opened"];
 const NO_MARKER = "none";
 
