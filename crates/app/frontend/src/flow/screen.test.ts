@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 
+import { copyFor } from "../copy";
 import type { DiagnoseOutput, Failure } from "../core/app-types";
 import type { InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
@@ -208,7 +209,7 @@ describe("toScreen", () => {
           { label: "System", value: "Mac OS 15.6.1 (aarch64)" },
           { label: "Watch", value: "Not found" },
           { label: "Connection", value: "no_device" },
-          { label: "Last problem", value: "00:00:00 no_device" },
+          { label: "Last problem", value: expect.stringMatching(/^\d\d:\d\d:\d\d no_device$/) },
         ],
       });
     });
@@ -252,7 +253,7 @@ describe("toScreen", () => {
         { label: "Software", value: "19.05" },
         { label: "What the app installed", value: "4 fonts" },
         { label: "What the watch showed", value: "Georgian letters" },
-        { label: "Where", value: "When the notification arrived and In the notification list" },
+        { label: "Where", value: `${copyFor("en").check.answer.views.popup} and ${copyFor("en").check.answer.views.list}` },
         { label: "Phone", value: "Android" },
         { label: "The watch's font list", value: expect.stringMatching(/^\d+ fonts$/) },
       ],

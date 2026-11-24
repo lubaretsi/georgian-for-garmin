@@ -98,7 +98,7 @@ export const Lily2ActiveFirstConfirmation: Story = {
     await installAndRestart(p);
     await p.screen(p.copy.result.install.title);
     await checkAndAnswer(p, "georgian");
-    await p.screen(p.fmt(p.copy.outcome.works_first.title, { model: "Lily 2 Active" }));
+    await p.screen(p.copy.outcome.works_first.title);
     await press(p, p.copy.actions.shareResult);
     await p.screen(p.copy.share.title.result);
     await shareOnGitHub(p);
