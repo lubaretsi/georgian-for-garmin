@@ -57,8 +57,7 @@ Windows ამას იმიტომ აჩვენებს, რომ პ�
 პროგრამა გაიხსნება და დაწერს **შეაერთეთ საათი USB კაბელით**. შემდეგ ჯერზე პროგრამა სამუშაო
 მაგიდიდან გახსენით, **Georgian for Garmin**-ის ხატულით.
 
-<!-- RETAKE: old UI; see images/RETAKE.md -->
-![პროგრამა წერს: შეაერთეთ საათი](images/install-windows/07-app-connect.png)
+![პროგრამა წერს: შეაერთეთ საათი USB კაბელით](images/install-windows/07-app-connect.png)
 
 ## 6. დააყენეთ ქართული საათზე
 
