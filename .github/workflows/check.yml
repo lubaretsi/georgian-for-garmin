@@ -145,8 +145,18 @@ jobs:
       - name: Typecheck
         run: nix develop --command pnpm typecheck
 
+      # The browsers' system libraries come from apt (--with-deps), at the lockfile's Playwright
+      # version.
       - name: Playwright browsers
         run: nix develop --command pnpm exec playwright install --with-deps chromium webkit
 
+      # The browsers are Ubuntu programs and need Ubuntu's environment, not the dev shell's: in
+      # `nix develop` on Linux, `ldd` is nix's (Playwright's library check then finds none of
+      # apt's libraries), and the shell's GTK settings (GDK_PIXBUF_MODULE_FILE, XDG_DATA_DIRS)
+      # make WebKit fail to load pages. So the tests run with only the dev shell's node and pnpm
+      # on PATH, in front of the system's.
       - name: Vitest and story tests
-        run: nix develop --command pnpm test
+        run: |
+          nix develop --command bash -c 'exec env -i HOME="$HOME" CI="$CI" \
+            PATH="$(dirname "$(command -v node)"):$(dirname "$(command -v pnpm)"):/usr/local/bin:/usr/bin:/bin" \
+            pnpm test'
