@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A busy watch's USB product name is left out when it looks like an identifier (a serial
   number in the product string): from `device_busy` errors, the app's busy screen, and the
   `busy` line and title of watch report links (`issue_link`), including a `busy` passed in.
+- A watch unplugged while it was being opened no longer leaves the app showing nothing for up
+  to 30 s: it is `no_device` at once, or within 5 s when it was unplugged during the USB reset
+  that recovers an unresponsive watch. A reset that fails because the watch is gone is
+  `no_device` too, not `device_error`.
 
 ## [0.3.4] - 2026-11-24
 
