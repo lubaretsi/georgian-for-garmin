@@ -106,7 +106,7 @@ const NEVER_WORDS: RegExp[] = [
 
 /** "MTP" only where the watch shows it, with an explanation (§2.3). */
 const MTP_KEYS = new Set([
-  "connect.help.replug",
+  "connect.help.replug.body",
   "drive.mtp.body",
   "drive.mtp.how",
   "drive.duringRestart", // on the drive screen, under drive.mtp.body's explanation
@@ -159,5 +159,19 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     expect(ka.actions.restore).toBe("ქარხნული შრიფტის დაბრუნება");
     expect(en.actions.check).toBe("Check on the watch");
     expect(ka.actions.check).toBe("საათზე შემოწმება");
+  });
+
+  it("diagnostic info says what it doesn't hold (§11)", () => {
+    expect(en.diagnostics.contents).toMatch(/no serial number or watch ID/);
+    expect(ka.diagnostics.contents).toMatch(/სერიული ნომერი და საათის ID მასში არ არის/);
+    // The More entry opens the screen of the same name.
+    expect(en.more.diagnostics.title).toBe(en.diagnostics.title);
+    expect(ka.more.diagnostics.title).toBe(ka.diagnostics.title);
+  });
+
+  it("names every confidence on the watch list's badge", () => {
+    for (const catalog of [en, ka]) {
+      expect(Object.keys(catalog.watchCard.status).sort()).toEqual(Object.keys(catalog.confidence).filter((k) => !k.endsWith("_unlisted")).sort());
+    }
   });
 });

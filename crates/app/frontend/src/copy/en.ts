@@ -30,7 +30,7 @@ export const en = {
     check: "Check on the watch",
     didntWorkCheck: "Didn't work? Check on the watch",
     sendTest: "Send a test notification",
-    skipVerify: "Skip: I'll check on the watch",
+    skipVerify: "I'll check on the watch",
     /** After a restore: back to the watch screen without waiting for the reconnect. */
     skip: "Skip",
     sentIt: "I sent it",
@@ -55,34 +55,50 @@ export const en = {
     copyFailed: "Couldn't copy. Select the text and copy it yourself.",
     details: "Details",
     close: "Close",
+    saveToFile: "Save to file",
+    showInFolder: "Show in folder",
   },
 
   watchCard: {
     software: "Software {software}",
+    /** The watch list's row labels (watch / install, outcome). */
+    labels: {
+      watch: "Watch",
+      software: "Software",
+      georgian: "Georgian",
+    },
+    /** The Georgian row's badge, from `confidence`. */
+    status: {
+      confirmed: "Confirmed",
+      confirmed_other_software: "Confirmed on other software",
+      confirmed_some_fonts: "Partly confirmed",
+      unconfirmed: "Not confirmed yet",
+    },
   },
 
   connect: {
     searching: {
       title: "Connect your watch with its USB cable",
-      lead: "The app adds Georgian letters to your Garmin watch's own font, so Georgian notifications show as letters instead of boxes.",
+      lead: "On Garmin watches, Georgian notifications show as boxes. The app adds Georgian letters to your watch's own font.",
       looking: "Looking for your watch…",
       previewTitle: "How it goes",
       preview: {
-        connect: "Connect the watch to this computer.",
+        connect: "Plug the watch into this computer.",
         install: "The app adds Georgian to the watch's font.",
-        restart: "Restart the watch so it loads the font.",
-        check: "Send yourself a test notification and see what the watch shows.",
+        restart: "The watch loads the new font.",
+        check: "Send a test notification and see what shows.",
       },
     },
     help: {
       title: "Can't find your watch?",
+      /** Each tip: a short title and one line. */
       express: {
-        macos: "Quit Garmin Express: click its icon in the menu bar and choose Quit. It can keep the app from seeing your watch.",
-        windows: "Quit Garmin Express: right-click its icon in the notification area next to the clock and choose Exit. It can keep the app from seeing your watch.",
-        linux: "If your watch shows up in your file manager, eject it there. Only one program can use the watch at a time.",
+        macos: { title: "Quit Garmin Express", body: "Click its icon in the menu bar and choose Quit." },
+        windows: { title: "Quit Garmin Express", body: "Right-click its icon next to the clock and choose Exit." },
+        linux: { title: "Eject the watch in your file manager", body: "Only one program can use the watch at a time." },
       },
-      replug: "Unplug the watch and connect it again. If the watch asks how to connect, choose MTP: that's how it shares its files with a computer.",
-      cable: "Use a data cable: some USB cables only charge.",
+      replug: { title: "Connect the watch again", body: "If the watch asks how to connect, choose MTP: that's how it shares its files." },
+      cable: { title: "Try another cable", body: "Some USB cables only charge." },
     },
     busy: {
       title: {
@@ -224,8 +240,8 @@ export const en = {
   watch: {
     install: {
       titleConfirmed: "Georgian works on this watch",
-      title: "Ready to install Georgian",
-      unconfirmedFallback: "If it doesn't show, one click puts Garmin's font back.",
+      title: "Your watch is ready for Georgian",
+      unconfirmedFallback: "If Georgian doesn't show, one click puts Garmin's font back.",
       note: {
         partly: "Some of the watch's fonts already have Georgian. Installing adds the rest.",
         beta: "A test version of Georgian is on this watch. Installing replaces it with this one.",
@@ -282,6 +298,8 @@ export const en = {
 
   restart: {
     attempt: "Attempt {attempt}",
+    /** The footer's status while the app waits for the watch to come back. */
+    waiting: "Waiting for the watch…",
     unplug: {
       title: "Unplug the watch",
       install: "Georgian is on the watch. It shows after a restart.",
@@ -290,8 +308,9 @@ export const en = {
     },
     restart: {
       title: "Restart the watch",
-      how: "Hold its power button, choose Power Off, then turn it on.",
-      reconnect: "Then connect it again so the app can check.",
+      /** The two numbered steps: a short title and one line each. */
+      hold: { title: "Hold the power button", body: "Choose Power Off, then turn the watch on again." },
+      reconnect: { title: "Connect it again", body: "The app checks that the watch loaded the font." },
       notVerifiable: "This watch doesn't show the change to the computer, so you check it on the watch.",
       notVerifiableRestore: "This watch doesn't show the change to the computer. Garmin's font is back once the watch has restarted.",
     },
@@ -340,13 +359,13 @@ export const en = {
         no_notification: "Nothing arrived",
       },
       views: {
-        legend: "Where did the letters show? (optional)",
-        popup: "When the notification arrived",
+        legend: "Where did the letters show?",
+        popup: "When it arrived",
         list: "In the notification list",
-        opened: "In the opened notification",
+        opened: "When I opened it",
       },
       phone: {
-        legend: "Your phone (optional)",
+        legend: "Your phone",
         android: "Android",
         iphone: "iPhone",
       },
@@ -357,6 +376,8 @@ export const en = {
         picture: "Variant {variant}",
       },
       required: "Choose what the watch showed to continue.",
+      /** Next to the legends of the questions that may be left out. */
+      optional: "Optional",
     },
   },
 
@@ -366,8 +387,9 @@ export const en = {
       body: "You can unplug the watch.",
     },
     works_first: {
-      title: "You're the first to confirm Georgian on {model}",
-      body: "Sharing the result tells every {model} owner that it works. It needs a free GitHub account.",
+      title: "Georgian works!",
+      body: "You're the first to confirm it on {model}. Share the result so every owner knows.",
+      account: "Needs a free GitHub account. Nothing is sent until you press Submit.",
     },
     didnt_show: {
       title: "Georgian didn't show",
@@ -380,6 +402,11 @@ export const en = {
       body: "The watch shows a phone notification only if the phone passes it on.",
     },
     sharedBefore: "You've already shared this result. Thank you!",
+    /** The answer as a list: watch, software, what the watch showed. */
+    result: {
+      title: "Your result",
+      showed: "The watch showed",
+    },
   },
 
   phone: {
@@ -478,6 +505,10 @@ export const en = {
       title: "Original font",
       body: "Puts Garmin's own font back on the watch.",
     },
+    diagnostics: {
+      title: "Diagnostic info",
+      body: "Save or copy it when we ask for it.",
+    },
     seen: {
       title: "What the app sees",
       noWatch: "No watch is connected.",
@@ -508,5 +539,29 @@ export const en = {
       unofficial: "Unofficial; not affiliated with Garmin.",
       source: "Source and issues on GitHub:",
     },
+  },
+
+  /** More › Diagnostic info (§11): saved or copied by the user, never sent. */
+  diagnostics: {
+    title: "Diagnostic info",
+    lead: "If we ask you for diagnostic info, save it here and send it to us.",
+    contents: "It lists the app, your system, the Garmin devices connected and the app's recent steps. It has no serial number or watch ID.",
+    summaryTitle: "Summary",
+    /** The summary list the flow builds (toScreen): labels, then the values that aren't data. */
+    summary: {
+      app: "App version",
+      system: "System",
+      watch: "Watch",
+      connection: "Connection",
+      lastProblem: "Last problem",
+      noWatch: "Not found",
+      connected: "Connected",
+      none: "None",
+    },
+    fullText: "Show the full text",
+    collecting: "Collecting the info…",
+    saved: "Saved in your Downloads folder.",
+    copied: "Copied. Paste it into your message to us.",
+    failed: "Couldn't save the file. Copy the text instead.",
   },
 } as const;
