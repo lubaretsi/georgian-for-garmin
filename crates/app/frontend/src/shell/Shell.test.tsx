@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { MoreModel, ScreenModel, WatchInfo } from "../model/screens";
@@ -28,6 +28,13 @@ function setup(model: ScreenModel, lang: "ka" | "en" = "en") {
 }
 
 afterEach(cleanup);
+
+// jsdom has no ResizeObserver; Radix measures checkboxes and radios with it.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
 
 describe("Shell", () => {
   it("focuses the heading on every screen change", () => {
@@ -61,10 +68,12 @@ describe("Shell", () => {
 
   it("draws the footer from the screen's actions", () => {
     setup(working);
-    expect(document.querySelector(".action-bar")).toBeNull();
+    // Writing can't be interrupted: the footer has its status and no button.
+    expect(document.querySelector("footer")?.textContent).toContain("1 of 4 files");
+    expect(document.querySelector("footer button")).toBeNull();
   });
 
-  it("opens More as a modal dialog, closes it on Esc and returns focus", () => {
+  it("opens More as a modal dialog, closes it on Esc and returns focus", async () => {
     const { onAction } = setup(install);
     const button = screen.getByRole("button", { name: /More/ });
     button.focus();
@@ -80,7 +89,8 @@ describe("Shell", () => {
       fireEvent.keyDown(dialog, { key: "Escape" });
     });
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(button);
+    // The sheet hands focus back once it has unmounted.
+    await waitFor(() => expect(document.activeElement).toBe(button));
   });
 
   it("keeps Tab inside the More sheet", () => {
@@ -132,8 +142,9 @@ describe("Shell", () => {
         const alert = screen.getByRole("alert");
         expect(alert.textContent).not.toMatch(/try again|თავიდან/i);
         expect(alert.textContent).not.toContain(".tmp");
-        const details = document.querySelector("details.disclosure");
-        expect(details?.textContent).toContain("006-D9035-02.tmp");
+        expect(document.body.textContent).not.toContain("006-D9035-02.tmp");
+        fireEvent.click(screen.getByRole("button", { name: lang === "en" ? "Details" : "დეტალები" }));
+        expect(document.body.textContent).toContain("006-D9035-02.tmp");
         fireEvent.click(document.querySelector<HTMLButtonElement>("[data-main-action]")!);
         expect(onAction).toHaveBeenCalledWith("restore", undefined);
         expect(screen.getByRole("button", { name: lang === "en" ? "Back" : "უკან" })).toBeTruthy();
@@ -153,7 +164,7 @@ describe("Shell", () => {
       thanks: "we_look",
     });
     expect(document.body.textContent).not.toContain("Garmin owner");
-    expect(document.querySelector(".watch-card")).toBeNull();
+    expect(screen.queryByText("Watch")).toBeNull();
     expect(screen.getByText("Thank you! We'll look into it and reply on GitHub.")).toBeTruthy();
   });
 });

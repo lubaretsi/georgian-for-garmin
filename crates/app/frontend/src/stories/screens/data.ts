@@ -141,6 +141,44 @@ export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean
   };
 }
 
+/** Which computer the diagnostics stories describe. */
+export type DiagnosticsCase = "no_watch" | "watch" | "busy";
+
+/**
+ * The diagnostics summary as the flow builds it (toScreen) and a `text` in the mock's
+ * format (the core's `diagnose` writes the real one), for a Mac with or without a Venu 2.
+ */
+export function diagnosticsSample(lang: Lang, found: DiagnosticsCase): { summary: { label: string; value: string }[]; text: string } {
+  const c = copyFor(lang);
+  const s = c.diagnostics.summary;
+  const venu2Line = `${venu2.model}, ${fmt(c.watchCard.software, { software: venu2.software })}`;
+  const summary = [
+    { label: s.app, value: "0.4.0" },
+    { label: s.system, value: "macOS 15.6.1 (arm64)" },
+    { label: s.watch, value: found === "watch" ? venu2Line : s.noWatch },
+    { label: s.connection, value: found === "watch" ? s.connected : found === "busy" ? "device_busy" : "no_device" },
+    { label: s.lastProblem, value: found === "busy" ? "03:14:05 device_busy" : s.none },
+  ];
+  const usb =
+    found === "no_watch"
+      ? ["usb no Garmin device"]
+      : ["usb", `  0x4CDA mtp${found === "busy" ? ' held by garmin_express "Garmin Express"' : ""}`];
+  const text = [
+    "Georgian for Garmin diagnostic info. It contains no serial number or watch ID.",
+    "app 0.4.0 (2026-11-20)",
+    "system macOS 15.6.1 arm64",
+    ...usb,
+    `connection ${found === "watch" ? "ok" : found === "busy" ? "device_busy: Garmin Express is using the watch" : "no_device: no watch found"}`,
+    "drives none",
+    found === "watch" ? `watch\n  model ${venu2.model}\n  software ${venu2.software}\n  state not_installed` : "watch none",
+    "events 3",
+    "  2026-11-24T03:13:58 poll no_device",
+    `  2026-11-24T03:14:05 poll ${found === "busy" ? "device_busy" : found === "watch" ? "watch Venu 2" : "no_device"}`,
+    "  2026-11-24T03:14:07 diagnostics open",
+  ].join("\n");
+  return { summary, text: `${text}\n` };
+}
+
 /** A model built per language (the share summary is in the story's language). */
 export type StoryModel = ScreenModel | ((lang: Lang) => ScreenModel);
 

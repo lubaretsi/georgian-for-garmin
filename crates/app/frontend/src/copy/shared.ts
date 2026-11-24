@@ -20,5 +20,8 @@ export const RESULT_SAMPLES = {
   some_letters: "ქა□□",
 } as const;
 
+/** The Georgian notification the install picture shows ("hello!"); illustration text, the same in both languages. */
+export const GREETING = "სალამი!";
+
 /** The language names the switch shows, each in its own language. */
 export const LANGUAGE_NAMES = { ka: "ქართული", en: "English" } as const;

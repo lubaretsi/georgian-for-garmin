@@ -1,18 +1,39 @@
+import { Lock, ShieldCheck, Smartphone } from "lucide-react";
+import type { ReactNode } from "react";
+
 import { fmt } from "../copy";
-import type { ScreenModel } from "../model/screens";
-import type { FooterAction } from "../ui/ActionBar";
-import { Facts } from "../ui/bits";
+import type { Result, ScreenModel } from "../model/screens";
+import { CelebrateScene, MissedScene, WatchScene } from "../ui/art/Scenes";
+import { MiniFace } from "../ui/art/Watch";
+import { Alert } from "../ui/Alert";
+import { Badge } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
-import { Notice } from "../ui/Notice";
-import { copyLabels, emitting } from "./common";
-import type { ScreenContext, ScreenView } from "./types";
+import { Facts, Group, GroupFootnote, GroupHeader, Row, Tile, TILE_INSET } from "../ui/Group";
+import { copyLabels, emitting, WatchFacts } from "./common";
+import type { FooterAction, ScreenContext, ScreenView } from "./types";
 
 type Outcome = Extract<ScreenModel, { screen: "outcome" }>;
 type Share = Extract<ScreenModel, { screen: "share" }>;
 
 /** Restarts after which the outcome stops suggesting another one (§4.1). */
 const RESTARTS_BEFORE_SHARE = 2;
+
+/** "The watch showed: [face] Boxes" for the result list. */
+function shownRow(ctx: ScreenContext, result: Result | null): { label: string; value: ReactNode } | undefined {
+  if (!result || result === "not_installed") return undefined;
+  const label = ctx.copy.check.answer.results[result];
+  const sample = result === "no_notification" ? "none" : result;
+  return {
+    label: ctx.copy.outcome.result.showed,
+    value: (
+      <span className="inline-flex items-center gap-2">
+        <Badge tone={result === "georgian" ? "success" : result === "no_notification" ? "neutral" : "caution"}>{label}</Badge>
+        <MiniFace sample={sample} size={28} />
+      </span>
+    ),
+  };
+}
 
 /** outcome: what the answer means, and the one next step. */
 export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
@@ -23,22 +44,35 @@ export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
     onPress: () => ctx.emit("share", { action: "share", what: "result" }),
   };
   const done = emitting(ctx, ctx.copy.actions.done, "done");
-  const thanks = model.sharedBefore ? <p className="muted">{o.sharedBefore}</p> : null;
+  const resultList = (footnotes: ReactNode) => (
+    <section aria-labelledby="result-title">
+      <GroupHeader id="result-title">{o.result.title}</GroupHeader>
+      <WatchFacts copy={ctx.copy} watch={model.watch} extra={shownRow(ctx, model.result)} />
+      {footnotes}
+    </section>
+  );
+  const thanks = model.sharedBefore ? <GroupFootnote>{o.sharedBefore}</GroupFootnote> : null;
   switch (model.kind) {
     case "works_confirmed":
       return {
         step: "check",
+        allDone: true,
+        hero: <CelebrateScene />,
         title: o.works_confirmed.title,
-        illustration: { icon: "check", tone: "success" },
-        content: <p className="lead">{o.works_confirmed.body}</p>,
+        lead: o.works_confirmed.body,
+        content: resultList(null),
         primary: done,
       };
     case "works_first":
       return {
         step: "check",
-        title: fmt(o.works_first.title, values),
-        illustration: { icon: "check", tone: "success" },
-        content: model.sharedBefore ? thanks : <p className="lead">{fmt(o.works_first.body, values)}</p>,
+        allDone: true,
+        hero: <CelebrateScene />,
+        title: o.works_first.title,
+        lead: fmt(o.works_first.body, values),
+        content: resultList(
+          model.sharedBefore ? thanks : <GroupFootnote icon={<ShieldCheck size={14} />}>{o.works_first.account}</GroupFootnote>,
+        ),
         primary: model.sharedBefore ? done : shareResult,
         secondary: model.sharedBefore ? undefined : emitting(ctx, ctx.copy.actions.notNow, "done"),
       };
@@ -47,16 +81,17 @@ export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
       const restartFirst = model.restarts < RESTARTS_BEFORE_SHARE;
       // Already shared: restarting is the only thing left to offer besides More › Restore.
       const share = model.sharedBefore ? undefined : shareResult;
+      const face = model.result === "question_marks" || model.result === "some_letters" ? model.result : "boxes";
       return {
         step: "check",
+        hero: <WatchScene face={face} />,
         title: o.didnt_show.title,
-        illustration: { icon: "restart", tone: "muted" },
-        content: (
+        lead: restartFirst ? o.didnt_show.tryRestart : o.didnt_show.share,
+        content: resultList(
           <>
-            <p className="lead">{restartFirst ? o.didnt_show.tryRestart : o.didnt_show.share}</p>
             {thanks}
-            <p className="muted">{o.didnt_show.restoreHint}</p>
-          </>
+            <GroupFootnote>{o.didnt_show.restoreHint}</GroupFootnote>
+          </>,
         ),
         primary: restartFirst || !share ? restart : share,
         secondary: restartFirst || !share ? share : restart,
@@ -65,17 +100,17 @@ export function OutcomeScreen(model: Outcome, ctx: ScreenContext): ScreenView {
     case "no_notification":
       return {
         step: "check",
+        hero: <MissedScene />,
         title: o.no_notification.title,
-        illustration: { icon: "phone", tone: "muted" },
+        lead: o.no_notification.body,
         content: (
-          <>
-            <p className="lead">{o.no_notification.body}</p>
-            <ul className="tight-list">
-              <li>{ctx.copy.phone.android}</li>
-              <li>{ctx.copy.phone.iphone}</li>
-            </ul>
-            <p>{ctx.copy.phone.either}</p>
-          </>
+          <div>
+            <Group className={TILE_INSET}>
+              <Row lead={<Tile><Smartphone size={15} /></Tile>} title={ctx.copy.phone.android} />
+              <Row lead={<Tile><Smartphone size={15} /></Tile>} title={ctx.copy.phone.iphone} />
+            </Group>
+            <GroupFootnote>{ctx.copy.phone.either}</GroupFootnote>
+          </div>
         ),
         primary: emitting(ctx, ctx.copy.actions.tryAgain, "check"),
       };
@@ -105,24 +140,23 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
       <CopyBlock text={model.reportText} label={s.exactText} labels={copyLabels(ctx.copy)} variant="report" lang="en" />
     </Disclosure>
   );
-  const thanks = thanksText ? <p className="lead">{thanksText}</p> : null;
   switch (model.state) {
     case "ready":
       return {
         step,
         title: s.title[model.what],
-        illustration: { icon: "share" },
-        watch: watch ?? undefined,
+        lead: why,
         content: (
           <>
-            <p className="lead">{why}</p>
-            <Notice tone="info">
+            <section aria-labelledby="shared-title">
+              <GroupHeader id="shared-title">{s.whatTitle}</GroupHeader>
+              <Facts items={model.summary} />
+              <GroupFootnote icon={<Lock size={14} />}>{s.private}</GroupFootnote>
+            </section>
+            <Alert tone="info">
               <p>{s.account}</p>
-              <p>{s.nothingSent}</p>
-            </Notice>
-            <h2 className="section-title">{s.whatTitle}</h2>
-            <Facts items={model.summary} />
-            <p className="muted">{s.private}</p>
+              <p className="text-fg-2">{s.nothingSent}</p>
+            </Alert>
             {exactText}
           </>
         ),
@@ -133,19 +167,16 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
       return {
         step,
         title: s.opened.title,
-        illustration: { icon: "check", tone: "success" },
-        status: s.opened.title,
+        lead: s.opened.body,
+        status: { text: s.opened.title, busy: false },
         content: (
           <>
             {model.state === "opened_paste" ? (
-              <Notice tone="warning">
-                <p>
-                  <strong>{s.opened.pasted}</strong>
-                </p>
-              </Notice>
+              <Alert tone="caution">
+                <p className="font-medium">{s.opened.pasted}</p>
+              </Alert>
             ) : null}
-            <p className="lead">{s.opened.body}</p>
-            {thanks}
+            {thanksText ? <Alert tone="success">{thanksText}</Alert> : null}
             {exactText}
           </>
         ),
@@ -155,12 +186,11 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
       return {
         step,
         title: s.failed.title,
-        illustration: { icon: "share", tone: "muted" },
         content: (
           <>
-            <Notice tone="error" live>
+            <Alert tone="danger" live>
               <p>{s.failed.body}</p>
-            </Notice>
+            </Alert>
             {exactText}
           </>
         ),

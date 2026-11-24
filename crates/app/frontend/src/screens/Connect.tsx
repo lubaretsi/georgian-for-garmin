@@ -1,13 +1,14 @@
+import { BellRing, Cable, LifeBuoy, MonitorX, RotateCw, Unplug, Watch } from "lucide-react";
+
 import type { Platform } from "../core/backend";
 import { type Copy, fmt } from "../copy";
 import { LINUX_UDEV_COMMANDS } from "../copy/shared";
 import type { BusyView, ScreenModel } from "../model/screens";
-import { Waiting } from "../ui/bits";
+import { ConnectScene, WatchScene } from "../ui/art/Scenes";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
-import { Icon } from "../ui/icons";
-import { Notice } from "../ui/Notice";
-import { STEPS } from "../ui/StepIndicator";
+import { Group, GroupFootnote, Row, StepNumber, Tile, TILE_INSET } from "../ui/Group";
+import { STEPS, type StepId } from "../ui/StepIndicator";
 import { copyLabels, emitting, reportProblem } from "./common";
 import type { ScreenContext, ScreenView } from "./types";
 
@@ -15,47 +16,64 @@ type Searching = Extract<ScreenModel, { screen: "connect"; mode: "searching" }>;
 type Busy = Extract<ScreenModel, { screen: "connect"; mode: "busy" }>;
 type Problem = Extract<ScreenModel, { screen: "connect"; mode: "problem" }>;
 
-const STEP_ICONS = { connect: "cable", install: "watch", restart: "restart", check: "check" } as const;
+const STEP_ICONS: Record<StepId, typeof Cable> = { connect: Cable, install: Watch, restart: RotateCw, check: BellRing };
 
-/** connect / searching: what the app does, the four steps, and help after a while. */
+/**
+ * connect / searching: what the app does, help after a while, and the four steps (collapsed
+ * once the help shows). No footer action: More is in the toolbar (§10).
+ */
 export function ConnectSearching(model: Searching, ctx: ScreenContext): ScreenView {
   const c = ctx.copy.connect.searching;
   const help = ctx.copy.connect.help;
+  const tips = [
+    { icon: MonitorX, ...help.express[ctx.platform] },
+    { icon: Unplug, ...help.replug },
+    { icon: Cable, ...help.cable },
+  ];
   return {
     step: "connect",
+    hero: <ConnectScene />,
     title: c.title,
-    illustration: { icon: "cable" },
-    status: c.looking,
+    lead: c.lead,
+    status: { text: c.looking, busy: true },
     content: (
       <>
-        <p className="lead">{c.lead}</p>
-        <Waiting>{c.looking}</Waiting>
         {model.showHelp ? (
-          <Notice tone="info" title={help.title}>
-            <ul className="tight-list">
-              <li>{help.express[ctx.platform]}</li>
-              <li>{help.replug}</li>
-              <li>{help.cable}</li>
-            </ul>
-          </Notice>
+          <section aria-labelledby="help-title">
+            <Group className={TILE_INSET}>
+              <div className="flex items-center gap-3 px-3.5 py-3">
+                <Tile tone="accent">
+                  <LifeBuoy size={16} />
+                </Tile>
+                <h2 id="help-title" className="text-row font-semibold text-fg">
+                  {help.title}
+                </h2>
+              </div>
+              {tips.map(({ icon: Icon, title, body }) => (
+                <Row key={title} lead={<Tile><Icon size={15} /></Tile>} title={title} detail={body} strong />
+              ))}
+            </Group>
+          </section>
         ) : null}
-        <h2 className="section-title">{c.previewTitle}</h2>
-        <ol className="preview">
-          {STEPS.map((step) => (
-            <li key={step} className="preview-step">
-              <span className="preview-icon">
-                <Icon name={STEP_ICONS[step]} />
-              </span>
-              <span>
-                <strong>{ctx.copy.steps[step]}</strong>
-                <span className="preview-text">{c.preview[step]}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
+        <Disclosure summary={c.previewTitle} heading defaultOpen={!model.showHelp}>
+          <Group as="ol" className={TILE_INSET}>
+            {STEPS.map((step, i) => {
+              const Icon = STEP_ICONS[step];
+              return (
+                <li key={step}>
+                  <Row
+                    lead={<Tile tone={i === 0 ? "accent" : "graphite"}><Icon size={15} /></Tile>}
+                    title={ctx.copy.steps[step]}
+                    detail={c.preview[step]}
+                    strong
+                  />
+                </li>
+              );
+            })}
+          </Group>
+        </Disclosure>
       </>
     ),
-    secondary: emitting(ctx, ctx.copy.header.more, "show_more"),
   };
 }
 
@@ -92,24 +110,22 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
   return {
     // Busy while the app follows a restart: the journey stays on Restart.
     step: model.duringRestart ? "restart" : "connect",
+    hero: <WatchScene face="busy" cable="plugged" />,
     title: fmt(model.busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program }),
-    illustration: { icon: "watch", tone: "muted" },
+    lead: b.lead,
+    status: { text: b.retrying, busy: true },
     content: (
-      <>
-        {cut ? <p className="muted">{b.nameCut}</p> : null}
-        <p>{b.lead}</p>
-        {steps.length > 1 ? (
-          <ol className="numbered-list">
-            {steps.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        ) : (
-          <p>{steps[0]}</p>
-        )}
-        <Waiting>{b.retrying}</Waiting>
-        {model.duringRestart ? <p>{b.duringRestart}</p> : null}
-      </>
+      <div>
+        <Group as="ol" className={steps.length > 1 ? TILE_INSET : undefined}>
+          {steps.map((step, i) => (
+            <li key={step}>
+              <Row lead={steps.length > 1 ? <StepNumber n={i + 1} /> : undefined} title={step} />
+            </li>
+          ))}
+        </Group>
+        {cut ? <GroupFootnote>{b.nameCut}</GroupFootnote> : null}
+        {model.duringRestart ? <GroupFootnote>{b.duringRestart}</GroupFootnote> : null}
+      </div>
     ),
     primary: emitting(ctx, ctx.copy.actions.tryAgainNow, "retry_now"),
     secondary: {
@@ -126,17 +142,17 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
 export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
   const text = ctx.copy.connect.problem[model.problem];
   const retry = emitting(ctx, ctx.copy.actions.tryAgainNow, "retry_now");
-  const report = reportProblem(ctx);
   const details =
     model.detail.trim() !== "" ? (
       <Disclosure summary={ctx.copy.actions.details}>
-        <pre className="detail-text">{model.detail}</pre>
+        <CopyBlock text={model.detail} label={ctx.copy.actions.details} variant="report" lang="en" />
       </Disclosure>
     ) : null;
   const base = {
     step: "connect" as const,
+    hero: <WatchScene face="alert" cable="plugged" />,
     title: text.title,
-    illustration: { icon: "cable" as const, tone: "muted" as const },
+    lead: text.body,
   };
   switch (model.problem) {
     case "permission_denied":
@@ -144,13 +160,7 @@ export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
         ...base,
         content: (
           <>
-            <p>{text.body}</p>
-            <CopyBlock
-              text={LINUX_UDEV_COMMANDS}
-              label={ctx.copy.actions.copyCommands}
-              labels={copyLabels(ctx.copy)}
-              lang="en"
-            />
+            <CopyBlock text={LINUX_UDEV_COMMANDS} label={ctx.copy.actions.copyCommands} labels={copyLabels(ctx.copy)} lang="en" />
             {details}
           </>
         ),
@@ -159,10 +169,10 @@ export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
       };
     case "multiple_devices":
     case "device_error":
-      return { ...base, content: <><p>{text.body}</p>{details}</>, primary: retry };
+      return { ...base, content: details, primary: retry };
     case "garmin_folder_not_found":
     case "extdata_not_found":
     case "internal":
-      return { ...base, content: <><p>{text.body}</p>{details}</>, primary: report, secondary: retry };
+      return { ...base, content: details, primary: reportProblem(ctx), secondary: retry };
   }
 }

@@ -2,12 +2,14 @@ import type { ScreenModel } from "../model/screens";
 import { OutcomeScreen, ShareScreen } from "./After";
 import { CheckScreen } from "./Check";
 import { ConnectBusy, ConnectProblem, ConnectSearching } from "./Connect";
+import { DiagnosticsScreen } from "./Diagnostics";
 import { ErrorScreen } from "./ErrorScreen";
 import { ConfirmRestoreScreen, RestartScreen, ResultScreen, WorkingScreen } from "./Operation";
 import type { ScreenContext, ScreenView } from "./types";
 import { DriveScreen, WatchScreen } from "./Watch";
 
-export type { Emit, ScreenContext, ScreenView } from "./types";
+export type { Emit, FooterAction, ScreenContext, ScreenView } from "./types";
+export { TITLE_ID } from "./types";
 
 /** The view for a screen model: one screen function per screen and mode. */
 export function renderScreen(model: ScreenModel, ctx: ScreenContext): ScreenView {
@@ -42,6 +44,8 @@ export function renderScreen(model: ScreenModel, ctx: ScreenContext): ScreenView
       return ShareScreen(model, ctx);
     case "error":
       return ErrorScreen(model, ctx);
+    case "diagnostics":
+      return DiagnosticsScreen(model, ctx);
   }
 }
 
@@ -74,5 +78,8 @@ export function screenKey(model: ScreenModel): string {
       return `error/${model.code}`;
     case "confirm_restore":
       return "confirm_restore";
+    // Saving or copying keeps the user where they are; only arriving moves focus.
+    case "diagnostics":
+      return "diagnostics";
   }
 }

@@ -1,117 +1,171 @@
 /*
- * Design tokens. Light and dark follow the system unless an ancestor sets data-theme.
- * Contrast (§2.9), checked by src/ui/tokens.test.ts: text pairs ≥ 4.5:1, control
- * boundaries and focus rings ≥ 3:1 against the surfaces they sit on.
- * Sizes: body 15px, nothing below 13px.
+ * Design tokens (CONTRACT §10). Light and dark follow the system unless an ancestor sets
+ * data-theme. Contrast (§2.9) is checked by src/ui/tokens.test.ts: text pairs ≥ 4.5:1,
+ * control boundaries, checked indicators and the focus ring ≥ 3:1 on the surfaces they sit on.
+ * Only the hex tokens are checked; the rgb() ones are hairlines, shadows and tints.
  */
 
 :root,
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #ffffff;
-  --surface: #f3f5f7;
-  --surface-raised: #ffffff;
-  --text: #16191d;
-  --text-muted: #4f5761;
-  --border: #7b838d;
-  --divider: #d9dde2;
-  --accent: #0a58a8;
-  --accent-hover: #084a8e;
-  --on-accent: #ffffff;
-  --accent-soft: #e6f0fa;
-  --focus: #0a58a8;
-  --info-bg: #e9f1fa;
-  --info-border: #3d74b0;
-  --warning-bg: #fff3d4;
-  --warning-border: #93640a;
-  --error-bg: #fdeceb;
-  --error-border: #b3261e;
-  --error-text: #a3221b;
-  --success: #1d6a33;
-  --code-bg: #eef1f4;
-  --shadow: 0 8px 28px rgb(16 24 40 / 0.18);
-  --scrim: rgb(16 24 40 / 0.45);
+  --bg: #f2f2f5;
+  --group: #fcfcfd;
+  --group-hover: #f5f5f8;
+  --group-active: #ececf0;
+  --fill: #e6e6eb;
+  --fill-strong: #dadae0;
+  --text: #1c1c1f;
+  --text-2: #5e5e66;
+  --control-border: #7a7a82;
+  --control-bg: #fcfcfd;
+  --accent: #c92a43;
+  --accent-hover: #b32239;
+  --accent-active: #9e1d32;
+  --on-accent: #fffbfb;
+  --accent-ink: #bf2640;
+  --indicator: #c92a43;
+  --focus: #c92a43;
+  --accent-soft: #f9ebee;
+  --success: #1f8a43;
+  --success-ink: #17703a;
+  --success-soft: #e4f3e8;
+  --caution-ink: #7a4f06;
+  --caution-soft: #f8eedb;
+  --danger-ink: #b0262a;
+  --danger-soft: #fbeaea;
+  --sep: rgb(60 60 67 / 0.14);
+  --toolbar: rgb(242 242 245 / 0.94);
+  --tile: linear-gradient(180deg, #8e8e96, #6e6e76);
+  --tile-accent: linear-gradient(180deg, #db3a53, #c22840);
+  --tile-green: linear-gradient(180deg, #34b55a, #23974a);
+  --celebrate: rgb(31 138 67 / 0.1);
+  --elev-group: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+  --elev-control: 0 0.5px 1px rgb(0 0 0 / 0.12);
+  --elev-thumb: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 2px 5px rgb(0 0 0 / 0.12);
+  --elev-window: 0 0 0 0.5px rgb(0 0 0 / 0.22), 0 24px 64px rgb(0 0 0 / 0.22), 0 6px 16px rgb(0 0 0 / 0.1);
+  --scrim: rgb(0 0 0 / 0.22);
+  /* The device: silver case, dark glass, light strap. */
+  --case-hi: #eef0f3;
+  --case-lo: #a3a6ad;
+  --case-edge: rgb(0 0 0 / 0.28);
+  --bezel: #2a2b30;
+  --glass: #111215;
+  --face-fg: #f3f3f5;
+  --face-dim: #8d8f98;
+  --strap-a: #c3c6cd;
+  --strap-b: #a8abb3;
+  --device-button: #9ea1a8;
+  --device-shadow: rgb(20 20 30 / 0.18);
+  --ring: rgb(60 60 67 / 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #15181c;
-    --surface: #1e2227;
-    --surface-raised: #23282e;
-    --text: #eceff3;
-    --text-muted: #aab2bc;
-    --border: #8a939e;
-    --divider: #343a42;
-    --accent: #5ea6f2;
-    --accent-hover: #7ab6f5;
-    --on-accent: #0a1420;
-    --accent-soft: #1b2b3d;
-    --focus: #7ab6f5;
-    --info-bg: #182638;
-    --info-border: #5ea6f2;
-    --warning-bg: #2e2510;
-    --warning-border: #d9a23a;
-    --error-bg: #351a19;
-    --error-border: #f07a70;
-    --error-text: #f4958d;
-    --success: #6fcf8a;
-    --code-bg: #262b31;
-    --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
-    --scrim: rgb(0 0 0 / 0.6);
+    --bg: #1c1c1e;
+    --group: #29292c;
+    --group-hover: #2f2f32;
+    --group-active: #363639;
+    --fill: #38383c;
+    --fill-strong: #444449;
+    --text: #f0f0f3;
+    --text-2: #a5a5ad;
+    --control-border: #85858e;
+    --control-bg: #46464b;
+    --accent: #c42a44;
+    --accent-hover: #b22339;
+    --accent-active: #a01f33;
+    --on-accent: #fffbfb;
+    --accent-ink: #ff7086;
+    --indicator: #e5455f;
+    --focus: #ff7086;
+    --accent-soft: #3a2a2f;
+    --success: #3fbf68;
+    --success-ink: #6fd78e;
+    --success-soft: #1d3324;
+    --caution-ink: #f0c36b;
+    --caution-soft: #3a2f19;
+    --danger-ink: #ff8f87;
+    --danger-soft: #3b2224;
+    --sep: rgb(255 255 255 / 0.1);
+    --toolbar: rgb(28 28 30 / 0.94);
+    --tile: linear-gradient(180deg, #7a7a82, #5d5d64);
+    --celebrate: rgb(63 191 104 / 0.1);
+    --elev-group: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+    --elev-control: 0 0 0 0.5px rgb(255 255 255 / 0.04), 0 1px 1px rgb(0 0 0 / 0.3);
+    --elev-thumb: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 2px 5px rgb(0 0 0 / 0.4);
+    --elev-window: 0 0 0 0.5px rgb(0 0 0 / 0.8), inset 0 0 0 0.5px rgb(255 255 255 / 0.14), 0 24px 64px rgb(0 0 0 / 0.5);
+    --scrim: rgb(0 0 0 / 0.45);
+    --case-hi: #7a7d86;
+    --case-lo: #2a2c31;
+    --case-edge: rgb(0 0 0 / 0.6);
+    --bezel: #16171a;
+    --glass: #0c0d0f;
+    --strap-a: #3f4147;
+    --strap-b: #32343a;
+    --device-button: #5d6068;
+    --device-shadow: rgb(0 0 0 / 0.45);
+    --ring: rgb(255 255 255 / 0.12);
   }
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #15181c;
-  --surface: #1e2227;
-  --surface-raised: #23282e;
-  --text: #eceff3;
-  --text-muted: #aab2bc;
-  --border: #8a939e;
-  --divider: #343a42;
-  --accent: #5ea6f2;
-  --accent-hover: #7ab6f5;
-  --on-accent: #0a1420;
-  --accent-soft: #1b2b3d;
-  --focus: #7ab6f5;
-  --info-bg: #182638;
-  --info-border: #5ea6f2;
-  --warning-bg: #2e2510;
-  --warning-border: #d9a23a;
-  --error-bg: #351a19;
-  --error-border: #f07a70;
-  --error-text: #f4958d;
-  --success: #6fcf8a;
-  --code-bg: #262b31;
-  --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
-  --scrim: rgb(0 0 0 / 0.6);
+  --bg: #1c1c1e;
+  --group: #29292c;
+  --group-hover: #2f2f32;
+  --group-active: #363639;
+  --fill: #38383c;
+  --fill-strong: #444449;
+  --text: #f0f0f3;
+  --text-2: #a5a5ad;
+  --control-border: #85858e;
+  --control-bg: #46464b;
+  --accent: #c42a44;
+  --accent-hover: #b22339;
+  --accent-active: #a01f33;
+  --on-accent: #fffbfb;
+  --accent-ink: #ff7086;
+  --indicator: #e5455f;
+  --focus: #ff7086;
+  --accent-soft: #3a2a2f;
+  --success: #3fbf68;
+  --success-ink: #6fd78e;
+  --success-soft: #1d3324;
+  --caution-ink: #f0c36b;
+  --caution-soft: #3a2f19;
+  --danger-ink: #ff8f87;
+  --danger-soft: #3b2224;
+  --sep: rgb(255 255 255 / 0.1);
+  --toolbar: rgb(28 28 30 / 0.94);
+  --tile: linear-gradient(180deg, #7a7a82, #5d5d64);
+  --celebrate: rgb(63 191 104 / 0.1);
+  --elev-group: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --elev-control: 0 0 0 0.5px rgb(255 255 255 / 0.04), 0 1px 1px rgb(0 0 0 / 0.3);
+  --elev-thumb: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 2px 5px rgb(0 0 0 / 0.4);
+  --elev-window: 0 0 0 0.5px rgb(0 0 0 / 0.8), inset 0 0 0 0.5px rgb(255 255 255 / 0.14), 0 24px 64px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.45);
+  --case-hi: #7a7d86;
+  --case-lo: #2a2c31;
+  --case-edge: rgb(0 0 0 / 0.6);
+  --bezel: #16171a;
+  --glass: #0c0d0f;
+  --strap-a: #3f4147;
+  --strap-b: #32343a;
+  --device-button: #5d6068;
+  --device-shadow: rgb(0 0 0 / 0.45);
+  --ring: rgb(255 255 255 / 0.12);
 }
 
 :root {
-  --font: "Noto Sans Georgian Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --text-sm: 13px;
-  --text-md: 15px;
-  --text-lg: 17px;
-  --text-xl: 21px;
-  --leading: 1.5;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --control-height: 44px;
-  --header-height: 52px;
-  --duration: 160ms;
+  /* Georgian from the bundled Noto Sans Georgian (§2.11), Latin from the system font. */
+  --font: "Georgian UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    Cantarell, "Noto Sans Georgian Variable", system-ui, sans-serif;
+  --control-radius: 8px;
+  --toolbar-h: 52px;
+  --footer-h: 60px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --duration: 0ms;
-  }
+[data-platform="windows"] {
+  --control-radius: 5px;
 }

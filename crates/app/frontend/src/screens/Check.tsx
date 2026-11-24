@@ -1,11 +1,13 @@
 import { fmt } from "../copy";
-import { RESULT_SAMPLES, TEST_TEXT } from "../copy/shared";
+import { TEST_TEXT } from "../copy/shared";
 import type { Answers, Result, ScreenModel, View } from "../model/screens";
-import { imageSource, Qr } from "../ui/bits";
-import { type Choice, CheckboxChoices, RadioChoices } from "../ui/Choices";
+import { MiniFace } from "../ui/art/Watch";
+import { CheckboxRow, RadioRows, Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
+import { Group, GroupFootnote, GroupHeader } from "../ui/Group";
+import { imageSource, Qr } from "../ui/Qr";
 import { copyLabels, emitting } from "./common";
-import type { ScreenContext, ScreenView } from "./types";
+import { TITLE_ID, type ScreenContext, type ScreenView } from "./types";
 
 type Check = Extract<ScreenModel, { screen: "check" }>;
 
@@ -24,25 +26,28 @@ function sendStep(model: Check, ctx: ScreenContext): ScreenView {
   return {
     step: "check",
     title: s.title,
-    illustration: { icon: "phone" },
     content: (
       <>
         {model.phone ? (
-          <div className="qr-row">
-            <Qr image={model.phone.qr} label={s.qrLabel} />
-            <p>{s.scan}</p>
-          </div>
+          <Group>
+            <div className="flex items-center gap-4 p-3.5">
+              <Qr image={model.phone.qr} label={s.qrLabel} />
+              <p className="text-row text-fg">{s.scan}</p>
+            </div>
+          </Group>
         ) : null}
-        <p>{model.phone ? s.orText : s.textOnly}</p>
-        <CopyBlock
-          text={TEST_TEXT}
-          label={s.title}
-          labels={copyLabels(ctx.copy)}
-          variant="sample"
-          lang="ka"
-          onCopied={() => ctx.emit("copy_test_text")}
-        />
-        <p className="muted">{s.expect}</p>
+        <div>
+          <p className="mb-2 px-3.5 text-row text-fg-2">{model.phone ? s.orText : s.textOnly}</p>
+          <CopyBlock
+            text={TEST_TEXT}
+            label={s.title}
+            labels={copyLabels(ctx.copy)}
+            variant="sample"
+            lang="ka"
+            onCopied={() => ctx.emit("copy_test_text")}
+          />
+          <GroupFootnote>{s.expect}</GroupFootnote>
+        </div>
       </>
     ),
     primary: emitting(ctx, ctx.copy.actions.sentIt, "send_test_done"),
@@ -54,62 +59,85 @@ function answerStep(model: Check, ctx: ScreenContext): ScreenView {
   const answers = model.answers;
   const change = (next: Answers) => ctx.emit("answer", { action: "answer", answers: next });
   const letters = answers.result === "georgian" || answers.result === "some_letters";
-  const results: Choice<Exclude<Result, "not_installed">>[] = OFFERED.map((value) => ({
-    value,
-    label: a.results[value],
-    sample: value === "no_notification" ? "—" : RESULT_SAMPLES[value],
-    sampleLang: value === "georgian" || value === "some_letters" ? "ka" : undefined,
-  }));
-  const markers: Choice<string>[] = [
-    ...model.markPictures.map((m) => ({
-      value: m.variant,
-      label: fmt(a.marker.picture, { variant: m.variant }),
-      sample: <img className="marker-picture" src={imageSource(m.picture)} alt="" />,
-    })),
-    { value: NO_MARKER, label: a.marker.none },
-  ];
   return {
     step: "check",
     title: a.title,
     content: (
-      <div className="answer-form">
-        <RadioChoices
-          legend={a.title}
-          hideLegend
-          choices={results}
-          value={answers.result === "not_installed" ? undefined : answers.result}
-          onChange={(result) => change({ ...answers, result })}
-        />
-        {letters ? (
-          <CheckboxChoices
-            legend={a.views.legend}
-            choices={VIEWS.map((value) => ({ value, label: a.views[value] }))}
-            value={answers.views}
-            onChange={(views) => change({ ...answers, views })}
+      <>
+        <div>
+          <RadioRows
+            labelledBy={TITLE_ID}
+            describedBy={answers.result === undefined ? "answer-required" : undefined}
+            value={answers.result === "not_installed" ? undefined : answers.result}
+            onChange={(result) => change({ ...answers, result })}
+            choices={OFFERED.map((value) => ({
+              value,
+              label: a.results[value],
+              trailing: <MiniFace sample={value === "no_notification" ? "none" : value} />,
+            }))}
           />
+          {answers.result === undefined ? (
+            <GroupFootnote>
+              <span id="answer-required">{a.required}</span>
+            </GroupFootnote>
+          ) : null}
+        </div>
+        {letters ? (
+          <section aria-labelledby="views-legend">
+            <GroupHeader id="views-legend" aside={a.optional}>
+              {a.views.legend}
+            </GroupHeader>
+            <Group role="group" aria-labelledby="views-legend" className="[--inset:44px]">
+              {VIEWS.map((view) => (
+                <CheckboxRow
+                  key={view}
+                  label={a.views[view]}
+                  checked={answers.views.includes(view)}
+                  onChange={(on) =>
+                    change({ ...answers, views: on ? [...answers.views, view] : answers.views.filter((v) => v !== view) })
+                  }
+                />
+              ))}
+            </Group>
+          </section>
         ) : null}
         {letters && model.markPictures.length > 0 ? (
-          <RadioChoices
-            legend={a.marker.legend}
-            hint={a.marker.hint}
-            choices={markers}
-            value={answers.marker}
-            onChange={(marker) => change({ ...answers, marker })}
-            layout="grid"
-          />
+          <section aria-labelledby="marker-legend">
+            <GroupHeader id="marker-legend">{a.marker.legend}</GroupHeader>
+            <RadioRows
+              labelledBy="marker-legend"
+              describedBy="marker-hint"
+              value={answers.marker}
+              onChange={(marker) => change({ ...answers, marker })}
+              choices={[
+                ...model.markPictures.map((m) => ({
+                  value: m.variant,
+                  label: fmt(a.marker.picture, { variant: m.variant }),
+                  trailing: <img src={imageSource(m.picture)} alt="" className="h-8 w-40 rounded-[6px] object-contain" />,
+                })),
+                { value: NO_MARKER, label: a.marker.none },
+              ]}
+            />
+            <GroupFootnote>
+              <span id="marker-hint">{a.marker.hint}</span>
+            </GroupFootnote>
+          </section>
         ) : null}
-        <RadioChoices
-          legend={a.phone.legend}
-          choices={[
-            { value: "android", label: a.phone.android },
-            { value: "iphone", label: a.phone.iphone },
-          ]}
-          value={answers.phone}
-          onChange={(phone) => change({ ...answers, phone })}
-          layout="inline"
-        />
-        {answers.result === undefined ? <p className="muted">{a.required}</p> : null}
-      </div>
+        <section>
+          <GroupHeader id="phone-legend" aside={a.optional}>
+            {a.phone.legend}
+          </GroupHeader>
+          <Segmented
+            labelledBy="phone-legend"
+            value={answers.phone}
+            onChange={(phone) => change({ ...answers, phone })}
+            choices={[
+              { value: "android", label: a.phone.android },
+              { value: "iphone", label: a.phone.iphone },
+            ]}
+          />
+        </section>
+      </>
     ),
     primary: { label: ctx.copy.actions.continue, onPress: () => ctx.emit("done"), disabled: answers.result === undefined },
     secondary: emitting(ctx, ctx.copy.actions.back, "back"),

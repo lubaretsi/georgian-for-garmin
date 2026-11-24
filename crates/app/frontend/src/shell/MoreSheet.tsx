@@ -1,101 +1,188 @@
+import { ChevronRight, CircleHelp, FileText, Info, ListChecks, RotateCcw, ScanSearch, Smartphone } from "lucide-react";
+import { Collapsible, Dialog } from "radix-ui";
+import { type ReactNode, type RefObject, useId } from "react";
+
 import type { Lang, Platform } from "../core/backend";
 import { type Copy, fmt } from "../copy";
 import { LANGUAGE_NAMES, REPO_URL } from "../copy/shared";
 import type { ActionId, MoreModel } from "../model/screens";
 import { copyLabels } from "../screens/common";
-import { Facts } from "../ui/bits";
 import { Button } from "../ui/Button";
-import { RadioChoices } from "../ui/Choices";
+import { Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
-import { Sheet } from "../ui/Sheet";
+import { Group, GroupHeader, Tile, TILE_INSET, ValueRow } from "../ui/Group";
 
 /**
- * The More sheet (§5.2): language, Restore original font, what the app sees, help, which
- * watches work, about. The only place the app's internal words may appear (under "What the
+ * More (§5.2, §11), a sheet that drops from the toolbar over the dimmed window: language,
+ * Restore original font when the watch allows it, Diagnostic info, what the app sees, help,
+ * which watches work, and about. It traps focus, closes on Esc and returns focus to the
+ * button that opened it. The only place the app's internal words may appear (under "What the
  * app sees", from the flow's data).
  */
 export function MoreSheet(props: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  container: RefObject<HTMLElement | null>;
+  /** The button that opened the sheet: focus goes back to it on close. */
+  opener: RefObject<HTMLElement | null>;
   more: MoreModel;
   copy: Copy;
   lang: Lang;
   platform: Platform;
   onLanguage: (lang: Lang) => void;
   onAction: (id: ActionId) => void;
-  onClose: () => void;
 }) {
   const { copy, more } = props;
   const m = copy.more;
-  const act = (id: ActionId) => {
-    props.onClose();
+  const run = (id: ActionId) => {
+    props.onOpenChange(false);
     props.onAction(id);
   };
   return (
-    <Sheet title={m.title} closeLabel={copy.actions.close} onClose={props.onClose}>
-      <section className="more-section">
-        <RadioChoices
-          legend={m.language}
-          choices={(["ka", "en"] as const).map((value) => ({
-            value,
-            label: LANGUAGE_NAMES[value],
-            labelLang: value,
-          }))}
-          value={props.lang}
-          onChange={props.onLanguage}
-          layout="inline"
-        />
-      </section>
+    <Dialog.Root open={props.open} onOpenChange={props.onOpenChange}>
+      <Dialog.Portal container={props.container.current}>
+        <Dialog.Overlay className="anim-scrim absolute inset-0 z-40 bg-[var(--scrim)]" />
+        <Dialog.Content
+          aria-modal="true"
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            props.opener.current?.focus();
+          }}
+          aria-describedby={undefined}
+          className="anim-sheet absolute inset-x-3 top-2 bottom-3 z-50 mx-auto flex max-w-[460px] flex-col overflow-hidden rounded-group bg-canvas shadow-window"
+        >
+          <Dialog.Title className="px-5 pt-4 pb-3 text-[17px] leading-6 font-semibold text-fg">{m.title}</Dialog.Title>
+          <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
+            <section>
+              <GroupHeader id="more-language">{m.language}</GroupHeader>
+              <Segmented
+                labelledBy="more-language"
+                value={props.lang}
+                onChange={props.onLanguage}
+                choices={(["ka", "en"] as const).map((l) => ({ value: l, label: LANGUAGE_NAMES[l], lang: l }))}
+              />
+            </section>
 
-      {more.restorable ? (
-        <section className="more-section">
-          <h3>{m.restore.title}</h3>
-          <p>{m.restore.body}</p>
-          <Button onClick={() => act("restore")}>{copy.actions.restore}</Button>
-        </section>
-      ) : null}
+            <Group className={TILE_INSET}>
+              {more.restorable ? (
+                <SheetRow icon={<RotateCcw size={15} />} title={copy.actions.restore} detail={m.restore.body} onPress={() => run("restore")} />
+              ) : null}
+              <SheetRow icon={<FileText size={15} />} title={m.diagnostics.title} detail={m.diagnostics.body} onPress={() => run("diagnostics")} />
+              <SheetRow icon={<ListChecks size={15} />} title={copy.actions.whichWatches} onPress={() => run("which_watches")} />
+            </Group>
 
-      <section className="more-section">
-        <h3>{m.seen.title}</h3>
-        {more.seen ? <Facts items={more.seen} /> : <p className="muted">{m.seen.noWatch}</p>}
-        {more.reportText ? (
-          <Disclosure summary={m.seen.reportTitle}>
-            <CopyBlock
-              text={more.reportText}
-              label={m.seen.reportTitle}
-              labels={copyLabels(copy)}
-              variant="report"
-              lang="en"
-            />
-          </Disclosure>
+            <Group className={TILE_INSET}>
+              <Section icon={<ScanSearch size={15} />} title={m.seen.title}>
+                {more.seen ? (
+                  <dl className="-mx-3.5">
+                    {more.seen.map((s) => (
+                      <ValueRow key={s.label} label={s.label} value={<span className="break-all">{s.value}</span>} />
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-row text-fg-2">{m.seen.noWatch}</p>
+                )}
+                {more.reportText ? (
+                  <div className="mt-2 -ml-3.5">
+                    <Disclosure summary={m.seen.reportTitle}>
+                      <CopyBlock text={more.reportText} label={m.seen.reportTitle} labels={copyLabels(copy)} variant="report" lang="en" />
+                    </Disclosure>
+                  </div>
+                ) : null}
+              </Section>
+              <Section icon={<CircleHelp size={15} />} title={m.help.title}>
+                <ul className="flex list-disc flex-col gap-2 pl-4 text-row text-fg-2">
+                  <li>{m.help.connecting}</li>
+                  <li>{m.help.mtp}</li>
+                  <li>{m.help.express[props.platform]}</li>
+                </ul>
+              </Section>
+              <Section icon={<Smartphone size={15} />} title={m.help.phoneTitle}>
+                <ul className="flex list-disc flex-col gap-2 pl-4 text-row text-fg-2">
+                  <li>{copy.phone.android}</li>
+                  <li>{copy.phone.iphone}</li>
+                  <li>{copy.phone.either}</li>
+                </ul>
+              </Section>
+            </Group>
+
+            <Group>
+              <div className="flex items-start gap-3 px-3.5 py-3">
+                <Tile>
+                  <Info size={15} />
+                </Tile>
+                <div className="min-w-0 text-row text-fg-2">
+                  <p className="text-fg">{fmt(m.about.version, { version: more.version })}</p>
+                  <p>{m.about.unofficial}</p>
+                  <p>
+                    {m.about.source}{" "}
+                    <span lang="en" className="break-all select-text">
+                      {REPO_URL}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </Group>
+          </div>
+          <div className="flex justify-end border-t border-sep px-4 py-3">
+            <Dialog.Close asChild>
+              <Button variant="primary">{copy.actions.close}</Button>
+            </Dialog.Close>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/** A command row: its name is the title; the detail line describes it. */
+function SheetRow(props: { icon: ReactNode; title: string; detail?: string; onPress: () => void }) {
+  const id = useId();
+  return (
+    <button
+      type="button"
+      data-focus="inset"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={props.detail ? `${id}-detail` : undefined}
+      onClick={props.onPress}
+      className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-group-hover active:bg-group-active"
+    >
+      <Tile>{props.icon}</Tile>
+      <span className="min-w-0 flex-1">
+        <span id={`${id}-title`} className="block text-row text-fg">
+          {props.title}
+        </span>
+        {props.detail ? (
+          <span id={`${id}-detail`} className="block text-row text-fg-2">
+            {props.detail}
+          </span>
         ) : null}
-      </section>
+      </span>
+      <ChevronRight size={16} className="text-fg-2" aria-hidden="true" />
+    </button>
+  );
+}
 
-      <section className="more-section">
-        <h3>{m.help.title}</h3>
-        <ul className="tight-list">
-          <li>{m.help.connecting}</li>
-          <li>{m.help.mtp}</li>
-          <li>{m.help.express[props.platform]}</li>
-        </ul>
-        <h4>{m.help.phoneTitle}</h4>
-        <ul className="tight-list">
-          <li>{copy.phone.android}</li>
-          <li>{copy.phone.iphone}</li>
-          <li>{copy.phone.either}</li>
-        </ul>
-        <Button kind="quiet" onClick={() => act("which_watches")}>
-          {copy.actions.whichWatches}
-        </Button>
-      </section>
-
-      <section className="more-section">
-        <h3>{m.about.title}</h3>
-        <p>{fmt(m.about.version, { version: more.version })}</p>
-        <p>{m.about.unofficial}</p>
-        <p>
-          {m.about.source} <span className="url" lang="en">{REPO_URL}</span>
-        </p>
-      </section>
-    </Sheet>
+/** A row that opens in place, like a disclosure row in System Settings. */
+function Section(props: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <Collapsible.Root className="group/section">
+      <h3>
+        <Collapsible.Trigger
+          data-focus="inset"
+          className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-group-hover"
+        >
+          <Tile>{props.icon}</Tile>
+          <span className="flex-1 text-row text-fg">{props.title}</span>
+          <ChevronRight
+            size={16}
+            aria-hidden="true"
+            className="text-fg-2 transition-transform duration-200 group-data-[state=open]/section:rotate-90"
+          />
+        </Collapsible.Trigger>
+      </h3>
+      <Collapsible.Content className="px-3.5 pb-3 pl-[55px]">{props.children}</Collapsible.Content>
+    </Collapsible.Root>
   );
 }

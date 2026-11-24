@@ -1,16 +1,19 @@
-import type { Copy } from "../copy";
-import { fmt } from "../copy";
+import { CircleCheck } from "lucide-react";
+
+import { type Copy, fmt } from "../copy";
 import type { ErrorCode } from "../core/types.gen";
 import type { ScreenModel } from "../model/screens";
-import type { FooterAction } from "../ui/ActionBar";
+import { WatchScene } from "../ui/art/Scenes";
+import { Alert } from "../ui/Alert";
+import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
-import { Notice } from "../ui/Notice";
-import { emitting, reportProblem, shareFontList } from "./common";
-import type { ScreenContext, ScreenView } from "./types";
+import { GroupFootnote } from "../ui/Group";
+import { emitting, reportProblem, shareFontList, WatchFacts } from "./common";
+import type { FooterAction, ScreenContext, ScreenView } from "./types";
 
 type ErrorModel = Extract<ScreenModel, { screen: "error" }>;
 
-/** The §6 groups: codes that share a title, body and action. */
+/** The codes that have their own text; every other code reads as the app's own failure. */
 export type ErrorGroup = keyof Copy["error"] & ErrorCode;
 
 export function errorGroup(code: ErrorCode): ErrorGroup {
@@ -49,7 +52,6 @@ export function ErrorScreen(model: ErrorModel, ctx: ScreenContext): ScreenView {
   const incomplete = rollback?.status === "incomplete";
   const back = emitting(ctx, ctx.copy.actions.back, "back");
   const restore = emitting(ctx, ctx.copy.actions.restore, "restore");
-  const tryAgain = emitting(ctx, ctx.copy.actions.tryAgain, "try_again");
 
   let primary: FooterAction | undefined;
   switch (group) {
@@ -61,7 +63,7 @@ export function ErrorScreen(model: ErrorModel, ctx: ScreenContext): ScreenView {
       break;
     case "verification_failed":
     case "device_error":
-      primary = tryAgain;
+      primary = emitting(ctx, ctx.copy.actions.tryAgain, "try_again");
       break;
     case "no_device":
       primary = undefined;
@@ -77,30 +79,38 @@ export function ErrorScreen(model: ErrorModel, ctx: ScreenContext): ScreenView {
   if (incomplete) primary = restore;
   // Back is the secondary unless it is already the main action.
   const secondary = primary === back ? undefined : back;
+  const hasDetail = model.detail.trim() !== "";
 
   return {
     step: "install",
+    hero: <WatchScene face="alert" cable={group === "no_device" ? "pulled" : "plugged"} />,
     title: text.title,
-    watch: model.watch,
     content: (
       <>
         {incomplete ? (
           // The undo left files in an unknown state: say so instead of the code's body (which
           // may say "try again"), and point at the Restore main action. File names: Details.
-          <Notice tone="error" live>
+          <Alert tone="danger" live>
             <p>{e.rollback.incomplete}</p>
             <p>{e.rollback.restoreHint}</p>
-          </Notice>
+          </Alert>
         ) : (
-          <Notice tone="error" live>
+          <Alert tone="danger" live>
             <p>{text.body}</p>
-          </Notice>
+          </Alert>
         )}
-        {rollback?.status === "complete" ? <p className="muted">{e.rollback.complete}</p> : null}
-        {incomplete || model.detail.trim() !== "" ? (
+        <div>
+          <WatchFacts copy={ctx.copy} watch={model.watch} />
+          {rollback?.status === "complete" ? (
+            <GroupFootnote icon={<CircleCheck size={14} />}>{e.rollback.complete}</GroupFootnote>
+          ) : null}
+        </div>
+        {incomplete || hasDetail ? (
           <Disclosure summary={ctx.copy.actions.details}>
-            {incomplete ? <p className="detail-files">{fmt(e.rollback.files, { files: rollback.files.join(", ") })}</p> : null}
-            {model.detail.trim() !== "" ? <pre className="detail-text">{model.detail}</pre> : null}
+            <div className="flex flex-col gap-2">
+              {incomplete ? <p className="px-3.5 text-row text-fg-2">{fmt(e.rollback.files, { files: rollback.files.join(", ") })}</p> : null}
+              {hasDetail ? <CopyBlock text={model.detail} label={ctx.copy.actions.details} variant="report" lang="en" /> : null}
+            </div>
           </Disclosure>
         ) : null}
       </>

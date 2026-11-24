@@ -1,10 +1,11 @@
+import { Info, RotateCcw, Smartphone } from "lucide-react";
+
 import { fmt } from "../copy";
 import type { ScreenModel } from "../model/screens";
-import type { FooterAction } from "../ui/ActionBar";
-import { Waiting } from "../ui/bits";
-import { Notice } from "../ui/Notice";
-import { checkWhy, confidenceLine, emitting, reportProblem, shareFontList } from "./common";
-import type { ScreenContext, ScreenView } from "./types";
+import { InstallScene, WatchScene } from "../ui/art/Scenes";
+import { Group, GroupFootnote, Row, Tile, TILE_INSET } from "../ui/Group";
+import { checkWhy, confidenceLine, confidenceRow, emitting, reportProblem, shareFontList, WatchFacts } from "./common";
+import type { FooterAction, ScreenContext, ScreenView } from "./types";
 
 type Drive = Extract<ScreenModel, { screen: "drive" }>;
 type Watch = Extract<ScreenModel, { screen: "watch" }>;
@@ -24,30 +25,40 @@ export function DriveScreen(model: Drive, ctx: ScreenContext): ScreenView {
   const d = ctx.copy.drive;
   const offer = fontListOffer(ctx, model);
   const follow = model.driveOnly && model.issue !== null;
-  return {
+  const base = {
     // Back as a drive while the app follows a restart: the journey stays on Restart.
-    step: model.duringRestart ? "restart" : "connect",
+    step: model.duringRestart ? ("restart" as const) : ("connect" as const),
+    hero: <WatchScene face="drive" cable="plugged" />,
     title: fmt(d.title, { model: model.watch.model }),
-    illustration: { icon: "cable", tone: model.driveOnly ? "muted" : "accent" },
-    status: model.driveOnly ? undefined : d.mtp.waiting,
-    content: model.driveOnly ? (
-      <>
-        <p className="lead">{d.driveOnly.body}</p>
-        {follow ? <p>{d.driveOnly.follow}</p> : null}
-        {offer.line ? <p className="muted">{offer.line}</p> : null}
-      </>
-    ) : (
-      <>
-        <p className="lead">{d.mtp.body}</p>
-        <Notice tone="info">
-          <p>{d.mtp.how}</p>
-        </Notice>
-        <Waiting>{d.mtp.waiting}</Waiting>
-        {model.duringRestart ? <p>{d.duringRestart}</p> : null}
-        {offer.line ? <p className="muted">{offer.line}</p> : null}
-      </>
+  };
+  if (model.driveOnly) {
+    return {
+      ...base,
+      lead: d.driveOnly.body,
+      content: (
+        <div>
+          <WatchFacts copy={ctx.copy} watch={model.watch} />
+          {follow ? <GroupFootnote>{d.driveOnly.follow}</GroupFootnote> : null}
+          {offer.line ? <GroupFootnote>{offer.line}</GroupFootnote> : null}
+        </div>
+      ),
+      primary: follow ? emitting(ctx, ctx.copy.actions.followUpdates, "open_issue") : undefined,
+      secondary: offer.action,
+    };
+  }
+  return {
+    ...base,
+    lead: d.mtp.body,
+    status: { text: d.mtp.waiting, busy: true },
+    content: (
+      <div>
+        <Group className={TILE_INSET}>
+          <Row lead={<Tile><Smartphone size={15} /></Tile>} title={d.mtp.how} />
+        </Group>
+        {model.duringRestart ? <GroupFootnote>{d.duringRestart}</GroupFootnote> : null}
+        {offer.line ? <GroupFootnote>{offer.line}</GroupFootnote> : null}
+      </div>
     ),
-    primary: follow ? emitting(ctx, ctx.copy.actions.followUpdates, "open_issue") : undefined,
     secondary: offer.action,
   };
 }
@@ -56,24 +67,21 @@ export function DriveScreen(model: Drive, ctx: ScreenContext): ScreenView {
 export function WatchScreen(model: Watch, ctx: ScreenContext): ScreenView {
   const w = ctx.copy.watch;
   const { watch, verdict } = model;
-  const base = { step: "install" as const, watch };
+  const facts = <WatchFacts copy={ctx.copy} watch={watch} />;
   switch (verdict.kind) {
     case "install": {
       const confirmed = verdict.confidence === "confirmed";
       return {
-        ...base,
+        step: "install",
+        hero: <InstallScene />,
         title: confirmed ? w.install.titleConfirmed : w.install.title,
-        illustration: { icon: "watch", tone: confirmed ? "success" : "accent" },
+        lead: confidenceLine(ctx.copy, ctx.lang, watch, verdict.confidence),
         content: (
-          <>
-            <p className="lead">{confidenceLine(ctx.copy, ctx.lang, watch, verdict.confidence)}</p>
-            {verdict.confidence === "unconfirmed" ? <p>{w.install.unconfirmedFallback}</p> : null}
-            {verdict.note ? (
-              <Notice tone="info">
-                <p>{w.install.note[verdict.note]}</p>
-              </Notice>
-            ) : null}
-          </>
+          <div>
+            <WatchFacts copy={ctx.copy} watch={watch} extra={confidenceRow(ctx.copy, verdict.confidence)} />
+            {verdict.note ? <GroupFootnote icon={<Info size={14} />}>{w.install.note[verdict.note]}</GroupFootnote> : null}
+            {confirmed ? null : <GroupFootnote icon={<RotateCcw size={14} />}>{w.install.unconfirmedFallback}</GroupFootnote>}
+          </div>
         ),
         primary: emitting(ctx, ctx.copy.actions.install, "install"),
       };
@@ -81,27 +89,22 @@ export function WatchScreen(model: Watch, ctx: ScreenContext): ScreenView {
     case "installed": {
       const why = checkWhy(ctx.copy, watch, verdict.confidence);
       return {
-        ...base,
         step: "check",
+        hero: <WatchScene face="georgian" cable="plugged" />,
         title: w.installed.title,
-        illustration: { icon: "check", tone: "success" },
-        content: (
-          <>
-            <p className="lead">{confidenceLine(ctx.copy, ctx.lang, watch, verdict.confidence)}</p>
-            <p>{why ?? w.installed.unplug}</p>
-          </>
-        ),
+        lead: why ?? w.installed.unplug,
+        content: <WatchFacts copy={ctx.copy} watch={watch} extra={confidenceRow(ctx.copy, verdict.confidence)} />,
         primary: why ? emitting(ctx, ctx.copy.actions.check, "check") : undefined,
         secondary: why ? undefined : emitting(ctx, ctx.copy.actions.didntWorkCheck, "check"),
       };
     }
     case "restart_pending":
       return {
-        ...base,
         step: "restart",
+        hero: <WatchScene face="restart" power />,
         title: w.restartPending.title,
-        illustration: { icon: "restart" },
-        content: <p className="lead">{w.restartPending[verdict.variant]}</p>,
+        lead: w.restartPending[verdict.variant],
+        content: facts,
       };
     case "blocked": {
       const text = w.blocked[verdict.reason];
@@ -110,14 +113,15 @@ export function WatchScreen(model: Watch, ctx: ScreenContext): ScreenView {
           ? fontListOffer(ctx, { reportWanted: true, sharedBefore: model.sharedBefore })
           : { line: null, action: undefined };
       return {
-        ...base,
+        step: "install",
+        hero: verdict.reason === "waiting_other_font" ? <WatchScene face="restart" power /> : <WatchScene face="alert" cable="plugged" />,
         title: text.title,
-        illustration: { icon: verdict.reason === "waiting_other_font" ? "restart" : "watch", tone: "muted" },
+        lead: text.body,
         content: (
-          <>
-            <p className="lead">{text.body}</p>
-            {offer.line && model.sharedBefore ? <p className="muted">{offer.line}</p> : null}
-          </>
+          <div>
+            {facts}
+            {model.sharedBefore && offer.line ? <GroupFootnote>{offer.line}</GroupFootnote> : null}
+          </div>
         ),
         primary: offer.action,
       };
@@ -126,16 +130,17 @@ export function WatchScreen(model: Watch, ctx: ScreenContext): ScreenView {
       const offer = fontListOffer(ctx, model);
       const follow = !verdict.restorable && model.issue !== null;
       return {
-        ...base,
+        step: "install",
+        hero: <WatchScene face="boxes" cable="plugged" />,
         title: fmt(w.unsupported.title, { model: watch.model }),
-        illustration: { icon: "watch", tone: "muted" },
+        lead: verdict.reason?.[ctx.lang],
         content: (
-          <>
-            {verdict.reason ? <p className="lead">{verdict.reason[ctx.lang]}</p> : null}
-            {verdict.restorable ? <p>{w.unsupported.restorable}</p> : null}
-            {follow ? <p>{w.unsupported.follow}</p> : null}
-            {offer.line ? <p className="muted">{offer.line}</p> : null}
-          </>
+          <div>
+            {facts}
+            {verdict.restorable ? <GroupFootnote>{w.unsupported.restorable}</GroupFootnote> : null}
+            {follow ? <GroupFootnote>{w.unsupported.follow}</GroupFootnote> : null}
+            {offer.line ? <GroupFootnote>{offer.line}</GroupFootnote> : null}
+          </div>
         ),
         primary: verdict.restorable
           ? emitting(ctx, ctx.copy.actions.restore, "restore")
@@ -147,24 +152,26 @@ export function WatchScreen(model: Watch, ctx: ScreenContext): ScreenView {
     }
     case "no_font":
       return {
-        ...base,
+        step: "install",
+        hero: <WatchScene face="boxes" cable="plugged" />,
         title: fmt(w.noFont.title, { model: watch.model }),
-        illustration: { icon: "watch", tone: "muted" },
+        lead: w.noFont.body,
         content: (
-          <>
-            <p className="lead">{w.noFont.body}</p>
-            {model.sharedBefore ? <p className="muted">{w.sharedBefore}</p> : null}
-          </>
+          <div>
+            {facts}
+            {model.sharedBefore ? <GroupFootnote>{w.sharedBefore}</GroupFootnote> : null}
+          </div>
         ),
         primary: model.sharedBefore ? undefined : shareFontList(ctx),
         secondary: emitting(ctx, ctx.copy.actions.whichWatches, "which_watches"),
       };
     case "unreadable":
       return {
-        ...base,
+        step: "install",
+        hero: <WatchScene face="alert" cable="plugged" />,
         title: w.unreadable.title,
-        illustration: { icon: "watch", tone: "muted" },
-        content: <p className="lead">{w.unreadable.body}</p>,
+        lead: w.unreadable.body,
+        content: facts,
         primary: emitting(ctx, ctx.copy.actions.tryAgain, "retry_now"),
         secondary: reportProblem(ctx),
       };

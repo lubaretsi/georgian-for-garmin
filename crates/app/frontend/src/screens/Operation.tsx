@@ -1,8 +1,12 @@
+import { RotateCw } from "lucide-react";
+
 import { fmt } from "../copy";
 import type { ScreenModel } from "../model/screens";
-import { ProgressBar, Waiting } from "../ui/bits";
-import { Notice } from "../ui/Notice";
-import { checkWhy, confidenceLine, emitting } from "./common";
+import { WatchScene } from "../ui/art/Scenes";
+import { Alert } from "../ui/Alert";
+import { Group, GroupFootnote, Row, StepNumber, Tile, TILE_INSET } from "../ui/Group";
+import { Progress } from "../ui/Progress";
+import { checkWhy, confidenceLine, confidenceRow, emitting, WatchFacts } from "./common";
 import type { ScreenContext, ScreenView } from "./types";
 
 type ConfirmRestore = Extract<ScreenModel, { screen: "confirm_restore" }>;
@@ -15,9 +19,10 @@ export function ConfirmRestoreScreen(model: ConfirmRestore, ctx: ScreenContext):
   const c = ctx.copy.confirmRestore;
   return {
     step: "install",
+    hero: <WatchScene face="boxes" cable="plugged" />,
     title: c.title,
-    watch: model.watch,
-    content: <p className="lead">{c.body}</p>,
+    lead: c.body,
+    content: <WatchFacts copy={ctx.copy} watch={model.watch} />,
     primary: emitting(ctx, ctx.copy.actions.restore, "confirm_restore"),
     secondary: emitting(ctx, ctx.copy.actions.cancel, "cancel"),
   };
@@ -26,22 +31,20 @@ export function ConfirmRestoreScreen(model: ConfirmRestore, ctx: ScreenContext):
 /** working: writing to the watch. No actions: it must not be interrupted. */
 export function WorkingScreen(model: Working, ctx: ScreenContext): ScreenView {
   const w = ctx.copy.working;
-  const progress = model.progress
-    ? fmt(w.progress, { done: model.progress.done, total: model.progress.total })
-    : undefined;
+  const { progress } = model;
+  const text = progress ? fmt(w.progress, { done: progress.done, total: progress.total }) : undefined;
   return {
     step: "install",
+    hero: <WatchScene face={{ progress: progress && progress.total > 0 ? progress.done / progress.total : null }} cable="plugged" />,
     title: w[model.op],
-    watch: model.watch,
-    status: progress,
+    status: { text: text ?? w[model.op], busy: true },
     content: (
       <>
-        <ProgressBar label={w[model.op]} value={model.progress} text={progress} />
-        <Notice tone="warning">
-          <p>
-            <strong>{w.keepConnected}</strong>
-          </p>
-        </Notice>
+        <Progress label={w[model.op]} value={progress} text={text} />
+        <Alert tone="caution">
+          <p className="font-medium">{w.keepConnected}</p>
+        </Alert>
+        <WatchFacts copy={ctx.copy} watch={model.watch} />
       </>
     ),
   };
@@ -54,36 +57,35 @@ export function RestartScreen(model: Restart, ctx: ScreenContext): ScreenView {
     step: "restart" as const,
     badge: model.attempt >= 2 ? fmt(r.attempt, { attempt: model.attempt }) : undefined,
   };
+  const waiting = { text: r.waiting, busy: true };
   switch (model.phase) {
     case "unplug":
       return {
         ...base,
+        hero: <WatchScene face={model.op === "install" ? "georgian" : "boxes"} cable="pulled" />,
         title: r.unplug.title,
-        illustration: { icon: "cable" },
-        status: r.unplug.waiting,
-        content: (
-          <>
-            <p className="lead">{r.unplug[model.op]}</p>
-            <Waiting>{r.unplug.waiting}</Waiting>
-          </>
-        ),
+        lead: r.unplug[model.op],
+        status: { text: r.unplug.waiting, busy: true },
       };
-    case "restart":
+    case "restart": {
+      const last = model.verifiable
+        ? { title: r.restart.reconnect.title, detail: r.restart.reconnect.body }
+        : { title: model.op === "install" ? r.restart.notVerifiable : r.restart.notVerifiableRestore, detail: undefined };
       return {
         ...base,
+        hero: <WatchScene face="restart" power />,
         title: r.restart.title,
-        illustration: { icon: "restart" },
+        lead: r.unplug[model.op],
+        status: model.verifiable ? waiting : undefined,
         content: (
-          <>
-            <p className="lead">{r.restart.how}</p>
-            <p>
-              {model.verifiable
-                ? r.restart.reconnect
-                : model.op === "install"
-                  ? r.restart.notVerifiable
-                  : r.restart.notVerifiableRestore}
-            </p>
-          </>
+          <Group as="ol" className={TILE_INSET}>
+            <li>
+              <Row lead={<StepNumber n={1} />} title={r.restart.hold.title} detail={r.restart.hold.body} strong />
+            </li>
+            <li>
+              <Row lead={<StepNumber n={2} />} title={last.title} detail={last.detail} strong={last.detail !== undefined} />
+            </li>
+          </Group>
         ),
         // Skipping (or a watch the app can't verify) goes to the check after an install and
         // back to the watch after a restore (§4.1); the flow decides by `op`.
@@ -94,32 +96,35 @@ export function RestartScreen(model: Restart, ctx: ScreenContext): ScreenView {
           ? emitting(ctx, model.op === "install" ? ctx.copy.actions.skipVerify : ctx.copy.actions.skip, "skip_verify")
           : undefined,
       };
+    }
     case "verifying":
       return {
         ...base,
+        hero: <WatchScene face="verifying" cable="plugged" />,
         title: r.verifying.title,
-        illustration: { icon: "watch" },
-        status: r.verifying.title,
-        content: <Waiting>{r.verifying.body}</Waiting>,
+        lead: r.verifying.body,
+        status: { text: r.verifying.title, busy: true },
       };
     case "again":
       return {
         ...base,
+        hero: <WatchScene face="restart" power />,
         title: r.again.title,
-        illustration: { icon: "restart" },
+        lead: r.again.body,
+        status: waiting,
         content: (
-          <>
-            <p className="lead">{r.again.body}</p>
-            <p>{r.again.how}</p>
-          </>
+          <Group className={TILE_INSET}>
+            <Row lead={<Tile><RotateCw size={15} /></Tile>} title={r.again.how} />
+          </Group>
         ),
       };
     case "other_watch":
       return {
         ...base,
+        hero: <WatchScene face="alert" cable="plugged" />,
         title: r.otherWatch.title,
-        illustration: { icon: "watch", tone: "muted" },
-        content: <p className="lead">{fmt(r.otherWatch.body, { model: model.watch.model })}</p>,
+        lead: fmt(r.otherWatch.body, { model: model.watch.model }),
+        status: waiting,
       };
   }
 }
@@ -130,26 +135,24 @@ export function ResultScreen(model: Result, ctx: ScreenContext): ScreenView {
   if (model.op === "restore") {
     return {
       step: "restart",
+      hero: <WatchScene face="boxes" cable="plugged" />,
       title: r.restore.title,
-      illustration: { icon: "check", tone: "success" },
-      watch: model.watch,
-      content: <p className="lead">{r.restore.body}</p>,
+      lead: r.restore.body,
+      content: <WatchFacts copy={ctx.copy} watch={model.watch} />,
     };
   }
   const why = checkWhy(ctx.copy, model.watch, model.confidence);
   return {
     step: "restart",
+    hero: <WatchScene face="georgian" cable="plugged" done />,
     title: r.install.title,
-    illustration: { icon: "check", tone: "success" },
-    watch: model.watch,
+    lead: confidenceLine(ctx.copy, ctx.lang, model.watch, model.confidence),
     content: (
-      <>
-        <p className="lead">{confidenceLine(ctx.copy, ctx.lang, model.watch, model.confidence)}</p>
-        <p>{why ?? r.install.confirmed}</p>
-      </>
+      <div>
+        <WatchFacts copy={ctx.copy} watch={model.watch} extra={confidenceRow(ctx.copy, model.confidence)} />
+        <GroupFootnote>{why ?? r.install.confirmed}</GroupFootnote>
+      </div>
     ),
-    primary: why
-      ? emitting(ctx, ctx.copy.actions.check, "check")
-      : emitting(ctx, ctx.copy.actions.sendTest, "check"),
+    primary: why ? emitting(ctx, ctx.copy.actions.check, "check") : emitting(ctx, ctx.copy.actions.sendTest, "check"),
   };
 }

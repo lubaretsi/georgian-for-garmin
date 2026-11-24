@@ -1,17 +1,16 @@
 import { type ClassValue, clsx } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
-/** tailwind-merge that knows this direction's `nb:` prefix and its own text sizes. */
+/** tailwind-merge that knows the app's own text sizes, colours, radii and shadows (global.css). */
 const merge = extendTailwindMerge({
-  prefix: "nb",
   extend: {
     theme: {
       text: ["title", "lead", "row", "label"],
       color: [
         "canvas", "group", "group-hover", "group-active", "fill", "fill-strong", "fg", "fg-2", "sep",
         "control", "control-bg", "accent", "accent-hover", "accent-active", "on-accent", "accent-ink",
-        "indicator", "accent-soft", "success", "success-ink", "success-soft", "caution-soft",
-        "caution-ink", "tile", "toolbar",
+        "indicator", "accent-soft", "success", "success-ink", "success-soft", "caution-ink", "caution-soft",
+        "danger-ink", "danger-soft", "toolbar",
       ],
       radius: ["group", "control", "tile"],
       shadow: ["group", "control", "thumb", "window"],

@@ -4,6 +4,7 @@
 import type { Platform } from "../../core/backend";
 import type { HolderKind } from "../../core/types.gen";
 import type { ConnectProblem, ScreenModel } from "../../model/screens";
+import { en } from "../../copy/en";
 import { errorGroup } from "../../screens/ErrorScreen";
 
 const PLATFORMS: Platform[] = ["macos", "windows", "linux"];
@@ -80,6 +81,14 @@ export const REQUIRED: string[] = [
   ),
   "error/rollback/complete",
   "error/rollback/incomplete",
+  // diagnostics: collecting, ready (no watch, watch found, busy), saved, copied, failed
+  "diagnostics/collecting",
+  "diagnostics/ready/no_watch",
+  "diagnostics/ready/watch",
+  "diagnostics/ready/busy",
+  "diagnostics/saved",
+  "diagnostics/copied",
+  "diagnostics/failed",
 ];
 
 /** The coverage items one story's model (on its platform) stands for. */
@@ -148,5 +157,13 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
         `error/${errorGroup(model.code)}`,
         ...(model.rollback ? [`error/rollback/${model.rollback.status}`] : []),
       ];
+    case "diagnostics": {
+      if (model.state !== "ready") return [`diagnostics/${model.state}`];
+      // Read from the en summary the flow builds: the watch row, and the connection's code.
+      const s = en.diagnostics.summary;
+      const value = (label: string) => model.summary.find((row) => row.label === label)?.value;
+      if (value(s.connection)?.includes("busy")) return ["diagnostics/ready/busy"];
+      return [value(s.watch) === s.noWatch ? "diagnostics/ready/no_watch" : "diagnostics/ready/watch"];
+    }
   }
 }

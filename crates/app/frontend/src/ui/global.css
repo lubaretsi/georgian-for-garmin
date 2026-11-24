@@ -1,11 +1,79 @@
-@import "@fontsource-variable/noto-sans-georgian";
-@import "./tokens.css";
-@import "./components.css";
+/*
+ * The app's stylesheet: tokens, Tailwind's theme and utilities (no preflight: the reset
+ * below is scoped to the app window, so the Storybook and simulator chrome keep theirs),
+ * and the motion the illustrations use.
+ * Type (§10): title 22/28, lead 15/22, body and rows 14/20, labels 13/18; nothing smaller.
+ */
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@layer theme, base, components, utilities;
+
+@import "./tokens.css";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "../ui";
+@source "../screens";
+@source "../shell";
+
+@font-face {
+  font-family: "Georgian UI";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../node_modules/@fontsource-variable/noto-sans-georgian/files/noto-sans-georgian-georgian-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+}
+
+@theme inline {
+  --font-ui: var(--font);
+  --color-canvas: var(--bg);
+  --color-group: var(--group);
+  --color-group-hover: var(--group-hover);
+  --color-group-active: var(--group-active);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-sep: var(--sep);
+  --color-control: var(--control-border);
+  --color-control-bg: var(--control-bg);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-indicator: var(--indicator);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-success-soft: var(--success-soft);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-soft: var(--caution-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-toolbar: var(--toolbar);
+
+  --text-title: 22px;
+  --text-title--line-height: 28px;
+  --text-title--letter-spacing: -0.01em;
+  --text-lead: 15px;
+  --text-lead--line-height: 22px;
+  --text-row: 14px;
+  --text-row--line-height: 20px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+
+  --radius-group: 12px;
+  --radius-control: var(--control-radius);
+  --radius-tile: 7px;
+
+  --shadow-group: var(--elev-group);
+  --shadow-control: var(--elev-control);
+  --shadow-thumb: var(--elev-thumb);
+  --shadow-window: var(--elev-window);
+
+  --ease-native: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 html,
@@ -18,23 +86,199 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: var(--text-md);
-  line-height: var(--leading);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 #root {
+  position: relative;
   height: 100%;
 }
 
+/* ---- The app window's base styles ---- */
+
+@layer base {
+  .app,
+  .window-frame {
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
+  }
+  :where(.window-frame, .app) *,
+  :where(.window-frame, .app) ::before,
+  :where(.window-frame, .app) ::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+  :where(.window-frame, .app) :where(h1, h2, h3, p, ol, ul, dl, dd, figure, legend, fieldset, pre) {
+    font: inherit;
+  }
+  :where(.window-frame, .app) :where(ol, ul) {
+    list-style: none;
+  }
+  :where(.window-frame, .app) :where(button, input) {
+    font: inherit;
+    color: inherit;
+    background: none;
+    letter-spacing: inherit;
+  }
+  :where(.window-frame, .app) :where(button) {
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  :where(.window-frame, .app) :where(svg, img) {
+    display: block;
+    flex-shrink: 0;
+  }
+  :where(.window-frame, .app) ::selection {
+    background: rgb(201 42 67 / 0.22);
+  }
+}
+
+.app :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.app [data-focus="inset"]:focus-visible {
+  outline-offset: -3px;
+  border-radius: 4px;
+}
+.app h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* The hero picture shrinks on short windows so the content keeps its room. */
+.app {
+  container: app / size;
+}
+.hero {
+  height: var(--hero-h, 176px);
+}
+@container app (min-height: 700px) {
+  .hero {
+    --hero-h: 196px;
+  }
+}
+@container app (max-height: 620px) {
+  .hero {
+    --hero-h: 120px;
+  }
+}
+@container app (max-height: 540px) {
+  .hero {
+    --hero-h: 96px;
+  }
+}
+
+/* ---- Motion: short and purposeful; off with reduced motion. Text never fades. ---- */
+
+@keyframes spokes {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ripple {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.32);
+    opacity: 0;
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+
+.anim-spinner {
+  animation: spokes 0.9s steps(12) infinite;
+}
+.anim-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spokes 1.4s linear infinite;
+}
+.anim-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple 2.8s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+.anim-pulse {
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.anim-float {
+  animation: float 3.2s ease-in-out infinite;
+}
+.anim-twinkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: twinkle 2.6s ease-in-out infinite;
+}
+.anim-scrim {
+  animation: scrim-in 160ms ease-out;
+}
+.anim-sheet {
+  animation: sheet-in 220ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  .anim-spinner,
+  .anim-spin,
+  .anim-ripple,
+  .anim-pulse,
+  .anim-float,
+  .anim-twinkle,
+  .anim-scrim,
+  .anim-sheet {
+    animation: none;
+  }
+  .anim-ripple {
+    opacity: 0.5;
   }
 }
