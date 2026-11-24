@@ -9,12 +9,12 @@ import { initialGlobals, storyGlobals, windowSizeTitles } from "./globals";
  * `parameters.frame === false` (the flows) places its own `WindowFrame` beside the simulator.
  */
 const frame: Decorator = (Story, context) => {
-  const { lang, theme, width, height } = storyGlobals(context.globals);
+  const { lang, platform, theme, width, height } = storyGlobals(context.globals);
   document.documentElement.dataset.theme = theme;
   document.documentElement.lang = lang;
   if (context.parameters.frame === false) return <Story />;
   return (
-    <WindowFrame width={width} height={height} theme={theme} lang={lang}>
+    <WindowFrame width={width} height={height} theme={theme} lang={lang} platform={platform}>
       <Story />
     </WindowFrame>
   );

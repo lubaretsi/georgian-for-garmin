@@ -22,7 +22,7 @@ export function FlowStory(props: { options: MockOptions; globals: Partial<StoryG
   const [backend] = useState(() => new MockBackend({ platform: g.platform, speed: SPEED, ...props.options }));
   return (
     <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <WindowFrame width={g.width} height={g.height} theme={g.theme} lang={g.lang}>
+      <WindowFrame width={g.width} height={g.height} theme={g.theme} lang={g.lang} platform={g.platform}>
         <FlowApp backend={backend} lang={g.lang} platform={g.platform} version={VERSION} speed={SPEED} />
       </WindowFrame>
       <Simulator backend={backend} />
