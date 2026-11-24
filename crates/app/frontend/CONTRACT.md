@@ -465,4 +465,9 @@ For when we reach out to someone who can't do something and can't use GitHub. No
     - `text`: all of the above as readable text.
   - **Single source:** `text` is the single source of the format and the masking. The first line states it contains no serial number or watch ID.
   - **Per platform:** macOS reads IOKit, Linux sysfs, Windows WPD's Garmin devices. Best effort, documented per platform.
+  - **One connection per process:** `connection` goes through the same device access the process already uses, never a second, independent open.
+    - In an `rpc`/`mcp` session it reuses the session's held connection (and its liveness probe), opening only when none is held.
+    - In the app it runs through the shared `Watch` and its mutex, like `inspect`.
+    - Only the standalone CLI opens fresh.
+    - If the busy detection names this very process as the holder, it is reported as "this app", never as another program.
   - **Tests:** an identifier test like `fixtures_hold_no_identifiers` runs over the output.
