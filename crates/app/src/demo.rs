@@ -50,6 +50,8 @@ use std::thread;
 use std::time::Duration;
 
 use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
+#[cfg(feature = "demo")]
+use georgian_for_garmin_core::diagnose::{Probe, UsbDevice, UsbReport, drives_at};
 use georgian_for_garmin_core::fonts::{FontSet, Kind};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};

@@ -300,6 +300,95 @@ fn demo_mode() -> bool {
     cfg!(feature = "demo")
 }
 
+/// The diagnostic files this run saved: the only ones `reveal_file` shows.
+#[derive(Default)]
+struct Saved(Mutex<Vec<PathBuf>>);
+
+/// The diagnostic info file's name for local time `now`:
+/// `georgian-for-garmin-diagnostics-2026-11-24-031405.txt`.
+fn diagnostics_name(now: chrono::NaiveDateTime) -> String {
+    format!(
+        "georgian-for-garmin-diagnostics-{}.txt",
+        now.format("%Y-%m-%d-%H%M%S")
+    )
+}
+
+/// Writes `text` to a new file at `path`; an existing file is never replaced.
+fn write_new(path: &Path, text: &str) -> io::Result<()> {
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?
+        .write_all(text.as_bytes())
+}
+
+/// Saves diagnostic info `text` to the Downloads folder as a new file named for the local
+/// date and time, and returns its path. The demo build saves to a folder in the temp
+/// directory.
+#[tauri::command]
+fn save_diagnostics(
+    app: AppHandle,
+    saved: State<'_, Saved>,
+    text: String,
+) -> Result<String, Failure> {
+    #[cfg(feature = "demo")]
+    let dir = {
+        let _ = &app;
+        demo::downloads()
+    };
+    #[cfg(not(feature = "demo"))]
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|e| Failure::internal(format!("no Downloads folder: {e}")))?;
+    let path = dir.join(diagnostics_name(chrono::Local::now().naive_local()));
+    fs::create_dir_all(&dir)
+        .and_then(|()| write_new(&path, &text))
+        .map_err(|e| Failure::internal(format!("could not save {}: {e}", path.display())))?;
+    let shown = path.to_string_lossy().into_owned();
+    saved
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(path);
+    Ok(shown)
+}
+
+/// Copies `text` to the clipboard. The demo build leaves the clipboard alone.
+#[tauri::command]
+fn copy_text(app: AppHandle, text: String) -> Result<(), Failure> {
+    if cfg!(feature = "demo") {
+        return Ok(());
+    }
+    app.clipboard()
+        .write_text(text)
+        .map_err(|e| Failure::internal(format!("could not copy: {e}")))
+}
+
+/// Shows `path`, a diagnostic file this run saved, selected in Finder, Explorer or the file
+/// manager. The demo build opens nothing.
+#[tauri::command]
+fn reveal_file(app: AppHandle, saved: State<'_, Saved>, path: String) -> Result<(), Failure> {
+    let path = PathBuf::from(path);
+    let known = saved
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(&path);
+    if !known {
+        return Err(Failure::from(Error::new(
+            ErrorCode::InvalidInput,
+            format!("{} is not a file this app saved", path.display()),
+        )));
+    }
+    if cfg!(feature = "demo") {
+        return Ok(());
+    }
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| Failure::internal(format!("could not show {}: {e}", path.display())))
+}
+
 fn config_dir(app: &AppHandle) -> Result<PathBuf, Failure> {
     app.path()
         .app_config_dir()
@@ -807,5 +896,47 @@ mod tests {
             assert_eq!(t.join().unwrap().unwrap_err().code, ErrorCode::NoDevice);
         }
         assert_eq!(MOST_ACTIVE.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn diagnostics_get_a_dated_name_and_never_replace_a_file() {
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 11, 24)
+            .unwrap()
+            .and_hms_opt(3, 14, 5)
+            .unwrap();
+        assert_eq!(
+            diagnostics_name(now),
+            "georgian-for-garmin-diagnostics-2026-11-24-031405.txt"
+        );
+        let dir =
+            std::env::temp_dir().join(format!("georgian-for-garmin-save-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(diagnostics_name(now));
+        write_new(&path, "first").unwrap();
+        let refused = write_new(&path, "second").unwrap_err();
+        assert_eq!(refused.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "first");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn every_app_type_has_a_schema() {
+        let schemas = schemas();
+        for name in [
+            "Failure",
+            "Progress",
+            "Shared",
+            "PhonePage",
+            "MarkPicture",
+            "ShareKey",
+        ] {
+            assert_eq!(schemas[name]["title"], name, "{schemas:#}");
+        }
+        // The frontend's `Failure.code` is the core's error code, not any string.
+        assert_eq!(
+            schemas["Failure"]["properties"]["code"]["$ref"],
+            "#/$defs/ErrorCode"
+        );
     }
 }
