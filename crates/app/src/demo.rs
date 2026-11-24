@@ -190,8 +190,9 @@ const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
 
 /// `GEORGIAN_FOR_GARMIN_DEMO_RECORDING`: the watch's physical side on a timer, for filming an
 /// install without the "Demo watch" bar. The watch starts unplugged and is plugged in `plug`
-/// after the start; once the app has staged fonts and written nothing for `unplug`, the watch is
-/// unplugged; `back` later it is restarted (the fonts imported) and plugged in again.
+/// after the start; once the app has written to the watch (Install or Restore: bitmap `.tmp`
+/// files to import or TrueType files in place) and then nothing for `unplug`, the watch is
+/// unplugged; `back` later it is restarted (staged fonts imported) and plugged in again.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Recording {
     pub plug: Duration,
@@ -570,8 +571,8 @@ impl Demo {
         s.recording = Some((recording, Take::Plugging(now)));
     }
 
-    /// A take's next step, if it's due at `now`: plug in after the start; unplug once fonts have
-    /// waited `unplug` since the last write; restart and plug in `back` later.
+    /// A take's next step, if it's due at `now`: plug in after the start; unplug once the app's
+    /// last write is `unplug` old; restart and plug in `back` later.
     fn tick(&self, now: Instant) {
         let mut s = self.state();
         let Some((rec, take)) = s.recording else {
@@ -583,10 +584,10 @@ impl Demo {
                 Take::Watching
             }
             Take::Watching
-                if s.plug == Plug::Mtp
-                    && s.last_write.is_some_and(|w| now >= w + rec.unplug)
-                    && has_staged(s.objects()) =>
+                if s.plug == Plug::Mtp && s.last_write.is_some_and(|w| now >= w + rec.unplug) =>
             {
+                // Each write session is played through once.
+                s.last_write = None;
                 s.plug = Plug::Unplugged;
                 Take::Away(now)
             }
@@ -605,15 +606,6 @@ impl Demo {
     fn recording(&self) -> bool {
         self.state().recording.is_some()
     }
-}
-
-/// Whether the watch has fonts waiting for a restart.
-fn has_staged(objects: &Objects) -> bool {
-    objects.values().any(|(info, _)| {
-        info.parent == EXTDATA
-            && info.protection_status == 0
-            && info.filename.to_ascii_lowercase().ends_with(".tmp")
-    })
 }
 
 /// What holds a demo watch for `kind`, named as on `platform`. Windows names no holder, only a
@@ -910,11 +902,12 @@ impl Mtp for Demo {
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
-        self.state()
-            .objects()
+        let mut s = self.state();
+        s.objects()
             .remove(&handle)
-            .map(drop)
-            .ok_or(invalid_handle(op::DELETE_OBJECT))
+            .ok_or(invalid_handle(op::DELETE_OBJECT))?;
+        s.last_write = Some(Instant::now());
+        Ok(())
     }
 
     /// The children the normal listing leaves out: the imports.
@@ -1296,5 +1289,43 @@ mod tests {
         assert!(!demo.recording());
         demo.tick(Instant::now() + Duration::from_secs(3600));
         assert_eq!(call(&demo, "inspect").unwrap()["state"], "waiting");
+    }
+
+    /// A take with `model` attached and plugged in at `start`.
+    fn take(model: &str, start: Instant) -> Demo {
+        let demo = Demo::new(Duration::ZERO);
+        assert!(demo.attach(model), "{model}");
+        demo.record(Recording::DEFAULT, start);
+        demo.tick(start + Recording::DEFAULT.plug);
+        demo
+    }
+
+    /// Plays one unplug, restart and plug-in cycle after the last write; returns the watch's state.
+    fn played_through(demo: &Demo) -> Value {
+        let rec = Recording::DEFAULT;
+        let wrote = demo.state().last_write.expect("the app wrote to the watch");
+        demo.tick(wrote + rec.unplug - Duration::from_millis(1));
+        assert!(demo.usb().is_some(), "still plugged in before the delay");
+        demo.tick(wrote + rec.unplug);
+        assert!(demo.usb().is_none(), "unplugged after the delay");
+        demo.tick(wrote + rec.unplug + rec.back);
+        assert!(demo.usb().is_some(), "back after the restart");
+        call(demo, "inspect").unwrap()
+    }
+
+    #[test]
+    fn a_recording_plays_install_and_restore_on_truetype_and_bitmap_watches() {
+        for model in ["Forerunner 165", "Venu 2"] {
+            let demo = take(model, Instant::now());
+            assert_eq!(
+                call(&demo, "inspect").unwrap()["state"],
+                "not_installed",
+                "{model}"
+            );
+            call(&demo, "install").unwrap();
+            assert_eq!(played_through(&demo)["state"], "installed", "{model}");
+            call(&demo, "restore_stock").unwrap();
+            assert_eq!(played_through(&demo)["state"], "not_installed", "{model}");
+        }
     }
 }
