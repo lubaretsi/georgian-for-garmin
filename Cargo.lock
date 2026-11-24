@@ -1563,6 +1563,7 @@ name = "georgian-for-garmin-app"
 version = "0.3.4"
 dependencies = [
  "base64 0.23.1",
+ "chrono",
  "georgian-for-garmin-core",
  "qrcode",
  "schemars 1.2.3",

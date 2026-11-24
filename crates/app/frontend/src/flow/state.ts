@@ -3,17 +3,22 @@
 // backend calls and timers. Every effect's result comes back as an event; results of polls the
 // flow has moved on from carry an old `token` and are dropped.
 
-import type { Failure, MarkPicture, PhonePage, Shared } from "../core/app-types";
-import type { Lang, Progress, ShareKey } from "../core/backend";
+import type { Lang } from "../core/backend";
 import type {
   Event as DiagnoseEvent,
   DiagnoseOutput,
   ErrorCode,
+  Failure,
   Holder,
   InspectDriveOutput,
   InspectOutput,
   IssueLink,
   IssueLinkInput,
+  MarkPicture,
+  PhonePage,
+  Progress,
+  ShareKey,
+  Shared,
   StageOutput,
 } from "../core/types.gen";
 import type { ActionId, ActionPayload, Answers, Op } from "../model/screens";

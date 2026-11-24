@@ -1,7 +1,7 @@
 // Runs the flow's effects against a `Backend` and feeds every result back as an event.
 
-import { type Failure, isFailure } from "../core/app-types";
-import type { Backend, Progress } from "../core/backend";
+import { type Backend, isFailure } from "../core/backend";
+import type { Failure, Progress } from "../core/types.gen";
 import type { Effect, FlowEvent } from "./state";
 
 /** A rejection as the flow takes it: the backend's `Failure`, or the app's own fault. */

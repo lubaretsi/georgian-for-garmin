@@ -5,16 +5,21 @@
 // a restart (the USB connection drops for a moment) imports what waits; a program holding the
 // watch; a write that fails and leaves files behind; what the next test notification shows.
 
-import type { Failure, MarkPicture, PhonePage, Shared } from "../core/app-types";
-import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
+import type { Backend, Lang, Platform } from "../core/backend";
 import type {
   DiagnoseInput,
   DiagnoseOutput,
+  Failure,
   HolderKind,
   InspectDriveOutput,
   InspectOutput,
   IssueLink,
   IssueLinkInput,
+  MarkPicture,
+  PhonePage,
+  Progress,
+  ShareKey,
+  Shared,
   StageOutput,
 } from "../core/types.gen";
 import { localTime, shareKeyId } from "../flow/state";
@@ -70,7 +75,8 @@ const INSPECT_MS = 120;
 const PART_MS = 350;
 const RESTART_MS = 3000;
 const NEW_ISSUE = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
-const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#watches";
+/** The README's watch list, as the app's `open_watch_list` opens it. */
+const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#supported-watches";
 const NO_DEVICE: Step = "connect-problems/inspect-no_device";
 const DIAGNOSE_MS = 400;
 /** The Venu 2's USB product ID (0x4E77), the one product ID the reports show. */

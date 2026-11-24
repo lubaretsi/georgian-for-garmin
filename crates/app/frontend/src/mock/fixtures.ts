@@ -3,8 +3,14 @@
 // georgian-for-garmin-core --test ui_fixtures`). Each file is one call: its operation, the input
 // where it had one, and the output or the error as the app hands it to the frontend.
 
-import type { Failure } from "../core/app-types";
-import type { InspectDriveOutput, InspectOutput, IssueLink, IssueLinkInput, StageOutput } from "../core/types.gen";
+import type {
+  Failure,
+  InspectDriveOutput,
+  InspectOutput,
+  IssueLink,
+  IssueLinkInput,
+  StageOutput,
+} from "../core/types.gen";
 
 type Outputs = {
   inspect: InspectOutput;

@@ -1,15 +1,15 @@
 //! An in-memory watch for trying the app without hardware (`--features demo`).
 //!
-//! It follows a short script so every screen shows up: the first three connections find no
-//! watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at a
-//! software version the support list has), the next two find it held by Garmin Express, and
+//! It follows a short script so the connect screens show up: the first three connections find
+//! no watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at
+//! a software version the support list has), the next two find it held by Garmin Express, and
 //! from then on one of nine watches is attached, covering every support status:
 //!
-//! 1. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
-//!    (the real one doesn't): `tested`; after installing, the main screen says Georgian is
-//!    installed;
-//! 2. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
-//!    staged: `tested`;
+//! 1. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
+//!    staged: `tested`, so installing ends in Georgian confirmed after the restart;
+//! 2. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
+//!    (the real one doesn't): `tested`; its fonts change without a restart, so the app can't
+//!    verify one and asks for the check on the watch;
 //! 3. a Venu 3, made to list every part of the first two bundled packs (the real one lists
 //!    TrueType fonts), with a different file already staged for the last one, so installing on
 //!    it ends in a `conflict`: `expected`;
@@ -20,24 +20,29 @@
 //! 6. a Lily 2 Active whose Korean fonts already have Georgian, imported at an earlier restart:
 //!    `expected` and `installed`, so the main screen's action is to check it on the watch;
 //! 7. an Instinct 3 AMOLED 50mm whose Korean font has Georgian waiting for a restart:
-//!    `expected` and `waiting`, so the main screen says to restart and offers the check after;
+//!    `expected` and `waiting`, so the app asks for the restart;
 //! 8. a tactix 7 on software 27.18 with Georgian imported in the parts verified on it:
 //!    `tested` and `installed`, with only a quiet link to check if it didn't work;
 //! 9. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
 //!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
-//! After every install or restore the app calls [`unplug`]: the attached watch "restarts",
-//! importing every staged `.tmp` file as a hidden read-only `<part>.fnt` (replacing the earlier
-//! one), which only Garmin's `GetObjectIds` lists, as the Venu 2 does, and the next watch is
-//! attached. So the second visit to the Venu 2 shows Georgian installed, and the Venu 3, having
-//! imported its unknown file, shows a font in use that the app doesn't recognise, and install
-//! still refuses: the next restart would replace that font.
-//! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first; set to `none`,
-//! no watch is ever found, over MTP or as a drive, so the waiting screen stays (and shows its
-//! help). `GEORGIAN_FOR_GARMIN_DEMO_BUSY` set to a holder kind (`garmin_express`,
+//! After every install or restore the app calls [`written`]: the watch is "unplugged and
+//! restarted", so the next [`RESTART`] connections find no watch, then the same watch is back
+//! with every staged `.tmp` file imported as a hidden read-only `<part>.fnt` (replacing the
+//! earlier one), which only Garmin's `GetObjectIds` lists, as the Venu 2 does. So the Venu 2
+//! comes back with Georgian installed.
+//! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one instead of the Venu
+//! 2; set to `none`, no watch is ever found, over MTP or as a drive, so the waiting screen stays
+//! (and shows its help). `GEORGIAN_FOR_GARMIN_DEMO_BUSY` set to a holder kind (`garmin_express`,
 //! `macos_camera_service`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held
 //! by such a program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`,
 //! `windows`, `linux`) shows another platform's words, and its holders' names.
+//!
+//! The rest of the app's outside world is kept here too, so the demo build touches nothing of
+//! the user's: diagnostic info is saved to a folder in the temp directory ([`downloads`]), the
+//! clipboard is left alone, "shared before" is kept in memory, and nothing is opened. [`probe`]
+//! lists the demo watch and drive for `diagnose` instead of this computer's USB devices and
+//! volumes.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -50,6 +55,9 @@ use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
 
+#[cfg(feature = "demo")]
+use crate::settings::ShareKey;
+
 const STORAGE: u32 = 0x0002_0001;
 const GARMIN: u32 = 0x0100_0001;
 const XML: u32 = 0x0100_0002;
@@ -59,6 +67,8 @@ const LEFTOVER: u32 = 0x0100_0004;
 /// Connections that find no watch, then connections that find it busy.
 const ABSENT: usize = 3;
 const BUSY: usize = 2;
+/// Connections that find no watch after a write, while it is unplugged and restarting.
+pub const RESTART: usize = 3;
 
 /// What a demo watch lists under `Garmin/ExtData`.
 #[derive(Clone, Copy)]
@@ -89,16 +99,16 @@ enum Extra {
 /// else is in `ExtData`).
 const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
     (
-        "Forerunner 165",
-        "006-B4432-00",
-        "2952",
+        "Venu 2",
+        "006-B3703-00",
+        "1905",
         Lists::Verified,
         Extra::Nothing,
     ),
     (
-        "Venu 2",
-        "006-B3703-00",
-        "1905",
+        "Forerunner 165",
+        "006-B4432-00",
+        "2952",
         Lists::Verified,
         Extra::Nothing,
     ),
@@ -163,7 +173,9 @@ struct State {
     busy: Busy,
     /// `GEORGIAN_FOR_GARMIN_DEMO_BUSY`: every connection finds the watch busy.
     always_busy: bool,
-    /// Each watch's objects, kept while the other one is attached.
+    /// Connections left that find no watch while it restarts after a write.
+    restarting: usize,
+    /// Each watch's objects.
     watches: Vec<Objects>,
     current: usize,
     next_handle: u32,
@@ -254,6 +266,30 @@ fn invalid_handle(operation: u16) -> MtpError {
     }
 }
 
+/// A restart: every staged `.tmp` file becomes a hidden read-only `<part>.fnt`, replacing the
+/// earlier one.
+fn import_staged(objects: &mut Objects) {
+    let waiting: Vec<u32> = objects
+        .iter()
+        .filter(|(_, (info, _))| {
+            info.parent == EXTDATA
+                && info.protection_status == 0
+                && info.filename.to_ascii_lowercase().ends_with(".tmp")
+        })
+        .map(|(&h, _)| h)
+        .collect();
+    for handle in waiting {
+        let (mut info, data) = objects.remove(&handle).expect("listed above");
+        let stem = info.filename.len() - ".tmp".len();
+        info.filename = format!("{}.fnt", &info.filename[..stem]);
+        info.protection_status = 1;
+        objects.retain(|_, (old, _)| {
+            !(old.parent == EXTDATA && old.filename.eq_ignore_ascii_case(&info.filename))
+        });
+        objects.insert(handle, (info, data));
+    }
+}
+
 impl Demo {
     pub fn new(transfer: Duration) -> Self {
         let fonts = FontSet::bundled();
@@ -321,6 +357,7 @@ impl Demo {
             unplugged: false,
             busy: busy_sample(HolderKind::GarminExpress, "macos"),
             always_busy: false,
+            restarting: 0,
             watches,
             current: 0,
             next_handle: 0x0100_0100,
@@ -343,6 +380,15 @@ impl Demo {
                 ErrorCode::NoDevice,
                 "Demo: no watch is connected yet.",
             ))
+        } else if s.restarting > 0 {
+            s.restarting -= 1;
+            if s.restarting == 0 {
+                import_staged(s.objects());
+            }
+            Err(Error::new(
+                ErrorCode::NoDevice,
+                "Demo: the watch is restarting.",
+            ))
         } else if s.connects <= ABSENT + BUSY {
             Err(Error::busy(s.busy.clone()))
         } else {
@@ -350,30 +396,25 @@ impl Demo {
         }
     }
 
-    /// The attached watch restarts, importing its staged files, and the other one is attached.
-    pub fn swap(&self) {
-        let mut s = self.state();
-        let objects = s.objects();
-        let waiting: Vec<u32> = objects
-            .iter()
-            .filter(|(_, (info, _))| {
-                info.parent == EXTDATA
-                    && info.protection_status == 0
-                    && info.filename.to_ascii_lowercase().ends_with(".tmp")
-            })
-            .map(|(&h, _)| h)
-            .collect();
-        for handle in waiting {
-            let (mut info, data) = objects.remove(&handle).expect("listed above");
-            let stem = info.filename.len() - ".tmp".len();
-            info.filename = format!("{}.fnt", &info.filename[..stem]);
-            info.protection_status = 1;
-            objects.retain(|_, (old, _)| {
-                !(old.parent == EXTDATA && old.filename.eq_ignore_ascii_case(&info.filename))
-            });
-            objects.insert(handle, (info, data));
+    /// After a write: the watch is unplugged and restarted, and comes back after [`RESTART`]
+    /// connections with its staged files imported.
+    pub fn restart(&self) {
+        self.state().restarting = RESTART;
+    }
+
+    /// The demo watch as `diagnose` lists it on USB: absent while unplugged or restarting, and
+    /// with its holder while the next connection finds it busy.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn usb(&self) -> Option<Option<Holder>> {
+        let s = self.state();
+        let held = s.always_busy || (ABSENT..ABSENT + BUSY).contains(&s.connects);
+        if held {
+            Some(Some(s.busy.holder.clone()))
+        } else if s.unplugged || s.connects < ABSENT || s.restarting > 0 {
+            None
+        } else {
+            Some(None)
         }
-        s.current = (s.current + 1) % s.watches.len();
     }
 
     /// Attaches the watch named `model` next, if there is one; `none` attaches none, ever.
@@ -471,10 +512,64 @@ pub fn connect() -> Result<Box<dyn Mtp>, Error> {
     WATCH.open()
 }
 
-/// Called after every install or restore: see [`Demo::swap`].
+/// Called after every install or restore that succeeded: see [`Demo::restart`].
 #[cfg(feature = "demo")]
-pub fn unplug() {
-    WATCH.swap();
+pub fn written() {
+    WATCH.restart();
+}
+
+/// What `diagnose` lists in the demo build: the demo watch on USB and the demo drive.
+#[cfg(feature = "demo")]
+pub fn probe() -> Probe<'static> {
+    Probe {
+        usb: Box::new(|| UsbReport {
+            listed: true,
+            note: None,
+            devices: WATCH
+                .usb()
+                .map(|holder| UsbDevice {
+                    product_id: 0x4E77,
+                    product_name: None,
+                    mtp: true,
+                    interfaces: vec![UsbInterface {
+                        class: 255,
+                        subclass: 255,
+                        protocol: 0,
+                    }],
+                    holder,
+                })
+                .into_iter()
+                .collect(),
+        }),
+        drives: Box::new(|| drives_at(&drive().into_iter().collect::<Vec<_>>())),
+    }
+}
+
+/// Where the demo build saves diagnostic info instead of the Downloads folder.
+#[cfg(feature = "demo")]
+pub fn downloads() -> std::path::PathBuf {
+    std::env::temp_dir().join("georgian-for-garmin-demo-downloads")
+}
+
+/// What the demo build's shares were about, for this run only: the demo opens nothing, so
+/// nothing it "shares" reaches the app's settings.
+#[cfg(feature = "demo")]
+static SHARED: Mutex<Vec<ShareKey>> = Mutex::new(Vec::new());
+
+#[cfg(feature = "demo")]
+pub fn shared_before(key: &ShareKey) -> bool {
+    SHARED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(key)
+}
+
+#[cfg(feature = "demo")]
+pub fn mark_shared(key: ShareKey) {
+    let mut shared = SHARED.lock().unwrap_or_else(PoisonError::into_inner);
+    if !shared.contains(&key) {
+        shared.push(key);
+    }
 }
 
 /// The platform named by `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM`, if it names one of the app's.
@@ -650,29 +745,28 @@ mod tests {
             .collect()
     }
 
+    /// A demo with `model` attached and the script's connect screens done.
+    fn attached(model: &str) -> Demo {
+        let demo = Demo::new(Duration::ZERO);
+        assert!(demo.attach(model), "{model}");
+        for _ in 0..ABSENT + BUSY {
+            assert!(demo.open().is_err());
+        }
+        demo
+    }
+
     #[test]
-    fn follows_the_script_through_every_screen() {
+    fn follows_the_script_through_install_and_restart() {
         let demo = Demo::new(Duration::ZERO);
         for _ in 0..ABSENT {
+            assert!(demo.usb().is_none());
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
         for _ in 0..BUSY {
+            assert!(demo.usb().is_some_and(|holder| holder.is_some()));
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::DeviceBusy));
         }
-
-        // The Forerunner 165: Garmin's TrueType fonts get Georgian; then the main screen says
-        // it is installed.
-        let fr165 = call(&demo, "inspect").unwrap();
-        assert_eq!(fr165["device"]["model"], "Forerunner 165");
-        assert_eq!(fr165["hosts"]["kind"], "truetype");
-        assert_eq!(fr165["state"], "not_installed");
-        assert_eq!(staged(&fr165), vec!["stock"; 4]);
-        assert_eq!(fr165["support"]["status"], "tested");
-        assert_eq!(call(&demo, "install").unwrap()["status"], "staged_verified");
-        let after = call(&demo, "inspect").unwrap();
-        assert_eq!(after["state"], "installed");
-        assert_eq!(staged(&after), vec!["georgian"; 4]);
-        demo.swap();
+        assert_eq!(demo.usb(), Some(None));
 
         // The tested Venu 2: every listed part of its one pack installs.
         let ready = call(&demo, "inspect").unwrap();
@@ -692,16 +786,53 @@ mod tests {
             installed["packs"][0]["parts"].as_array().unwrap().len(),
             sizes
         );
-        assert_eq!(
-            staged(&call(&demo, "inspect").unwrap()),
-            vec!["georgian"; sizes]
-        );
+        let waiting = call(&demo, "inspect").unwrap();
+        assert_eq!(staged(&waiting), vec!["georgian"; sizes]);
+        assert_eq!(waiting["state"], "waiting");
         assert_eq!(call(&demo, "install").unwrap()["status"], "already_staged");
-        demo.swap();
+
+        // Unplugged and restarted: gone for a while, then back with Georgian imported.
+        demo.restart();
+        for _ in 0..RESTART {
+            assert!(demo.usb().is_none());
+            assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        }
+        let imported = call(&demo, "inspect").unwrap();
+        assert_eq!(imported["device"]["model"], "Venu 2");
+        assert_eq!(staged(&imported), vec!["georgian"; sizes]);
+        assert_eq!(imported["state"], "installed");
+
+        // Restoring: Garmin's font is back after the next restart.
+        assert_eq!(
+            call(&demo, "restore_stock").unwrap()["status"],
+            "staged_verified"
+        );
+        demo.restart();
+        for _ in 0..RESTART {
+            assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        }
+        let restored = call(&demo, "inspect").unwrap();
+        assert_eq!(staged(&restored), vec!["stock"; sizes]);
+    }
+
+    #[test]
+    fn every_watch_shows_its_status() {
+        // The Forerunner 165: Garmin's TrueType fonts get Georgian, in use without a restart.
+        let demo = attached("Forerunner 165");
+        let fr165 = call(&demo, "inspect").unwrap();
+        assert_eq!(fr165["device"]["model"], "Forerunner 165");
+        assert_eq!(fr165["hosts"]["kind"], "truetype");
+        assert_eq!(fr165["state"], "not_installed");
+        assert_eq!(staged(&fr165), vec!["stock"; 4]);
+        assert_eq!(fr165["support"]["status"], "tested");
+        assert_eq!(call(&demo, "install").unwrap()["status"], "staged_verified");
+        let after = call(&demo, "inspect").unwrap();
+        assert_eq!(after["state"], "installed");
+        assert_eq!(staged(&after), vec!["georgian"; 4]);
 
         // The Venu 3 lists two packs; a leftover file makes installing a conflict.
+        let demo = attached("Venu 3");
         let other = call(&demo, "inspect").unwrap();
-        let other_sizes = staged(&other).len();
         assert_eq!(other["tested"]["status"], "untested");
         assert_eq!(other["support"]["status"], "expected");
         assert_eq!(other["support"]["issue"], 5);
@@ -714,29 +845,26 @@ mod tests {
                 .contains("3300000000")
         );
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
-        demo.swap();
 
         // The fenix 6S Pro: Swiss 721 Hebrew is restore-only in every build.
-        let fenix = call(&demo, "inspect").unwrap();
+        let fenix = call(&attached("fenix 6S Pro"), "inspect").unwrap();
         assert_eq!(fenix["device"]["model"], "fenix 6S Pro");
         assert_eq!(fenix["supported"], false);
         assert_eq!(fenix["restorable"], true);
         assert_eq!(fenix["support"]["status"], "unsupported");
         assert_eq!(fenix["support"]["issue"], 6);
-        demo.swap();
 
         // The Venu: its Korean font gets Georgian, but the model is only predicted to work.
-        let venu = call(&demo, "inspect").unwrap();
+        let venu = call(&attached("Venu"), "inspect").unwrap();
         assert_eq!(venu["supported"], true);
         assert_eq!(venu["support"]["status"], "expected");
         assert_eq!(venu["support"]["prediction"], "bitmap_korean");
         assert_eq!(venu["support"]["issue"], 12);
         assert_eq!(venu["support"]["report_wanted"], true);
-        demo.swap();
 
         // The Lily 2 Active already has Georgian, on a model no one has confirmed it on: the
         // main screen's action is to check it.
-        let lily = call(&demo, "inspect").unwrap();
+        let lily = call(&attached("Lily 2 Active"), "inspect").unwrap();
         assert_eq!(lily["device"]["model"], "Lily 2 Active");
         assert_eq!(lily["state"], "installed");
         assert_eq!(lily["hosts"]["kind"], "bitmap");
@@ -746,9 +874,9 @@ mod tests {
         assert_eq!(lily["support"]["report_wanted"], true);
         assert_eq!(lily["tested"]["status"], "untested");
         assert_eq!(lily["tested"]["verified_software"], json!([]));
-        demo.swap();
 
-        // The Instinct 3 AMOLED's Georgian waits for a restart.
+        // The Instinct 3 AMOLED's Georgian waits for a restart, and is in use after one.
+        let demo = attached("Instinct 3 AMOLED 50mm");
         let instinct = call(&demo, "inspect").unwrap();
         assert_eq!(instinct["device"]["model"], "Instinct 3 AMOLED 50mm");
         assert_eq!(instinct["state"], "waiting");
@@ -756,19 +884,23 @@ mod tests {
         assert_eq!(instinct["support"]["status"], "expected");
         assert_eq!(instinct["support"]["prediction"], "bitmap_korean");
         assert_eq!(instinct["support"]["report_wanted"], true);
-        demo.swap();
+        demo.restart();
+        for _ in 0..RESTART {
+            assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        }
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
 
         // The tactix 7 has Georgian in every part verified on it: confirmed, no report asked.
-        let tactix = call(&demo, "inspect").unwrap();
+        let tactix = call(&attached("tactix 7"), "inspect").unwrap();
         assert_eq!(tactix["device"]["model"], "tactix 7");
         assert_eq!(tactix["state"], "installed");
         assert_eq!(staged(&tactix), vec!["georgian"; 5]);
         assert_eq!(tactix["support"]["status"], "tested");
         assert_eq!(tactix["support"]["report_wanted"], false);
-        demo.swap();
 
         // The Forerunner 265 lists none of this build's fonts: `unknown`, nothing to install,
         // and a report asked; its prediction is shown for triage.
+        let demo = attached("Forerunner 265");
         let fr265 = call(&demo, "inspect").unwrap();
         assert_eq!(fr265["device"]["model"], "Forerunner 265");
         assert_eq!(fr265["supported"], false);
@@ -778,26 +910,6 @@ mod tests {
         assert_eq!(fr265["support"]["prediction"], "noto_truetype");
         assert_eq!(fr265["support"]["report_wanted"], true);
         assert_eq!(call(&demo, "install"), Err(ErrorCode::UnsupportedDevice));
-        demo.swap();
-
-        // The Forerunner 165 keeps its fonts across restarts.
-        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
-        demo.swap();
-
-        // The Venu 2 imported its files on restart: Georgian is installed.
-        let imported = call(&demo, "inspect").unwrap();
-        assert_eq!(staged(&imported), vec!["georgian"; sizes]);
-        assert_eq!(imported["state"], "installed");
-        demo.swap();
-
-        // So did the Venu 3, including the unknown file: it now uses that font for its last
-        // part, which installing would replace at the next restart, so install refuses.
-        let venu3 = call(&demo, "inspect").unwrap();
-        assert_eq!(venu3["state"], "other");
-        assert_eq!(staged(&venu3).len(), other_sizes);
-        assert_eq!(staged(&venu3).last(), Some(&"other"));
-        assert_eq!(venu3["support"]["report_wanted"], true);
-        assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
     }
 
     #[test]

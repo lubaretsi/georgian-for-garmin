@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 - **Stack:** React + TypeScript (strict) + Vite, with Storybook (current stable, `@storybook/react-vite`) and Vitest. pnpm, with the Node toolchain from nixpkgs in the flake's dev shell. Code lives under `crates/app/frontend/`.
-- **Core types are generated, not hand-written.** `pnpm gen:types` runs `georgian-for-garmin --help --json` (a dev-shell build), takes each operation's `inputSchema`/`outputSchema`, and writes `src/core/types.gen.ts` with json-schema-to-typescript. CI regenerates the file and fails on any diff. The app-only shapes (`Failure`, `Shared`, `PhonePage`, `MarkPicture`) are hand-written in `src/core/app-types.ts` from `crates/app/src/main.rs` and `share.rs`; phase 2 derives `JsonSchema` for them and generates these too.
+- **Types are generated, not hand-written.** `pnpm gen:types` runs `georgian-for-garmin --help --json` (a dev-shell build), takes each operation's `inputSchema`/`outputSchema`, adds the app's own command types from `georgian-for-garmin-app --schemas` (debug builds: `Failure`, `Progress`, `Shared`, `PhonePage`, `MarkPicture`, `ShareKey`, each deriving `JsonSchema` in `crates/app/src/`), and writes `src/core/types.gen.ts` with json-schema-to-typescript. CI regenerates the file and fails on any diff.
 - **Fixtures come from the real core.** A Rust test, `crates/core/tests/ui_fixtures.rs`, builds fake watches from the replay reports in `crates/core/tests/reports/` and from the maintainer's Venu 2 fixtures. For each scenario in §8 it runs the real `inspect`, `install`, a simulated restart (the fake imports `.tmp` files), `inspect` again, `restore_stock`, `inspect_drive` and `issue_link`, and writes the JSON to `crates/app/frontend/fixtures/core/<scenario>/<step>.json`. With `GFG_WRITE_UI_FIXTURES=1` it writes the files; otherwise it compares them and fails on drift. `Failure` fixtures for busy holders and rollbacks come from the core's own error builders where they exist, otherwise they are hand-written and typed.
 - **Screens are pure.** A screen is a function `(model: ScreenModel, copy, platform) => ScreenView`: its step, heading, content and its main and secondary actions. The Shell draws that view and builds the fixed footer from the actions. Screens hold no device logic and no timers.
 - **The flow is a pure reducer** `(FlowState, FlowEvent) => FlowState`, plus an effect runner that calls the `Backend` and schedules polls. `toScreen(FlowState): ScreenModel` maps the flow's state to a screen model. The reducer, `verdictOf` and `toScreen` are unit-tested without React.
@@ -82,8 +82,9 @@ export interface Backend {
   copyText(text: string): Promise<void>;              // new (phase 2): the system clipboard
   revealFile(path: string): Promise<void>;            // new (phase 2): shows the file in Finder / Explorer / the file manager
 }
-export type Progress = { done: number; total: number }; // phase 2 wires the core's progress
-export type ShareKey = { modelPart: string; software: string; result: Result | "font_list" };
+// Generated from the app (types.gen.ts):
+// Progress = { done: number; total: number }  (the core's progress, over a Tauri channel)
+// ShareKey = { modelPart: string; software: string; result: Seen | "font_list" }
 export type Lang = "ka" | "en";
 export type Platform = "macos" | "windows" | "linux";
 ```

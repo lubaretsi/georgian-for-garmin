@@ -2,9 +2,16 @@
 // sheet). Pure; the share summary and "What the app sees" are in the state's language.
 
 import { type Copy, copyFor, fmt, list } from "../copy";
-import type { Failure } from "../core/app-types";
-import type { Lang, ShareKey } from "../core/backend";
-import type { DiagnoseOutput, ErrorCode, Holder, InspectDriveOutput, InspectOutput } from "../core/types.gen";
+import type { Lang } from "../core/backend";
+import type {
+  DiagnoseOutput,
+  ErrorCode,
+  Failure,
+  Holder,
+  InspectDriveOutput,
+  InspectOutput,
+  ShareKey,
+} from "../core/types.gen";
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
 import { programName } from "../screens/Connect";
 import { errorGroup } from "../screens/ErrorScreen";

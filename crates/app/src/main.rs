@@ -1,13 +1,19 @@
 //! Georgian for Garmin: a desktop window over the core operations.
 //!
-//! The frontend (`ui/`) calls the watch commands below; each runs one core operation on a
-//! blocking thread, and a mutex keeps the watch to one operation at a time, so the frontend's
-//! `inspect` polling never overlaps an install. Commands return core output unchanged, and
-//! errors as `{code, message}` (and `busy`, who holds a busy watch); the frontend turns codes
-//! into words (`ui/strings.json`).
-//! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, and
-//! `open_issue` a watch's issue from the support list; `share` draws the check screen's QR code
-//! and test-mark pictures.
+//! The frontend (`frontend/`, built into `frontend/dist`) calls the commands below through its
+//! `TauriBackend`. Each watch command runs one core operation on a blocking thread, and a mutex
+//! keeps the watch to one operation at a time, so the frontend's `inspect` polling never
+//! overlaps an install. Commands return core output unchanged, and errors as [`Failure`]: the
+//! core's code and message, who holds a busy watch, and how a failed write was undone; the
+//! frontend turns codes into words. `install` and `restore_stock` report their progress over a
+//! channel.
+//! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, `open_issue`
+//! a watch's issue from the support list and `open_watch_list` the README's list of watches;
+//! `share` draws the check screen's QR code and test-mark pictures. Diagnostic info is saved to
+//! the Downloads folder or copied, never sent.
+//!
+//! Debug builds print the JSON Schemas of the app's own types with `--schemas`, for the
+//! frontend's `pnpm gen:types`.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -22,25 +28,34 @@ mod settings;
 mod share;
 mod window;
 
-use std::path::PathBuf;
+use std::borrow::Cow;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write as _};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use georgian_for_garmin_core::busy::Busy;
 use georgian_for_garmin_core::error::Rollback;
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::mtp::Mtp;
+use georgian_for_garmin_core::session::{self, Control, Session};
 use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
+use schemars::JsonSchema;
 use serde::Serialize;
 use serde_json::{Value, json};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 
+use settings::ShareKey;
+
 /// An operation failure as the frontend receives it; `busy` only for `device_busy`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 struct Failure {
-    code: &'static str,
+    code: ErrorCode,
     message: String,
+    /// `device_busy`: who holds the watch, as far as the system tells.
     #[serde(skip_serializing_if = "Option::is_none")]
     busy: Option<Box<Busy>>,
     /// A failed install or restore: how undoing it went.
@@ -51,12 +66,26 @@ struct Failure {
 impl From<Error> for Failure {
     fn from(e: Error) -> Self {
         Failure {
-            code: e.code.as_str(),
+            code: e.code,
             message: e.message,
             busy: e.busy,
             rollback: e.rollback,
         }
     }
+}
+
+impl Failure {
+    /// A failure of the app itself, outside the core's operations.
+    fn internal(message: String) -> Self {
+        Failure::from(Error::new(ErrorCode::Internal, message))
+    }
+}
+
+/// One step of an install or restore: `done` of `total` files written.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+struct Progress {
+    done: u32,
+    total: u32,
 }
 
 /// The watch, shared by every command.
@@ -76,48 +105,82 @@ impl Watch {
         }
     }
 
-    /// Runs `operation` while holding the watch.
-    fn call(&self, operation: &str, input: Value) -> Result<Value, Failure> {
+    /// Runs `operation` while holding the watch, opening it for this call only; `progress`
+    /// gets the steps of a long operation.
+    fn call(
+        &self,
+        operation: &str,
+        input: Value,
+        progress: Option<&dyn Fn(session::Progress)>,
+    ) -> Result<Value, Failure> {
         let _busy = self.busy.lock().unwrap_or_else(PoisonError::into_inner);
         let mut connect = self.connect;
-        let result = ops::call(operation, input, &self.fonts, &mut connect);
-        // The demo moves on to its next watch after every install or restore (not after
-        // `inspect_drive`, which the waiting screen polls).
+        let mut session = Session::one_shot(Cow::Borrowed(&self.fonts), Box::new(&mut connect));
+        // The demo's `diagnose` lists its own watch and drive, not this computer's.
         #[cfg(feature = "demo")]
-        if matches!(operation, "install" | "restore_stock") {
-            demo::unplug();
+        {
+            session = session.with_probe(demo::probe());
+        }
+        let result = session.call(operation, input, &Control::new(progress, None));
+        drop(session);
+        // The demo watch restarts after every write, as the app asks the owner to.
+        #[cfg(feature = "demo")]
+        if result.is_ok() && matches!(operation, "install" | "restore_stock") {
+            demo::written();
         }
         Ok(result?)
     }
 
-    /// Runs `operation` on a blocking thread so USB work never stalls the window.
-    async fn run(self: Arc<Self>, operation: &'static str, input: Value) -> Result<Value, Failure> {
-        tauri::async_runtime::spawn_blocking(move || self.call(operation, input))
-            .await
-            .map_err(|e| {
-                Failure::from(Error::new(
-                    ErrorCode::Internal,
-                    format!("{operation} stopped unexpectedly: {e}"),
-                ))
-            })?
+    /// Runs `operation` on a blocking thread so USB work never stalls the window, sending the
+    /// files written so far to `progress`.
+    async fn run(
+        self: Arc<Self>,
+        operation: &'static str,
+        input: Value,
+        progress: Option<Channel<Progress>>,
+    ) -> Result<Value, Failure> {
+        tauri::async_runtime::spawn_blocking(move || {
+            let send = |step: session::Progress| {
+                if let (Some(channel), Some(total)) = (&progress, step.total) {
+                    // A closed window has no one left to tell.
+                    let _ = channel.send(Progress {
+                        done: step.progress as u32,
+                        total: total as u32,
+                    });
+                }
+            };
+            self.call(operation, input, Some(&send))
+        })
+        .await
+        .map_err(|e| Failure::internal(format!("{operation} stopped unexpectedly: {e}")))?
     }
 }
 
 #[tauri::command]
 async fn inspect(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
-    Arc::clone(&watch).run("inspect", json!({})).await
+    Arc::clone(&watch).run("inspect", json!({}), None).await
 }
 
 /// Stages the Georgian font in every part of the bundled packs that the watch lists.
 #[tauri::command]
-async fn install(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
-    Arc::clone(&watch).run("install", json!({})).await
+async fn install(
+    watch: State<'_, Arc<Watch>>,
+    on_progress: Channel<Progress>,
+) -> Result<Value, Failure> {
+    Arc::clone(&watch)
+        .run("install", json!({}), Some(on_progress))
+        .await
 }
 
 /// Stages Garmin's original font in every part of the bundled packs that the watch lists.
 #[tauri::command]
-async fn restore_stock(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
-    Arc::clone(&watch).run("restore_stock", json!({})).await
+async fn restore_stock(
+    watch: State<'_, Arc<Watch>>,
+    on_progress: Channel<Progress>,
+) -> Result<Value, Failure> {
+    Arc::clone(&watch)
+        .run("restore_stock", json!({}), Some(on_progress))
+        .await
 }
 
 /// Reads a watch mounted as a USB drive (the demo build's is a folder it makes).
@@ -135,10 +198,17 @@ async fn inspect_drive(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     };
     #[cfg(not(feature = "demo"))]
     let input = json!({});
-    Arc::clone(&watch).run("inspect_drive", input).await
+    Arc::clone(&watch).run("inspect_drive", input, None).await
 }
 
-/// The issue link for `input` (`issue_link`'s input), without opening it: what the check
+/// The core's `diagnose` for `input` (`{events}`, the app's recent steps), through the shared
+/// watch like `inspect`. A device problem is data in its output, not a failure.
+#[tauri::command]
+async fn diagnose(watch: State<'_, Arc<Watch>>, input: Value) -> Result<Value, Failure> {
+    Arc::clone(&watch).run("diagnose", input, None).await
+}
+
+/// The issue link for `input` (`issue_link`'s input), without opening it: what the share
 /// screen shows as what will be shared.
 #[tauri::command]
 fn issue_link(watch: State<'_, Arc<Watch>>, input: Value) -> Result<Value, Failure> {
@@ -150,13 +220,24 @@ fn issue_link(watch: State<'_, Arc<Watch>>, input: Value) -> Result<Value, Failu
     })?)
 }
 
-#[derive(Debug, Serialize)]
+/// `share_report`'s result.
+#[derive(Debug, Serialize, JsonSchema)]
 struct Shared {
     /// The whole report is in the link; otherwise it is on the clipboard and the form asks
     /// for a paste.
     complete: bool,
     /// The link opened (the demo build opens nothing and shows it instead).
     url: String,
+}
+
+/// Opens `url` in the browser; the demo build opens nothing.
+fn open_url(app: &AppHandle, url: &str) -> Result<(), Failure> {
+    if cfg!(feature = "demo") {
+        return Ok(());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| Failure::internal(format!("could not open the browser: {e}")))
 }
 
 /// Opens the GitHub issue form filled in from `input` (`issue_link`'s input). A report too
@@ -171,23 +252,13 @@ fn share_report(
     let link = issue_link(watch, input)?;
     let complete = link["report_in_url"] == true;
     let url = link["url"].as_str().unwrap_or_default().to_owned();
-    let failed = |what: &str, e: &dyn std::fmt::Display| {
-        Failure::from(Error::new(
-            ErrorCode::Internal,
-            format!("could not {what}: {e}"),
-        ))
-    };
-    if !cfg!(feature = "demo") {
-        if !complete {
-            let text = link["report_text"].as_str().unwrap_or_default().to_owned();
-            app.clipboard()
-                .write_text(text)
-                .map_err(|e| failed("copy the report", &e))?;
-        }
-        app.opener()
-            .open_url(url.clone(), None::<&str>)
-            .map_err(|e| failed("open the browser", &e))?;
+    if !complete && !cfg!(feature = "demo") {
+        let text = link["report_text"].as_str().unwrap_or_default().to_owned();
+        app.clipboard()
+            .write_text(text)
+            .map_err(|e| Failure::internal(format!("could not copy the report: {e}")))?;
     }
+    open_url(&app, &url)?;
     Ok(Shared { complete, url })
 }
 
@@ -196,17 +267,19 @@ fn share_report(
 #[tauri::command]
 fn open_issue(app: AppHandle, issue: u32) -> Result<String, Failure> {
     let url = report::issue_url(issue);
-    if !cfg!(feature = "demo") {
-        app.opener()
-            .open_url(url.clone(), None::<&str>)
-            .map_err(|e| {
-                Failure::from(Error::new(
-                    ErrorCode::Internal,
-                    format!("could not open the browser: {e}"),
-                ))
-            })?;
-    }
+    open_url(&app, &url)?;
     Ok(url)
+}
+
+/// The README's list of watches and how each does.
+const WATCH_LIST: &str = "https://github.com/lubaretsi/georgian-for-garmin#supported-watches";
+
+/// Opens the README's watch list in the browser and returns its link; no other page. The demo
+/// build opens nothing.
+#[tauri::command]
+fn open_watch_list(app: AppHandle) -> Result<String, Failure> {
+    open_url(&app, WATCH_LIST)?;
+    Ok(WATCH_LIST.to_owned())
 }
 
 /// The phone test page in `language`, with its QR code.
@@ -228,10 +301,23 @@ fn demo_mode() -> bool {
 }
 
 fn config_dir(app: &AppHandle) -> Result<PathBuf, Failure> {
-    app.path().app_config_dir().map_err(|e| {
-        Failure::from(Error::new(
-            ErrorCode::Internal,
-            format!("no config folder: {e}"),
+    app.path()
+        .app_config_dir()
+        .map_err(|e| Failure::internal(format!("no config folder: {e}")))
+}
+
+/// Changes the saved settings with `change`.
+fn update_settings(
+    app: &AppHandle,
+    change: impl FnOnce(&mut settings::Settings),
+) -> Result<(), Failure> {
+    let dir = config_dir(app)?;
+    let mut saved = settings::load(&dir);
+    change(&mut saved);
+    settings::save(&dir, &saved).map_err(|e| {
+        Failure::internal(format!(
+            "could not save {}: {e}",
+            dir.join(settings::FILE).display()
         ))
     })
 }
@@ -253,14 +339,34 @@ fn save_language(app: AppHandle, language: String) -> Result<(), Failure> {
             format!("{language:?} is not a language code"),
         )));
     }
-    let dir = config_dir(&app)?;
-    let mut saved = settings::load(&dir);
-    saved.language = Some(language);
-    settings::save(&dir, &saved).map_err(|e| {
-        Failure::from(Error::new(
-            ErrorCode::Internal,
-            format!("could not save {}: {e}", dir.join(settings::FILE).display()),
-        ))
+    update_settings(&app, |s| s.language = Some(language))
+}
+
+/// Whether the user already shared `key` (a model, its software and a result) from this app.
+/// The demo build remembers its shares for this run only.
+#[tauri::command]
+fn shared_before(app: AppHandle, key: ShareKey) -> bool {
+    #[cfg(feature = "demo")]
+    {
+        let _ = app;
+        demo::shared_before(&key)
+    }
+    #[cfg(not(feature = "demo"))]
+    config_dir(&app).is_ok_and(|dir| settings::load(&dir).shared.contains(&key))
+}
+
+/// Remembers that the user shared `key`.
+#[tauri::command]
+fn mark_shared(app: AppHandle, key: ShareKey) -> Result<(), Failure> {
+    #[cfg(feature = "demo")]
+    {
+        let _ = app;
+        demo::mark_shared(key);
+        Ok(())
+    }
+    #[cfg(not(feature = "demo"))]
+    update_settings(&app, |s| {
+        s.mark_shared(key);
     })
 }
 
@@ -288,16 +394,36 @@ fn built_for() -> &'static str {
     }
 }
 
+/// The JSON Schemas of the app's own types by name, which the frontend's `pnpm gen:types`
+/// turns into TypeScript beside the core's.
+#[cfg(debug_assertions)]
+fn schemas() -> Value {
+    json!({
+        "Failure": schemars::schema_for!(Failure),
+        "Progress": schemars::schema_for!(Progress),
+        "Shared": schemars::schema_for!(Shared),
+        "PhonePage": schemars::schema_for!(share::PhonePage),
+        "MarkPicture": schemars::schema_for!(share::MarkPicture),
+        "ShareKey": schemars::schema_for!(ShareKey),
+    })
+}
+
 #[cfg(feature = "demo")]
 const CONNECT: fn() -> Result<Box<dyn Mtp>, Error> = demo::connect;
 #[cfg(not(feature = "demo"))]
 const CONNECT: fn() -> Result<Box<dyn Mtp>, Error> = georgian_for_garmin_core::connect;
 
 fn main() {
+    #[cfg(debug_assertions)]
+    if std::env::args().nth(1).as_deref() == Some("--schemas") {
+        println!("{:#}", schemas());
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Watch::new(CONNECT)))
+        .manage(Saved::default())
         .setup(|app| {
             match app.get_webview_window("main") {
                 Some(main) => window::open(&main),
@@ -310,15 +436,22 @@ fn main() {
             install,
             restore_stock,
             inspect_drive,
+            diagnose,
             issue_link,
             share_report,
             open_issue,
+            open_watch_list,
             phone_page,
             test_marks,
             demo_mode,
             platform,
             saved_language,
-            save_language
+            save_language,
+            shared_before,
+            mark_shared,
+            save_diagnostics,
+            copy_text,
+            reveal_file
         ])
         .run(tauri::generate_context!())
         .expect("the window could not be opened");
@@ -667,11 +800,11 @@ mod tests {
             .into_iter()
             .map(|operation| {
                 let watch = Arc::clone(&watch);
-                thread::spawn(move || watch.call(operation, json!({})))
+                thread::spawn(move || watch.call(operation, json!({}), None))
             })
             .collect();
         for t in threads {
-            assert_eq!(t.join().unwrap().unwrap_err().code, "no_device");
+            assert_eq!(t.join().unwrap().unwrap_err().code, ErrorCode::NoDevice);
         }
         assert_eq!(MOST_ACTIVE.load(Ordering::SeqCst), 1);
     }
