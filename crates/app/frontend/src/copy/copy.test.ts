@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { ErrorCode, Holder } from "../core/types.gen";
+import { diagnosticsSummary } from "../flow/screen";
 import { en } from "./en";
 import { catalogs, fmt } from "./index";
 import { ka } from "./ka";
@@ -131,6 +133,50 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     it(`${lang}: MTP only where the watch shows it`, () => {
       for (const [key, text] of flat[lang]) {
         if (/\bMTP\b/.test(text)) expect(MTP_KEYS.has(key), `${lang} ${key}`).toBe(true);
+      }
+    });
+  }
+
+  /** Every error code, checked by the compiler: a new code must be added here. */
+  const CODES: Record<ErrorCode, true> = {
+    invalid_input: true, no_device: true, multiple_devices: true, device_busy: true, permission_denied: true,
+    unsupported_device: true, font_unavailable: true, garmin_folder_not_found: true, extdata_not_found: true,
+    conflict: true, restore_first: true, verification_failed: true, device_error: true, internal: true, cancelled: true,
+  };
+  const HOLDERS: (Holder | null)[] = [
+    null,
+    { kind: "garmin_express", name: "Garmin Express", confirmed: true },
+    { kind: "other", name: "Photos", confirmed: true },
+    { kind: "unknown", confirmed: false },
+  ];
+  /** A raw code, as in "device_busy": the full text shows these, the summary never does. */
+  const SNAKE_CASE = /\b[a-z0-9]+(_[a-z0-9]+)+\b/i;
+
+  for (const lang of ["ka", "en"] as const) {
+    it(`${lang}: the diagnostics summary has plain words for every code, connection and last problem`, () => {
+      for (const code of Object.keys(CODES) as ErrorCode[]) {
+        for (const holder of HOLDERS) {
+          const rows = diagnosticsSummary(
+            lang,
+            "0.4.0",
+            {
+              app: { version: "0.4.0", build: "release" },
+              system: { os: "macOS", os_version: "15.6.1", arch: "arm64" },
+              usb: { listed: true, note: null, devices: [] },
+              connection: { ok: false, code, message: code, busy: holder ? { holder } : null },
+              drives: { listed: true, note: null, volumes: [] },
+              watch: null,
+              events: [],
+              text: `connection ${code}\n`,
+            },
+            { time: "2026-11-24T03:14:05", code, holder },
+          );
+          for (const { label, value } of rows) {
+            const where = `${lang} ${code} ${holder?.kind ?? "no holder"} ${label}: ${value}`;
+            expect(value, where).not.toMatch(SNAKE_CASE);
+            for (const word of [...INTERNAL_WORDS, ...NEVER_WORDS]) expect(value, where).not.toMatch(word);
+          }
+        }
       }
     });
   }

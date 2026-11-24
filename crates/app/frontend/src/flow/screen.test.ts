@@ -200,7 +200,7 @@ describe("toScreen", () => {
       });
     });
 
-    test("ready, no watch", () => {
+    test("ready, no watch: plain words, never the code", () => {
       const state = diagnosed(read(started(), NO_DEVICE), { ok: false, code: "no_device", message: "x", busy: null }, null);
       expect(toScreen(state)).toMatchObject({
         state: "ready",
@@ -208,16 +208,63 @@ describe("toScreen", () => {
           { label: "App version", value: "0.3.4" },
           { label: "System", value: "Mac OS 15.6.1 (aarch64)" },
           { label: "Watch", value: "Not found" },
-          { label: "Connection", value: "no_device" },
-          { label: "Last problem", value: expect.stringMatching(/^\d\d:\d\d:\d\d no_device$/) },
+          { label: "Connection", value: "No watch found" },
+          { label: "Last problem", value: expect.stringMatching(/^\d\d:\d\d:\d\d — No watch found$/) },
         ],
       });
     });
 
-    test("ready, busy", () => {
+    test("ready, busy: the busy screen's title, naming the holder", () => {
       const busy = failure("busy", "inspect-garmin_express-macos");
       const state = diagnosed(read(started(), busy), { ok: false, code: "device_busy", message: "x", busy: busy.busy ?? null }, null);
-      expect(toScreen(state)).toMatchObject({ summary: expect.arrayContaining([{ label: "Connection", value: "device_busy" }]) });
+      expect(toScreen(state)).toMatchObject({
+        summary: expect.arrayContaining([
+          { label: "Connection", value: "Garmin Express is using your watch" },
+          { label: "Last problem", value: expect.stringMatching(/^\d\d:\d\d:\d\d — Garmin Express is using your watch$/) },
+        ]),
+      });
+      const unknown = diagnosed(read(started(), busy), { ok: false, code: "device_busy", message: "x", busy: null }, null);
+      expect(toScreen(unknown)).toMatchObject({
+        summary: expect.arrayContaining([{ label: "Connection", value: "Another program may be using your watch" }]),
+      });
+    });
+
+    test("ready, a connect problem or an error: its screen's title, in the state's language", () => {
+      const denied = diagnosed(started(), { ok: false, code: "permission_denied", message: "x", busy: null }, null);
+      expect(toScreen(denied)).toMatchObject({
+        summary: expect.arrayContaining([{ label: "Connection", value: "Linux doesn't let the app open the watch yet" }]),
+      });
+      const inKa = diagnosed(started("ka"), { ok: false, code: "verification_failed", message: "x", busy: null }, null);
+      const ka = copyFor("ka");
+      expect(toScreen(inKa)).toMatchObject({
+        summary: expect.arrayContaining([{ label: ka.diagnostics.summary.connection, value: ka.error.verification_failed.title }]),
+      });
+    });
+
+    test("ready, connected as a USB drive", () => {
+      const state = reduce(act(started(), "diagnostics"), {
+        type: "diagnosed",
+        output: {
+          app: { version: "0.3.4", build: "release" },
+          system: { os: "Mac OS", os_version: "15.6.1", arch: "aarch64" },
+          usb: { listed: true, note: null, devices: [] },
+          connection: { ok: false, code: "no_device", message: "x", busy: null },
+          drives: {
+            listed: true,
+            note: null,
+            volumes: [{ volume: "/Volumes/GARMIN", model: "Forerunner 245", part_number: null, software_version: "8.20", error: null }],
+          },
+          watch: null,
+          events: [],
+          text: "x\n",
+        },
+      });
+      expect(toScreen(state)).toMatchObject({
+        summary: expect.arrayContaining([
+          { label: "Watch", value: "Forerunner 245, Software 8.20" },
+          { label: "Connection", value: "Connected as a USB drive" },
+        ]),
+      });
     });
 
     test("ready, watch found; then saved with its path", () => {
@@ -228,7 +275,7 @@ describe("toScreen", () => {
           { label: "App version", value: "0.3.4" },
           { label: "System", value: "Mac OS 15.6.1 (aarch64)" },
           { label: "Watch", value: "Venu 2, Software 19.05" },
-          { label: "Connection", value: "Connected" },
+          { label: "Connection", value: "Connected (Venu 2)" },
           { label: "Last problem", value: "None" },
         ],
         text: expect.stringContaining("no serial number or watch ID"),

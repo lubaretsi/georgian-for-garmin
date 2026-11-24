@@ -13,7 +13,7 @@ import type {
   Shared,
 } from "../core/app-types";
 import type { Lang, Progress, ShareKey } from "../core/backend";
-import type { InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
+import type { ErrorCode, Holder, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
 import type { ActionId, ActionPayload, Answers, Op } from "../model/screens";
 import { verdictOf, verifiable, verified } from "./verdict";
 
@@ -120,8 +120,8 @@ export type FlowState = {
   startingToken: number;
   /** The session's last `MAX_EVENTS` events, oldest first, with no identifiers (§11). */
   events: DiagnoseEvent[];
-  /** The last failure the app met, for the diagnostics summary. */
-  lastProblem: { time: string; code: string } | null;
+  /** The last failure the app met, for the diagnostics summary; `holder` when another program held the watch. */
+  lastProblem: { time: string; code: ErrorCode; holder: Holder | null } | null;
   effects: Effect[];
 };
 
@@ -591,7 +591,7 @@ function inBackground(state: FlowState, diagnostics: Extract<Phase, { name: "dia
 function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: string): FlowState {
   const model = previous.inspect?.device.model ?? null;
   const entries: DiagnoseEvent[] = [];
-  let problem: string | null = null;
+  let problem: Failure | null = null;
   const poll = (detail: string, polled: string | null) => {
     const last = [...previous.events].reverse().find((e) => e.kind === "poll");
     // A poll is logged when its result changes, so 2 s polls don't push everything else out.
@@ -604,7 +604,7 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
     case "inspect_failed":
       if (event.token === previous.token) {
         poll(event.failure.code, null);
-        problem = event.failure.code;
+        problem = event.failure;
       }
       break;
     case "drive_inspected":
@@ -615,7 +615,7 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
       if (next.lastOp !== previous.lastOp) {
         const result = event.type === "op_done" ? event.output.status : event.failure.code;
         entries.push({ time, kind: "operation_end", detail: `${event.op}: ${result}`, model });
-        if (event.type === "op_failed") problem = event.failure.code;
+        if (event.type === "op_failed") problem = event.failure;
       }
       break;
     case "shared":
@@ -623,11 +623,11 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
       if (previous.phase.name === "share") {
         const result = event.type === "shared" ? next.phase.name === "share" && next.phase.state : event.failure.code;
         entries.push({ time, kind: "share", detail: `${previous.phase.what}: ${result}`, model });
-        if (event.type === "share_failed") problem = event.failure.code;
+        if (event.type === "share_failed") problem = event.failure;
       }
       break;
     case "link_failed":
-      problem = event.failure.code;
+      problem = event.failure;
       break;
     case "action":
       if (next.phase.name === "working" && previous.phase.name !== "working") {
@@ -642,7 +642,7 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
   return {
     ...next,
     events: [...next.events, ...entries].slice(-MAX_EVENTS),
-    lastProblem: problem ? { time, code: problem } : next.lastProblem,
+    lastProblem: problem ? { time, code: problem.code, holder: problem.busy?.holder ?? null } : next.lastProblem,
   };
 }
 

@@ -80,8 +80,12 @@ export function ConnectSearching(model: Searching, ctx: ScreenContext): ScreenVi
 /** macOS gives process names cut to 16 bytes (core `busy.rs`). */
 const MACOS_NAME_BYTES = 16;
 
-/** The program holding the watch, named once (never "Garmin Express (Garmin Express)"). */
-export function programName(copy: Copy, platform: Platform, busy: BusyView): { program: string; cut: boolean } {
+/**
+ * The program holding the watch, named once (never "Garmin Express (Garmin Express)").
+ * `platform` null where the screen's platform isn't known (the diagnostics summary): a named
+ * holder is shown as the system gives it.
+ */
+export function programName(copy: Copy, platform: Platform | null, busy: BusyView): { program: string; cut: boolean } {
   const p = copy.connect.busy.program;
   const named = (): { program: string; cut: boolean } => {
     if (!busy.name) return { program: p.unknown, cut: false };

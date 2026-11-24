@@ -3,9 +3,10 @@
 
 import { type Copy, copyFor, fmt, list } from "../copy";
 import type { DiagnoseOutput, Failure } from "../core/app-types";
-import type { ShareKey } from "../core/backend";
-import type { InspectDriveOutput, InspectOutput } from "../core/types.gen";
+import type { Lang, ShareKey } from "../core/backend";
+import type { ErrorCode, Holder, InspectDriveOutput, InspectOutput } from "../core/types.gen";
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
+import { programName } from "../screens/Connect";
 import { errorGroup } from "../screens/ErrorScreen";
 import { answersFor, type FlowState, type Phase, shareKeyId } from "./state";
 import { confidenceOf, verdictOf, watchInfo } from "./verdict";
@@ -78,27 +79,67 @@ function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "sh
 }
 
 /**
- * The diagnostics summary (§11): app version, system, the watch found or not, the connection
- * result and the last problem. Until `diagnose` answers, only what the app itself knows.
+ * A failure in the summary's plain words (§2.3), from the connect and error screens' copy: the
+ * busy title naming the holder when known, the connect problem's or the error's title. The raw
+ * code stays in the full text.
  */
-function diagnosticsSummary(state: FlowState, output: DiagnoseOutput | null) {
-  const copy = copyFor(state.lang);
+function problemWords(copy: Copy, code: ErrorCode, holder: Holder | null): string {
+  if (code === "no_device") return copy.diagnostics.summary.noWatchFound;
+  if (code === "device_busy") {
+    const b = copy.connect.busy;
+    const busy = { kind: holder?.kind ?? "unknown", name: holder?.name ?? null, confirmed: holder?.confirmed ?? false };
+    const { program } = programName(copy, null, busy);
+    return fmt(busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program });
+  }
+  const problem = problemOf(code);
+  return problem === "internal" ? copy.error[errorGroup(code)].title : copy.connect.problem[problem].title;
+}
+
+/**
+ * The diagnostics summary (§11): app version, system, the watch found or not, the connection
+ * result and the last problem, in plain words. Until `diagnose` answers (`output` null), only
+ * what the app itself knows.
+ */
+export function diagnosticsSummary(
+  lang: Lang,
+  version: string,
+  output: DiagnoseOutput | null,
+  lastProblem: FlowState["lastProblem"],
+): { label: string; value: string }[] {
+  const copy = copyFor(lang);
   const s = copy.diagnostics.summary;
-  const rows = [{ label: s.app, value: output?.app.version ?? state.version }];
+  const rows = [{ label: s.app, value: output?.app.version ?? version }];
   if (!output) return rows;
   const { system, watch, connection } = output;
+  const software = (v: string) => fmt(copy.watchCard.software, { software: v });
+  // Not over MTP, but mounted as a USB drive: the drive screen's case.
+  const drive = !connection.ok && connection.code === "no_device" ? (output.drives.volumes[0] ?? null) : null;
+  const found = watch
+    ? `${watch.model}, ${software(watch.software_version)}`
+    : drive?.model
+      ? drive.software_version
+        ? `${drive.model}, ${software(drive.software_version)}`
+        : drive.model
+      : s.noWatch;
+  const connected = watch ? fmt(s.connectedTo, { model: watch.model }) : s.connected;
   rows.push(
     { label: s.system, value: `${system.os} ${system.os_version} (${system.arch})` },
+    { label: s.watch, value: found },
     {
-      label: s.watch,
-      value: watch
-        ? `${watch.model}, ${fmt(copy.watchCard.software, { software: watch.software_version })}`
-        : s.noWatch,
+      label: s.connection,
+      value: connection.ok
+        ? connected
+        : drive
+          ? s.usbDrive
+          : connection.code
+            ? problemWords(copy, connection.code, connection.busy?.holder ?? null)
+            : s.none,
     },
-    { label: s.connection, value: connection.ok ? s.connected : (connection.code ?? s.none) },
     {
       label: s.lastProblem,
-      value: state.lastProblem ? `${state.lastProblem.time.slice(11)} ${state.lastProblem.code}` : s.none,
+      value: lastProblem
+        ? `${lastProblem.time.slice(11)} — ${problemWords(copy, lastProblem.code, lastProblem.holder)}`
+        : s.none,
     },
   );
   return rows;
@@ -234,7 +275,7 @@ export function toScreen(state: FlowState): ScreenModel {
     case "diagnostics":
       return {
         screen: "diagnostics",
-        summary: diagnosticsSummary(state, phase.output),
+        summary: diagnosticsSummary(state.lang, state.version, phase.output, state.lastProblem),
         text: phase.output?.text ?? "",
         state: phase.state,
         savedPath: phase.savedPath,

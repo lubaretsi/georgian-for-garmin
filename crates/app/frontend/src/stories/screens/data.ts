@@ -1,9 +1,11 @@
 // Story data from the core's fixtures (fixtures/core, written by crates/core/tests/ui_fixtures.rs):
 // real models, part numbers, software, busy holders, rollbacks and shared text.
 
+import type { DiagnoseOutput } from "../../core/app-types";
 import type { Lang } from "../../core/backend";
 import type { InspectOutput } from "../../core/types.gen";
 import { copyFor, fmt } from "../../copy";
+import { diagnosticsSummary } from "../../flow/screen";
 import { failure, fixtureFile, output } from "../../mock/fixtures";
 import type { BusyView, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../../model/screens";
 import { PHONE_PAGE_QR } from "./phone-qr";
@@ -145,20 +147,30 @@ export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean
 export type DiagnosticsCase = "no_watch" | "watch" | "busy";
 
 /**
- * The diagnostics summary as the flow builds it (toScreen) and a `text` in the mock's
- * format (the core's `diagnose` writes the real one), for a Mac with or without a Venu 2.
+ * The diagnostics summary built by the flow's own `diagnosticsSummary` (toScreen's), and a
+ * `text` in the mock's format (the core's `diagnose` writes the real one), for a Mac with or
+ * without a Venu 2.
  */
 export function diagnosticsSample(lang: Lang, found: DiagnosticsCase): { summary: { label: string; value: string }[]; text: string } {
-  const c = copyFor(lang);
-  const s = c.diagnostics.summary;
-  const venu2Line = `${venu2.model}, ${fmt(c.watchCard.software, { software: venu2.software })}`;
-  const summary = [
-    { label: s.app, value: "0.4.0" },
-    { label: s.system, value: "macOS 15.6.1 (arm64)" },
-    { label: s.watch, value: found === "watch" ? venu2Line : s.noWatch },
-    { label: s.connection, value: found === "watch" ? s.connected : found === "busy" ? "device_busy" : "no_device" },
-    { label: s.lastProblem, value: found === "busy" ? "03:14:05 device_busy" : s.none },
-  ];
+  const busy = failure("busy", "inspect-garmin_express-macos");
+  const diagnosed: DiagnoseOutput = {
+    app: { version: "0.4.0", build: "release" },
+    system: { os: "macOS", os_version: "15.6.1", arch: "arm64" },
+    usb: { listed: true, note: null, devices: [] },
+    connection:
+      found === "watch"
+        ? { ok: true, code: null, message: null, busy: null }
+        : found === "busy"
+          ? { ok: false, code: "device_busy", message: busy.message, busy: busy.busy ?? null }
+          : { ok: false, code: "no_device", message: "no watch found", busy: null },
+    drives: { listed: true, note: null, volumes: [] },
+    watch: found === "watch" ? output("venu2", "inspect", "inspect").report : null,
+    events: [],
+    text: "",
+  };
+  const lastProblem =
+    found === "busy" ? { time: "2026-11-24T03:14:05", code: "device_busy" as const, holder: busy.busy?.holder ?? null } : null;
+  const summary = diagnosticsSummary(lang, "0.4.0", diagnosed, lastProblem);
   const usb =
     found === "no_watch"
       ? ["usb no Garmin device"]

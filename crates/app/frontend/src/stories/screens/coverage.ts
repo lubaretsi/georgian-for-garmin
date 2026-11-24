@@ -159,10 +159,13 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
       ];
     case "diagnostics": {
       if (model.state !== "ready") return [`diagnostics/${model.state}`];
-      // Read from the en summary the flow builds: the watch row, and the connection's code.
+      // Read from the en summary the flow builds: the watch row, and the connection's plain words
+      // (busy reads as the busy screen's title).
       const s = en.diagnostics.summary;
       const value = (label: string) => model.summary.find((row) => row.label === label)?.value;
-      if (value(s.connection)?.includes("busy")) return ["diagnostics/ready/busy"];
+      const connection = value(s.connection) ?? "";
+      const busyTitles = Object.values(en.connect.busy.title).map((t) => new RegExp(`^${t.replace("{program}", ".+")}$`));
+      if (busyTitles.some((title) => title.test(connection))) return ["diagnostics/ready/busy"];
       return [value(s.watch) === s.noWatch ? "diagnostics/ready/no_watch" : "diagnostics/ready/watch"];
     }
   }

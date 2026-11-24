@@ -315,9 +315,12 @@ export const DiagnosticInfoWatchNotFound: Story = {
     await press(p, p.copy.header.more);
     await press(p, p.copy.more.diagnostics.title);
     await p.screen(p.copy.diagnostics.title);
-    // The summary says what the app found: the watch is held, so it isn't read.
+    // The summary says what the app found, in plain words: the watch is held, so it isn't read.
     await p.app.findByText(p.copy.diagnostics.summary.noWatch, undefined, { timeout: STEP_MS });
-    await p.app.findByText("device_busy", undefined, { timeout: STEP_MS });
+    await p.app.findByText(busyTitle, undefined, { timeout: STEP_MS });
+    await p.app.findByText(new RegExp(`^\\d\\d:\\d\\d:\\d\\d — ${busyTitle}$`), undefined, { timeout: STEP_MS });
+    // The raw code is only in the full text, which stays collapsed.
+    expect(p.app.queryByText(/device_busy/)).toBeNull();
     await press(p, p.copy.actions.saveToFile);
     await press(p, p.copy.actions.showInFolder);
     await waitFor(() => expect(p.sim.getByTestId("sim-files")).toHaveTextContent("Shown in its folder"), {

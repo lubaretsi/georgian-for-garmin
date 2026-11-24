@@ -547,7 +547,10 @@ export const en = {
     lead: "If we ask you for diagnostic info, save it here and send it to us.",
     contents: "It lists the app, your system, the Garmin devices connected and the app's recent steps. It has no serial number or watch ID.",
     summaryTitle: "Summary",
-    /** The summary list the flow builds (toScreen): labels, then the values that aren't data. */
+    /**
+     * The summary list the flow builds (toScreen): labels, then the values that aren't data.
+     * A failure reads as the connect or error screen's title; never its code (§2.3).
+     */
     summary: {
       app: "App version",
       system: "System",
@@ -556,6 +559,9 @@ export const en = {
       lastProblem: "Last problem",
       noWatch: "Not found",
       connected: "Connected",
+      connectedTo: "Connected ({model})",
+      noWatchFound: "No watch found",
+      usbDrive: "Connected as a USB drive",
       none: "None",
     },
     fullText: "Show the full text",

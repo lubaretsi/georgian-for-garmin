@@ -132,7 +132,8 @@ describe("the session's event log", () => {
 
   test("busy, drive, operations, answers and shares", () => {
     let state = read(started(), BUSY);
-    expect(state.lastProblem).toEqual({ time: TIME, code: "device_busy" });
+    // The holder is kept, so the summary can name the program.
+    expect(state.lastProblem).toEqual({ time: TIME, code: "device_busy", holder: BUSY.busy?.holder });
     state = read(state, VENU2);
     state = act(state, "install");
     state = at(state, { type: "op_done", op: "install", output: output("venu2", "install", "install") });
@@ -152,14 +153,14 @@ describe("the session's event log", () => {
       ["answer", "result: georgian"],
       ["share", "result: opened"],
     ]);
-    expect(state.lastProblem).toEqual({ time: TIME, code: "no_device" });
+    expect(state.lastProblem).toEqual({ time: TIME, code: "no_device", holder: null });
   });
 
   test("a failed operation is logged and becomes the last problem", () => {
     const fail = failure("venu2-write-fails", "install-rollback-incomplete");
     const state = at(act(read(started(), VENU2), "install"), { type: "op_failed", op: "install", failure: fail });
     expect(state.events.at(-1)).toEqual({ time: TIME, kind: "operation_end", detail: "install: device_error", model: "Venu 2" });
-    expect(state.lastProblem).toEqual({ time: TIME, code: "device_error" });
+    expect(state.lastProblem).toEqual({ time: TIME, code: "device_error", holder: null });
   });
 
   test("a drive is logged as one", () => {
