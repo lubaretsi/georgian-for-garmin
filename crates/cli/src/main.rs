@@ -30,6 +30,8 @@ Examples:
     | georgian-for-garmin issue-link --input -   # a prefilled GitHub issue link
   georgian-for-garmin extdata-list --hash 006-D9035-03.fnt   # every ExtData file, hidden ones too
   georgian-for-garmin wait-for-watch --timeout-seconds 120   # after a restart
+  georgian-for-garmin diagnose --save diagnostics.txt   # diagnostic info to send us; no serial
+                                                        # number or watch ID
   echo '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"inspect\"}' | georgian-for-garmin rpc
   georgian-for-garmin mcp                  # an MCP server on stdio
   georgian-for-garmin --help --json        # MCP tool definitions
@@ -67,6 +69,9 @@ enum Command {
     ExtdataList(ExtdataListArgs),
     /// Wait until a watch can be opened, e.g. after a restart (read-only)
     WaitForWatch(WaitArgs),
+    /// Print diagnostic info to send us: app, system, Garmin USB devices, the connection, watch
+    /// drives, the watch report; no serial number or watch ID (read-only)
+    Diagnose(DiagnoseArgs),
     /// Copy one ExtData file to a new local file (development builds; reads the watch only)
     #[cfg(feature = "dev")]
     ReadFile(ReadFileArgs),
@@ -124,6 +129,7 @@ impl Command {
             Command::IssueLink(_) => "issue_link",
             Command::ExtdataList(_) => "extdata_list",
             Command::WaitForWatch(_) => "wait_for_watch",
+            Command::Diagnose(_) => "diagnose",
             #[cfg(feature = "dev")]
             Command::ReadFile(_) => "read_file",
             #[cfg(feature = "dev")]
@@ -158,6 +164,14 @@ impl Command {
             Command::Inspect(args) => args.report,
             Command::InspectDrive(args) => args.report,
             _ => false,
+        }
+    }
+
+    /// `diagnose --save`'s file.
+    fn save_path(&self) -> Option<&std::path::Path> {
+        match self {
+            Command::Diagnose(args) => args.save.as_deref(),
+            _ => None,
         }
     }
 }
@@ -234,6 +248,17 @@ struct WaitArgs {
     /// Seconds to wait at most, up to 3600; 0 checks once [default: 60]
     #[arg(long, value_name = "SECONDS")]
     timeout_seconds: Option<f64>,
+
+    #[command(flatten)]
+    input: InputArgs,
+}
+
+#[derive(Args)]
+struct DiagnoseArgs {
+    /// Write the text to this new file instead of printing it; an existing file is never
+    /// overwritten
+    #[arg(long, value_name = "FILE")]
+    save: Option<std::path::PathBuf>,
 
     #[command(flatten)]
     input: InputArgs,
@@ -453,6 +478,27 @@ fn invalid(message: impl Into<String>) -> Error {
     Error::new(ErrorCode::InvalidInput, message)
 }
 
+/// `--save` named a file that is there already.
+fn exists(path: &std::path::Path) -> Error {
+    invalid(format!(
+        "{} already exists; --save never overwrites a file. Name a new one.",
+        path.display()
+    ))
+}
+
+/// Writes `text` to the new file `path`, refusing one that exists.
+fn save_text(path: &std::path::Path, text: &str) -> Result<(), Error> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(text.as_bytes()))
+        .map_err(|e| match e.kind() {
+            io::ErrorKind::AlreadyExists => exists(path),
+            _ => invalid(format!("cannot create {}: {e}", path.display())),
+        })
+}
+
 /// The `--input` object with flags laid over it.
 fn build_input(input: &InputArgs, flags: Map<String, Value>) -> Result<Value, Error> {
     let mut object = match input.input.as_deref() {
@@ -502,6 +548,7 @@ fn request(command: &Command) -> Result<Value, Error> {
     let input = match command {
         Command::Inspect(args) => &args.input,
         Command::IssueLink(input) => input,
+        Command::Diagnose(args) => &args.input,
         Command::InspectDrive(args) => {
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
             &args.input
@@ -646,6 +693,10 @@ fn print_human(operation: &str, out: &Value) {
         return print_json(out);
     }
     match operation {
+        "diagnose" => {
+            print!("{}", text(&out["text"]));
+            return;
+        }
         "issue_link" => {
             println!("{}", text(&out["url"]));
             if out["report_in_url"] != true {
@@ -1039,9 +1090,27 @@ fn main() -> ExitCode {
     }
     let operation = cli.command.operation();
     let report_only = cli.command.report_only();
+    let save = cli.command.save_path();
+    // Refused before the watch is touched; `create_new` refuses a file made in the meantime.
+    if let Some(path) = save
+        && std::fs::symlink_metadata(path).is_ok()
+    {
+        return fail(&exists(path), cli.json);
+    }
     let result = request(&cli.command)
-        .and_then(|input| ops::call(operation, input, &FontSet::bundled(), &mut connect));
+        .and_then(|input| ops::call(operation, input, &FontSet::bundled(), &mut connect))
+        .and_then(|out| {
+            if let Some(path) = save {
+                save_text(path, text(&out["text"]))?;
+            }
+            Ok(out)
+        });
     match result {
+        Ok(_) if !cli.json && save.is_some() => {
+            let path = save.map(|p| p.display().to_string()).unwrap_or_default();
+            println!("Saved the diagnostic info to {path}. It has no serial number or watch ID.");
+            ExitCode::SUCCESS
+        }
         Ok(out) if report_only && cli.json => {
             print_json(&out["report"]);
             ExitCode::SUCCESS
@@ -1059,5 +1128,30 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => fail(&e, cli.json),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `--save` writes a new file and never replaces one, even one made after the first check.
+    #[test]
+    fn save_text_writes_only_a_new_file() {
+        let dir = std::env::temp_dir().join(format!("gfg-save-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("diagnostics.txt");
+        save_text(&path, "first\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "first\n");
+        let error = save_text(&path, "second\n").unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput);
+        assert!(
+            error.message.contains("already exists"),
+            "{}",
+            error.message
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "first\n");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

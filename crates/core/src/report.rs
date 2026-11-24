@@ -579,7 +579,7 @@ fn one_line(value: &str) -> String {
 /// One space-separated column: "-" when empty; quoted as JSON when it holds anything but
 /// printable ASCII without spaces, quotes or backticks, so columns stay unambiguous and a
 /// value can't end the code block.
-fn column(value: &str) -> String {
+pub(crate) fn column(value: &str) -> String {
     if value.is_empty() {
         "-".into()
     } else if value
@@ -594,7 +594,7 @@ fn column(value: &str) -> String {
     }
 }
 
-fn snake<T: Serialize>(value: &T) -> String {
+pub(crate) fn snake<T: Serialize>(value: &T) -> String {
     match serde_json::to_value(value) {
         Ok(serde_json::Value::String(s)) => s,
         _ => String::new(),
@@ -627,7 +627,7 @@ fn busy_title(busy: &Busy) -> String {
 
 /// The `busy` line: `busy <kind> confirmed|running|unknown name=… pid=… product_id=<hex>
 /// product=… interface=<class>/<subclass>/<protocol>`, `-` for what isn't known.
-fn busy_line(busy: &Busy) -> String {
+pub(crate) fn busy_line(busy: &Busy) -> String {
     let h = &busy.holder;
     let seen = match (h.confirmed, h.kind) {
         (true, _) => "confirmed",

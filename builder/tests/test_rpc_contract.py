@@ -83,6 +83,11 @@ def exercise(tmp_path):
                                   "parts": ["006-D9035-03"]},
                          busy={"holder": {"kind": "unknown", "confirmed": False}}),
         ),
+        "diagnose": lambda w: (
+            w.diagnose(),
+            w.diagnose([{"time": "2026-11-24T03:14:05", "kind": "poll", "detail": "no_device",
+                         "model": None}]),
+        ),
         "read_file": lambda w: (
             w.read_file("006-D9035-03.fnt", tmp_path / "out.fnt"),
             w.read_file("GarminDevice.xml", tmp_path / "id.xml", reveal_identifiers=True),

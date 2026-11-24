@@ -10,7 +10,8 @@
 //! - Windows doesn't say who holds a device, so only whether Garmin Express is running
 //!   (`tasklist`): `confirmed` stays false.
 //!
-//! Nothing here stops or signals a process.
+//! A holder whose pid is this process's own is `this_app`: another call of this program still
+//! has the watch open. Nothing here stops or signals a process.
 
 use std::fmt::Write as _;
 
@@ -29,6 +30,8 @@ pub enum HolderKind {
     /// A desktop's MTP file access: GNOME's `gvfsd-mtp`, KDE's `kiod`, or an MTP app such as
     /// Android File Transfer, OpenMTP or MacDroid.
     DesktopMtp,
+    /// This program itself: the system names this process as holding the watch.
+    ThisApp,
     /// A program none of the lists below knows.
     Other,
     /// The system didn't say.
@@ -59,10 +62,14 @@ impl Holder {
         }
     }
 
-    /// The program called `name`, classified by name.
+    /// The program called `name`, classified by name; `this_app` when `pid` is this process.
     pub fn named(name: &str, pid: Option<u32>, confirmed: bool) -> Holder {
         Holder {
-            kind: classify(name),
+            kind: if pid == Some(std::process::id()) {
+                HolderKind::ThisApp
+            } else {
+                classify(name)
+            },
             name: Some(name.to_owned()),
             pid,
             confirmed,
@@ -278,18 +285,22 @@ pub fn from_tasklist(csv: &str) -> Option<Holder> {
     })
 }
 
-/// The holder of the macOS device with registry entry `entry_id`, and its product name.
+/// `ioreg -a -l -r -c IOUSBHostDevice`'s plist: every USB device with its interfaces. None when
+/// `ioreg` fails.
 #[cfg(target_os = "macos")]
-pub(crate) fn macos(entry_id: u64) -> (Holder, Option<String>) {
-    let output = std::process::Command::new("/usr/sbin/ioreg")
+pub(crate) fn ioreg() -> Option<String> {
+    std::process::Command::new("/usr/sbin/ioreg")
         .args(["-a", "-l", "-r", "-c", "IOUSBHostDevice"])
-        .output();
-    let found = output
+        .output()
         .ok()
         .filter(|o| o.status.success())
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|plist| from_ioreg(&plist, entry_id));
-    match found {
+}
+
+/// The holder of the macOS device with registry entry `entry_id`, and its product name.
+#[cfg(target_os = "macos")]
+pub(crate) fn macos(entry_id: u64) -> (Holder, Option<String>) {
+    match ioreg().and_then(|plist| from_ioreg(&plist, entry_id)) {
         Some((holder, product)) => (holder.unwrap_or_else(Holder::unknown), product),
         None => (Holder::unknown(), None),
     }
@@ -358,6 +369,10 @@ pub fn message(busy: &Busy) -> String {
         HolderKind::DesktopMtp | HolderKind::Other => {
             format!("{who} is using the watch's USB connection. Quit it and try again.")
         }
+        HolderKind::ThisApp => "This program already has the watch open for another \
+             operation. Wait for it to finish and try again; if the watch stays busy, quit \
+             every Georgian for Garmin window and start again."
+            .into(),
         HolderKind::Unknown if cfg!(target_os = "linux") => "Another program is using the \
              watch's USB connection, usually the desktop's file manager. On GNOME, eject the \
              watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 \
@@ -420,6 +435,20 @@ mod tests {
             (Some("AppleUserUSBHostHIDDevice"), None)
         );
         assert_eq!(parse_owner(" "), None);
+        let own = parse_owner(&format!("pid {}, georgian-for-ga", std::process::id())).unwrap();
+        assert_eq!(own.kind, HolderKind::ThisApp);
+        assert!(own.confirmed);
+        assert_ne!(
+            Holder::named("georgian-for-ga", Some(std::process::id() + 1), true).kind,
+            HolderKind::ThisApp
+        );
+        assert!(
+            message(&Busy {
+                holder: own,
+                ..Busy::unknown()
+            })
+            .contains("This program")
+        );
     }
 
     const IOREG: &str = include_str!("../tests/busy/ioreg-held.plist");

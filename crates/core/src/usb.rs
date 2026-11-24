@@ -34,7 +34,7 @@ const CANCEL_TRANSACTION: u16 = 0x4001;
 
 /// Interface classes that carry MTP: still-image class (6/1/1) as most devices declare it, and
 /// the vendor-specific (0xFF/0xFF/0x00) interface Garmin watches use.
-fn is_mtp_class(class: u8, subclass: u8, protocol: u8) -> bool {
+pub(crate) fn is_mtp_class(class: u8, subclass: u8, protocol: u8) -> bool {
     matches!(
         (class, subclass, protocol),
         (0x06, 0x01, 0x01) | (0xFF, 0xFF, 0x00)

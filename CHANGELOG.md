@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `georgian-for-garmin diagnose` (and the `diagnose` operation in `rpc` and `mcp`) gathers the
+  diagnostic info we ask for when helping someone who can't use GitHub: app version and build,
+  system, the Garmin USB devices with what holds them, what opening the watch gave, mounted watch
+  volumes, the watch report, and the app's recent steps, as JSON and as readable text with no
+  serial number or watch ID. `--save FILE` writes the text to a new file
+  ([command line](docs/command-line.md#diagnostic-info)).
+- A busy watch held by this very process names it as `this_app` instead of another program.
+
 ## [0.3.4] - 2026-11-24
 
 ### Added

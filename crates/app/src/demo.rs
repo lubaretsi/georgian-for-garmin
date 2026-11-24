@@ -423,6 +423,7 @@ fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
         }
         HolderKind::DesktopMtp => Holder::named("Android File Tra", Some(1450), true),
         HolderKind::Other => Holder::named("usb-helper", Some(3070), true),
+        HolderKind::ThisApp => Holder::named("georgian-for-ga", Some(std::process::id()), true),
         HolderKind::Unknown => Holder::unknown(),
     };
     // A still-image interface where macOS's camera service takes it, Garmin's MTP one elsewhere.

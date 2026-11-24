@@ -460,8 +460,8 @@ impl Operation {
 // write back. Repeating either returns `already_staged`. `inspect_drive` only reads a mounted
 // volume, and `issue_link` computes a link from its input without touching anything.
 // `extdata_list` and `wait_for_watch` only read; `extdata_list` writes a local file only when
-// asked to.
-static OPERATIONS: [Operation; 7] = [
+// asked to. `diagnose` lists USB devices and volumes and reads the watch as `inspect` does.
+static OPERATIONS: [Operation; 8] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
@@ -593,6 +593,35 @@ static OPERATIONS: [Operation; 7] = [
         open_world: false,
         input: || schema_for!(session::WaitInput),
         output: || schema_for!(session::WaitOutput),
+    },
+    Operation {
+        name: "diagnose",
+        title: "Diagnostic info",
+        description: "Gather what we ask for when helping someone who can't use GitHub, without \
+                      a serial number or watch ID: app (version, build), system (OS, version, \
+                      architecture), usb (Garmin devices only, vendor 0x091E: product ID, \
+                      product name, interface classes and the program holding each, where the \
+                      system tells), connection (opening and reading the watch as inspect does, \
+                      through the session's open connection when it has one: ok, or the error \
+                      code and message with busy), drives (mounted volumes with \
+                      GARMIN/GarminDevice.xml: name, model, part number, software), watch (the \
+                      watch report issue_link takes, when the connection worked; else null), \
+                      events (the input's, echoed: at most 50, refused if a detail or model \
+                      looks like an identifier) and text (all of it as readable text, the format \
+                      to send; its first line says it holds no serial number or watch ID). Per \
+                      platform, best effort: macOS lists USB devices from IOKit with holders \
+                      and product names from the IOKit registry; Linux from sysfs with holders \
+                      among this user's processes; Windows lists the Garmin devices Windows \
+                      Portable Devices shows (MTP only), with product ID and description, no \
+                      interfaces or holders. What a platform can't list is said in listed and \
+                      note. Device problems are data in connection; only invalid input is an \
+                      error. Read-only.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::diagnose::DiagnoseInput),
+        output: || schema_for!(crate::diagnose::DiagnoseOutput),
     },
 ];
 
