@@ -126,7 +126,7 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 | Phase | Shown when | Main text (en) | Action |
 |---|---|---|---|
 | `unplug` | right after writing, watch still connected | "Unplug the watch." | none: the app moves on when it sees the unplug |
-| `restart` | unplug seen | "Restart the watch: hold its power button, choose Power Off, then turn it on. Then connect it again so the app can check." | secondary: "Skip: I'll check on the watch" → `check` |
+| `restart` | unplug seen | Two numbered steps: "Hold the power button: choose Power Off, then turn the watch on again." and "Connect it again: the app checks that the watch loaded the font." | secondary: "I'll check on the watch" → `check` |
 | `verifying` | reconnected | "Checking the watch…" | none |
 | `again` | reconnected, `state` still `waiting` or `stock_waiting` | "The watch hasn't loaded the font yet. Restart it once more." | the next attempt starts automatically on unplug |
 | `other_watch` | reconnected, different `part_number` | "This is a different watch. Connect the {model} again." | none |
@@ -138,7 +138,7 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 - **Still starting up:** in the first 10 s after a reconnect, `device_error` and `extdata_not_found` mean the watch is still starting: keep polling, and show `error` only after that.
 - **`other` after reconnecting** leads to `watch` with the `blocked` verdict.
 - **Not verifiable:** if every written pack is TrueType, the state doesn't change on restart. Then `verifiable` is false, the phase after `restart` is `check` (after a restore: `watch`), and the text doesn't ask the user to reconnect.
-- **Skip:** "Skip: I'll check on the watch" goes to `check` after an install, and to `watch` after a restore.
+- **Skip:** "I'll check on the watch" goes to `check` after an install; after a restore the secondary reads "Skip" and goes to `watch`.
 - **Busy while restarting:** if the reconnected watch is held by another program (Garmin Express often grabs it on reconnect), show the connect/busy screen without leaving the restart. When it's released, verification goes on with the same attempt, and the step indicator stays on Restart.
 - **Drive while restarting:** if the watch comes back as a USB drive, `inspectDrive` is tried as on `connect`. The drive screen's "choose MTP" guidance shows without leaving the restart. When it's reconnected over MTP, verification goes on.
 - **The attempt count** is shown from the second attempt on. After two `again` phases, the outcome offers sharing (§5.6).
