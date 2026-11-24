@@ -50,6 +50,9 @@ pub enum FontList {
     FontList,
 }
 
+/// The demo build keeps the language and its shares in memory, so it never reads or writes
+/// this file.
+#[cfg_attr(feature = "demo", allow(dead_code))]
 pub const FILE: &str = "settings.json";
 
 /// A plausible language code: 2–8 lowercase ASCII letters.
@@ -58,6 +61,7 @@ pub fn valid_language(code: &str) -> bool {
 }
 
 /// The saved settings, or defaults if the file is missing or damaged.
+#[cfg_attr(feature = "demo", allow(dead_code))]
 pub fn load(dir: &Path) -> Settings {
     fs::read(dir.join(FILE))
         .ok()
@@ -83,6 +87,7 @@ impl Settings {
 }
 
 /// Saves `settings`, replacing the file in one step so a crash never leaves half of it.
+#[cfg_attr(feature = "demo", allow(dead_code))]
 pub fn save(dir: &Path, settings: &Settings) -> io::Result<()> {
     fs::create_dir_all(dir)?;
     let tmp = dir.join(format!("{FILE}.tmp"));

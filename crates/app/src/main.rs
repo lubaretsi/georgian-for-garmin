@@ -389,6 +389,7 @@ fn reveal_file(app: AppHandle, saved: State<'_, Saved>, path: String) -> Result<
         .map_err(|e| Failure::internal(format!("could not show {}: {e}", path.display())))
 }
 
+#[cfg(not(feature = "demo"))]
 fn config_dir(app: &AppHandle) -> Result<PathBuf, Failure> {
     app.path()
         .app_config_dir()
@@ -396,6 +397,7 @@ fn config_dir(app: &AppHandle) -> Result<PathBuf, Failure> {
 }
 
 /// Changes the saved settings with `change`.
+#[cfg(not(feature = "demo"))]
 fn update_settings(
     app: &AppHandle,
     change: impl FnOnce(&mut settings::Settings),
@@ -411,9 +413,16 @@ fn update_settings(
     })
 }
 
-/// The interface language chosen earlier, or null if none was.
+/// The interface language chosen earlier, or null if none was. The demo build remembers the
+/// language for this run only.
 #[tauri::command]
 fn saved_language(app: AppHandle) -> Option<String> {
+    #[cfg(feature = "demo")]
+    {
+        let _ = app;
+        demo::language()
+    }
+    #[cfg(not(feature = "demo"))]
     config_dir(&app)
         .ok()
         .and_then(|dir| settings::load(&dir).language)
@@ -428,6 +437,13 @@ fn save_language(app: AppHandle, language: String) -> Result<(), Failure> {
             format!("{language:?} is not a language code"),
         )));
     }
+    #[cfg(feature = "demo")]
+    {
+        let _ = app;
+        demo::set_language(language);
+        Ok(())
+    }
+    #[cfg(not(feature = "demo"))]
     update_settings(&app, |s| s.language = Some(language))
 }
 
