@@ -322,6 +322,7 @@ pnpm typecheck
 pnpm test             # Vitest: flow, copy and component tests, and every story in Chromium and WebKit, with axe
 pnpm test:unit        # only the tests that need no browser
 pnpm gen:types        # src/core/types.gen.ts from the CLI's --help --json
+pnpm gen:glyphs       # src/ui/art/glyphs.ts: the drawings' words outlined from Noto Sans Georgian
 ```
 
 Each `Flows/…` story is the whole app beside a watch simulator (plug in over MTP or as a drive,

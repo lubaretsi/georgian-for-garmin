@@ -10,7 +10,8 @@
     "test:unit": "vitest run --project unit --project dom",
     "test:stories": "vitest run --project storybook",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "gen:types": "node scripts/gen-types.ts"
+    "gen:types": "node scripts/gen-types.ts",
+    "gen:glyphs": "python3 src/ui/art/gen-glyphs.py"
   },
   "dependencies": {
     "@fontsource-variable/noto-sans-georgian": "^5.3.0",

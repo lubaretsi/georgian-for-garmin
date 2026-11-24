@@ -2,8 +2,9 @@
 # bundled Noto Sans Georgian (its Georgian and Latin subsets), so the drawings hold no text
 # nodes and look the same on every platform.
 #
-# Run from crates/app/frontend after changing a word or upgrading the font:
-#   uv run --with fonttools --with brotli python src/ui/art/gen-glyphs.py
+# Run in the dev shell (its Python has fontTools and brotli) after changing a word or upgrading
+# the font, from the repository root:
+#   nix develop -c pnpm -C crates/app/frontend gen:glyphs
 import json
 from pathlib import Path
 
