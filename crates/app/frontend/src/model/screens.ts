@@ -35,16 +35,18 @@ export type ScreenModel =
   | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
-  | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean }
+  | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given
   | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
-  | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string };
+  | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string }
+  | { screen: "diagnostics"; summary: { label: string; value: string }[]; text: string; state: "collecting" | "ready" | "saved" | "copied" | "failed"; savedPath: string | null }; // from More; Back returns to the screen before
 
 /** What the screen's buttons do. Screens emit these; only the flow acts on them. */
 export type ActionId =
   | "install" | "restore" | "confirm_restore" | "cancel" | "check" | "skip_verify"
   | "send_test_done" | "answer" | "share" | "open_issue"
   | "restart_again" | "try_again" | "back" | "retry_now" | "done"
-  | "copy_test_text" | "show_more" | "which_watches" | "help";
+  | "copy_test_text" | "show_more" | "which_watches" | "help"
+  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file";
 
 /** Extra data some actions carry; every other action carries none. */
 export type ActionPayload =
