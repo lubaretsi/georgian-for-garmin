@@ -85,7 +85,7 @@ export function MoreSheet(props: {
                 {more.seen ? (
                   <dl className="-mx-3.5">
                     {more.seen.map((s) => (
-                      <ValueRow key={s.label} label={s.label} value={<span className="break-all">{s.value}</span>} />
+                      <ValueRow key={s.label} label={s.label} value={<span className="wrap-anywhere">{s.value}</span>} />
                     ))}
                   </dl>
                 ) : (
@@ -126,7 +126,7 @@ export function MoreSheet(props: {
                   <p>{m.about.unofficial}</p>
                   <p>
                     {m.about.source}{" "}
-                    <span lang="en" className="break-all select-text">
+                    <span lang="en" className="wrap-anywhere select-text">
                       {REPO_URL}
                     </span>
                   </p>
