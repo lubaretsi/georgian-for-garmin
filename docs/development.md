@@ -316,9 +316,18 @@ that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, s
 screen stays and shows its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
 program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
-shows that platform's words. The demo build opens nothing and leaves the clipboard and the app's
-settings alone; its diagnostic info goes to `georgian-for-garmin-demo-downloads` in the temp
-folder.
+shows that platform's words; the window keeps this computer's chrome (on a Mac the toolbar still
+leaves room for the traffic lights). The demo build opens nothing and leaves the clipboard and
+the app's settings alone (the language and shares last for the run); its diagnostic info goes to
+`georgian-for-garmin-demo-downloads` in the temp folder, and More › About says it's the demo.
+**Restart once more** waits on the unplug the demo never makes: start the demo again instead
+(the Storybook flows' simulator has Unplug).
+
+The window opens at 480×720 logical pixels (`window.rs`, shortened only on short screens). A
+tiling window manager (yabai, AeroSpace, OmniWM, i3, Sway) resizes it like any other window.
+`index.html` checks the WebView first: an engine older than Safari 16.4's gets a ka/en update
+message instead of the app (`src/webview-check.test.ts`).
+
 Every string is in `frontend/src/copy/{ka,en}.ts`, which must have the same keys; the frontend's
 tests check that ([below](#frontend-and-storybook)).
 
@@ -328,8 +337,8 @@ watch; add a new report with `scripts/report_fixture.py` ([fixtures](../crates/c
 ### Frontend and Storybook
 
 The redesigned UI lives in `crates/app/frontend` (React, TypeScript, Vite), with its contract in
-[CONTRACT.md](../crates/app/frontend/CONTRACT.md). In phase 1 it runs only in Storybook and the
-tests, over a simulated watch; the shipped app still uses `ui/`. Node and pnpm come with
+[CONTRACT.md](../crates/app/frontend/CONTRACT.md). The app embeds it; Storybook and the tests
+run it over a simulated watch. Node and pnpm come with
 `nix develop`:
 
 ```sh

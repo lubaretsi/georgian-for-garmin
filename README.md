@@ -191,7 +191,7 @@ You need your watch's USB data cable. Download the app for your computer from
 
 | Computer | Download, then |
 |---|---|
-| Mac, macOS 11 or later | `Georgian-for-Garmin-macos.zip`: unzip it and open **Georgian for Garmin** |
+| Mac, macOS 11 or later with Safari 16.4 or later | `Georgian-for-Garmin-macos.zip`: unzip it and open **Georgian for Garmin** |
 | Windows 10 or 11 | `Georgian-for-Garmin-windows-x64-setup.exe` (`-arm64-` on Arm PCs): run it |
 | Debian, Ubuntu | `Georgian-for-Garmin-linux-x86_64.deb` (`-aarch64` on Arm): `sudo apt install ./Georgian-for-Garmin-linux-*.deb` |
 | Other Linux | `Georgian-for-Garmin-linux-x86_64.AppImage`: `chmod +x` it, run it, and [install the udev rule](docs/command-line.md#linux) |
@@ -208,14 +208,20 @@ Then:
 1. Quit Garmin Express if it's running, and connect the watch. If the watch asks how to connect,
    choose MTP. On Linux, [release it from GNOME or KDE](docs/command-line.md#linux) first.
 2. Click **Install Georgian** (**ქართულის დაყენება**).
-3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-   If you still see boxes, restart the watch once more.
-4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan its code with your phone
-   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`.
+3. Restart the watch as the app shows you: unplug it, hold the power button, choose **Power Off**,
+   turn it on and connect it again. The app checks that the watch loaded the font, and asks for
+   one more restart if it hasn't yet.
+4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan the code with your phone
+   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`, then
+   tell the app what the watch showed.
 
-To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
+To undo, connect the watch and choose **More › Restore original font** (the **⋯** button in the
+top corner); the app then guides the restart the same way. If we ask you for diagnostic info,
+**More › Diagnostic info** saves it to a file or copies it; it has no serial number or watch ID.
 
-The app is in Georgian, with an English switch in the top corner. The macOS app is tested with a
+The app is in Georgian, with an English switch in the top corner. On a Mac without the Safari
+16.4 update (macOS Big Sur or Monterey that hasn't installed it) the app shows how to update
+instead of its window. The macOS app is tested with a
 watch. On Windows (11 on Arm) and Linux (Ubuntu 24.04) the command-line installer is tested with a
 watch; the Windows and Linux apps are tested only without one so far. The Linux app needs glibc
 2.34 or newer.
