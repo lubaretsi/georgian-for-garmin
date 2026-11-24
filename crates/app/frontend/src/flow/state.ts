@@ -21,7 +21,7 @@ import type {
   Shared,
   StageOutput,
 } from "../core/types.gen";
-import type { ActionId, ActionPayload, Answers, Op } from "../model/screens";
+import { type ActionId, type ActionPayload, type Answers, type Op, sawLetters, VIEWS } from "../model/screens";
 import { verdictOf, verifiable, verified } from "./verdict";
 
 /** How long the app waits between polls, and before the connect help card (§4). */
@@ -187,6 +187,18 @@ export function shareKeyId(key: ShareKey): string {
 export function answersFor(state: FlowState): Answers {
   const part = state.inspect?.device.part_number;
   return (part && state.answers[part]) || { views: [] };
+}
+
+/**
+ * `answers` as the report takes them: views in the form's order, and none, nor a test mark,
+ * without letters, so switching to boxes drops what was picked for letters.
+ */
+function coherent(answers: Answers): Answers {
+  if (!sawLetters(answers.result)) {
+    const { result, phone } = answers;
+    return { views: [], ...(result && { result }), ...(phone && { phone }) };
+  }
+  return { ...answers, views: VIEWS.filter((view) => answers.views.includes(view)) };
 }
 
 /** Whether the app reads the watch every 2 s in `phase` (§4, Polling). */
@@ -506,7 +518,7 @@ function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined)
       }
       if (id === "answer" && payload?.action === "answer") {
         const part = state.inspect?.device.part_number;
-        return part ? { ...state, answers: { ...state.answers, [part]: payload.answers } } : state;
+        return part ? { ...state, answers: { ...state.answers, [part]: coherent(payload.answers) } } : state;
       }
       if (id === "back") return go(state, { name: "check", step: "send" });
       if (id === "done" && answersFor(state).result && state.inspect) {

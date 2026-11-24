@@ -4,8 +4,9 @@ import { describe, expect, test } from "vitest";
 
 import type { Failure, InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
-import type { ActionId, ActionPayload } from "../model/screens";
+import type { ActionId, ActionPayload, Answers } from "../model/screens";
 import {
+  answersFor,
   type Effect,
   type FlowEvent,
   type FlowState,
@@ -417,9 +418,26 @@ describe("check, outcome and share", () => {
   });
 
   test("answers survive leaving and coming back for the session", () => {
-    const outcome = answered("boxes");
+    const outcome = answered("georgian");
     const back = act(act(outcome, "done"), "check");
-    expect(back.answers["006-B3703-00"]).toEqual({ result: "boxes", views: ["popup"] });
+    expect(back.answers["006-B3703-00"]).toEqual({ result: "georgian", views: ["popup"] });
+  });
+
+  test("answers stay coherent: no views or test mark without letters, views in the form's order", () => {
+    let state = act(act(atResult(), "check"), "send_test_done");
+    const answer = (answers: Answers) => act(state, "answer", { action: "answer", answers });
+    state = answer({ result: "georgian", views: ["opened", "popup"], marker: "B", phone: "android" });
+    expect(answersFor(state)).toEqual({ result: "georgian", views: ["popup", "opened"], marker: "B", phone: "android" });
+    state = answer({ ...answersFor(state), result: "some_letters" });
+    expect(answersFor(state)).toEqual({ result: "some_letters", views: ["popup", "opened"], marker: "B", phone: "android" });
+    for (const result of ["boxes", "question_marks", "no_notification"] as const) {
+      const switched = answer({ ...answersFor(state), result });
+      expect(answersFor(switched)).toEqual({ result, views: [], phone: "android" });
+      const shared = act(act(switched, "done"), "share", { action: "share", what: "result" });
+      const [effect] = shared.effects;
+      if (effect?.kind !== "issue_link") throw new Error("no issue_link");
+      expect(effect.input.answers).toEqual({ result, views: [], phone: "android" });
+    }
   });
 
   test("share the result: the link, then GitHub; opened or with a paste; failed", () => {

@@ -6,6 +6,15 @@ export type Confidence = "confirmed" | "confirmed_other_software" | "confirmed_s
 export type Result = "georgian" | "boxes" | "question_marks" | "some_letters" | "no_notification" | "not_installed";
 export type View = "popup" | "list" | "opened";
 export type Answers = { result?: Result; views: View[]; phone?: "android" | "iphone"; marker?: string };
+
+/** Where letters can show, in the issue form's order. */
+export const VIEWS: readonly View[] = ["popup", "list", "opened"];
+
+/** Whether `result` means letters showed, the only case where they have views and a test mark. */
+export function sawLetters(result: Result | undefined): boolean {
+  return result === "georgian" || result === "some_letters";
+}
+
 export type Op = "install" | "restore";
 export type Localized = { ka: string; en: string };
 

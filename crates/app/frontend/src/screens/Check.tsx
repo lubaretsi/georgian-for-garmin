@@ -1,6 +1,6 @@
 import { fmt } from "../copy";
 import { TEST_TEXT } from "../copy/shared";
-import type { Answers, Result, ScreenModel, View } from "../model/screens";
+import { type Answers, type Result, type ScreenModel, sawLetters, VIEWS } from "../model/screens";
 import { MiniFace } from "../ui/art/Watch";
 import { CheckboxRow, RadioRows, Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
@@ -13,7 +13,6 @@ type Check = Extract<ScreenModel, { screen: "check" }>;
 
 /** The answers a user picks, in the issue form's order; `not_installed` is the flow's own. */
 export const OFFERED: Exclude<Result, "not_installed">[] = ["georgian", "boxes", "question_marks", "some_letters", "no_notification"];
-const VIEWS: View[] = ["popup", "list", "opened"];
 const NO_MARKER = "none";
 
 /** check: send yourself the test notification, then say what the watch showed. */
@@ -58,7 +57,7 @@ function answerStep(model: Check, ctx: ScreenContext): ScreenView {
   const a = ctx.copy.check.answer;
   const answers = model.answers;
   const change = (next: Answers) => ctx.emit("answer", { action: "answer", answers: next });
-  const letters = answers.result === "georgian" || answers.result === "some_letters";
+  const letters = sawLetters(answers.result);
   return {
     step: "check",
     title: a.title,
