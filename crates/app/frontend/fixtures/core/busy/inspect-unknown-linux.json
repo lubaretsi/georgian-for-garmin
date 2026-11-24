@@ -16,7 +16,7 @@
       "product_name": null
     },
     "code": "device_busy",
-    "message": "Another program is using the watch's USB connection. Quit Garmin Express (including its background helper) and other programs that open phones, cameras or watches, then try again; restarting the computer frees it too."
+    "message": "Another program is using the watch's USB connection, usually the desktop's file manager. On GNOME, eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 kiod6`. Then try again."
   },
   "operation": "inspect"
 }

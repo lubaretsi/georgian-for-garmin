@@ -16,7 +16,7 @@
       "product_name": null
     },
     "code": "device_busy",
-    "message": "gvfsd-mtp (pid 2301) is using the watch's USB connection. Quit it and try again."
+    "message": "gvfsd-mtp (pid 2301), the desktop's file access, is using the watch's USB connection. On GNOME, eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 kiod6`. Then try again."
   },
   "operation": "inspect"
 }

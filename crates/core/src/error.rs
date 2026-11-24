@@ -133,7 +133,12 @@ impl Error {
 
     /// `device_busy` with what is known about the holder, and the message for it.
     pub fn busy(busy: Busy) -> Self {
-        let message = crate::busy::message(&busy);
+        Error::busy_on(busy, crate::busy::System::current())
+    }
+
+    /// [`Error::busy`] with the message written for `system`.
+    pub fn busy_on(busy: Busy, system: crate::busy::System) -> Self {
+        let message = crate::busy::message_on(&busy, system);
         Error {
             busy: Some(Box::new(busy)),
             ..Error::new(ErrorCode::DeviceBusy, message)

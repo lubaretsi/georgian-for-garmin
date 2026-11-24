@@ -27,11 +27,11 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
+use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, System, UsbInterface};
 use georgian_for_garmin_core::error::{RollbackAction, RollbackFile};
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::ops;
-use georgian_for_garmin_core::report::{self, WatchReport};
+use georgian_for_garmin_core::report::{self, IssueLinkInput, WatchReport};
 use georgian_for_garmin_core::{Error, ErrorCode};
 use report_watch::*;
 use serde_json::{Value, json};
@@ -185,12 +185,13 @@ impl Scenario {
         if input.get("report").is_some() {
             normalize_report(&mut input["report"]);
         }
-        let result = ops::call("issue_link", input.clone(), &self.fonts, &mut || {
-            Err(Error::new(
-                ErrorCode::Internal,
-                "issue_link opened the watch",
-            ))
-        });
+        // The fixed app and machine, for a report without a watch report (busy alone); with one,
+        // the report says them itself.
+        let parsed: IssueLinkInput =
+            serde_json::from_value(input.clone()).expect("an IssueLinkInput");
+        let fixed: report::Platform = serde_json::from_value(platform()).unwrap();
+        let result = report::issue_link_on(&parsed, APP_VERSION, &fixed)
+            .map(|link| serde_json::to_value(link).unwrap());
         let name = self.name;
         self.record(step, "issue_link", Some(input), result)
             .unwrap_or_else(|e| panic!("{name}: {step}: {}", e.message))
@@ -586,7 +587,8 @@ fn no_device() -> Error {
     )
 }
 
-/// What holds the watch for `kind` on `platform`, as the demo build names it.
+/// What holds the watch for `kind` on `platform`, as the demo build names it: data, never read
+/// from this computer.
 fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
     let windows = platform == "windows";
     let holder = match kind {
@@ -616,6 +618,15 @@ fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
     }
 }
 
+/// The system a fixture's busy message is written for, whatever this computer is.
+fn system(platform: &str) -> System {
+    match platform {
+        "windows" => System::Windows,
+        "linux" => System::Linux,
+        _ => System::Macos,
+    }
+}
+
 /// The watch held by each kind of program on each platform where it occurs, then released
 /// (the Venu 2); and the "still stuck" share with only the holder.
 #[test]
@@ -635,14 +646,18 @@ fn busy() {
         let kind_name = serde_json::to_value(kind).unwrap();
         let step = format!("inspect-{}-{platform}", kind_name.as_str().unwrap());
         let busy = busy_sample(kind, platform);
-        s.connect_fails(&step, "inspect", Error::busy(busy));
+        s.connect_fails(&step, "inspect", Error::busy_on(busy, system(platform)));
     }
     // A 16-character macOS name, which the system may have cut.
     let cut = Busy {
         holder: Holder::named("com.example.sync", Some(4242), true),
         ..busy_sample(HolderKind::Other, "macos")
     };
-    s.connect_fails("inspect-other-macos-cut", "inspect", Error::busy(cut));
+    s.connect_fails(
+        "inspect-other-macos-cut",
+        "inspect",
+        Error::busy_on(cut, System::Macos),
+    );
     let held = busy_sample(HolderKind::GarminExpress, "macos");
     s.issue_link("issue_link-problem", json!({"busy": held}));
     s.ok("inspect-released", "inspect", &watch);

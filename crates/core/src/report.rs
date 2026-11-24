@@ -474,6 +474,16 @@ pub struct FormField {
 
 /// The new-issue link for `input`.
 pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
+    issue_link_on(input, APP_VERSION, &Platform::current())
+}
+
+/// [`issue_link`] as made by app `app_version` on `platform`, which only a report of a busy
+/// watch that couldn't be read takes from here (a watch report carries its own).
+pub fn issue_link_on(
+    input: &IssueLinkInput,
+    app_version: &str,
+    platform: &Platform,
+) -> Result<IssueLink, Error> {
     if let Some(outcome) = &input.outcome
         && outcome.status.is_some() == outcome.error.is_some()
     {
@@ -503,7 +513,7 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
                     "outcome and answers need a report",
                 ));
             }
-            (busy_title(busy), busy_text(busy))
+            (busy_title(busy), busy_text(busy, app_version, platform))
         }
         (None, None) => {
             return Err(Error::new(
@@ -652,11 +662,10 @@ fn busy_line(busy: &Busy) -> String {
 
 /// The report field's text for a busy watch that couldn't be read: this program and computer,
 /// and the `busy` line.
-fn busy_text(busy: &Busy) -> String {
-    let p = Platform::current();
+fn busy_text(busy: &Busy, app_version: &str, p: &Platform) -> String {
     format!(
         "app {} {} {} {}\n{}\n",
-        column(APP_VERSION),
+        column(app_version),
         column(&p.os),
         column(&p.os_version),
         column(&p.arch),

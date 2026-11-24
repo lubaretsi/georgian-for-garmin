@@ -12,7 +12,7 @@
       "product_name": null
     },
     "code": "device_busy",
-    "message": "Another program is using the watch, and Garmin Express is running (ExpressTray.exe (pid 6312)). Quit Garmin Express, including its menu-bar icon, and try again."
+    "message": "Another program is using the watch, and Garmin Express is running (ExpressTray.exe (pid 6312)). Quit Garmin Express, including its icon in the notification area, and try again."
   },
   "operation": "inspect"
 }
