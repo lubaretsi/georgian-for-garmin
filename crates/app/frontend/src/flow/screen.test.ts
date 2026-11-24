@@ -134,7 +134,7 @@ describe("toScreen", () => {
     expect(toScreen(atResult())).toEqual({ screen: "result", op: "install", watch: VENU2_INFO, confidence: "confirmed" });
   });
 
-  test("check: answers, phone page and marks as the core gives them", () => {
+  test("check: answers, phone page, and the marks of the parts install writes", () => {
     let state = act(atResult(), "check");
     expect(toScreen(state)).toEqual({
       screen: "check",
@@ -146,8 +146,12 @@ describe("toScreen", () => {
     });
     const page = { url: "https://lubaretsi.github.io/georgian-for-garmin/?lang=en", qr: "data:image/svg+xml;base64,AA" };
     const mark = { part: "006-D9035-01", kind: "bitmap" as const, variant: "A", style: "bar", picture: "data:image/png;base64,AA" };
+    // A part the watch lists but install doesn't write, with the same variant letter in its kind.
+    const other = { part: "006-D8945-22", kind: "truetype" as const, variant: "A", style: "bar", picture: "data:image/png;base64,BB" };
+    // A part this watch doesn't list.
+    const unlisted = { ...mark, part: "006-D1234-01", variant: "B", picture: "data:image/png;base64,CC" };
     state = reduce(state, { type: "phone_loaded", lang: "en", page });
-    state = reduce(state, { type: "marks_loaded", marks: [mark] });
+    state = reduce(state, { type: "marks_loaded", marks: [mark, other, unlisted] });
     state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "boxes", views: [] } });
     expect(toScreen(state)).toMatchObject({
       step: "answer",

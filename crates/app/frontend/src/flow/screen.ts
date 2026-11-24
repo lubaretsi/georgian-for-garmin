@@ -49,6 +49,16 @@ function sharedBefore(state: FlowState, source: InspectOutput | InspectDriveOutp
   return state.shared[shareKeyId(key)] ?? false;
 }
 
+/**
+ * The test marks of the parts `install` writes on this watch, for the marker question (beta
+ * builds; stable ones have none). Variants repeat across font kinds, so other parts' marks would
+ * make the answer ambiguous.
+ */
+function targetMarks(state: FlowState): { variant: string; picture: string }[] {
+  const targets = new Set(state.inspect?.report.parts.filter((part) => part.target).map((part) => part.part));
+  return (state.marks ?? []).filter((mark) => targets.has(mark.part)).map(({ variant, picture }) => ({ variant, picture }));
+}
+
 function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "share" }>) {
   const s = copy.share.summary;
   const watch = sharedWatch(state, phase.back);
@@ -243,7 +253,7 @@ export function toScreen(state: FlowState): ScreenModel {
         step: phase.step,
         answers: answersFor(state),
         phone: state.phone ? { url: state.phone.page.url, qr: state.phone.page.qr } : null,
-        markPictures: (state.marks ?? []).map((mark) => ({ variant: mark.variant, picture: mark.picture })),
+        markPictures: targetMarks(state),
       };
     case "outcome": {
       const inspect = state.inspect;
