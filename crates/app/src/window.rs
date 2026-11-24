@@ -1,10 +1,11 @@
 //! Opens the window inside the screen's work area, in front.
 //!
 //! `tauri.conf.json` opens the window resizable at 480x720, with a 420x560 minimum; the content
-//! scrolls above the fixed footer, so any height down to the minimum works. On a short work area
-//! (1024x768 at 125%, or 1920x1080 at 150% with the taskbar), 720 runs under the taskbar, so at
-//! startup the window's height is cut to the work area, never below the minimum, and the window
-//! is centered in it. The width, and the size on screens tall enough, stay as configured.
+//! scrolls above the fixed footer. On a short work area (1024x768 at 125%, or 1920x1080 at 150%
+//! with the taskbar), 720 runs under the taskbar, so at startup the window's height is cut to the
+//! work area and the window is centered in it. Where even the minimum doesn't fit (1024x768 at
+//! 125%), the minimum comes down to the work area as well, so the footer and its main action stay
+//! on screen. The width, and the size on screens tall enough, stay as configured.
 //!
 //! The window starts hidden (`"visible": false`) and is shown only after fitting: resizing and
 //! moving an already visible window at startup left it behind the installer's caller (Chrome)
@@ -55,16 +56,19 @@ fn fit_to_work_area<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> 
     // Title bar and borders, in the monitor's physical pixels (none under macOS's overlay
     // title bar).
     let frame = outer.height.saturating_sub(inner.height);
-    let min = config.min_height.unwrap_or(0.0);
-    let Some(height) = fitted_height(
-        work.size.height,
-        frame,
-        inner.height,
-        min,
-        window.scale_factor()?,
-    ) else {
+    let Some(height) = fitted_height(work.size.height, frame, inner.height) else {
         return Ok(());
     };
+    // The OS keeps a window at least at its minimum size (Windows clamps any resize to it), so a
+    // minimum the work area can't hold comes down first.
+    let min: PhysicalSize<u32> = LogicalSize::new(
+        config.min_width.unwrap_or(0.0),
+        config.min_height.unwrap_or(0.0),
+    )
+    .to_physical(window.scale_factor()?);
+    if height < min.height {
+        window.set_min_size(Some(PhysicalSize::new(min.width, height)))?;
+    }
     window.set_size(PhysicalSize::new(inner.width, height))?;
     let x = work.position.x + centered(work.size.width, outer.width);
     let y = work.position.y + centered(work.size.height, height + frame);
@@ -72,14 +76,11 @@ fn fit_to_work_area<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> 
 }
 
 /// The inner height that fits a work area `work` tall with a `frame`-high title bar and borders,
-/// but not below `min_logical` logical pixels at `scale`; `None` when the current inner height
-/// already fits. Sizes other than `min_logical` are the monitor's physical pixels.
-fn fitted_height(work: u32, frame: u32, inner: u32, min_logical: f64, scale: f64) -> Option<u32> {
+/// or `None` when the current inner height already fits. All sizes are the monitor's physical
+/// pixels.
+fn fitted_height(work: u32, frame: u32, inner: u32) -> Option<u32> {
     let available = work.saturating_sub(frame);
-    let min = LogicalSize::new(0.0, min_logical)
-        .to_physical::<u32>(scale)
-        .height;
-    (inner > available).then_some(available.max(min).min(inner))
+    (inner > available).then_some(available)
 }
 
 /// Offset that centers `size` in `space`; 0 when it doesn't fit.
@@ -91,9 +92,8 @@ fn centered(space: u32, size: u32) -> i32 {
 mod tests {
     use super::*;
 
-    /// `tauri.conf.json`'s window: 480x720, at least 420x560.
+    /// `tauri.conf.json`'s window height.
     const HEIGHT: f64 = 720.0;
-    const MIN: f64 = 560.0;
 
     /// The configured inner height in physical pixels at `scale`.
     fn configured(scale: f64) -> u32 {
@@ -103,79 +103,48 @@ mod tests {
     #[test]
     fn fits_unchanged_on_tall_work_areas() {
         // 100%: 1920x1080 minus a 48 px taskbar, 30 px title bar.
-        assert_eq!(fitted_height(1032, 30, configured(1.0), MIN, 1.0), None);
-        assert_eq!(fitted_height(750, 30, configured(1.0), MIN, 1.0), None);
+        assert_eq!(fitted_height(1032, 30, configured(1.0)), None);
+        assert_eq!(fitted_height(750, 30, configured(1.0)), None);
         // 200%: a 2560x1440 Retina screen under the 31 pt menu bar, overlay title bar.
-        assert_eq!(fitted_height(2818, 0, configured(2.0), MIN, 2.0), None);
+        assert_eq!(fitted_height(2818, 0, configured(2.0)), None);
         // 200%: a 1440x900 MacBook Air.
-        assert_eq!(fitted_height(1738, 0, configured(2.0), MIN, 2.0), None);
+        assert_eq!(fitted_height(1738, 0, configured(2.0)), None);
         // 125%: 2560x1440 minus a 60 px taskbar, 40 px title bar.
-        assert_eq!(fitted_height(1380, 40, configured(1.25), MIN, 1.25), None);
+        assert_eq!(fitted_height(1380, 40, configured(1.25)), None);
         // 125%: 1920x1080 minus a 60 px taskbar, 40 px title bar.
-        assert_eq!(fitted_height(1020, 40, configured(1.25), MIN, 1.25), None);
+        assert_eq!(fitted_height(1020, 40, configured(1.25)), None);
     }
 
     #[test]
     fn shrinks_to_short_work_areas() {
         // 100%: 1366x768 minus a 40 px taskbar, 30 px title bar.
-        assert_eq!(fitted_height(728, 30, configured(1.0), MIN, 1.0), Some(698));
-        // 125%: 1024x768 (physical) minus a 60 px taskbar, 40 px title bar: 708 - 40 = 668 is
-        // below the minimum's 700, which wins.
-        assert_eq!(
-            fitted_height(708, 40, configured(1.25), MIN, 1.25),
-            Some(700)
-        );
+        assert_eq!(fitted_height(728, 30, configured(1.0)), Some(698));
         // 125%: 1600x900 minus a 60 px taskbar, 40 px title bar.
-        assert_eq!(
-            fitted_height(840, 40, configured(1.25), MIN, 1.25),
-            Some(800)
-        );
+        assert_eq!(fitted_height(840, 40, configured(1.25)), Some(800));
         // 150%: 1920x1080 minus a 72 px taskbar, 47 px title bar.
-        assert_eq!(
-            fitted_height(1008, 47, configured(1.5), MIN, 1.5),
-            Some(961)
-        );
+        assert_eq!(fitted_height(1008, 47, configured(1.5)), Some(961));
         // 200%: a 1280x720 (logical) screen under a 25 pt menu bar, overlay title bar.
-        assert_eq!(
-            fitted_height(1390, 0, configured(2.0), MIN, 2.0),
-            Some(1390)
-        );
+        assert_eq!(fitted_height(1390, 0, configured(2.0)), Some(1390));
     }
 
     #[test]
-    fn never_below_the_minimum() {
-        assert_eq!(fitted_height(580, 30, configured(1.0), MIN, 1.0), Some(560));
-        assert_eq!(fitted_height(20, 40, configured(1.0), MIN, 1.0), Some(560));
-        assert_eq!(
-            fitted_height(720, 40, configured(1.25), MIN, 1.25),
-            Some(700)
-        );
-        assert_eq!(
-            fitted_height(1000, 0, configured(2.0), MIN, 2.0),
-            Some(1120)
-        );
+    fn below_the_minimum_the_work_area_wins() {
+        // 125%: 1024x768 minus a 60 px taskbar, 40 px title bar: 668 px, 534 logical, under the
+        // 560 minimum; the window still ends at the taskbar.
+        assert_eq!(fitted_height(708, 40, configured(1.25)), Some(668));
     }
 
     #[test]
-    fn stays_between_the_minimum_and_the_configured_size() {
+    fn ends_at_the_work_area() {
         for scale in [1.0, 1.25, 1.5, 2.0] {
             let inner = configured(scale);
-            let min = (MIN * scale).round() as u32;
             for frame in [0, (28.0 * scale) as u32] {
-                for work in (0..=2 * inner).step_by(7) {
-                    match fitted_height(work, frame, inner, MIN, scale) {
+                for work in (frame..=2 * inner).step_by(7) {
+                    match fitted_height(work, frame, inner) {
                         None => assert!(inner + frame <= work, "{scale} {frame} {work}"),
                         Some(height) => {
-                            assert!(inner + frame > work, "{scale} {frame} {work}");
-                            assert!(
-                                (min..=inner).contains(&height),
-                                "{scale} {frame} {work}: {height}"
-                            );
-                            // As tall as the work area allows.
-                            assert!(
-                                height == min || height + frame == work,
-                                "{scale} {frame} {work}"
-                            );
+                            assert!(height < inner, "{scale} {frame} {work}: {height}");
+                            assert_eq!(height + frame, work, "{scale} {frame} {work}");
                         }
                     }
                 }
@@ -191,11 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn the_minimum_is_the_configured_one() {
+    fn the_height_is_the_configured_one() {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
-        let window = &config["app"]["windows"][0];
-        assert_eq!(window["height"], HEIGHT);
-        assert_eq!(window["minHeight"], MIN);
+        assert_eq!(config["app"]["windows"][0]["height"], HEIGHT);
     }
 }
