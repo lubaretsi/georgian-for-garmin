@@ -24,12 +24,12 @@ use std::path::{Path, PathBuf};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::busy::{Busy, Holder, HolderKind, UsbInterface};
+use crate::busy::{self, Busy, Holder, HolderKind, UsbInterface};
 use crate::drive;
 use crate::error::{Error, ErrorCode};
 use crate::fonts::FontSet;
 use crate::ops::{APP_VERSION, InspectOutput};
-use crate::report::{self, Platform, WatchReport, column, snake};
+use crate::report::{self, Platform, WatchReport, column, looks_like_identifier, snake};
 
 /// The most events one call takes.
 pub const MAX_EVENTS: usize = 50;
@@ -164,22 +164,6 @@ pub struct DiagnoseOutput {
 pub const HEADER: &str =
     "Georgian for Garmin diagnostic info. It contains no serial number or watch ID.";
 
-/// Whether `value` looks like a serial number, unit ID or other identifier: a run of 9 or more
-/// digits, or a word of 12 or more letters and digits with 4 or more digits.
-pub fn looks_like_identifier(value: &str) -> bool {
-    value
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .any(|word| {
-            let digits = word.bytes().filter(u8::is_ascii_digit).count();
-            let run = word
-                .split(|c: char| !c.is_ascii_digit())
-                .map(str::len)
-                .max()
-                .unwrap_or(0);
-            run >= 9 || (word.len() >= 12 && digits >= 4)
-        })
-}
-
 /// Refuses events with a field that looks like an identifier.
 pub fn check_events(events: &[Event]) -> Result<(), Error> {
     for (i, event) in events.iter().enumerate() {
@@ -216,13 +200,6 @@ impl Probe<'_> {
             drives: Box::new(drives),
         }
     }
-}
-
-/// A product name unless it looks like an identifier.
-fn product_name(name: Option<&str>) -> Option<String> {
-    name.map(str::trim)
-        .filter(|n| !n.is_empty() && !looks_like_identifier(n))
-        .map(str::to_owned)
 }
 
 /// The Garmin USB devices this computer lists, with their holders where the system tells.
@@ -278,7 +255,7 @@ pub fn usb() -> UsbReport {
             let (holder, name) = (None, info.product_string().map(str::to_owned));
             UsbDevice {
                 product_id: info.product_id(),
-                product_name: product_name(name.as_deref()),
+                product_name: busy::product_name(name.as_deref()),
                 mtp: interfaces
                     .iter()
                     .any(|i| crate::usb::is_mtp_class(i.class, i.subclass, i.protocol)),
@@ -316,7 +293,7 @@ pub fn usb() -> UsbReport {
                 .filter_map(|device| {
                     Some(UsbDevice {
                         product_id: device.product_id?,
-                        product_name: product_name(device.description.as_deref()),
+                        product_name: busy::product_name(device.description.as_deref()),
                         mtp: true,
                         interfaces: Vec::new(),
                         holder: None,

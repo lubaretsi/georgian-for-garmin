@@ -610,10 +610,30 @@ fn title(report: &WatchReport) -> String {
     )
 }
 
+/// Whether `value` looks like a serial number, unit ID or other identifier: a run of 9 or more
+/// digits, or a word of 12 or more letters and digits with 4 or more digits. Values that do are
+/// left out of what is shared, or refused as input.
+pub fn looks_like_identifier(value: &str) -> bool {
+    value
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|word| {
+            let digits = word.bytes().filter(u8::is_ascii_digit).count();
+            let run = word
+                .split(|c: char| !c.is_ascii_digit())
+                .map(str::len)
+                .max()
+                .unwrap_or(0);
+            run >= 9 || (word.len() >= 12 && digits >= 4)
+        })
+}
+
 /// A busy watch's title: its product and its holder, as far as they are known.
 fn busy_title(busy: &Busy) -> String {
-    let watch = match (&busy.product_name, busy.product_id) {
-        (Some(name), _) => one_line(name),
+    let watch = match (
+        crate::busy::product_name(busy.product_name.as_deref()),
+        busy.product_id,
+    ) {
+        (Some(name), _) => one_line(&name),
         (None, Some(id)) => format!("USB product {id:04x}"),
         (None, None) => "unknown model".into(),
     };
@@ -646,7 +666,7 @@ pub(crate) fn busy_line(busy: &Busy) -> String {
         "busy {} {seen} name={} pid={pid} product_id={product_id} product={} interface={interface}",
         snake(&h.kind),
         column(h.name.as_deref().unwrap_or("")),
-        column(busy.product_name.as_deref().unwrap_or("")),
+        column(&crate::busy::product_name(busy.product_name.as_deref()).unwrap_or_default()),
     )
 }
 

@@ -223,6 +223,46 @@ fn a_busy_watch_names_its_holder() {
     assert_no_identifiers(&out);
 }
 
+/// A busy device whose product string looks like a serial number: the name is in neither
+/// diagnose's output (JSON and text) nor an issue link made from the busy error, nor one made
+/// from a `busy` a caller passes in with that name.
+#[test]
+fn an_identifier_product_name_is_never_shared() {
+    let busy = Busy {
+        product_name: Some(fake::SERIAL.into()),
+        ..held_by_express()
+    };
+    let b = busy.clone();
+    let mut session = one_shot(
+        move || Err(Error::busy(b.clone())),
+        probe(no_usb(), no_drives()),
+    );
+    let out = diagnose(&mut session, json!({})).unwrap();
+    assert_eq!(out["connection"]["code"], "device_busy");
+    assert_eq!(out["connection"]["busy"]["product_name"], Value::Null);
+    assert!(
+        out["text"]
+            .as_str()
+            .unwrap()
+            .contains(" product_id=4e77 product=- ")
+    );
+    assert_no_identifiers(&out);
+
+    let error = Error::busy(busy.clone()).to_json();
+    let from_error = json!({"busy": error["error"]["busy"]});
+    let from_caller = json!({"busy": busy});
+    assert_eq!(from_caller["busy"]["product_name"], fake::SERIAL);
+    for input in [from_error, from_caller] {
+        let link = session.call("issue_link", input, &Control::NONE).unwrap();
+        assert!(
+            !link.to_string().contains(fake::SERIAL),
+            "{}",
+            link["report_text"]
+        );
+        assert!(link["title"].as_str().unwrap().contains("USB product 4e77"));
+    }
+}
+
 /// One connection per process: in a session holding the watch, diagnose reads it through that
 /// connection instead of opening it again, which the watch would refuse as busy.
 #[test]

@@ -397,7 +397,7 @@ fn name_holder(e: Error, info: &nusb::DeviceInfo) -> Error {
     #[cfg(target_os = "linux")]
     let (holder, product_name) = (
         busy::linux(info.busnum(), info.device_address()),
-        info.product_string().map(str::to_owned),
+        busy::product_name(info.product_string()),
     );
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let (holder, product_name) = (busy::Holder::unknown(), None);

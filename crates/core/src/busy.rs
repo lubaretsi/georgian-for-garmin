@@ -103,7 +103,8 @@ pub struct Busy {
     pub holder: Holder,
     /// The watch's USB product ID (e.g. 20087, 0x4E77, for a Venu 2); null when unknown.
     pub product_id: Option<u16>,
-    /// The watch's USB product name, when it has one and the system shows it.
+    /// The watch's USB product name, when it has one, the system shows it, and it doesn't look
+    /// like an identifier ([`product_name`]).
     pub product_name: Option<String>,
     /// The watch's MTP interface; null when unknown.
     pub interface: Option<UsbInterface>,
@@ -119,6 +120,22 @@ impl Busy {
             interface: None,
         }
     }
+
+    /// This with its product name kept only if it doesn't look like an identifier: every
+    /// `device_busy` error goes through this ([`crate::Error::busy`]).
+    pub fn sanitized(mut self) -> Busy {
+        self.product_name = product_name(self.product_name.as_deref());
+        self
+    }
+}
+
+/// A USB product name as the system gives it, trimmed, or None when it is empty or looks like
+/// an identifier ([`crate::report::looks_like_identifier`]): a device can put its serial number
+/// in its product string, and the name ends up in shared reports.
+pub fn product_name(name: Option<&str>) -> Option<String> {
+    name.map(str::trim)
+        .filter(|n| !n.is_empty() && !crate::report::looks_like_identifier(n))
+        .map(str::to_owned)
 }
 
 /// Known holders by process name: lowercase, without `.exe`. Garmin Express is `Garmin
@@ -232,7 +249,7 @@ pub fn from_ioreg(plist: &str, entry_id: u64) -> Option<(Option<Holder>, Option<
         .filter_map(owner)
         .next()
         .or_else(|| owner(device));
-    let product = text(device, "USB Product Name").map(str::to_owned);
+    let product = product_name(text(device, "USB Product Name"));
     Some((holder, product))
 }
 
@@ -472,6 +489,32 @@ mod tests {
         assert_eq!(from_ioreg(IOREG, 4297301554), None);
         assert_eq!(from_ioreg(IOREG, 1), None);
         assert_eq!(from_ioreg("not a plist", 4297301549), None);
+
+        // A product string that looks like a serial number is left out at the source.
+        let serial = IOREG.replace("Example Watch", "SN 4A7F00C1E9B2");
+        let (_, product) = from_ioreg(&serial, 4297400001).unwrap();
+        assert_eq!(product, None);
+    }
+
+    /// Product names that look like an identifier are dropped wherever a `Busy` becomes an
+    /// error, whoever built it.
+    #[test]
+    fn busy_errors_never_carry_an_identifier_product_name() {
+        for (name, kept) in [
+            ("Venu 2", Some("Venu 2")),
+            ("  fēnix 7  ", Some("fēnix 7")),
+            ("", None),
+            ("FAKESERIAL0042", None),
+            ("Watch 3999999999", None),
+        ] {
+            let error = crate::Error::busy(Busy {
+                product_name: Some(name.into()),
+                ..Busy::unknown()
+            });
+            let busy = error.busy.as_deref().unwrap();
+            assert_eq!(busy.product_name.as_deref(), kept, "{name:?}");
+            assert!(name.trim().is_empty() || kept.is_some() || !error.message.contains(name));
+        }
     }
 
     #[cfg(unix)]
