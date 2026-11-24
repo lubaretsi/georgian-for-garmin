@@ -164,6 +164,15 @@ cd builder && GEORGIAN_FOR_GARMIN_CLI=$PWD/../target/debug/georgian-for-garmin \
   pytest tests/test_rpc_contract.py tests/test_watch.py
 ```
 
+A test that sends the real CLI a call that opens a watch (`wait_for_watch` in a terminal's
+Ctrl-C test) would open any Garmin watch plugged into the computer, and an environment variable
+only claims there is none. So `opens_a_watch` in `builder/tests/no_watch.py`, the one guard for
+such tests, checks: the USB devices are listed without opening any (Linux: sysfs'
+`/sys/bus/usb/devices/*/idVendor`; macOS: `ioreg -p IOUSB`), and the test runs only when that
+worked and found no Garmin device (vendor 0x091E), with `GFG_TEST_NO_WATCH=1` opting in, as
+`check.yml` does. A Garmin device attached, a listing that fails, or another system (Windows):
+the test is skipped, saying which.
+
 ## Rust
 
 ```sh
