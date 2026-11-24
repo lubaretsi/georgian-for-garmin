@@ -77,6 +77,10 @@ export interface Backend {
   saveLanguage(language: Lang): Promise<void>;
   sharedBefore(key: ShareKey): Promise<boolean>;       // new (phase 2: app settings)
   markShared(key: ShareKey): Promise<void>;            // new (phase 2: app settings)
+  diagnose(input: DiagnoseInput): Promise<DiagnoseOutput>; // core `diagnose` (§11); never rejects for device problems: they are data
+  saveDiagnostics(text: string): Promise<string>;      // new (phase 2): writes to Downloads, returns the path
+  copyText(text: string): Promise<void>;              // new (phase 2): the system clipboard
+  revealFile(path: string): Promise<void>;            // new (phase 2): shows the file in Finder / Explorer / the file manager
 }
 export type Progress = { done: number; total: number }; // phase 2 wires the core's progress
 export type ShareKey = { modelPart: string; software: string; result: Result | "font_list" };
@@ -182,16 +186,18 @@ export type ScreenModel =
   | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
-  | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean }
+  | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given
   | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
-  | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string };
+  | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string }
+  | { screen: "diagnostics"; summary: { label: string; value: string }[]; text: string; state: "collecting" | "ready" | "saved" | "copied" | "failed"; savedPath: string | null }; // from More; Back returns to the screen before
 
 /** What the screen's buttons do. Screens emit these; only the flow acts on them. */
 export type ActionId =
   | "install" | "restore" | "confirm_restore" | "cancel" | "check" | "skip_verify"
   | "send_test_done" | "answer" | "share" | "open_issue"
   | "restart_again" | "try_again" | "back" | "retry_now" | "done"
-  | "copy_test_text" | "show_more" | "which_watches" | "help";
+  | "copy_test_text" | "show_more" | "which_watches" | "help"
+  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file";
 
 /** Extra data some actions carry; every other action carries none. */
 export type ActionPayload =
@@ -348,7 +354,8 @@ Every story renders inside a frame of the chosen window size.
 - check: send, answer (empty, answered, beta marker);
 - outcome: each kind, restarts 0 and 2, shared before;
 - share: each `what` × `state`;
-- error: each code group, rollback complete and incomplete.
+- error: each code group, rollback complete and incomplete;
+- diagnostics: collecting, ready (no watch, watch found, busy), saved, copied, failed.
 
 A test fails if a `ScreenModel` variant in this list has no story.
 
@@ -374,6 +381,7 @@ The flows:
 | Install fails, rollback incomplete | Venu 2 + write failure | error → restore |
 | Linux permission denied | none | the problem screen with commands |
 | Second restart needed | Venu 2 + a restart that doesn't import | again → attempt 2 → verified |
+| Diagnostic info, watch not found | none (Garmin Express holds it) | More › Diagnostic info → save → show in folder → back |
 
 **Tests run in CI:**
 - Every flow has a play function, run headless in Chromium and WebKit through Storybook's Vitest addon.
@@ -391,18 +399,70 @@ The flows:
 
 The shipped app is unchanged.
 
+**In parallel, its own PR:** the core's `diagnose` operation and CLI command (§11).
+
 **Phase 2 (after the owner approves it in Storybook):**
 - `TauriBackend` over `invoke`, with progress over a Tauri channel from the core's existing progress;
 - `sharedBefore`/`markShared` in `settings.rs`;
+- `saveDiagnostics`, `copyText` and `revealFile` as app commands;
 - `JsonSchema` derives for the app-only types;
 - `frontendDist` pointing at the Vite build, built in nix and in `release.yml`;
-- the resizable window with its minimum size;
+- the resizable window with its minimum size, and the overlay title bar on macOS (§10);
 - the demo build running the new UI over `demo.rs`;
 - the old `ui/` deleted and the app tests ported.
 
 **Non-goals:**
-- no change to core operations or the CLI;
-- no email reporting (the owner said no);
+- no change to existing core operations;
+- no email reporting in the app (the owner said no). Diagnostic info is saved or copied by the user, never sent;
 - no telemetry;
 - the GitHub issue form's language and the website ("does it work on my watch") are separate decisions;
 - no telling apart two watches of the same model.
+
+## 10. Visual design
+
+The owner chose **direction B "Native & precise" with direction A's touches** (2026-11-24). The B checkpoint is `src/design/b` (`2239644`), the A checkpoint `src/design/a` (`a5805c5`). After the rollout, both checkpoint folders are deleted.
+
+- **Window:** native chrome per platform.
+  - On macOS the app's toolbar is the title bar: the traffic lights sit over its left end, the step indicator is in the toolbar, and language and More are on the right. Phase 2 needs Tauri's overlay title bar with the title hidden.
+  - Windows gets a Windows 11 caption bar, Linux a GNOME header bar, above the same app.
+- **Step indicator:** compact and segmented, in the toolbar. The current step is a raised segment with its name, done steps show a check, later steps their number.
+- **Footer toolbar:** a status on the left (a spinner with "Looking for your watch…" or "Waiting for the watch…") and the buttons on the right in platform order: primary on the right on macOS and Linux, first on Windows. Native button sizes (32 px, 8 px corners, 5 px on Windows).
+  - The footer is opaque enough that content scrolling under it never shows through behind its text. B's connect screen showed text through it; that's fixed.
+- **Content:** System Settings-style grouped inset lists (12 px corners, hairline separators after the row icon, label and value rows), small graphite icon tiles, and badges for status. 20 px sides, 24 px between sections.
+- **Palette:** neutral grays. One accent, a refined app-icon red, only on the main button, the current step, checked controls and the focus ring. Green means success. The tokens and contrast numbers are B's; none is pure black or white.
+- **Type:** the system font for Latin, with Noto Sans Georgian always used for Georgian. Title 22/28, lead 15/22, body 14/20, labels 13/18. A model name and its suffix never break across lines.
+- **The watch:** one realistic device drawing, reused everywhere, whose face shows the state (connecting, boxes, restarting, ქართ). The answer rows show mini watch faces.
+- **A's touches:**
+  - The install screen's picture is **before → after**: the watch with boxes becoming the watch with ქართ, and a notification bubble ("სალამი!"), drawn in B's device style.
+  - The success outcomes (`works_confirmed`, `works_first`) get **restrained celebration**: a green check badge on the watch, a few confetti shapes, and a soft green tint behind the picture. All four steps show as done.
+- **Motion:** purposeful and short, off with reduced motion. Text never fades in, so its contrast holds in every frame.
+- **Copy:** B's copy changes (`src/design/b/copy.ts`) are adopted into `src/copy/{ka,en}.ts`, unless A's wording reads better.
+  - Examples: "Your watch is ready for Georgian" / „საათი ქართულისთვის მზადაა", "Georgian works!" / „ქართული მუშაობს!" with the first-confirmation lead, and the two numbered restart steps.
+  - On the outcome, "Your result" is a list: the watch, the software and what the watch showed (from `result`).
+- **Structure:** connect has no footer More (More is in the toolbar), and "how it goes" is collapsible. Watch/install shows a Watch / Software / Georgian list with a status badge, and the way-back note below it. Restart is two numbered steps.
+
+## 11. Diagnostic info
+
+For when we reach out to someone who can't do something and can't use GitHub. Nothing is sent: the user saves or copies the info and attaches it to the conversation we're already having.
+
+- **Where:** More › **Diagnostic info** („დიაგნოსტიკური ინფორმაცია"), on every screen, with or without a watch. It is not offered on the share screens.
+- **Screen `diagnostics`:**
+  - One line on what it's for: "If we ask you for diagnostic info, save it here and send it to us." Plus what it contains, and that it has no serial number or watch ID.
+  - A summary list: app version, system, the watch found or not, the connection result, the last problem.
+  - The full text, collapsed.
+  - Main action **Save to file**: saved to Downloads as `georgian-for-garmin-diagnostics-<date>-<time>.txt`, then shown with "Show in folder". Secondary **Copy**. Back returns to where the user was.
+- **The app's recent steps:** the flow keeps the last 50 events in memory: local time, kind (poll result, operation start and end, answer, share), the error code or state, the model. No identifiers. They're passed to `diagnose` as `events`.
+- **Core operation `diagnose`:** read-only, idempotent, not destructive, no open world. Declared in `ops.rs` like the others, so it reaches the CLI (`georgian-for-garmin diagnose [--save <path>]`), `rpc` and `mcp`.
+  - **Input:** `{ events?: Event[] }`.
+  - **Output:**
+    - `app`: version and build;
+    - `system`: OS, OS version, architecture;
+    - `usb`: **Garmin devices only** (vendor `0x091E`), each with product ID, product name, interface classes, and the holder from the busy detection when the system tells. Never USB serial numbers, never other vendors' devices;
+    - `connection`: the result of a read-only connect attempt (`ok` or the error code and message, with `busy` when held);
+    - `drives`: mounted volumes that look like a Garmin watch;
+    - `watch`: the watch report (the same allowlisted report as `issue_link`'s) when the connection worked, else null;
+    - `events`: the input, echoed;
+    - `text`: all of the above as readable text.
+  - **Single source:** `text` is the single source of the format and the masking. The first line states it contains no serial number or watch ID.
+  - **Per platform:** macOS reads IOKit, Linux sysfs, Windows WPD's Garmin devices. Best effort, documented per platform.
+  - **Tests:** an identifier test like `fixtures_hold_no_identifiers` runs over the output.
