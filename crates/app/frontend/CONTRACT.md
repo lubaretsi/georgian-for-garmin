@@ -401,7 +401,7 @@ The shipped app is unchanged.
 
 **In parallel, its own PR:** the core's `diagnose` operation and CLI command (§11).
 
-**Phase 2 (after the owner approves it in Storybook):**
+**Phase 2:**
 - `TauriBackend` over `invoke`, with progress over a Tauri channel from the core's existing progress;
 - `sharedBefore`/`markShared` in `settings.rs`;
 - `saveDiagnostics`, `copyText` and `revealFile` as app commands;
@@ -413,14 +413,14 @@ The shipped app is unchanged.
 
 **Non-goals:**
 - no change to existing core operations;
-- no email reporting in the app (the owner said no). Diagnostic info is saved or copied by the user, never sent;
+- no email reporting in the app. Diagnostic info is saved or copied by the user, never sent;
 - no telemetry;
 - the GitHub issue form's language and the website ("does it work on my watch") are separate decisions;
 - no telling apart two watches of the same model.
 
 ## 10. Visual design
 
-The owner chose **direction B "Native & precise" with direction A's touches** (2026-11-24). The B checkpoint is `src/design/b` (`2239644`), the A checkpoint `src/design/a` (`a5805c5`). After the rollout, both checkpoint folders are deleted.
+The design is **direction B "Native & precise" with direction A's touches**: B's native structure and device drawing, plus A's warmth where it helps most.
 
 - **Window:** native chrome per platform.
   - On macOS the app's toolbar is the title bar: the traffic lights sit over its left end, the step indicator is in the toolbar, and language and More are on the right. Phase 2 needs Tauri's overlay title bar with the title hidden.
