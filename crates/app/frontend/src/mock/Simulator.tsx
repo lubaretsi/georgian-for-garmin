@@ -144,6 +144,18 @@ export function Simulator({ backend }: { backend: MockBackend }) {
           </ul>
         </div>
       )}
+      {(sim.saved.length > 0 || sim.copied) && (
+        <div style={group} data-testid="sim-files">
+          <h3 style={{ margin: 0, fontSize: 14 }}>Diagnostic info</h3>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", overflowWrap: "anywhere" }}>
+            {sim.saved.map((file, i) => (
+              <li key={`${i}-${file}`}>Saved {file}</li>
+            ))}
+            {sim.shownFile && <li>Shown in its folder: {sim.shownFile}</li>}
+            {sim.copied && <li>Copied to the clipboard ({sim.copied.length} characters)</li>}
+          </ul>
+        </div>
+      )}
     </aside>
   );
 }

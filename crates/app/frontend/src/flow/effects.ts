@@ -147,6 +147,36 @@ export class EffectRunner {
           (marks) => ({ type: "marks_loaded", marks }),
         );
         return;
+      case "diagnose": {
+        const { events } = effect;
+        this.settle(
+          () => b.diagnose({ events }),
+          (output) => ({ type: "diagnosed", output }),
+          (failure) => ({ type: "diagnostics_failed", failure }),
+        );
+        return;
+      }
+      case "save_diagnostics": {
+        const { text } = effect;
+        this.settle(
+          () => b.saveDiagnostics(text),
+          (path) => ({ type: "diagnostics_saved", path }),
+          (failure) => ({ type: "diagnostics_failed", failure }),
+        );
+        return;
+      }
+      case "copy_text": {
+        const { text } = effect;
+        this.settle(
+          () => b.copyText(text),
+          () => ({ type: "diagnostics_copied" }),
+          (failure) => ({ type: "diagnostics_failed", failure }),
+        );
+        return;
+      }
+      case "reveal_file":
+        b.revealFile(effect.path).catch(() => undefined);
+        return;
       case "shared_before": {
         const { key } = effect;
         this.settle(

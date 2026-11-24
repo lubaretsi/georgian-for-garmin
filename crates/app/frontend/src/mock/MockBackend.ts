@@ -5,10 +5,18 @@
 // a restart (the USB connection drops for a moment) imports what waits; a program holding the
 // watch; a write that fails and leaves files behind; what the next test notification shows.
 
-import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type {
+  DiagnoseInput,
+  DiagnoseOutput,
+  Failure,
+  IssueLinkRequest,
+  MarkPicture,
+  PhonePage,
+  Shared,
+} from "../core/app-types";
 import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
 import type { HolderKind, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
-import { shareKeyId } from "../flow/state";
+import { localTime, shareKeyId } from "../flow/state";
 import type { Result } from "../model/screens";
 import { failure, fixtureFile, output } from "./fixtures";
 import { PHONE_PAGE_QR } from "./phone-page";
@@ -37,6 +45,11 @@ export type Simulation = {
   phoneResult: Result | "auto";
   /** Every link the app opened, newest last. */
   opened: string[];
+  /** Diagnostic files saved, newest last, and the one last shown in its folder. */
+  saved: string[];
+  shownFile: string | null;
+  /** The last text copied to the clipboard (the mock keeps it; nothing is copied). */
+  copied: string | null;
 };
 
 export type MockOptions = {
@@ -58,6 +71,45 @@ const RESTART_MS = 3000;
 const NEW_ISSUE = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
 const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#watches";
 const NO_DEVICE: Step = "connect-problems/inspect-no_device";
+const DIAGNOSE_MS = 400;
+/** The Venu 2's USB product ID (0x4E77), the one product ID the reports show. */
+const VENU2_PRODUCT_ID = 0x4e77;
+const SYSTEMS: Record<Platform, DiagnoseOutput["system"]> = {
+  macos: { os: "Mac OS", os_version: "15.6.1", arch: "aarch64" },
+  windows: { os: "Windows", os_version: "11 (26100)", arch: "x86_64" },
+  linux: { os: "Ubuntu", os_version: "24.04", arch: "x86_64" },
+};
+
+/** "20261124-031405", the saved file's date and time. */
+function stamp(date: Date): string {
+  return localTime(date).replaceAll("-", "").replaceAll(":", "").replace("T", "-");
+}
+
+/**
+ * The mock's stand-in for `diagnose`'s `text`; the core's is the real format. Like it, it
+ * starts by saying it holds no serial number or watch ID.
+ */
+function diagnosticsText(d: Omit<DiagnoseOutput, "text">): string {
+  const hex = (n: number) => `0x${n.toString(16).toUpperCase().padStart(4, "0")}`;
+  const lines = [
+    "Georgian for Garmin diagnostic info. It contains no serial number or watch ID.",
+    `app ${d.app.version} (${d.app.build})`,
+    `system ${d.system.os} ${d.system.os_version} ${d.system.arch}`,
+    d.usb.devices.length ? "usb" : "usb no Garmin device",
+    ...d.usb.devices.map(
+      (u) =>
+        `  ${hex(u.product_id)} ${u.mtp ? "mtp" : "mass storage"}` +
+        (u.holder ? ` held by ${u.holder.kind}${u.holder.name ? ` "${u.holder.name}"` : ""}` : ""),
+    ),
+    ...(d.usb.note ? [`  note: ${d.usb.note}`] : []),
+    `connection ${d.connection.ok ? "ok" : `${d.connection.code}: ${d.connection.message}`}`,
+    `drives ${d.drives.volumes.map((v) => `${v.volume} ${v.model ?? "?"} ${v.software_version ?? ""}`.trim()).join(", ") || "none"}`,
+    d.watch ? `watch\n${d.watch.text}` : "watch none",
+    `events ${d.events.length}`,
+    ...d.events.map((e) => `  ${e.time} ${e.kind} ${e.detail}${e.model ? ` (${e.model})` : ""}`),
+  ];
+  return `${lines.join("\n")}\n`;
+}
 
 /** `<scenario>/<step>` → its two parts. */
 function split(step: Step): [string, string] {
@@ -89,6 +141,9 @@ export class MockBackend implements Backend {
       afterFailedWrite: false,
       phoneResult: "auto",
       opened: [],
+      saved: [],
+      shownFile: null,
+      copied: null,
     };
     this.shared = new Set((options.sharedBefore ?? []).map(shareKeyId));
     this.platformName = options.platform ?? "macos";
@@ -179,13 +234,95 @@ export class MockBackend implements Backend {
     return failure(...split(step));
   }
 
+  /** What a read finds now: the watch's state step, or the failure. */
+  private read(): { ok: Step } | { failed: Failure } {
+    const { connection, problem, holder, current } = this.sim;
+    if (connection !== "mtp" || !this.def.mtp || !current) return { failed: this.failureAt(NO_DEVICE) };
+    if (problem) return { failed: this.failureAt(problem) };
+    if (holder) return { failed: this.failureAt(busyStep(holder, this.platformName)) };
+    return { ok: current };
+  }
+
   async inspect(): Promise<InspectOutput> {
     await this.wait(INSPECT_MS);
-    const { connection, problem, holder, current } = this.sim;
-    if (connection !== "mtp" || !this.def.mtp || !current) throw this.failureAt(NO_DEVICE);
-    if (problem) throw this.failureAt(problem);
-    if (holder) throw this.failureAt(busyStep(holder, this.platformName));
-    return this.inspectAt(current);
+    const read = this.read();
+    if ("failed" in read) throw read.failed;
+    return this.inspectAt(read.ok);
+  }
+
+  /** PENDING (the core's `diagnose`, §11): what it would find on this simulated computer. */
+  async diagnose(input: DiagnoseInput): Promise<DiagnoseOutput> {
+    await this.wait(DIAGNOSE_MS);
+    const read = this.read();
+    const watch = "ok" in read ? this.inspectAt(read.ok).report : null;
+    const failed = "failed" in read ? read.failed : null;
+    const busy = failed?.busy ?? null;
+    const { connection } = this.sim;
+    const drive = connection === "drive" && this.def.drive ? output(...split(this.def.drive), "inspect_drive") : null;
+    const found: Omit<DiagnoseOutput, "text"> = {
+      app: { version: "0.3.4", build: "release" },
+      system: SYSTEMS[this.platformName],
+      usb: {
+        listed: true,
+        note: this.platformName === "windows" ? "Windows shows only the devices it set up for MTP." : null,
+        devices:
+          connection === "unplugged"
+            ? []
+            : [
+                {
+                  product_id: busy?.product_id ?? VENU2_PRODUCT_ID,
+                  product_name: busy?.product_name ?? null,
+                  mtp: connection === "mtp",
+                  interfaces:
+                    this.platformName === "windows"
+                      ? []
+                      : [
+                          connection === "mtp"
+                            ? { class: 255, subclass: 255, protocol: 0 }
+                            : { class: 8, subclass: 6, protocol: 80 },
+                        ],
+                  holder: busy?.holder ?? null,
+                },
+              ],
+      },
+      connection: failed
+        ? { ok: false, code: failed.code, message: failed.message, busy }
+        : { ok: true, code: null, message: null, busy: null },
+      drives: {
+        listed: true,
+        note: null,
+        volumes: drive
+          ? [
+              {
+                volume: this.platformName === "windows" ? "E:" : "GARMIN",
+                model: drive.device.model,
+                part_number: drive.device.part_number,
+                software_version: drive.device.software_version,
+                error: null,
+              },
+            ]
+          : [],
+      },
+      watch,
+      events: input.events ?? [],
+    };
+    return { ...found, text: diagnosticsText(found) };
+  }
+
+  async saveDiagnostics(text: string): Promise<string> {
+    await this.wait(INSPECT_MS);
+    const name = `georgian-for-garmin-diagnostics-${stamp(new Date())}.txt`;
+    const path = this.platformName === "windows" ? `%USERPROFILE%\\Downloads\\${name}` : `~/Downloads/${name}`;
+    this.change({ saved: [...this.sim.saved, `${path} (${text.length} characters)`] });
+    return path;
+  }
+
+  async copyText(text: string): Promise<void> {
+    this.change({ copied: text });
+  }
+
+  async revealFile(path: string): Promise<void> {
+    this.change({ shownFile: path });
   }
 
   async inspectDrive(): Promise<InspectDriveOutput> {

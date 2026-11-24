@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 
-import type { Failure } from "../core/app-types";
+import type { DiagnoseOutput, Failure } from "../core/app-types";
 import type { InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
 import type { ActionId, ActionPayload } from "../model/screens";
@@ -157,7 +157,7 @@ describe("toScreen", () => {
     });
   });
 
-  test("outcome: kind, restarts, shared before", () => {
+  test("outcome: kind, restarts, shared before, and the answer given", () => {
     let state = act(act(atResult(), "check"), "send_test_done");
     state = act(act(state, "answer", { action: "answer", answers: { result: "boxes", views: [] } }), "done");
     expect(toScreen(state)).toEqual({
@@ -166,6 +166,74 @@ describe("toScreen", () => {
       kind: "didnt_show",
       restarts: 1,
       sharedBefore: false,
+      result: "boxes",
+    });
+    let some = act(act(atResult(), "check"), "send_test_done");
+    some = act(act(some, "answer", { action: "answer", answers: { result: "some_letters", views: [] } }), "done");
+    expect(toScreen(some)).toMatchObject({ kind: "didnt_show", result: "some_letters" });
+  });
+
+  describe("diagnostics", () => {
+    const diagnosed = (base: FlowState, connection: DiagnoseOutput["connection"], watch: DiagnoseOutput["watch"]) =>
+      reduce(act(base, "diagnostics"), {
+        type: "diagnosed",
+        output: {
+          app: { version: "0.3.4", build: "release" },
+          system: { os: "Mac OS", os_version: "15.6.1", arch: "aarch64" },
+          usb: { listed: true, note: null, devices: [] },
+          connection,
+          drives: { listed: true, note: null, volumes: [] },
+          watch,
+          events: [],
+          text: "Georgian for Garmin diagnostic info. It contains no serial number or watch ID.\n",
+        },
+      });
+
+    test("collecting: only what the app knows", () => {
+      expect(toScreen(act(started(), "diagnostics"))).toEqual({
+        screen: "diagnostics",
+        summary: [{ label: "App version", value: "0.3.4" }],
+        text: "",
+        state: "collecting",
+        savedPath: null,
+      });
+    });
+
+    test("ready, no watch", () => {
+      const state = diagnosed(read(started(), NO_DEVICE), { ok: false, code: "no_device", message: "x", busy: null }, null);
+      expect(toScreen(state)).toMatchObject({
+        state: "ready",
+        summary: [
+          { label: "App version", value: "0.3.4" },
+          { label: "System", value: "Mac OS 15.6.1 (aarch64)" },
+          { label: "Watch", value: "Not found" },
+          { label: "Connection", value: "no_device" },
+          { label: "Last problem", value: "00:00:00 no_device" },
+        ],
+      });
+    });
+
+    test("ready, busy", () => {
+      const busy = failure("busy", "inspect-garmin_express-macos");
+      const state = diagnosed(read(started(), busy), { ok: false, code: "device_busy", message: "x", busy: busy.busy ?? null }, null);
+      expect(toScreen(state)).toMatchObject({ summary: expect.arrayContaining([{ label: "Connection", value: "device_busy" }]) });
+    });
+
+    test("ready, watch found; then saved with its path", () => {
+      const watch = read(started(), VENU2);
+      let state = diagnosed(watch, { ok: true, code: null, message: null, busy: null }, VENU2.report);
+      expect(toScreen(state)).toMatchObject({
+        summary: [
+          { label: "App version", value: "0.3.4" },
+          { label: "System", value: "Mac OS 15.6.1 (aarch64)" },
+          { label: "Watch", value: "Venu 2, Software 19.05" },
+          { label: "Connection", value: "Connected" },
+          { label: "Last problem", value: "None" },
+        ],
+        text: expect.stringContaining("no serial number or watch ID"),
+      });
+      state = reduce(state, { type: "diagnostics_saved", path: "~/Downloads/d.txt" });
+      expect(toScreen(state)).toMatchObject({ state: "saved", savedPath: "~/Downloads/d.txt" });
     });
   });
 
@@ -250,6 +318,10 @@ describe("toScreen", () => {
 });
 
 describe("moreModel", () => {
+  test("no restore from diagnostics", () => {
+    expect(moreModel(act(atWatch(), "diagnostics")).restorable).toBe(false);
+  });
+
   test("no watch: nothing seen, no restore", () => {
     expect(moreModel(started())).toEqual({ restorable: false, seen: null, reportText: null, version: "0.3.4" });
   });

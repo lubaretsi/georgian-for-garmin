@@ -2,7 +2,7 @@
 // sheet). Pure; the share summary and "What the app sees" are in the state's language.
 
 import { type Copy, copyFor, fmt, list } from "../copy";
-import type { Failure } from "../core/app-types";
+import type { DiagnoseOutput, Failure } from "../core/app-types";
 import type { ShareKey } from "../core/backend";
 import type { InspectDriveOutput, InspectOutput } from "../core/types.gen";
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
@@ -74,6 +74,33 @@ function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "sh
     if (value) rows.push({ label: s.problem, value });
   }
   if (report) rows.push({ label: s.fontList, value: fmt(s.fonts, { count: report.extdata_files.length }) });
+  return rows;
+}
+
+/**
+ * The diagnostics summary (§11): app version, system, the watch found or not, the connection
+ * result and the last problem. Until `diagnose` answers, only what the app itself knows.
+ */
+function diagnosticsSummary(state: FlowState, output: DiagnoseOutput | null) {
+  const copy = copyFor(state.lang);
+  const s = copy.diagnostics.summary;
+  const rows = [{ label: s.app, value: output?.app.version ?? state.version }];
+  if (!output) return rows;
+  const { system, watch, connection } = output;
+  rows.push(
+    { label: s.system, value: `${system.os} ${system.os_version} (${system.arch})` },
+    {
+      label: s.watch,
+      value: watch
+        ? `${watch.model}, ${fmt(copy.watchCard.software, { software: watch.software_version })}`
+        : s.noWatch,
+    },
+    { label: s.connection, value: connection.ok ? s.connected : (connection.code ?? s.none) },
+    {
+      label: s.lastProblem,
+      value: state.lastProblem ? `${state.lastProblem.time.slice(11)} ${state.lastProblem.code}` : s.none,
+    },
+  );
   return rows;
 }
 
@@ -175,6 +202,7 @@ export function toScreen(state: FlowState): ScreenModel {
         kind: phase.kind,
         restarts: state.attempt,
         sharedBefore: result ? sharedBefore(state, inspect, result) : false,
+        result: result ?? null,
       };
     }
     case "share": {
@@ -203,6 +231,14 @@ export function toScreen(state: FlowState): ScreenModel {
         rollback: rollbackOf(state),
         detail: phase.failure.message,
       };
+    case "diagnostics":
+      return {
+        screen: "diagnostics",
+        summary: diagnosticsSummary(state, phase.output),
+        text: phase.output?.text ?? "",
+        state: phase.state,
+        savedPath: phase.savedPath,
+      };
   }
 }
 
@@ -210,7 +246,7 @@ export function toScreen(state: FlowState): ScreenModel {
 export function moreModel(state: FlowState): MoreModel {
   const phase = state.phase;
   const source = phase.name === "drive" ? phase.drive : state.inspect;
-  const busy = phase.name === "working" || phase.name === "confirm_restore";
+  const busy = phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics";
   const labels = copyFor(state.lang).more.seen.labels;
   const seen = source && [
     { label: labels.model, value: source.device.model },

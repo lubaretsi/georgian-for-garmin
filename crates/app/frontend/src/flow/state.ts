@@ -3,7 +3,15 @@
 // backend calls and timers. Every effect's result comes back as an event; results of polls the
 // flow has moved on from carry an old `token` and are dropped.
 
-import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type {
+  DiagnoseEvent,
+  DiagnoseOutput,
+  Failure,
+  IssueLinkRequest,
+  MarkPicture,
+  PhonePage,
+  Shared,
+} from "../core/app-types";
 import type { Lang, Progress, ShareKey } from "../core/backend";
 import type { InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
 import type { ActionId, ActionPayload, Answers, Op } from "../model/screens";
@@ -16,6 +24,8 @@ export const HELP_MS = 10_000;
 export const SLOW_MS = 400;
 /** After the watch reconnects, how long `device_error` and `extdata_not_found` mean it is still starting. */
 export const STARTING_MS = 10_000;
+/** The session's event log keeps this many, for diagnostics (§11). */
+export const MAX_EVENTS = 50;
 
 export type RestartPhase = "unplug" | "restart" | "verifying" | "again" | "other_watch";
 export type ShareWhat = "result" | "font_list" | "problem";
@@ -48,7 +58,17 @@ export type Phase =
   | { name: "check"; step: "send" | "answer" }
   | { name: "outcome"; kind: OutcomeKind }
   | { name: "share"; what: ShareWhat; input: IssueLinkRequest; link: IssueLink | null; state: ShareState; back: Phase }
-  | { name: "error"; op: Op; failure: Failure };
+  | { name: "error"; op: Op; failure: Failure }
+  /** From More; `back` is the phase it returns to, kept moving while this is open (§11). */
+  | {
+      name: "diagnostics";
+      back: Phase;
+      state: DiagnosticsState;
+      output: DiagnoseOutput | null;
+      savedPath: string | null;
+    };
+
+export type DiagnosticsState = "collecting" | "ready" | "saved" | "copied" | "failed";
 
 export type RestartInterruption = { kind: "busy"; failure: Failure } | { kind: "drive"; drive: InspectDriveOutput };
 
@@ -69,7 +89,11 @@ export type Effect =
   | { kind: "test_marks" }
   | { kind: "shared_before"; key: ShareKey }
   | { kind: "mark_shared"; key: ShareKey }
-  | { kind: "save_language"; lang: Lang };
+  | { kind: "save_language"; lang: Lang }
+  | { kind: "diagnose"; events: DiagnoseEvent[] }
+  | { kind: "save_diagnostics"; text: string }
+  | { kind: "copy_text"; text: string }
+  | { kind: "reveal_file"; path: string };
 
 export type FlowState = {
   phase: Phase;
@@ -94,6 +118,10 @@ export type FlowState = {
   helpToken: number;
   /** The current reconnect's still-starting timer. */
   startingToken: number;
+  /** The session's last `MAX_EVENTS` events, oldest first, with no identifiers (§11). */
+  events: DiagnoseEvent[];
+  /** The last failure the app met, for the diagnostics summary. */
+  lastProblem: { time: string; code: string } | null;
   effects: Effect[];
 };
 
@@ -117,6 +145,10 @@ export type FlowEvent =
   | { type: "share_failed"; failure: Failure }
   | { type: "shared_before"; key: ShareKey; value: boolean }
   | { type: "language"; lang: Lang }
+  | { type: "diagnosed"; output: DiagnoseOutput }
+  | { type: "diagnostics_saved"; path: string }
+  | { type: "diagnostics_copied" }
+  | { type: "diagnostics_failed"; failure: Failure }
   | { type: "action"; id: ActionId; payload?: ActionPayload };
 
 export function initialState(lang: Lang, version: string): FlowState {
@@ -134,6 +166,8 @@ export function initialState(lang: Lang, version: string): FlowState {
     token: 0,
     helpToken: 0,
     startingToken: 0,
+    events: [],
+    lastProblem: null,
     effects: [],
   };
 }
@@ -402,9 +436,16 @@ function outcomeKind(state: FlowState): OutcomeKind {
 function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined): FlowState {
   const phase = state.phase;
   if (id === "which_watches") return withEffects(state, { kind: "open_watch_list" });
+  if (id === "diagnostics") {
+    // From More on every screen but share (§11).
+    if (phase.name === "share" || phase.name === "diagnostics") return state;
+    const diagnostics: Phase = { name: "diagnostics", back: phase, state: "collecting", output: null, savedPath: null };
+    return go(state, diagnostics, [{ kind: "diagnose", events: state.events }]);
+  }
   // Available from More on every screen but these.
   if (id === "restore") {
-    if (!state.inspect?.restorable || phase.name === "working" || phase.name === "confirm_restore") return state;
+    const busy = phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics";
+    if (!state.inspect?.restorable || busy) return state;
     return go(state, { name: "confirm_restore", back: phase });
   }
   if (id === "share" && payload?.action === "share") {
@@ -487,6 +528,14 @@ function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined)
       return state;
     case "working":
       return state;
+    case "diagnostics": {
+      const text = phase.output?.text;
+      if (id === "back") return go(state, phase.back);
+      if (id === "save_diagnostics" && text) return withEffects(state, { kind: "save_diagnostics", text });
+      if (id === "copy_diagnostics" && text) return withEffects(state, { kind: "copy_text", text });
+      if (id === "show_file" && phase.savedPath) return withEffects(state, { kind: "reveal_file", path: phase.savedPath });
+      return state;
+    }
   }
 }
 
@@ -494,8 +543,110 @@ function withEffects(state: FlowState, ...effects: Effect[]): FlowState {
   return { ...state, effects: [...state.effects, ...effects] };
 }
 
-/** The flow's one transition function. */
-export function reduce(previous: FlowState, event: FlowEvent): FlowState {
+/** Local time without a zone, as the event log shows it: "2026-11-24T03:14:05". */
+export function localTime(date: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}` +
+    `T${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`
+  );
+}
+
+/** Events the diagnostics screen handles itself; every other one goes on in the background. */
+const DIAGNOSTICS_EVENTS = new Set<FlowEvent["type"]>([
+  "action",
+  "diagnosed",
+  "diagnostics_saved",
+  "diagnostics_copied",
+  "diagnostics_failed",
+]);
+
+/**
+ * The flow's one transition function. `now` stamps the event log; it is the only input that
+ * isn't the state or the event.
+ */
+export function reduce(previous: FlowState, event: FlowEvent, now: Date = new Date(0)): FlowState {
+  const phase = previous.phase;
+  const next =
+    phase.name === "diagnostics" && !DIAGNOSTICS_EVENTS.has(event.type)
+      ? inBackground(previous, phase, event)
+      : transition(previous, event);
+  return logged(previous, event, next, localTime(now));
+}
+
+/**
+ * `event` applied to the phase under the open diagnostics: an install finishes, a timer fires.
+ * The watch isn't read meanwhile (polling pauses, §11); going back reads it again.
+ */
+function inBackground(state: FlowState, diagnostics: Extract<Phase, { name: "diagnostics" }>, event: FlowEvent) {
+  const inner = transition({ ...state, phase: diagnostics.back }, event);
+  return {
+    ...inner,
+    phase: { ...diagnostics, back: inner.phase },
+    effects: inner.effects.filter((e) => e.kind !== "inspect" && e.kind !== "inspect_drive"),
+  };
+}
+
+/** `next` with `event` added to the session's log, when it is one the log keeps (§11). */
+function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: string): FlowState {
+  const model = previous.inspect?.device.model ?? null;
+  const entries: DiagnoseEvent[] = [];
+  let problem: string | null = null;
+  const poll = (detail: string, polled: string | null) => {
+    const last = [...previous.events].reverse().find((e) => e.kind === "poll");
+    // A poll is logged when its result changes, so 2 s polls don't push everything else out.
+    if (last?.detail !== detail || last.model !== polled) entries.push({ time, kind: "poll", detail, model: polled });
+  };
+  switch (event.type) {
+    case "inspected":
+      if (event.token === previous.token) poll(event.output.state, event.output.device.model);
+      break;
+    case "inspect_failed":
+      if (event.token === previous.token) {
+        poll(event.failure.code, null);
+        problem = event.failure.code;
+      }
+      break;
+    case "drive_inspected":
+      if (event.token === previous.token) poll("usb_drive", event.output.device.model);
+      break;
+    case "op_done":
+    case "op_failed":
+      if (next.lastOp !== previous.lastOp) {
+        const result = event.type === "op_done" ? event.output.status : event.failure.code;
+        entries.push({ time, kind: "operation_end", detail: `${event.op}: ${result}`, model });
+        if (event.type === "op_failed") problem = event.failure.code;
+      }
+      break;
+    case "shared":
+    case "share_failed":
+      if (previous.phase.name === "share") {
+        const result = event.type === "shared" ? next.phase.name === "share" && next.phase.state : event.failure.code;
+        entries.push({ time, kind: "share", detail: `${previous.phase.what}: ${result}`, model });
+        if (event.type === "share_failed") problem = event.failure.code;
+      }
+      break;
+    case "link_failed":
+      problem = event.failure.code;
+      break;
+    case "action":
+      if (next.phase.name === "working" && previous.phase.name !== "working") {
+        entries.push({ time, kind: "operation_start", detail: next.phase.op, model });
+      }
+      if (previous.phase.name === "check" && next.phase.name === "outcome") {
+        entries.push({ time, kind: "answer", detail: `result: ${answersFor(previous).result}`, model });
+      }
+      break;
+  }
+  if (!entries.length && !problem) return next;
+  return {
+    ...next,
+    events: [...next.events, ...entries].slice(-MAX_EVENTS),
+    lastProblem: problem ? { time, code: problem } : next.lastProblem,
+  };
+}
+
+function transition(previous: FlowState, event: FlowEvent): FlowState {
   // Each transition's effects are its own; the runner has run the previous ones.
   const state: FlowState = previous.effects.length ? { ...previous, effects: [] } : previous;
   const phase = state.phase;
@@ -611,6 +762,14 @@ export function reduce(previous: FlowState, event: FlowEvent): FlowState {
       const next = withEffects({ ...state, lang: event.lang }, { kind: "save_language", lang: event.lang });
       return phase.name === "check" ? withEffects(next, { kind: "phone_page", lang: event.lang }) : next;
     }
+    case "diagnosed":
+      return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "ready", output: event.output } } : state;
+    case "diagnostics_saved":
+      return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "saved", savedPath: event.path } } : state;
+    case "diagnostics_copied":
+      return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "copied" } } : state;
+    case "diagnostics_failed":
+      return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "failed" } } : state;
     case "action":
       return act(state, event.id, event.payload);
   }

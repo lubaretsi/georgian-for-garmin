@@ -27,7 +27,7 @@ export class FlowStore {
   };
 
   dispatch = (event: FlowEvent): void => {
-    this.state = reduce(this.state, event);
+    this.state = reduce(this.state, event, new Date());
     this.runner.run(this.state.effects);
     for (const listener of this.listeners) listener();
   };

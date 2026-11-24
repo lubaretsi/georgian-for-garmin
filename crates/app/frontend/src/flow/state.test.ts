@@ -38,7 +38,7 @@ const read = (state: FlowState, result: InspectOutput | Failure): FlowState =>
 const act = (state: FlowState, id: ActionId, payload?: ActionPayload): FlowState =>
   reduce(state, { type: "action", id, ...(payload && { payload }) });
 
-const run = (state: FlowState, ...events: FlowEvent[]) => events.reduce(reduce, state);
+const run = (state: FlowState, ...events: FlowEvent[]) => events.reduce((s, e) => reduce(s, e), state);
 
 const kinds = (state: FlowState) => state.effects.map((e) => e.kind);
 const polls = (state: FlowState): Effect | undefined => state.effects.find((e) => e.kind === "inspect");

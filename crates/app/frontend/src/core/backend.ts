@@ -3,7 +3,7 @@
 // over `invoke`; Storybook and the tests use `MockBackend` (src/mock/).
 
 import type { Result } from "../model/screens";
-import type { IssueLinkRequest, MarkPicture, PhonePage, Shared } from "./app-types";
+import type { DiagnoseInput, DiagnoseOutput, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "./app-types";
 import type { InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "./types.gen";
 
 export interface Backend {
@@ -29,6 +29,14 @@ export interface Backend {
   sharedBefore(key: ShareKey): Promise<boolean>;
   /** New (phase 2: app settings). */
   markShared(key: ShareKey): Promise<void>;
+  /** The core's `diagnose` (§11); never rejects for device problems: they are data. */
+  diagnose(input: DiagnoseInput): Promise<DiagnoseOutput>;
+  /** New (phase 2): writes `text` to Downloads and returns the path. */
+  saveDiagnostics(text: string): Promise<string>;
+  /** New (phase 2): the system clipboard. */
+  copyText(text: string): Promise<void>;
+  /** New (phase 2): shows the file in Finder, Explorer or the file manager. */
+  revealFile(path: string): Promise<void>;
 }
 
 /** Phase 2 wires the core's progress. */
