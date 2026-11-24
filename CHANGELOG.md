@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The Windows guide shows the 0.4.0 app: new screenshots of the connect, watch and restart screens, and step 8 names the **სატესტო შეტყობინების გაგზავნა** button.
+- The README and the Windows guide show a new install video of the 0.4.0 app, and the guide new
+  screenshots of the connect, watch and restart screens; step 8 names the
+  **სატესტო შეტყობინების გაგზავნა** button.
 
 ## [0.4.0] - 2026-11-24
 

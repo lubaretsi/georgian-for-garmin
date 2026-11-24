@@ -4,9 +4,9 @@
 ჩაწერთ. დაგჭირდებათ საათის USB კაბელი. სურათები Windows 11-ზე და Google Chrome-შია
 გადაღებული.
 
-მთელი დაყენება 46 წამში:
+მთელი დაყენება 43 წამში:
 
-https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
+https://github.com/user-attachments/assets/3c7487cb-5c21-4724-a1b0-70edb7272850
 
 ## 1. ჩამოტვირთეთ პროგრამა
 
