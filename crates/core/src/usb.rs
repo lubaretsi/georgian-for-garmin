@@ -296,8 +296,9 @@ impl Link for NusbLink {
 /// An open MTP session with a connected Garmin watch.
 pub struct UsbMtp(Session<NusbLink>);
 
-fn find_watch() -> Result<nusb::DeviceInfo, Error> {
-    let mut candidates: Vec<_> = nusb::list_devices()
+/// The Garmin devices with an MTP interface.
+fn garmin_mtp_devices() -> Result<Vec<nusb::DeviceInfo>, Error> {
+    Ok(nusb::list_devices()
         .wait()
         .map_err(|e| device_error("cannot list USB devices", e))?
         .filter(|d| {
@@ -305,7 +306,11 @@ fn find_watch() -> Result<nusb::DeviceInfo, Error> {
                 && d.interfaces()
                     .any(|i| is_mtp_class(i.class(), i.subclass(), i.protocol()))
         })
-        .collect();
+        .collect())
+}
+
+/// The watch, when `candidates` (the Garmin MTP devices) has exactly one.
+fn single<T>(mut candidates: Vec<T>) -> Result<T, Error> {
     match candidates.len() {
         0 => Err(Error::new(
             ErrorCode::NoDevice,
@@ -375,6 +380,12 @@ fn unresponsive(e: &MtpError) -> Error {
 
 /// How long to wait for the watch to come back after a USB reset.
 const REENUMERATE_TIMEOUT: Duration = Duration::from_secs(30);
+/// How often to look for it meanwhile.
+const REENUMERATE_POLL: Duration = Duration::from_millis(500);
+/// A watch re-enumerating after a USB reset leaves the device list only briefly. When no Garmin
+/// MTP device is listed for this long, the watch was unplugged, and [`connect`] stops waiting
+/// before [`REENUMERATE_TIMEOUT`].
+const UNPLUGGED_GRACE: Duration = Duration::from_secs(5);
 
 /// A `device_busy` failure for `info` with who holds the watch, as far as the system tells
 /// ([`crate::busy`]); other failures unchanged.
@@ -409,49 +420,149 @@ fn name_holder(e: Error, info: &nusb::DeviceInfo) -> Error {
     })
 }
 
+/// An opened device, and the MTP session started on it; the device is kept for a reset when the
+/// session fails.
+struct Opened<D, S> {
+    device: D,
+    session: Result<S, MtpError>,
+}
+
+/// What [`connect`] does with USB and the clock: [`Nusb`], or a fake in the tests.
+trait Bus {
+    type Id: Copy + PartialEq;
+    type Info;
+    type Device;
+    type Session;
+    /// The Garmin devices with an MTP interface.
+    fn watches(&mut self) -> Result<Vec<Self::Info>, Error>;
+    fn id(info: &Self::Info) -> Self::Id;
+    /// Opens the device and starts an MTP session.
+    fn open(&mut self, info: &Self::Info) -> Result<Opened<Self::Device, Self::Session>, Error>;
+    /// A USB reset: the device re-enumerates under a new id.
+    fn reset(&mut self, device: Self::Device) -> Result<(), Error>;
+    fn now(&self) -> Instant;
+    fn sleep(&mut self, duration: Duration);
+}
+
+/// This computer's USB devices.
+struct Nusb;
+
+impl Bus for Nusb {
+    type Id = nusb::DeviceId;
+    type Info = nusb::DeviceInfo;
+    type Device = nusb::Device;
+    type Session = UsbMtp;
+
+    fn watches(&mut self) -> Result<Vec<nusb::DeviceInfo>, Error> {
+        garmin_mtp_devices()
+    }
+
+    fn id(info: &nusb::DeviceInfo) -> nusb::DeviceId {
+        info.id()
+    }
+
+    fn open(&mut self, info: &nusb::DeviceInfo) -> Result<Opened<nusb::Device, UsbMtp>, Error> {
+        let (device, link) = open_link(info).map_err(|e| name_holder(e, info))?;
+        Ok(Opened {
+            device,
+            session: Session::open(link).map(UsbMtp),
+        })
+    }
+
+    fn reset(&mut self, device: nusb::Device) -> Result<(), Error> {
+        device
+            .reset()
+            .wait()
+            .map_err(|e| device_error("cannot reset the watch's USB connection", e))
+    }
+
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
+    fn sleep(&mut self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
+}
+
+fn disconnected() -> Error {
+    Error::new(ErrorCode::NoDevice, "The watch disconnected.")
+}
+
+/// Whether no Garmin MTP device with `id` is listed. A failed listing tells nothing: not gone.
+fn gone<B: Bus>(bus: &mut B, id: B::Id) -> bool {
+    bus.watches()
+        .is_ok_and(|watches| !watches.iter().any(|w| B::id(w) == id))
+}
+
 /// Finds the single Garmin device with an MTP interface, claims it and opens a session.
 ///
 /// If the watch's MTP responder takes no commands even after the class-level recovery in
 /// [`Session::open`], the device is reset once (re-enumerated, as libmtp does and as a replug
-/// would), and the session opened again.
+/// would), and the session opened again. A watch unplugged meanwhile fails the same way; it is
+/// `no_device` at once, or once [`UNPLUGGED_GRACE`] passes with no Garmin MTP device listed.
 pub fn connect() -> Result<UsbMtp, Error> {
-    let info = find_watch()?;
-    let (device, link) = open_link(&info).map_err(|e| name_holder(e, &info))?;
-    let error = match Session::open(link) {
-        Ok(session) => return Ok(UsbMtp(session)),
+    connect_with(&mut Nusb)
+}
+
+fn connect_with<B: Bus>(bus: &mut B) -> Result<B::Session, Error> {
+    let info = single(bus.watches()?)?;
+    let old = B::id(&info);
+    let Opened { device, session } = bus.open(&info)?;
+    let error = match session {
+        Ok(session) => return Ok(session),
         Err(e @ MtpError::Transport { .. }) => e,
         Err(e) => return Err(unresponsive(&e)),
     };
+    if gone(bus, old) {
+        trace!("{error}: the watch is no longer listed");
+        return Err(disconnected());
+    }
     trace!("{error}: resetting the USB device so it re-enumerates");
-    device
-        .reset()
-        .wait()
-        .map_err(|e| device_error("cannot reset the watch's USB connection", e))?;
-    drop(device);
-    let old = info.id();
-    let deadline = Instant::now() + REENUMERATE_TIMEOUT;
+    if let Err(e) = bus.reset(device) {
+        return Err(if gone(bus, old) { disconnected() } else { e });
+    }
+    let reset = bus.now();
+    let mut last_listed = reset;
     let info = loop {
-        std::thread::sleep(Duration::from_millis(500));
-        match find_watch() {
-            Ok(info) if info.id() != old => break info,
-            _ if Instant::now() < deadline => continue,
-            _ => {
-                return Err(Error::new(
-                    ErrorCode::NoDevice,
-                    format!(
-                        "The watch did not come back in MTP mode within {} s of a USB reset \
-                         ({error}). Unplug it, restart it and try again.",
-                        REENUMERATE_TIMEOUT.as_secs()
-                    ),
-                ));
+        bus.sleep(REENUMERATE_POLL);
+        let now = bus.now();
+        match bus.watches() {
+            Ok(mut watches) => {
+                if watches.len() == 1 && B::id(&watches[0]) != old {
+                    break watches.swap_remove(0);
+                }
+                if !watches.is_empty() {
+                    last_listed = now;
+                } else if now - last_listed >= UNPLUGGED_GRACE {
+                    trace!("no Garmin MTP device listed for {:?}", now - last_listed);
+                    return Err(Error::new(
+                        ErrorCode::NoDevice,
+                        "The watch was disconnected while its USB connection was being reset.",
+                    ));
+                }
             }
+            // Tells nothing either way: wait on, up to the limit.
+            Err(_) => last_listed = now,
+        }
+        if now - reset >= REENUMERATE_TIMEOUT {
+            return Err(Error::new(
+                ErrorCode::NoDevice,
+                format!(
+                    "The watch did not come back in MTP mode within {} s of a USB reset \
+                     ({error}). Unplug it, restart it and try again.",
+                    REENUMERATE_TIMEOUT.as_secs()
+                ),
+            ));
         }
     };
     trace!("watch re-enumerated");
-    let (_device, link) = open_link(&info).map_err(|e| name_holder(e, &info))?;
-    Session::open(link)
-        .map(UsbMtp)
-        .map_err(|e| unresponsive(&e))
+    let new = B::id(&info);
+    match bus.open(&info)?.session {
+        Ok(session) => Ok(session),
+        Err(MtpError::Transport { .. }) if gone(bus, new) => Err(disconnected()),
+        Err(e) => Err(unresponsive(&e)),
+    }
 }
 
 // Every method is forwarded, the trait's defaults included: a default left here would answer
@@ -526,6 +637,198 @@ impl Mtp for UsbMtp {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::mtp::Phase;
+
+    /// How long the fake takes to open a session, and to reset a device.
+    const OPENING: Duration = Duration::from_secs(1);
+    const RESETTING: Duration = Duration::from_millis(100);
+
+    /// Devices are ids; the session is the id of the device it opened.
+    struct FakeBus {
+        start: Instant,
+        elapsed: Duration,
+        /// The Garmin MTP devices listed at each time since the start.
+        listed: fn(Duration) -> Vec<u64>,
+        /// The devices whose MTP session opens; others fail with a timed-out transfer.
+        answering: &'static [u64],
+        reset_fails: bool,
+        resets: usize,
+    }
+
+    impl Bus for FakeBus {
+        type Id = u64;
+        type Info = u64;
+        type Device = u64;
+        type Session = u64;
+
+        fn watches(&mut self) -> Result<Vec<u64>, Error> {
+            Ok((self.listed)(self.elapsed))
+        }
+
+        fn id(info: &u64) -> u64 {
+            *info
+        }
+
+        fn open(&mut self, info: &u64) -> Result<Opened<u64, u64>, Error> {
+            self.elapsed += OPENING;
+            let session = if self.answering.contains(info) {
+                Ok(*info)
+            } else {
+                Err(MtpError::Transport {
+                    operation: crate::ptp::op::OPEN_SESSION,
+                    phase: Phase::Reply,
+                    error: TransportError::TimedOut,
+                })
+            };
+            Ok(Opened {
+                device: *info,
+                session,
+            })
+        }
+
+        fn reset(&mut self, _: u64) -> Result<(), Error> {
+            self.elapsed += RESETTING;
+            self.resets += 1;
+            if self.reset_fails {
+                Err(Error::new(
+                    ErrorCode::DeviceError,
+                    "cannot reset the watch's USB connection: failed to reset device",
+                ))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn now(&self) -> Instant {
+            self.start + self.elapsed
+        }
+
+        fn sleep(&mut self, duration: Duration) {
+            self.elapsed += duration;
+        }
+    }
+
+    fn connect_fake(
+        listed: fn(Duration) -> Vec<u64>,
+        answering: &'static [u64],
+        reset_fails: bool,
+    ) -> (Result<u64, Error>, FakeBus) {
+        let mut bus = FakeBus {
+            start: Instant::now(),
+            elapsed: Duration::ZERO,
+            listed,
+            answering,
+            reset_fails,
+            resets: 0,
+        };
+        (connect_with(&mut bus), bus)
+    }
+
+    fn secs(s: f64) -> Duration {
+        Duration::from_secs_f64(s)
+    }
+
+    #[test]
+    fn a_watch_that_answers_opens_without_a_reset() {
+        let (result, bus) = connect_fake(|_| vec![1], &[1], false);
+        assert_eq!(result.unwrap(), 1);
+        assert_eq!(bus.resets, 0);
+    }
+
+    #[test]
+    fn a_watch_unplugged_while_opening_is_no_device_without_a_reset() {
+        let (result, bus) =
+            connect_fake(|t| if t < secs(0.5) { vec![1] } else { vec![] }, &[], false);
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert_eq!(bus.resets, 0);
+        assert_eq!(bus.elapsed, OPENING);
+    }
+
+    #[test]
+    fn a_watch_unplugged_after_the_reset_is_no_device_after_the_grace_period() {
+        let (result, bus) =
+            connect_fake(|t| if t < secs(2.0) { vec![1] } else { vec![] }, &[], false);
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert!(error.message.contains("disconnected"), "{error:?}");
+        assert_eq!(bus.resets, 1);
+        assert!(
+            bus.elapsed >= secs(2.0) + UNPLUGGED_GRACE - REENUMERATE_POLL,
+            "{:?}",
+            bus.elapsed
+        );
+        assert!(
+            bus.elapsed <= secs(2.0) + UNPLUGGED_GRACE + REENUMERATE_POLL,
+            "{:?}",
+            bus.elapsed
+        );
+    }
+
+    #[test]
+    fn a_watch_that_re_enumerates_after_the_reset_opens() {
+        // Listed under its old id just after the reset, gone for 2 s, back under a new id.
+        let (result, bus) = connect_fake(
+            |t| match t {
+                t if t < secs(2.0) => vec![1],
+                t if t < secs(4.0) => vec![],
+                _ => vec![2],
+            },
+            &[2],
+            false,
+        );
+        assert_eq!(result.unwrap(), 2);
+        assert_eq!(bus.resets, 1);
+    }
+
+    #[test]
+    fn a_watch_that_stays_listed_but_never_re_enumerates_waits_out_the_limit() {
+        let (result, bus) = connect_fake(|_| vec![1], &[], false);
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert!(error.message.contains("did not come back"), "{error:?}");
+        assert_eq!(bus.resets, 1);
+        assert!(
+            bus.elapsed >= OPENING + RESETTING + REENUMERATE_TIMEOUT,
+            "{:?}",
+            bus.elapsed
+        );
+    }
+
+    #[test]
+    fn a_reset_that_fails_because_the_watch_is_gone_is_no_device() {
+        // Listed through the open; gone by the time the reset fails.
+        let (result, bus) =
+            connect_fake(|t| if t <= OPENING { vec![1] } else { vec![] }, &[], true);
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert_eq!(bus.resets, 1);
+        assert_eq!(bus.elapsed, OPENING + RESETTING);
+    }
+
+    #[test]
+    fn a_reset_that_fails_with_the_watch_still_listed_is_a_device_error() {
+        let (result, _) = connect_fake(|_| vec![1], &[], true);
+        assert_eq!(result.unwrap_err().code, ErrorCode::DeviceError);
+    }
+
+    #[test]
+    fn a_re_enumerated_watch_unplugged_while_opening_is_no_device() {
+        let (result, bus) = connect_fake(
+            |t| match t {
+                t if t < secs(1.6) => vec![1],
+                t if t < secs(2.0) => vec![2],
+                _ => vec![],
+            },
+            &[],
+            false,
+        );
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert_eq!(bus.resets, 1);
+    }
+
     #[test]
     fn the_shipped_udev_file_has_exactly_one_rule() {
         let rules: Vec<&str> = super::udev_rules().collect();
