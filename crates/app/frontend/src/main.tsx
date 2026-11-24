@@ -28,7 +28,10 @@ if (element && isTauri()) {
     backend.savedLanguage().catch((): Lang | null => null),
     getVersion().catch(() => ""),
     backend.demoMode().catch(() => false),
-  ]).then(([platform, saved, version, demo]) =>
+    // The demo build hides its "Demo watch" bar while GEORGIAN_FOR_GARMIN_DEMO_RECORDING plays the
+    // watch's side; other builds have no such command.
+    invoke<boolean>("demo_watch_bar").catch(() => false),
+  ]).then(([platform, saved, version, demo, bar]) =>
     root.render(
       <StrictMode>
         <FlowApp
@@ -39,7 +42,9 @@ if (element && isTauri()) {
           version={version}
           demo={demo}
           onDemoWatch={
-            demo ? (action) => void invoke("demo_watch", { action }).catch(() => undefined) : undefined
+            demo && bar
+              ? (action) => void invoke("demo_watch", { action }).catch(() => undefined)
+              : undefined
           }
         />
       </StrictMode>,
