@@ -763,13 +763,19 @@ export interface IssueLinkInput {
    */
   busy?: Busy | null;
   /**
+   * The error that stopped this program before it could read the watch (connecting failed
+   * for a reason other than a busy watch). Only without `report` and `busy`: the report then
+   * holds this program, the computer and the error.
+   */
+  error?: ReportedError | null;
+  /**
    * The last install or restore on this watch, if any.
    */
   outcome?: Outcome | null;
   /**
    * The `report` from `inspect` or `inspect_drive`. Its `title` and `text` are ignored and
-   * rebuilt from the other fields. Absent for a watch another program held before it could
-   * be read: then `busy` is needed, and `outcome` and `answers` aren't taken.
+   * rebuilt from the other fields. Absent for a watch that couldn't be read: then exactly
+   * one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
    */
   report?: WatchReport | null;
 }
@@ -848,6 +854,21 @@ export interface UsbInterface {
   class: number;
   protocol: number;
   subclass: number;
+}
+/**
+ * An error that stopped this program before it could read the watch, as `issue_link` takes
+ * it alone: the error's code and message.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "ReportedError".
+ */
+export interface ReportedError {
+  code: ErrorCode;
+  /**
+   * The error's message; shared on one line, with each word that looks like an identifier
+   * replaced by `(id)`.
+   */
+  message: string;
 }
 /**
  * How the last install or restore went: its status, or its error code.

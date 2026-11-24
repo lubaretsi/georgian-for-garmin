@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([command line](docs/command-line.md#diagnostic-info)).
 - A busy watch held by this very process names it as `this_app` instead of another program, and
   the app says so in its own words: wait for the step to finish, or close and reopen the app.
+- `issue-link` (and the `issue_link` operation) takes an `error` alone, as it takes `busy`
+  alone: a report of what stopped the connection, with the app and the computer and no watch.
+  Words of the message that look like identifiers are left out.
 
 ### Fixed
 

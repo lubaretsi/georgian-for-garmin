@@ -3,8 +3,16 @@
 // over `invoke`; Storybook and the tests use `MockBackend` (src/mock/).
 
 import type { Result } from "../model/screens";
-import type { IssueLinkRequest, MarkPicture, PhonePage, Shared } from "./app-types";
-import type { DiagnoseInput, DiagnoseOutput, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "./types.gen";
+import type { MarkPicture, PhonePage, Shared } from "./app-types";
+import type {
+  DiagnoseInput,
+  DiagnoseOutput,
+  InspectDriveOutput,
+  InspectOutput,
+  IssueLink,
+  IssueLinkInput,
+  StageOutput,
+} from "./types.gen";
 
 export interface Backend {
   /** Rejects with `Failure`. */
@@ -12,9 +20,9 @@ export interface Backend {
   inspectDrive(): Promise<InspectDriveOutput>;
   install(onProgress?: (p: Progress) => void): Promise<StageOutput>;
   restoreStock(onProgress?: (p: Progress) => void): Promise<StageOutput>;
-  issueLink(input: IssueLinkRequest): Promise<IssueLink>;
+  issueLink(input: IssueLinkInput): Promise<IssueLink>;
   /** Opens the browser (not in the demo build or the mock). */
-  shareReport(input: IssueLinkRequest): Promise<Shared>;
+  shareReport(input: IssueLinkInput): Promise<Shared>;
   openIssue(issue: number): Promise<string>;
   /** New (phase 2): opens the README's watch list; no arbitrary URLs. */
   openWatchList(): Promise<string>;

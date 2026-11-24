@@ -303,9 +303,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
   - `multiple_devices`: "Unplug all but one watch";
   - `device_error`: unplug and reconnect.
 
-  A problem with no user fix (`garmin_folder_not_found`, `extdata_not_found`, `internal`) explains and offers **Report this problem**. Its report holds the app, the platform and the error, and no watch.
-  - Phase 2 makes the core's `issue_link` accept an `error` alone, as it already accepts `busy` alone.
-  - Until then the mock returns that planned shape, typed by hand and marked as pending.
+  A problem with no user fix (`garmin_folder_not_found`, `extdata_not_found`, `internal`) explains and offers **Report this problem**. Its report holds the app, the platform and the error, and no watch: the core's `issue_link` takes an `error` alone, as it takes `busy` alone.
 
 ## 7. Copy
 

@@ -3,7 +3,7 @@
 // backend calls and timers. Every effect's result comes back as an event; results of polls the
 // flow has moved on from carry an old `token` and are dropped.
 
-import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type { Failure, MarkPicture, PhonePage, Shared } from "../core/app-types";
 import type { Lang, Progress, ShareKey } from "../core/backend";
 import type {
   Event as DiagnoseEvent,
@@ -13,6 +13,7 @@ import type {
   InspectDriveOutput,
   InspectOutput,
   IssueLink,
+  IssueLinkInput,
   StageOutput,
 } from "../core/types.gen";
 import type { ActionId, ActionPayload, Answers, Op } from "../model/screens";
@@ -58,7 +59,7 @@ export type Phase =
   | { name: "result"; op: Op }
   | { name: "check"; step: "send" | "answer" }
   | { name: "outcome"; kind: OutcomeKind }
-  | { name: "share"; what: ShareWhat; input: IssueLinkRequest; link: IssueLink | null; state: ShareState; back: Phase }
+  | { name: "share"; what: ShareWhat; input: IssueLinkInput; link: IssueLink | null; state: ShareState; back: Phase }
   | { name: "error"; op: Op; failure: Failure }
   /** From More; `back` is the phase it returns to, kept moving while this is open (§11). */
   | {
@@ -82,8 +83,8 @@ export type Effect =
   | { kind: "help_timer"; token: number; delay: number }
   | { kind: "starting_timer"; token: number; delay: number }
   | { kind: "run"; op: Op }
-  | { kind: "issue_link"; input: IssueLinkRequest }
-  | { kind: "share_report"; input: IssueLinkRequest }
+  | { kind: "issue_link"; input: IssueLinkInput }
+  | { kind: "share_report"; input: IssueLinkInput }
   | { kind: "open_issue"; issue: number }
   | { kind: "open_watch_list" }
   | { kind: "phone_page"; lang: Lang }
@@ -360,10 +361,9 @@ function restartFailed(state: FlowState, phase: Restart, failure: Failure): Flow
 
 /**
  * issue_link's input for sharing `what` about the watch the flow is on (§5.2, share). From
- * connect there is no watch read: busy shares the holder, a problem its error (§6; PENDING in
- * the core).
+ * connect there is no watch read: busy shares the holder, a problem its error (§6).
  */
-function shareInput(state: FlowState, what: ShareWhat): IssueLinkRequest {
+function shareInput(state: FlowState, what: ShareWhat): IssueLinkInput {
   const phase = state.phase;
   if (phase.name === "connect") {
     if (phase.mode === "busy" && phase.failure.busy) return { busy: phase.failure.busy };
@@ -372,7 +372,7 @@ function shareInput(state: FlowState, what: ShareWhat): IssueLinkRequest {
   }
   const report = phase.name === "drive" ? phase.drive.report : state.inspect?.report;
   if (!report) return {};
-  const input: IssueLinkRequest = { report };
+  const input: IssueLinkInput = { report };
   if (phase.name === "restart" && phase.interruption?.kind === "busy" && phase.interruption.failure.busy) {
     input.busy = phase.interruption.failure.busy;
   }

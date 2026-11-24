@@ -459,7 +459,7 @@ describe("check, outcome and share", () => {
     expect(state.effects).toEqual([{ kind: "issue_link", input: { report: drive.report } }]);
   });
 
-  test("share from busy: the holder alone; from a problem: the error alone (pending in the core)", () => {
+  test("share from busy: the holder alone; from a problem: the error alone", () => {
     const busy = failure("busy", "inspect-garmin_express-macos");
     const fromBusy = act(read(started(), busy), "share", { action: "share", what: "problem" });
     expect(fromBusy.effects).toEqual([{ kind: "issue_link", input: { busy: busy.busy } }]);

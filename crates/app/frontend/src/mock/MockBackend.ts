@@ -5,7 +5,7 @@
 // a restart (the USB connection drops for a moment) imports what waits; a program holding the
 // watch; a write that fails and leaves files behind; what the next test notification shows.
 
-import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type { Failure, MarkPicture, PhonePage, Shared } from "../core/app-types";
 import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
 import type {
   DiagnoseInput,
@@ -14,6 +14,7 @@ import type {
   InspectDriveOutput,
   InspectOutput,
   IssueLink,
+  IssueLinkInput,
   StageOutput,
 } from "../core/types.gen";
 import { localTime, shareKeyId } from "../flow/state";
@@ -250,7 +251,7 @@ export class MockBackend implements Backend {
     return this.inspectAt(read.ok);
   }
 
-  /** PENDING (the core's `diagnose`, §11): what it would find on this simulated computer. */
+  /** The core's `diagnose` (§11), as it would answer on this simulated computer. */
   async diagnose(input: DiagnoseInput): Promise<DiagnoseOutput> {
     await this.wait(DIAGNOSE_MS);
     const read = this.read();
@@ -370,9 +371,10 @@ export class MockBackend implements Backend {
     });
   }
 
-  async issueLink(input: IssueLinkRequest): Promise<IssueLink> {
+  async issueLink(input: IssueLinkInput): Promise<IssueLink> {
     await this.wait(INSPECT_MS);
-    if (input.error) return pendingErrorLink(input.error);
+    // A connect problem's report: the error alone, one fixture per problem without a user fix.
+    if (input.error) return output("connect-problems", `issue_link-${input.error.code}`, "issue_link");
     if (!input.report) return output("busy", "issue_link-problem", "issue_link");
     const step = this.def.links[input.answers?.result ?? "font_list"] ?? Object.values(this.def.links)[0];
     if (step) return output(...split(step), "issue_link");
@@ -380,7 +382,7 @@ export class MockBackend implements Backend {
     return { title: input.report.title, url: NEW_ISSUE, report_in_url: false, report_text: input.report.text, fields: [] };
   }
 
-  async shareReport(input: IssueLinkRequest): Promise<Shared> {
+  async shareReport(input: IssueLinkInput): Promise<Shared> {
     const link = await this.issueLink(input);
     this.change({ opened: [...this.sim.opened, link.url] });
     return { complete: link.report_in_url, url: link.url };
@@ -428,20 +430,4 @@ export class MockBackend implements Backend {
   async markShared(key: ShareKey): Promise<void> {
     this.shared.add(shareKeyId(key));
   }
-}
-
-/**
- * PENDING (phase 2): the core's `issue_link` doesn't take an `error` alone yet (contract §6).
- * This is the shape it is planned to return, typed by hand: the app, the platform and the error,
- * and no watch.
- */
-function pendingErrorLink(error: { code: string; message: string }): IssueLink {
-  const text = `app 0.3.4 "Mac OS" 15.6.1 aarch64\nerror ${error.code}\n${error.message}`;
-  return {
-    title: `Problem: ${error.code}`,
-    url: `${NEW_ISSUE}?template=watch-report.yml&title=${encodeURIComponent(`Problem: ${error.code}`)}`,
-    report_in_url: true,
-    report_text: text,
-    fields: [{ id: "report", value: text }],
-  };
 }

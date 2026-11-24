@@ -678,6 +678,7 @@ fn busy() {
 
 /// Connecting fails before the watch is read. Messages after the core's (permission_denied as
 /// on Linux); `garmin_folder_not_found` is the real one from a watch without GarminDevice.xml.
+/// The problems the user can't fix are shared with their error alone.
 #[test]
 fn connect_problems() {
     let mut s = Scenario::new("connect-problems", FontSet::bundled());
@@ -710,7 +711,7 @@ fn connect_problems() {
             "open the watch: the device stopped responding",
         ),
     );
-    s.connect_fails(
+    let internal = s.connect_fails(
         "inspect-internal",
         "inspect",
         Error::new(
@@ -720,7 +721,7 @@ fn connect_problems() {
     );
     let (watch, _) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
     watch.0.borrow_mut().objects.remove(&XML);
-    s.fails(
+    let no_folder = s.fails(
         "inspect-garmin_folder_not_found",
         "inspect",
         &watch,
@@ -730,12 +731,20 @@ fn connect_problems() {
     no_extdata["extdata"] = json!("not_found");
     let (watch, _) = Watch::from_fixture(&no_extdata);
     s.ok("inspect-extdata_not_found", "inspect", &watch);
-    s.fails(
+    let no_extdata = s.fails(
         "install-extdata_not_found",
         "install",
         &watch,
         ErrorCode::ExtdataNotFound,
     );
+    // "Report this problem" for the problems the user can't fix: the error alone.
+    for error in [internal, no_folder, no_extdata] {
+        let step = format!("issue_link-{}", error.code.as_str());
+        s.issue_link(
+            &step,
+            json!({"error": {"code": error.code, "message": error.message}}),
+        );
+    }
     s.finish();
 }
 
