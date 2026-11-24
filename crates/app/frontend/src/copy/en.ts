@@ -313,7 +313,7 @@ export const en = {
     install: "Installing Georgian…",
     restore: "Restoring Garmin's font…",
     keepConnected: "Keep the watch connected.",
-    progress: "{done} of {total} files",
+    progress: { one: "{done} of {total} file", other: "{done} of {total} files" },
   },
 
   restart: {
@@ -453,7 +453,7 @@ export const en = {
       software: "Software",
       installed: "What the app installed",
       nothing: "Nothing yet",
-      fonts: "{count} fonts",
+      fonts: { one: "{count} font", other: "{count} fonts" },
       result: "What the watch showed",
       views: "Where",
       phone: "Phone",

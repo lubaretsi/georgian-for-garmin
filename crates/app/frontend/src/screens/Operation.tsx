@@ -1,6 +1,6 @@
 import { RotateCw } from "lucide-react";
 
-import { fmt } from "../copy";
+import { fmt, fmtCount } from "../copy";
 import type { ScreenModel } from "../model/screens";
 import { WatchScene } from "../ui/art/Scenes";
 import { Alert } from "../ui/Alert";
@@ -32,7 +32,9 @@ export function ConfirmRestoreScreen(model: ConfirmRestore, ctx: ScreenContext):
 export function WorkingScreen(model: Working, ctx: ScreenContext): ScreenView {
   const w = ctx.copy.working;
   const { progress } = model;
-  const text = progress ? fmt(w.progress, { done: progress.done, total: progress.total }) : undefined;
+  const text = progress
+    ? fmtCount(w.progress, progress.total, { done: progress.done, total: progress.total })
+    : undefined;
   return {
     step: "install",
     hero: <WatchScene face={{ progress: progress && progress.total > 0 ? progress.done / progress.total : null }} cable="plugged" />,

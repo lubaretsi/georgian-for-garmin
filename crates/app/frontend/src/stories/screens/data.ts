@@ -3,7 +3,7 @@
 
 import type { Lang } from "../../core/backend";
 import type { DiagnoseOutput, InspectOutput } from "../../core/types.gen";
-import { copyFor, fmt } from "../../copy";
+import { copyFor, fmtCount } from "../../copy";
 import { diagnosticsSummary } from "../../flow/screen";
 import { failure, fixtureFile, output } from "../../mock/fixtures";
 import type { BusyView, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../../model/screens";
@@ -110,14 +110,14 @@ export function shareSummary(
     case "result":
       return [
         ...base,
-        { label: s.installed, value: fmt(s.fonts, { count: 4 }) },
+        { label: s.installed, value: fmtCount(s.fonts, 4, { count: 4 }) },
         { label: s.result, value: c.check.answer.results.boxes },
         { label: s.views, value: [c.check.answer.views.popup, c.check.answer.views.list].join(", ") },
         { label: s.phone, value: c.check.answer.phone.android },
-        { label: s.fontList, value: fmt(s.fonts, { count: 38 }) },
+        { label: s.fontList, value: fmtCount(s.fonts, 38, { count: 38 }) },
       ];
     case "font_list":
-      return [...base, { label: s.installed, value: s.nothing }, { label: s.fontList, value: fmt(s.fonts, { count: 12 }) }];
+      return [...base, { label: s.installed, value: s.nothing }, { label: s.fontList, value: fmtCount(s.fonts, 12, { count: 12 }) }];
     case "problem":
       return [...base, { label: s.problem, value: messageOf("errors", "install-internal") }];
   }

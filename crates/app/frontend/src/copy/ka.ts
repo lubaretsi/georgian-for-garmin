@@ -305,7 +305,8 @@ export const ka: Copy = {
     install: "ქართული ყენდება…",
     restore: "Garmin-ის შრიფტი ბრუნდება…",
     keepConnected: "საათს ნუ გამოაერთებთ.",
-    progress: "{total}-დან {done} ფაილი",
+    // რიცხვის შემდეგ არსებითი სახელი ყოველთვის მხოლობითშია, ამიტომ ორივე ფორმა ერთია.
+    progress: { one: "{total}-დან {done} ფაილი", other: "{total}-დან {done} ფაილი" },
   },
 
   restart: {
@@ -440,7 +441,7 @@ export const ka: Copy = {
       software: "სისტემის ვერსია",
       installed: "რა დააყენა პროგრამამ",
       nothing: "ჯერ არაფერი",
-      fonts: "{count} შრიფტი",
+      fonts: { one: "{count} შრიფტი", other: "{count} შრიფტი" },
       result: "რა აჩვენა საათმა",
       views: "სად",
       phone: "ტელეფონი",

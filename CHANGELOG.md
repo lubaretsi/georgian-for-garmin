@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window is resizable, with the title bar part of the app on macOS.
 - More › Diagnostic info: what the app sees of the watch and the computer, with no serial number
   or watch ID, saved to your Downloads folder or copied, for when we ask for it. Nothing is sent.
+- On a Mac whose Safari is older than 16.4 (macOS Big Sur or Monterey without the Safari
+  update), the app shows in Georgian and English how to update instead of a broken window; on
+  Linux it asks for a system update.
 - A user who already shared a result for their watch and software is thanked instead of asked
   again.
 - The redesigned app UI's first phase, for developers: `crates/app/frontend` (React, TypeScript,

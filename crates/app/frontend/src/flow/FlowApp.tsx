@@ -12,6 +12,10 @@ export function FlowApp(props: {
   backend: Backend;
   lang: Lang;
   platform: Platform;
+  /** Whether macOS's window buttons sit over the toolbar; defaults to `platform === "macos"`. */
+  overlayTitleBar?: boolean;
+  /** The demo build: More's About says so. */
+  demo?: boolean;
   version: string;
   /** Divides every delay of the flow (the story tests run it faster). */
   speed?: number;
@@ -36,6 +40,8 @@ export function FlowApp(props: {
       more={moreModel(state)}
       lang={state.lang}
       platform={props.platform}
+      overlayTitleBar={props.overlayTitleBar}
+      demo={props.demo}
       onAction={(id: ActionId, payload?: ActionPayload) => store.dispatch({ type: "action", id, ...(payload && { payload }) })}
       onLanguage={(next: Lang) => store.dispatch({ type: "language", lang: next })}
     />

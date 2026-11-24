@@ -58,9 +58,10 @@ export function WindowFrame(props: {
 
 const TITLE = "Georgian for Garmin";
 
+/** macOS draws its window buttons over all of the web content, open sheets included. */
 function TrafficLights() {
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute top-5 left-5 z-30 flex gap-2">
+    <div aria-hidden="true" className="pointer-events-none absolute top-5 left-5 z-[100] flex gap-2">
       {["#ff5f57", "#febc2e", "#28c840"].map((fill) => (
         <span key={fill} className="size-3 rounded-full shadow-[inset_0_0_0_0.5px_rgb(0_0_0/0.18)]" style={{ background: fill }} />
       ))}

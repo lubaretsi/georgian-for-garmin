@@ -109,6 +109,22 @@ describe("Shell", () => {
     expect(onLanguage).toHaveBeenCalledWith("en");
   });
 
+  it("leaves room for the traffic lights by the window's chrome, not the platform's words", () => {
+    const inset = (props: { platform: "macos" | "windows" | "linux"; overlayTitleBar?: boolean }) => {
+      const view = render(<Shell model={install} more={more} lang="en" {...props} onAction={vi.fn()} onLanguage={vi.fn()} />);
+      const padding = view.container.querySelector("header")?.style.paddingLeft;
+      view.unmount();
+      return padding;
+    };
+    expect(inset({ platform: "macos" })).toBe("80px");
+    expect(inset({ platform: "windows" })).toBe("12px");
+    expect(inset({ platform: "linux" })).toBe("12px");
+    // The demo build on a Mac showing Windows' or Linux's words: the traffic lights stay.
+    expect(inset({ platform: "windows", overlayTitleBar: true })).toBe("80px");
+    expect(inset({ platform: "linux", overlayTitleBar: true })).toBe("80px");
+    expect(inset({ platform: "macos", overlayTitleBar: false })).toBe("12px");
+  });
+
   it("emits the whole answer set from the check screen", () => {
     const { onAction } = setup({
       screen: "check",

@@ -26,6 +26,14 @@ export function fmt(template: string, values: Record<string, string | number>): 
   });
 }
 
+/** A text that depends on a number: English's singular and plural (Georgian uses one form). */
+export type Plural = { readonly one: string; readonly other: string };
+
+/** Fills the form of `forms` that `count` takes, as `fmt` does. */
+export function fmtCount(forms: Plural, count: number, values: Record<string, string | number>): string {
+  return fmt(count === 1 ? forms.one : forms.other, values);
+}
+
 /** Joins a list for a sentence: "19.05, 19.10 and 20.01" (en), "19.05, 19.10 და 20.01" (ka). */
 export function list(lang: Lang, items: readonly string[]): string {
   return new Intl.ListFormat(lang, { style: "long", type: "conjunction" }).format(items);

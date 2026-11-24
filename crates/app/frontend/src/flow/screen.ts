@@ -1,7 +1,7 @@
 // What the shell draws for a flow state: `toScreen` (contract §5) and `moreModel` (the More
 // sheet). Pure; the share summary and "What the app sees" are in the state's language.
 
-import { type Copy, copyFor, fmt, list } from "../copy";
+import { type Copy, copyFor, fmt, fmtCount, list } from "../copy";
 import type { Lang } from "../core/backend";
 import type {
   DiagnoseOutput,
@@ -58,7 +58,7 @@ function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "sh
   if (phase.what !== "font_list" && report) {
     const last = state.lastOp;
     const count = last && "output" in last ? last.output.packs.reduce((n, pack) => n + pack.parts.length, 0) : 0;
-    rows.push({ label: s.installed, value: count ? fmt(s.fonts, { count }) : s.nothing });
+    rows.push({ label: s.installed, value: count ? fmtCount(s.fonts, count, { count }) : s.nothing });
   }
   if (phase.what === "result") {
     const { result, views, phone } = answersFor(state);
@@ -81,7 +81,10 @@ function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "sh
             : null;
     if (value) rows.push({ label: s.problem, value });
   }
-  if (report) rows.push({ label: s.fontList, value: fmt(s.fonts, { count: report.extdata_files.length }) });
+  if (report) {
+    const files = report.extdata_files.length;
+    rows.push({ label: s.fontList, value: fmtCount(s.fonts, files, { count: files }) });
+  }
   return rows;
 }
 

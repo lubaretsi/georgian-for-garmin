@@ -22,6 +22,14 @@ export type ShellProps = {
   more: MoreModel;
   lang: Lang;
   platform: Platform;
+  /**
+   * Whether macOS's window buttons sit over the toolbar's left end (the overlay title bar), so
+   * the toolbar leaves room for them. It follows the OS drawing the window, not `platform`'s
+   * words, which the demo build can override; defaults to `platform === "macos"`.
+   */
+  overlayTitleBar?: boolean;
+  /** The demo build (`demoMode()`): More's About says so. */
+  demo?: boolean;
   onAction: (id: ActionId, payload?: ActionPayload) => void;
   onLanguage: (lang: Lang) => void;
 };
@@ -38,6 +46,7 @@ const CONTROLS =
  */
 export function Shell(props: ShellProps) {
   const { model, lang, platform } = props;
+  const overlayTitleBar = props.overlayTitleBar ?? platform === "macos";
   const copy = copyFor(lang);
   const [moreOpen, setMoreOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -108,7 +117,7 @@ export function Shell(props: ShellProps) {
             "bg-canvas transition-[border-color] duration-200",
             scrolled ? "border-sep" : "border-transparent",
           )}
-          style={{ paddingLeft: platform === "macos" ? MAC_TOOLBAR_INSET : 12 }}
+          style={{ paddingLeft: overlayTitleBar ? MAC_TOOLBAR_INSET : 12 }}
         >
           {view.back ? (
             <Button variant="toolbar" size="sm" onClick={view.back.onPress} className="-ml-1 pr-3 pl-1">
@@ -206,6 +215,8 @@ export function Shell(props: ShellProps) {
           copy={copy}
           lang={lang}
           platform={platform}
+          overlayTitleBar={overlayTitleBar}
+          demo={props.demo ?? false}
           onLanguage={props.onLanguage}
           onAction={(id) => props.onAction(id)}
         />

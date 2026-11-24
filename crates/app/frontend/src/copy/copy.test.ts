@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ErrorCode, Holder } from "../core/types.gen";
 import { diagnosticsSummary } from "../flow/screen";
 import { en } from "./en";
-import { catalogs, fmt } from "./index";
+import { catalogs, fmt, fmtCount } from "./index";
 import { ka } from "./ka";
 
 /** Every string in a catalog by its dotted path; array items as `path.0`, `path.1`. */
@@ -221,5 +221,16 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     for (const catalog of [en, ka]) {
       expect(Object.keys(catalog.watchCard.status).sort()).toEqual(Object.keys(catalog.confidence).filter((k) => !k.endsWith("_unlisted")).sort());
     }
+  });
+
+  it("says one font and one file in the singular", () => {
+    expect(fmtCount(en.share.summary.fonts, 1, { count: 1 })).toBe("1 font");
+    expect(fmtCount(en.share.summary.fonts, 4, { count: 4 })).toBe("4 fonts");
+    expect(fmtCount(en.share.summary.fonts, 0, { count: 0 })).toBe("0 fonts");
+    expect(fmtCount(en.working.progress, 1, { done: 0, total: 1 })).toBe("0 of 1 file");
+    expect(fmtCount(en.working.progress, 4, { done: 1, total: 4 })).toBe("1 of 4 files");
+    // Georgian keeps the singular after a numeral.
+    expect(fmtCount(ka.share.summary.fonts, 4, { count: 4 })).toBe("4 შრიფტი");
+    expect(fmtCount(ka.working.progress, 1, { done: 0, total: 1 })).toBe("1-დან 0 ფაილი");
   });
 });

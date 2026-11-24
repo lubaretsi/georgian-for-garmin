@@ -217,8 +217,11 @@ export type MoreModel = {
 /**
  * The app shell: header (language, More), the screen, the fixed footer with its actions.
  *   <Shell model={ScreenModel} more={MoreModel} lang={Lang} platform={Platform}
+ *          overlayTitleBar?={boolean} demo?={boolean}
  *          onAction={(id: ActionId, payload?: ActionPayload) => void}
  *          onLanguage={(lang: Lang) => void} />
+ * `overlayTitleBar`: the OS draws its window buttons over the toolbar (macOS, from the WebView's
+ * user agent; defaults to `platform === "macos"`). `demo`: the demo build, named in More › About.
  * Restoring from More emits `restore`; the flow answers with `confirm_restore`.
  */
 ```
@@ -389,25 +392,24 @@ The flows:
 
 ## 9. Phases and non-goals
 
-**Phase 1 (this branch):**
-- `crates/app/frontend/` with everything above;
+**Phase 1 (done):**
+- `crates/app/frontend/` with everything above, in Storybook and the tests;
 - the flake's dev shell gets Node and pnpm;
 - the Rust fixture test;
 - CI runs type generation with a diff check, typecheck, Vitest and the story tests;
 - `docs/development.md` gains a "Frontend and Storybook" section.
 
-The shipped app is unchanged.
+**Alongside, its own PR (done):** the core's `diagnose` operation and CLI command (§11).
 
-**In parallel, its own PR:** the core's `diagnose` operation and CLI command (§11).
-
-**Phase 2:**
+**Phase 2 (done; the app ships this UI):**
 - `TauriBackend` over `invoke`, with progress over a Tauri channel from the core's existing progress;
 - `sharedBefore`/`markShared` in `settings.rs`;
 - `saveDiagnostics`, `copyText` and `revealFile` as app commands;
 - `JsonSchema` derives for the app-only types;
-- `frontendDist` pointing at the Vite build, built in nix and in `release.yml`;
-- the resizable window with its minimum size, and the overlay title bar on macOS (§10);
-- the demo build running the new UI over `demo.rs`;
+- `frontendDist` pointing at the Vite build, built by Tauri's before-commands and in CI and `release.yml`;
+- the resizable window with its minimum size, and the overlay title bar on macOS (§10); the toolbar leaves room for the traffic lights by the OS drawing the window, not by `platform`, which the demo build can override;
+- `index.html` checks the WebView before the app loads: an engine older than Safari 16.4's (no cascade layers, `@property`, `color-mix()`, container queries or media range syntax) gets a short ka/en message on how to update instead of a broken window;
+- the demo build running the new UI over `demo.rs`, keeping the language and shares in memory and saying "Demo" in More › About;
 - the old `ui/` deleted and the app tests ported.
 
 **Non-goals:**
@@ -422,7 +424,7 @@ The shipped app is unchanged.
 The design is **direction B "Native & precise" with direction A's touches**: B's native structure and device drawing, plus A's warmth where it helps most.
 
 - **Window:** native chrome per platform.
-  - On macOS the app's toolbar is the title bar: the traffic lights sit over its left end, the step indicator is in the toolbar, and language and More are on the right. Phase 2 needs Tauri's overlay title bar with the title hidden.
+  - On macOS the app's toolbar is the title bar: the traffic lights sit over its left end, the step indicator is in the toolbar, and language and More are on the right. The app uses Tauri's overlay title bar with the title hidden; the traffic lights draw over all web content, so the More sheet opens below the toolbar there.
   - Windows gets a Windows 11 caption bar, Linux a GNOME header bar, above the same app.
 - **Step indicator:** compact and segmented, in the toolbar. The current step is a raised segment with its name, done steps show a check, later steps their number.
 - **Footer toolbar:** a status on the left (a spinner with "Looking for your watch…" or "Waiting for the watch…") and the buttons on the right in platform order: primary on the right on macOS and Linux, first on Windows. Native button sizes (32 px, 8 px corners, 5 px on Windows).

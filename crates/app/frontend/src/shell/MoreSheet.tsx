@@ -8,6 +8,7 @@ import { LANGUAGE_NAMES, REPO_URL } from "../copy/shared";
 import type { ActionId, MoreModel } from "../model/screens";
 import { copyLabels } from "../screens/common";
 import { Button } from "../ui/Button";
+import { cn } from "../ui/cn";
 import { Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
@@ -30,6 +31,10 @@ export function MoreSheet(props: {
   copy: Copy;
   lang: Lang;
   platform: Platform;
+  /** macOS's window buttons over the toolbar: the sheet opens below the toolbar, clear of them. */
+  overlayTitleBar: boolean;
+  /** The demo build: About says so, since its watch, sharing and saving are simulated. */
+  demo: boolean;
   onLanguage: (lang: Lang) => void;
   onAction: (id: ActionId) => void;
 }) {
@@ -50,7 +55,10 @@ export function MoreSheet(props: {
             props.opener.current?.focus();
           }}
           aria-describedby={undefined}
-          className="anim-sheet absolute inset-x-3 top-2 bottom-3 z-50 mx-auto flex max-w-[460px] flex-col overflow-hidden rounded-group bg-canvas shadow-window"
+          className={cn(
+            "anim-sheet absolute inset-x-3 bottom-3 z-50 mx-auto flex max-w-[460px] flex-col overflow-hidden rounded-group bg-canvas shadow-window",
+            props.overlayTitleBar ? "top-[var(--toolbar-h)]" : "top-2",
+          )}
         >
           <Dialog.Title className="px-5 pt-4 pb-3 text-[17px] leading-6 font-semibold text-fg">{m.title}</Dialog.Title>
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
@@ -114,6 +122,7 @@ export function MoreSheet(props: {
                 </Tile>
                 <div className="min-w-0 text-row text-fg-2">
                   <p className="text-fg">{fmt(m.about.version, { version: more.version })}</p>
+                  {props.demo ? <p className="text-fg">{copy.app.demo}</p> : null}
                   <p>{m.about.unofficial}</p>
                   <p>
                     {m.about.source}{" "}
