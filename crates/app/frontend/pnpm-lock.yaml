@@ -11,6 +11,9 @@ importers:
       '@fontsource-variable/noto-sans-georgian':
         specifier: ^5.3.0
         version: 5.3.0
+      '@tauri-apps/api':
+        specifier: 2.12.5
+        version: 2.12.5
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1646,6 +1649,9 @@ packages:
     resolution: {integrity: sha512-BCNiY0a1ZjdOHVqw7kyb7U72BwfMF3dfUuN+tQsLWky/J5JOI/r7abibglXfygrZhVO/3u3V+E25kkKTeMkXaQ==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
+
+  '@tauri-apps/api@2.12.5':
+    resolution: {integrity: sha512-G9QIMt5fzED+aS4QhVK3w1HWLKpLIwH/MnpCr9z1ugGEHnS2ORmqrLkc0uALOjRK4qXJy+4Yiw8LDl/KicC1Hg==}
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -4263,6 +4269,8 @@ snapshots:
       '@tailwindcss/oxide': 4.3.5
       tailwindcss: 4.3.5
       vite: 8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)
+
+  '@tauri-apps/api@2.12.5': {}
 
   '@testing-library/dom@10.4.2':
     dependencies:

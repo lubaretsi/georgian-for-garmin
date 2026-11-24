@@ -12,6 +12,12 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.join(dirname, "src") } },
+  // `cargo tauri dev` loads the app from this server (tauri.conf.json's devUrl) and shows Rust's
+  // output in the same terminal.
+  server: { port: 5173, strictPort: true },
+  clearScreen: false,
+  // The app loads its one script from the app bundle, not over a network.
+  build: { chunkSizeWarningLimit: 1024 },
   test: {
     projects: [
       {

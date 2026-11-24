@@ -1,25 +1,36 @@
-// `pnpm dev`: the new UI over the simulated Venu 2 (phase 1 has no Tauri backend yet).
+// The entry point. In the app's window, the UI runs over the app's Tauri commands
+// (TauriBackend), filling the window. In a plain browser on the development server
+// (`pnpm dev`) it runs over the simulated watch instead (src/mock/preview.tsx), which the app's
+// build leaves out.
 
+import { getVersion } from "@tauri-apps/api/app";
+import { isTauri } from "@tauri-apps/api/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./ui/global.css";
+import type { Lang, Platform } from "./core/backend";
+import { TauriBackend } from "./core/TauriBackend";
 import { FlowApp } from "./flow/FlowApp";
-import { MockBackend } from "./mock/MockBackend";
-import { Simulator } from "./mock/Simulator";
-import { WindowFrame } from "./ui/WindowFrame";
 
-const backend = new MockBackend({ watch: "venu2", connection: "unplugged" });
-const root = document.getElementById("root");
-if (!root) throw new Error("index.html has no #root");
+const element = document.getElementById("root");
+if (!element) throw new Error("index.html has no #root");
+const root = createRoot(element);
 
-createRoot(root).render(
-  <StrictMode>
-    <div style={{ display: "flex", gap: 24, padding: 24, alignItems: "flex-start" }}>
-      <WindowFrame width={480} height={720} theme="light" lang="ka" platform="macos">
-        <FlowApp backend={backend} lang="ka" platform="macos" version="0.3.4" />
-      </WindowFrame>
-      <Simulator backend={backend} />
-    </div>
-  </StrictMode>,
-);
+if (isTauri()) {
+  const backend = new TauriBackend();
+  // The window opens even if one of these fails: Linux's words, the default language.
+  void Promise.all([
+    backend.platform().catch((): Platform => "linux"),
+    backend.savedLanguage().catch((): Lang | null => null),
+    getVersion().catch(() => ""),
+  ]).then(([platform, saved, version]) =>
+    root.render(
+      <StrictMode>
+        <FlowApp backend={backend} lang={saved ?? "ka"} platform={platform} version={version} />
+      </StrictMode>,
+    ),
+  );
+} else if (import.meta.env.DEV) {
+  void import("./mock/preview").then(({ renderPreview }) => renderPreview(root));
+}
