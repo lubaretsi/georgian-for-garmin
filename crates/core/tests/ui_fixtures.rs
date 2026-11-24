@@ -587,19 +587,29 @@ fn no_device() -> Error {
     )
 }
 
+/// A holder as plain data: `Holder::named` would ask this process for its pid.
+fn holder(kind: HolderKind, name: &str, pid: u32, confirmed: bool) -> Holder {
+    Holder {
+        kind,
+        name: Some(name.into()),
+        pid: Some(pid),
+        confirmed,
+    }
+}
+
 /// What holds the watch for `kind` on `platform`, as the demo build names it: data, never read
 /// from this computer.
 fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
     let windows = platform == "windows";
     let holder = match kind {
-        HolderKind::GarminExpress if windows => Holder::named("ExpressTray.exe", Some(6312), false),
-        HolderKind::GarminExpress => Holder::named("Garmin Express", Some(812), true),
-        HolderKind::MacosCameraService => Holder::named("ptpcamerad", Some(512), true),
-        HolderKind::DesktopMtp if platform == "linux" => {
-            Holder::named("gvfsd-mtp", Some(2301), true)
-        }
-        HolderKind::DesktopMtp => Holder::named("Android File Tra", Some(1450), true),
-        HolderKind::Other => Holder::named("usb-helper", Some(3070), true),
+        HolderKind::GarminExpress if windows => holder(kind, "ExpressTray.exe", 6312, false),
+        HolderKind::GarminExpress => holder(kind, "Garmin Express", 812, true),
+        HolderKind::MacosCameraService => holder(kind, "ptpcamerad", 512, true),
+        HolderKind::DesktopMtp if platform == "linux" => holder(kind, "gvfsd-mtp", 2301, true),
+        HolderKind::DesktopMtp => holder(kind, "Android File Tra", 1450, true),
+        HolderKind::Other => holder(kind, "usb-helper", 3070, true),
+        // The app itself, still on an earlier step, as macOS cuts its name to 16 bytes.
+        HolderKind::ThisApp => holder(kind, "Georgian for Gar", 4100, true),
         HolderKind::Unknown => Holder::unknown(),
     };
     let interface = match kind {
@@ -641,6 +651,8 @@ fn busy() {
         (HolderKind::DesktopMtp, "macos"),
         (HolderKind::Other, "linux"),
         (HolderKind::Unknown, "linux"),
+        (HolderKind::ThisApp, "macos"),
+        (HolderKind::ThisApp, "windows"),
     ];
     for (kind, platform) in cases {
         let kind_name = serde_json::to_value(kind).unwrap();
@@ -650,7 +662,7 @@ fn busy() {
     }
     // A 16-character macOS name, which the system may have cut.
     let cut = Busy {
-        holder: Holder::named("com.example.sync", Some(4242), true),
+        holder: holder(HolderKind::Other, "com.example.sync", 4242, true),
         ..busy_sample(HolderKind::Other, "macos")
     };
     s.connect_fails(
