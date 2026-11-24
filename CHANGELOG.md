@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   listed as not working, and the Korean pack it got (`korean-nanum-gothic-bold`,
   `006-D8945-07`) is restore-only. The demo build's Instinct 3 is a 45mm with that font to
   restore.
+- A shared result carries the watch as the app read it last, after the restart once it has
+  verified it, so its report shows whether the watch loaded the font. Watch reports
+  (`issue_link`) no longer label the state and parts "(before install)" or "(before
+  restore_stock)" when they come with the last operation's outcome.
 
 ### Fixed
 
