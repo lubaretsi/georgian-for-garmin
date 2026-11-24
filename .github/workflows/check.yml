@@ -137,13 +137,18 @@ jobs:
       - name: pnpm install
         run: nix develop --command pnpm install --frozen-lockfile
 
-      - name: Generated types match the CLI
+      - name: Generated types match the CLI and the app
         run: |
           nix develop --command pnpm gen:types
           git diff --exit-code -- src/core/types.gen.ts
 
       - name: Typecheck
         run: nix develop --command pnpm typecheck
+
+      # What the app embeds (tauri.conf.json's frontendDist); the release builds run the same
+      # through Tauri's beforeBuildCommand.
+      - name: Build
+        run: nix develop --command pnpm build
 
       # The browsers' system libraries come from apt (--with-deps), at the lockfile's Playwright
       # version.
