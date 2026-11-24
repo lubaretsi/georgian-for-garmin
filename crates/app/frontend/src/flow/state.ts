@@ -216,6 +216,9 @@ export function polls(phase: Phase): boolean {
       return true;
     case "restart":
       return phase.phase === "unplug" || phase.verifiable;
+    case "result":
+      // After a restore nothing follows on screen: the app looks for the unplug or another watch.
+      return phase.op === "restore";
     case "error":
       // The watch was disconnected during the write: the app looks for it again.
       return phase.failure.code === "no_device";
@@ -351,12 +354,12 @@ function restartRead(state: FlowState, interrupted: Restart, inspect: InspectOut
     return pollNext(answered(state, phase, "verifying"));
   }
   const next = { ...state, inspect };
-  if (verified(phase.op, inspect)) return go(next, { name: "result", op: phase.op });
+  if (verified(phase.op, inspect)) return pollNext(go(next, { name: "result", op: phase.op }));
   if (inspect.state === "waiting" || inspect.state === "stock_waiting") {
     return pollNext(answered(next, phase, "again"));
   }
   // `other` or anything else: the watch's own screen says what it is (§4.1).
-  return go(next, { name: "watch" });
+  return pollNext(go(next, { name: "watch" }));
 }
 
 function restartFailed(state: FlowState, phase: Restart, failure: Failure): FlowState {
@@ -700,6 +703,12 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
           return pollNext(showWatch(state, event.output));
         case "restart":
           return restartRead(state, phase, event.output);
+        case "result":
+          // After a restore (the only result that polls): the same watch stays on "Garmin's font
+          // is back"; another one gets its own screen.
+          return state.inspect?.device.part_number === event.output.device.part_number
+            ? pollNext({ ...state, inspect: event.output })
+            : pollNext(showWatch(state, event.output));
         default:
           return state;
       }
@@ -708,6 +717,7 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
       switch (phase.name) {
         case "connect":
         case "watch":
+        case "result":
           return readFailed(state, event.failure);
         case "error":
           // Disconnected during the write: the error (and its rollback) stays until the watch is back.
