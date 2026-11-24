@@ -18,7 +18,7 @@ The app isn't signed, so your computer warns the first time; [Install](#install)
 click. Windows on Arm, other Linux and the command-line tools:
 [all downloads](https://github.com/lubaretsi/georgian-for-garmin/releases/latest).
 
-Installing on Windows, start to finish in 46 seconds
+Installing on Windows, start to finish in 44 seconds
 ([step by step in Georgian](docs/install-windows.md)):
 
 https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
