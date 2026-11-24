@@ -20,13 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Linux it asks for a system update.
 - A user who already shared a result for their watch and software is thanked instead of asked
   again.
-- The redesigned app UI's first phase, for developers: `crates/app/frontend` (React, TypeScript,
-  Vite) with Storybook, where every screen and the Connect → Install → Restart → Check flows run
-  over a simulated watch built from the core's real results
-  ([development](docs/development.md#frontend-and-storybook)). The shipped app is unchanged.
-  `nix develop` has Node and pnpm; `crates/core/tests/ui_fixtures.rs` writes and checks the
-  fixtures; CI generates the core's TypeScript types, typechecks, and runs the flow and story
-  tests in Chromium and WebKit with axe.
+- For developers, the app's UI is `crates/app/frontend` (React, TypeScript, Vite), replacing
+  `crates/app/ui/`, with Storybook, where every screen and the Connect → Install → Restart →
+  Check flows run over a simulated watch built from the core's real results
+  ([development](docs/development.md#frontend-and-storybook)). The demo build's watch waits for
+  you: a Demo watch bar unplugs, restarts, plugs in or holds it. `nix develop` has Node and pnpm;
+  `crates/core/tests/ui_fixtures.rs` writes and checks the fixtures; CI generates the core's
+  TypeScript types, typechecks, and runs the flow and story tests in Chromium and WebKit with
+  axe; releases build the frontend once and embed it.
 - `georgian-for-garmin diagnose` (and the `diagnose` operation in `rpc` and `mcp`) gathers the
   diagnostic info we ask for when helping someone who can't use GitHub: app version and build,
   system, the Garmin USB devices with what holds them, what opening the watch gave, mounted watch
