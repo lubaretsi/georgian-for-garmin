@@ -27,6 +27,8 @@ export const Conflict: ScreenStoryObj = { args: { model: fromFixture("errors", "
 export const RestoreFirst: ScreenStoryObj = {
   args: { model: fromFixture("errors", "install-restore_first", "install", WATCHES.forerunner165), restorable: true },
 };
+/** Venu 2 with a waiting font a restart left hidden: restart first. */
+export const RestartFirst: ScreenStoryObj = { args: { model: fromFixture("errors", "install-restart_first", "install") } };
 export const VerificationFailed: ScreenStoryObj = {
   args: { model: fromFixture("errors", "install-verification_failed", "install"), restorable: true },
 };

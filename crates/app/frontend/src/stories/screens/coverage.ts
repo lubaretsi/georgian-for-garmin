@@ -76,7 +76,7 @@ export const REQUIRED: string[] = [
     ["ready", "opened", "opened_paste", "failed"].map((s) => `share/${w}/${s}`),
   ),
   // error: each code group, rollback complete and incomplete
-  ...["conflict", "restore_first", "verification_failed", "device_error", "no_device", "unsupported_device", "internal"].map(
+  ...["conflict", "restore_first", "restart_first", "verification_failed", "device_error", "no_device", "unsupported_device", "internal"].map(
     (g) => `error/${g}`,
   ),
   "error/rollback/complete",

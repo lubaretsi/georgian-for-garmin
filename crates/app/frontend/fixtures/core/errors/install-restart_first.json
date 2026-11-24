@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "restart_first",
+    "message": "The watch lists GARMIN/ExtData/006-D9035-03.tmp as a hidden file: a font waiting for a restart it hasn't imported yet, and a new file would be a second one of that name. Unplug the watch and restart it, then try again. Nothing was written."
+  },
+  "operation": "install"
+}

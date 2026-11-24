@@ -131,6 +131,7 @@ export type ErrorCode =
   | "extdata_not_found"
   | "conflict"
   | "restore_first"
+  | "restart_first"
   | "verification_failed"
   | "device_error"
   | "internal"
