@@ -10,7 +10,8 @@
 //! - Windows doesn't say who holds a device, so only whether Garmin Express is running
 //!   (`tasklist`): `confirmed` stays false.
 //!
-//! Nothing here stops or signals a process.
+//! A holder whose pid is this process's own is `this_app`: another call of this program still
+//! has the watch open. Nothing here stops or signals a process.
 
 use std::fmt::Write as _;
 
@@ -29,6 +30,8 @@ pub enum HolderKind {
     /// A desktop's MTP file access: GNOME's `gvfsd-mtp`, KDE's `kiod`, or an MTP app such as
     /// Android File Transfer, OpenMTP or MacDroid.
     DesktopMtp,
+    /// This program itself: the system names this process as holding the watch.
+    ThisApp,
     /// A program none of the lists below knows.
     Other,
     /// The system didn't say.
@@ -59,10 +62,14 @@ impl Holder {
         }
     }
 
-    /// The program called `name`, classified by name.
+    /// The program called `name`, classified by name; `this_app` when `pid` is this process.
     pub fn named(name: &str, pid: Option<u32>, confirmed: bool) -> Holder {
         Holder {
-            kind: classify(name),
+            kind: if pid == Some(std::process::id()) {
+                HolderKind::ThisApp
+            } else {
+                classify(name)
+            },
             name: Some(name.to_owned()),
             pid,
             confirmed,
@@ -96,7 +103,8 @@ pub struct Busy {
     pub holder: Holder,
     /// The watch's USB product ID (e.g. 20087, 0x4E77, for a Venu 2); null when unknown.
     pub product_id: Option<u16>,
-    /// The watch's USB product name, when it has one and the system shows it.
+    /// The watch's USB product name, when it has one, the system shows it, and it doesn't look
+    /// like an identifier ([`product_name`]).
     pub product_name: Option<String>,
     /// The watch's MTP interface; null when unknown.
     pub interface: Option<UsbInterface>,
@@ -112,6 +120,22 @@ impl Busy {
             interface: None,
         }
     }
+
+    /// This with its product name kept only if it doesn't look like an identifier: every
+    /// `device_busy` error goes through this ([`crate::Error::busy`]).
+    pub fn sanitized(mut self) -> Busy {
+        self.product_name = product_name(self.product_name.as_deref());
+        self
+    }
+}
+
+/// A USB product name as the system gives it, trimmed, or None when it is empty or looks like
+/// an identifier ([`crate::report::looks_like_identifier`]): a device can put its serial number
+/// in its product string, and the name ends up in shared reports.
+pub fn product_name(name: Option<&str>) -> Option<String> {
+    name.map(str::trim)
+        .filter(|n| !n.is_empty() && !crate::report::looks_like_identifier(n))
+        .map(str::to_owned)
 }
 
 /// Known holders by process name: lowercase, without `.exe`. Garmin Express is `Garmin
@@ -225,7 +249,7 @@ pub fn from_ioreg(plist: &str, entry_id: u64) -> Option<(Option<Holder>, Option<
         .filter_map(owner)
         .next()
         .or_else(|| owner(device));
-    let product = text(device, "USB Product Name").map(str::to_owned);
+    let product = product_name(text(device, "USB Product Name"));
     Some((holder, product))
 }
 
@@ -278,18 +302,22 @@ pub fn from_tasklist(csv: &str) -> Option<Holder> {
     })
 }
 
-/// The holder of the macOS device with registry entry `entry_id`, and its product name.
+/// `ioreg -a -l -r -c IOUSBHostDevice`'s plist: every USB device with its interfaces. None when
+/// `ioreg` fails.
 #[cfg(target_os = "macos")]
-pub(crate) fn macos(entry_id: u64) -> (Holder, Option<String>) {
-    let output = std::process::Command::new("/usr/sbin/ioreg")
+pub(crate) fn ioreg() -> Option<String> {
+    std::process::Command::new("/usr/sbin/ioreg")
         .args(["-a", "-l", "-r", "-c", "IOUSBHostDevice"])
-        .output();
-    let found = output
+        .output()
         .ok()
         .filter(|o| o.status.success())
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|plist| from_ioreg(&plist, entry_id));
-    match found {
+}
+
+/// The holder of the macOS device with registry entry `entry_id`, and its product name.
+#[cfg(target_os = "macos")]
+pub(crate) fn macos(entry_id: u64) -> (Holder, Option<String>) {
+    match ioreg().and_then(|plist| from_ioreg(&plist, entry_id)) {
         Some((holder, product)) => (holder.unwrap_or_else(Holder::unknown), product),
         None => (Holder::unknown(), None),
     }
@@ -358,6 +386,10 @@ pub fn message(busy: &Busy) -> String {
         HolderKind::DesktopMtp | HolderKind::Other => {
             format!("{who} is using the watch's USB connection. Quit it and try again.")
         }
+        HolderKind::ThisApp => "This program already has the watch open for another \
+             operation. Wait for it to finish and try again; if the watch stays busy, quit \
+             every Georgian for Garmin window and start again."
+            .into(),
         HolderKind::Unknown if cfg!(target_os = "linux") => "Another program is using the \
              watch's USB connection, usually the desktop's file manager. On GNOME, eject the \
              watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 \
@@ -420,6 +452,20 @@ mod tests {
             (Some("AppleUserUSBHostHIDDevice"), None)
         );
         assert_eq!(parse_owner(" "), None);
+        let own = parse_owner(&format!("pid {}, georgian-for-ga", std::process::id())).unwrap();
+        assert_eq!(own.kind, HolderKind::ThisApp);
+        assert!(own.confirmed);
+        assert_ne!(
+            Holder::named("georgian-for-ga", Some(std::process::id() + 1), true).kind,
+            HolderKind::ThisApp
+        );
+        assert!(
+            message(&Busy {
+                holder: own,
+                ..Busy::unknown()
+            })
+            .contains("This program")
+        );
     }
 
     const IOREG: &str = include_str!("../tests/busy/ioreg-held.plist");
@@ -443,6 +489,32 @@ mod tests {
         assert_eq!(from_ioreg(IOREG, 4297301554), None);
         assert_eq!(from_ioreg(IOREG, 1), None);
         assert_eq!(from_ioreg("not a plist", 4297301549), None);
+
+        // A product string that looks like a serial number is left out at the source.
+        let serial = IOREG.replace("Example Watch", "SN 4A7F00C1E9B2");
+        let (_, product) = from_ioreg(&serial, 4297400001).unwrap();
+        assert_eq!(product, None);
+    }
+
+    /// Product names that look like an identifier are dropped wherever a `Busy` becomes an
+    /// error, whoever built it.
+    #[test]
+    fn busy_errors_never_carry_an_identifier_product_name() {
+        for (name, kept) in [
+            ("Venu 2", Some("Venu 2")),
+            ("  fēnix 7  ", Some("fēnix 7")),
+            ("", None),
+            ("FAKESERIAL0042", None),
+            ("Watch 3999999999", None),
+        ] {
+            let error = crate::Error::busy(Busy {
+                product_name: Some(name.into()),
+                ..Busy::unknown()
+            });
+            let busy = error.busy.as_deref().unwrap();
+            assert_eq!(busy.product_name.as_deref(), kept, "{name:?}");
+            assert!(name.trim().is_empty() || kept.is_some() || !error.message.contains(name));
+        }
     }
 
     #[cfg(unix)]

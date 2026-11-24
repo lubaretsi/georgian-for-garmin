@@ -164,6 +164,15 @@ cd builder && GEORGIAN_FOR_GARMIN_CLI=$PWD/../target/debug/georgian-for-garmin \
   pytest tests/test_rpc_contract.py tests/test_watch.py
 ```
 
+A test that sends the real CLI a call that opens a watch (`wait_for_watch` in a terminal's
+Ctrl-C test) would open any Garmin watch plugged into the computer, and an environment variable
+only claims there is none. So `opens_a_watch` in `builder/tests/no_watch.py`, the one guard for
+such tests, checks: the USB devices are listed without opening any (Linux: sysfs'
+`/sys/bus/usb/devices/*/idVendor`; macOS: `ioreg -p IOUSB`), and the test runs only when that
+worked and found no Garmin device (vendor 0x091E), with `GFG_TEST_NO_WATCH=1` opting in, as
+`check.yml` does. A Garmin device attached, a listing that fails, or another system (Windows):
+the test is skipped, saying which.
+
 ## Rust
 
 ```sh
@@ -297,9 +306,9 @@ Install or Restore moves on to the next watch. `GEORGIAN_FOR_GARMIN_DEMO_WATCH=V
 those names, quoted where it has spaces) attaches that watch first;
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting screen stays and shows
 its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
-`garmin_express`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a program on
-every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`) shows that
-platform's words.
+`garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
+program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
+shows that platform's words.
 Every string is in `ui/strings.json`, with `ka` and `en` tables that must have the same keys; the
 tests check that.
 

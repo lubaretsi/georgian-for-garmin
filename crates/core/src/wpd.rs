@@ -16,7 +16,7 @@
 mod device;
 
 #[cfg(windows)]
-pub use device::{WpdMtp, connect};
+pub use device::{WpdMtp, connect, garmin_devices};
 
 use crate::GARMIN_VENDOR_ID;
 use crate::error::{Error, ErrorCode};
@@ -98,6 +98,27 @@ pub fn is_garmin_device_id(id: &str) -> bool {
                 .get(i + vid.len())
                 .is_none_or(|next| !next.is_ascii_hexdigit())
     })
+}
+
+/// The USB product ID in a WPD device ID (`…#vid_091e&pid_4e77#…`), if it names one. The rest of
+/// the ID, which holds the device's serial number, is never kept.
+pub fn product_id_from_device_id(id: &str) -> Option<u16> {
+    let lower = id.to_ascii_lowercase();
+    let at = lower.find("&pid_")? + "&pid_".len();
+    let digits = lower.get(at..at + 4)?;
+    let after = lower.as_bytes().get(at + 4);
+    if after.is_some_and(u8::is_ascii_hexdigit) {
+        return None;
+    }
+    u16::from_str_radix(digits, 16).ok()
+}
+
+/// A Garmin device Windows Portable Devices lists, without its device ID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListedDevice {
+    pub product_id: Option<u16>,
+    /// WPD's description of the device (its driver's name for it, such as its model).
+    pub description: Option<String>,
 }
 
 /// What a failed WPD call's HRESULT means for the installer.
@@ -215,6 +236,25 @@ mod tests {
             assert_eq!(read_only_from_object_info(&data), Some(read_only));
         }
         assert_eq!(read_only_from_object_info(&[1, 2, 3]), None);
+    }
+
+    #[test]
+    fn the_product_id_comes_from_the_device_id() {
+        let id = r"\\?\usb#vid_091e&pid_4e77#0000c1234567#{6ac27878-a6fa-4155-ba85-f98f491d4f33}";
+        assert_eq!(product_id_from_device_id(id), Some(0x4E77));
+        assert_eq!(
+            product_id_from_device_id(r"\\?\USB#VID_091E&PID_4F1B#x"),
+            Some(0x4F1B)
+        );
+        assert_eq!(
+            product_id_from_device_id(r"\\?\usb#vid_091e&pid_4e7#x"),
+            None
+        );
+        assert_eq!(
+            product_id_from_device_id(r"\\?\usb#vid_091e&pid_4e77a#x"),
+            None
+        );
+        assert_eq!(product_id_from_device_id(r"\\?\swd#wpdbusenum#x"), None);
     }
 
     #[test]

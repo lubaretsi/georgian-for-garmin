@@ -267,6 +267,12 @@ class Watch:
         given = {"report": report, "busy": busy, "outcome": outcome, "answers": answers}
         return self.call("issue_link", {k: v for k, v in given.items() if v is not None})
 
+    def diagnose(self, events=None):
+        """`diagnose`: the diagnostic info we ask for (app, system, Garmin USB devices, the
+        connection, watch volumes, the watch report, `events` echoed), with `text` to send; no
+        serial number or watch ID. Read-only."""
+        return self.call("diagnose", {} if events is None else {"events": list(events)})
+
     def read_file(self, name, path, *, reveal_identifiers=False):
         """`read_file` (dev): the ExtData file `name` to the local `path`, which must not exist;
         a GarminDevice.xml's identifiers masked unless `reveal_identifiers`."""

@@ -131,8 +131,10 @@ impl Error {
         }
     }
 
-    /// `device_busy` with what is known about the holder, and the message for it.
+    /// `device_busy` with what is known about the holder, and the message for it. A product name
+    /// that looks like an identifier is dropped here, so no consumer sees it.
     pub fn busy(busy: Busy) -> Self {
+        let busy = busy.sanitized();
         let message = crate::busy::message(&busy);
         Error {
             busy: Some(Box::new(busy)),

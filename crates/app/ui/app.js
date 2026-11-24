@@ -117,7 +117,8 @@ function failure(e) {
 
 /**
  * What to do about a busy watch, from the core's `busy` (who holds it), in this platform's
- * words only. A holder kind without words of its own gets `other` when it has a name.
+ * words only: the holder kind's own words (`this_app` when this app itself still holds it), or
+ * `other` when it has a name, else `unknown`.
  */
 function busyText(busy) {
   const words = T.busy[platform];

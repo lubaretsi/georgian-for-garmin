@@ -72,6 +72,7 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …, "busy": …}` (`report` as `inspect --report --json` prints it; `busy` as a `device_busy` error gives it, alone for a watch that couldn't be read). Touches nothing. |
 | `extdata-list` | Lists every file in the watch's hidden `GARMIN/ExtData` folder: the normal listing plus, on watches that answer Garmin's `GetObjectIds` (0x9002), the files it leaves out (on the Venu 2 the read-only fonts the watch imported), with size, `hidden` and `read_only`. `--hash 006-D9035-03.fnt,…` reads those files and adds their SHA-256s. Pages with `--offset` and `--limit` (default 200); `--output-file FILE` writes the whole list as JSON instead. Read-only. |
 | `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait. Read-only. |
+| `diagnose` | Prints the diagnostic info we ask for when helping someone: app, system, the Garmin USB devices, what opening the watch gave, mounted watch volumes, the watch report, and the app's recent steps (`--input` `{"events": […]}`). No serial number or watch ID. `--save FILE` writes it to a new file instead; an existing file is never overwritten ([below](#diagnostic-info)). Read-only. |
 | `rpc` | Serves every command as JSON-RPC 2.0 on stdin and stdout, keeping the watch open between calls ([below](#sessions-rpc-and-mcp)). |
 | `mcp` | Serves every command as an MCP tool over stdio, with the official MCP SDK, keeping the watch open between calls. |
 
@@ -270,8 +271,9 @@ rollback the message says so and names the files: connect the watch, run Restore
 
 - `holder.kind`: `garmin_express`, `macos_camera_service` (`ptpcamerad`, which takes still-image
   devices for Photos and Image Capture), `desktop_mtp` (GNOME's `gvfsd-mtp`, KDE's `kiod`,
-  Android File Transfer, OpenMTP, MacDroid…), `other` (a program none of these lists knows) or
-  `unknown`. The known names are listed in one place, `crates/core/src/busy.rs`.
+  Android File Transfer, OpenMTP, MacDroid…), `this_app` (this very process: another of its
+  calls still has the watch open), `other` (a program none of these lists knows) or `unknown`.
+  The known names are listed in one place, `crates/core/src/busy.rs`.
 - macOS: the IOKit registry's `UsbExclusiveOwner` on the watch's `IOUSBHostInterface` (and its
   `IOUSBHostDevice`), `"pid 1234, name"`, read with `ioreg`; any user can read it. Process names
   there are cut to 16 bytes. `product_name` is the device's own `USB Product Name`, null for a
@@ -286,6 +288,58 @@ The message says how to free the watch on this system. For macOS's camera servic
 Image Capture, Preview and other photo importers, then unplug and reconnect the watch; if it is
 still busy, share the error in an issue so we can look. No Garmin watch has been seen held by it
 yet.
+
+## Diagnostic info
+
+When we help someone who can't use GitHub, we ask for the diagnostic info, which they attach to
+the conversation we're already having. Nothing is sent anywhere:
+
+```sh
+georgian-for-garmin diagnose --save diagnostics.txt
+```
+
+`--json` prints the whole output (`app`, `system`, `usb`, `connection`, `drives`, `watch`,
+`events`, `text`); `text` is what is saved and printed, the one format to read. Its first line
+says it holds no serial number or watch ID:
+
+```text
+Georgian for Garmin diagnostic info. It contains no serial number or watch ID.
+app 0.3.4 release
+system "Mac OS" 26.1.0 aarch64
+usb listed garmin_devices=1
+  device product_id=4e77 product=- mtp=yes interfaces=ff/ff/00 holder=garmin_express confirmed name="Garmin Express" pid=812
+connection device_busy message="Garmin Express (pid 812) is using the watch's USB connection. …"
+  busy garmin_express confirmed name="Garmin Express" pid=812 product_id=4e77 product=- interface=ff/ff/00
+drives listed watch_volumes=0
+watch -
+events 1
+  2026-11-24T03:14:05 poll device_busy model="Venu 2"
+```
+
+- `usb`: Garmin devices only (vendor `0x091E`), each with its product ID, product name,
+  interface classes and the program holding it, as far as the system tells; never a serial
+  number, never another vendor's device.
+- `connection`: opening the watch and reading its report, as `inspect` does: `ok`, or the error
+  code and message, with `busy` for `device_busy`. A device problem is data here; `diagnose`
+  fails only on invalid input. In `rpc`, `mcp` and the app it goes through the connection the
+  process already holds (a second open would find the watch busy); a one-shot command opens the
+  watch for that call. A holder whose pid is this process is `this_app`.
+- `drives`: mounted volumes with `GARMIN/GarminDevice.xml`, as `inspect-drive` finds them: the
+  volume's name (never its path), model, part number and software version.
+- `watch`: the watch report `issue-link` takes, when the connection worked; otherwise null.
+- `events`: the input's, as given: at most 50 of `{"time": "2026-11-24T03:14:05", "kind":
+  "poll"|"operation_start"|"operation_end"|"answer"|"share", "detail": "…", "model": "…"|null}`.
+  A detail or model that looks like an identifier (a run of 9 or more digits, or a word of 12 or
+  more letters and digits with 4 or more digits) is refused as `invalid_input`.
+
+Per platform, best effort; what a platform can't list is said in `usb.listed`/`usb.note` and
+`drives.listed`/`drives.note`, never as an error:
+
+- macOS: USB devices from IOKit; product names and holders from the IOKit registry (`ioreg`), as
+  for a [busy watch](#busy-watch).
+- Linux: USB devices from sysfs; holders from `/proc`, among this user's processes only.
+- Windows: the Garmin devices Windows Portable Devices lists, that is watches in MTP mode, with
+  their product ID and description; Windows says nothing about interfaces or holders.
 
 ## Troubleshooting
 
