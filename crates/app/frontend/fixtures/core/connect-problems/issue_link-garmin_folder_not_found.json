@@ -1,0 +1,21 @@
+{
+  "input": {
+    "error": {
+      "code": "garmin_folder_not_found",
+      "message": "The watch has no GARMIN/GarminDevice.xml."
+    }
+  },
+  "operation": "issue_link",
+  "output": {
+    "fields": [
+      {
+        "id": "report",
+        "value": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror garmin_folder_not_found \"The watch has no GARMIN/GarminDevice.xml.\"\n"
+      }
+    ],
+    "report_in_url": true,
+    "report_text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror garmin_folder_not_found \"The watch has no GARMIN/GarminDevice.xml.\"\n",
+    "title": "Problem: garmin_folder_not_found",
+    "url": "https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml&title=Problem%3A+garmin_folder_not_found&report=app+0.3.4+%22Mac+OS%22+15.6.1+aarch64%0Aerror+garmin_folder_not_found+%22The+watch+has+no+GARMIN%2FGarminDevice.xml.%22%0A"
+  }
+}

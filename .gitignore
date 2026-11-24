@@ -3,3 +3,9 @@
 /target/
 __pycache__/
 /.venv/
+/crates/app/frontend/node_modules/
+/crates/app/frontend/dist/
+/crates/app/frontend/storybook-static/
+/crates/app/frontend/.vitest-attachments/
+__screenshots__/
+*.tsbuildinfo

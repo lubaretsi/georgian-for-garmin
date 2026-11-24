@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "this_app",
+        "name": "Georgian for Gar",
+        "pid": 4100
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "This program already has the watch open for another operation. Wait for it to finish and try again; if the watch stays busy, quit every Georgian for Garmin window and start again."
+  },
+  "operation": "inspect"
+}

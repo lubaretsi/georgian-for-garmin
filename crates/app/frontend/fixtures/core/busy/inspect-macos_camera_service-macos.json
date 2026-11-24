@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "macos_camera_service",
+        "name": "ptpcamerad",
+        "pid": 512
+      },
+      "interface": {
+        "class": 6,
+        "protocol": 1,
+        "subclass": 1
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "macOS's camera service, ptpcamerad (pid 512), is using the watch's USB connection. Quit Photos, Image Capture, Preview and other apps that import photos, then unplug the watch and plug it back in. If it is still busy, please open an issue with this error at https://github.com/lubaretsi/georgian-for-garmin/issues so we can look."
+  },
+  "operation": "inspect"
+}

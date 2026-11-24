@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ka">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Georgian for Garmin</title>
+    <!-- The WebView check's message (below): plain CSS that any WebView draws. -->
+    <style>
+      .webview-too-old {
+        box-sizing: border-box;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        overflow: auto;
+        padding: 56px 28px 28px;
+        background: #f5f5f7;
+        color: #1d1d1f;
+        font: 14px/20px -apple-system, "Segoe UI", Cantarell, "Noto Sans Georgian", sans-serif;
+      }
+      .webview-too-old section {
+        max-width: 440px;
+        margin: 0 auto 28px;
+      }
+      .webview-too-old h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 26px;
+      }
+      .webview-too-old p {
+        margin: 0 0 8px;
+      }
+      @media (prefers-color-scheme: dark) {
+        .webview-too-old {
+          background: #1e1e1e;
+          color: #ececec;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      The WebView check. The app's styles (Tailwind 4) and script need the web engine of Safari
+      16.4 or later (WebKitGTK 2.40 on Linux; Windows' WebView2 updates itself): cascade layers,
+      @property, color-mix(), container queries and media range syntax. An older engine would
+      draw a broken window, so this plain script shows a short message in place of the app
+      instead, and main.tsx, finding no #root, starts nothing. Tested in src/webview-check.test.ts.
+    -->
+    <script id="webview-check">
+      (function (window, document) {
+        var css = window.CSS;
+        function supports(test) {
+          try {
+            return !!(css && css.supports && css.supports(test));
+          } catch (e) {
+            return false;
+          }
+        }
+        var missing = [];
+        if (typeof window.CSSLayerBlockRule === "undefined") missing.push("@layer");
+        if (!(css && typeof css.registerProperty === "function")) missing.push("@property");
+        if (!supports("color: color-mix(in srgb, red, blue)")) missing.push("color-mix()");
+        if (!supports("container-type: size")) missing.push("@container");
+        if (!(window.matchMedia && window.matchMedia("(width >= 0px)").matches)) missing.push("media range syntax");
+        if (missing.length === 0) return;
+
+        var mac = /Macintosh|Mac OS X/.test(window.navigator.userAgent);
+        var text = mac
+          ? {
+              ka: [
+                "პროგრამას macOS-ის განახლება სჭირდება",
+                "ეს პროგრამა macOS-ის ან Safari-ის უფრო ახალ ვერსიაზე მუშაობს: Safari 16.4 ან უფრო ახალი.",
+                "გახსენით System Settings (ძველ macOS-ზე System Preferences) › Software Update და დააყენეთ ყველა განახლება. Big Sur-სა და Monterey-ზე Safari-ის განახლება „More info…“-ში ჩანს. შემდეგ პროგრამა თავიდან გახსენით.",
+              ],
+              en: [
+                "The app needs a macOS update",
+                "Georgian for Garmin needs a newer macOS or Safari: Safari 16.4 or later.",
+                "Open System Settings (System Preferences on older macOS) › Software Update and install every update. On Big Sur and Monterey, Safari's update is under “More info…”. Then open the app again.",
+              ],
+            }
+          : {
+              ka: [
+                "პროგრამას სისტემის განახლება სჭირდება",
+                "ეს პროგრამა სისტემის ვებძრავის უფრო ახალ ვერსიაზე მუშაობს.",
+                "განაახლეთ სისტემა, შემდეგ პროგრამა თავიდან გახსენით.",
+              ],
+              en: [
+                "The app needs a system update",
+                "Georgian for Garmin needs a newer version of the system's web engine.",
+                "Update your system, then open the app again.",
+              ],
+            };
+
+        var message = document.createElement("main");
+        message.className = "webview-too-old";
+        message.setAttribute("data-missing", missing.join(", "));
+        ["ka", "en"].forEach(function (lang) {
+          var section = document.createElement("section");
+          section.lang = lang;
+          text[lang].forEach(function (line, i) {
+            var element = document.createElement(i === 0 ? "h1" : "p");
+            element.textContent = line;
+            section.appendChild(element);
+          });
+          message.appendChild(section);
+        });
+        var root = document.getElementById("root");
+        if (root) root.parentNode.replaceChild(message, root);
+        else document.body.appendChild(message);
+      })(window, document);
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

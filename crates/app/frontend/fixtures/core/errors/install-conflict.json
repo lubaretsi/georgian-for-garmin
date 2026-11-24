@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "conflict",
+    "message": "GARMIN/ExtData/006-D9035-03.fnt holds neither Garmin's original font nor a Georgian build of this program; this build replaces only those, so nothing was written. A .fnt is the font the watch imported and uses for that part: a new .tmp would replace it at the next restart."
+  },
+  "operation": "install"
+}

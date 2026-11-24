@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "internal",
+    "message": "install stopped unexpectedly: the task panicked"
+  },
+  "operation": "install"
+}

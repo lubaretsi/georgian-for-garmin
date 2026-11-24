@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "no_device",
+    "message": "No Garmin watch in USB file-transfer (MTP) mode was found. Connect it with a data cable."
+  },
+  "operation": "inspect"
+}

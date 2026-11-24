@@ -3,20 +3,34 @@
   "productName": "Georgian for Garmin",
   "identifier": "io.github.lubaretsi.georgian-for-garmin",
   "build": {
-    "frontendDist": "ui"
+    "frontendDist": "frontend/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": {
+      "script": "pnpm install --frozen-lockfile && pnpm dev",
+      "cwd": "frontend",
+      "wait": false
+    },
+    "beforeBuildCommand": {
+      "script": "pnpm install --frozen-lockfile && pnpm build",
+      "cwd": "frontend"
+    }
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "title": "Georgian for Garmin",
-        "width": 420,
-        "height": 680,
-        "resizable": false,
-        "maximizable": false,
+        "width": 480,
+        "height": 720,
+        "minWidth": 420,
+        "minHeight": 560,
+        "resizable": true,
         "fullscreen": false,
         "center": true,
-        "visible": false
+        "visible": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 20, "y": 24 }
       }
     ],
     "security": {

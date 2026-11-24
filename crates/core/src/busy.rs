@@ -351,25 +351,55 @@ pub(crate) fn windows() -> Holder {
         .unwrap_or_else(Holder::unknown)
 }
 
-/// Where Garmin Express keeps its helper on this system.
-const EXPRESS_HELPER: &str = if cfg!(windows) {
-    "its icon in the notification area"
-} else {
-    "its menu-bar icon"
-};
+/// The kind of computer a busy message is written for: its words for Garmin Express's helper
+/// and for the desktop's file access differ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum System {
+    Macos,
+    Windows,
+    Linux,
+}
+
+impl System {
+    /// The system this program runs on (other Unix systems read as macOS).
+    pub const fn current() -> System {
+        if cfg!(windows) {
+            System::Windows
+        } else if cfg!(target_os = "linux") {
+            System::Linux
+        } else {
+            System::Macos
+        }
+    }
+
+    /// Where Garmin Express keeps its helper.
+    const fn express_helper(self) -> &'static str {
+        match self {
+            System::Windows => "its icon in the notification area",
+            System::Macos | System::Linux => "its menu-bar icon",
+        }
+    }
+}
 
 /// The error message for `busy` on this system: who holds the watch and how to free it.
 pub fn message(busy: &Busy) -> String {
+    message_on(busy, System::current())
+}
+
+/// [`message`] as written for `system`.
+pub fn message_on(busy: &Busy, system: System) -> String {
+    let linux = system == System::Linux;
+    let helper = system.express_helper();
     let holder = &busy.holder;
     let who = holder.describe();
     let mut out = match holder.kind {
         HolderKind::GarminExpress if holder.confirmed => format!(
             "{who} is using the watch's USB connection. Quit Garmin Express, including \
-             {EXPRESS_HELPER}, and try again."
+             {helper}, and try again."
         ),
         HolderKind::GarminExpress => format!(
             "Another program is using the watch, and Garmin Express is running ({who}). Quit \
-             Garmin Express, including {EXPRESS_HELPER}, and try again."
+             Garmin Express, including {helper}, and try again."
         ),
         HolderKind::MacosCameraService => format!(
             "macOS's camera service, {who}, is using the watch's USB connection. Quit Photos, \
@@ -378,7 +408,7 @@ pub fn message(busy: &Busy) -> String {
              {} so we can look.",
             crate::report::ISSUES
         ),
-        HolderKind::DesktopMtp if cfg!(target_os = "linux") => format!(
+        HolderKind::DesktopMtp if linux => format!(
             "{who}, the desktop's file access, is using the watch's USB connection. On GNOME, \
              eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, run \
              `kquitapp6 kiod6`. Then try again."
@@ -390,7 +420,7 @@ pub fn message(busy: &Busy) -> String {
              operation. Wait for it to finish and try again; if the watch stays busy, quit \
              every Georgian for Garmin window and start again."
             .into(),
-        HolderKind::Unknown if cfg!(target_os = "linux") => "Another program is using the \
+        HolderKind::Unknown if linux => "Another program is using the \
              watch's USB connection, usually the desktop's file manager. On GNOME, eject the \
              watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 \
              kiod6`. Then try again."
@@ -607,5 +637,27 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    /// Each system's words, whatever system the test runs on: the same busy watch gets the
+    /// Linux desktop's steps only on Linux, and the notification area only on Windows.
+    #[test]
+    fn messages_are_written_for_the_system_given() {
+        let unknown = Busy::unknown();
+        let express = Busy {
+            holder: Holder::named("Garmin Express", Some(812), true),
+            ..Busy::unknown()
+        };
+        let linux = message_on(&unknown, System::Linux);
+        assert!(linux.contains("GNOME") && linux.contains("KDE"), "{linux}");
+        for system in [System::Macos, System::Windows] {
+            let text = message_on(&unknown, system);
+            assert!(!text.contains("GNOME"), "{text}");
+        }
+        assert!(message_on(&express, System::Windows).contains("notification area"));
+        for system in [System::Macos, System::Linux] {
+            assert!(message_on(&express, system).contains("menu-bar"));
+        }
+        assert_eq!(message(&unknown), message_on(&unknown, System::current()));
     }
 }

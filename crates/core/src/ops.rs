@@ -549,7 +549,9 @@ static OPERATIONS: [Operation; 8] = [
         description: "Make the GitHub new-issue link that fills the watch report form from a \
                       report (from inspect or inspect_drive), the last install or restore outcome \
                       and the owner's answers (what the test notification showed, where, phone, \
-                      beta marker). The report text is rebuilt from the report's allowlisted \
+                      beta marker). A watch that couldn't be read is reported from busy (who \
+                      held it) or error (what stopped the connection) alone, with this program \
+                      and computer. The report text is rebuilt from the report's allowlisted \
                       fields. If the link would pass 8000 characters, the report is left out of \
                       it, report_in_url is false, and the form's report field is left empty for \
                       a paste of report_text. Touches nothing.",

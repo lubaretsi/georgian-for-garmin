@@ -7,34 +7,40 @@ it and submits it.
 
 ## In the app
 
-1. After **Install Georgian** the restart screen has **Check on the watch**. Connecting a watch
-   that already has Georgian brings it back: on a model and software no one has confirmed yet
-   it is the main screen's main action (after the restart, while Georgian still waits for one),
-   and on a confirmed one a quiet **Didn't work? Check on the watch**. On a watch not confirmed
-   yet, the restart and check screens say why a check matters, naming the model.
+1. After **Install Georgian** the app guides the restart and, when the watch is connected
+   again, checks that it loaded the font. The result screen then offers **Check on the watch**
+   on a model and software no one has confirmed yet, and an optional **Send a test
+   notification** on a confirmed one. Connecting a watch that already has Georgian brings the
+   check back: the main action on a watch not confirmed yet, a quiet **Didn't work? Check on
+   the watch** on a confirmed one. The screens say why a check matters, naming the model.
 2. The check screen shows a QR code for the [phone test page](#the-phone-test-page) (drawn in the
-   app, without the network) and the test text to send yourself instead.
-3. One tap per question: what the watch showed (Georgian letters, boxes, question marks, some of each, the
-   notification didn't arrive, Georgian didn't install), where Georgian showed (pop-up,
-   notification list, opened notification), the phone (Android or iPhone), and in beta builds
-   which [test mark](#beta-test-marks) the watch showed, from pictures of the marks the app
-   installed.
-4. **What's shared** shows the exact report text before anything opens. **Share on GitHub** opens
-   the form with every field filled in. On a watch already confirmed on its model and software
-   (`tested`), the screen says so and the button becomes the secondary **Didn't work? Share on
-   GitHub**: only a failure is news there. Once the form is open, the screen says what happens
-   next: when Georgian showed on a watch not confirmed yet, that the next version lists it as
-   tested once the report is posted; otherwise, that the maintainer looks into it and replies on
-   GitHub.
+   app, without the network) and the test text to send yourself instead; **I sent it** moves on.
+3. One tap per question: what the watch showed (Georgian letters, boxes, question marks, some of
+   each, nothing arrived), where letters showed (pop-up, notification list, opened notification;
+   optional), the phone (Android or iPhone, optional), and in beta builds which
+   [test mark](#beta-test-marks) the watch showed, from pictures of the marks the app installed.
+4. The outcome follows from the answer. Georgian on a confirmed watch: a thank-you, nothing to
+   share. Georgian on a watch no one has confirmed: **Share the result**. Boxes, question marks
+   or some of each: **Restart once more** first, then **Share the result**. Nothing arrived: how
+   to set up the phone, then the check again.
+5. The share screen lists what's shared (no serial number or watch ID) and shows the exact report
+   text under **Show the exact text**; **Open GitHub** opens the form with every field filled in.
+   Then the screen says what happens next: when Georgian showed on a watch not confirmed yet,
+   that the next version lists it as confirmed once the report is posted; otherwise, that the
+   maintainer looks into it and replies on GitHub.
 
 The same form is used by:
 
-- **Share my watch's font list** on the main screen, only when a report from the watch adds
+- **Share the font list** on the watch screen, only when a report from the watch adds
   information (report only, no answers; see below);
-- **Report this on GitHub** on the error screen after a failed install or restore (the error code
-  is in the report);
+- **Report this problem** on the error and connect-problem screens (the error code is in the
+  report), and **Still stuck? Share what the app found** while another program holds the watch;
 - the screen for watches that connect as a [USB drive](#watches-that-connect-as-a-usb-drive),
   under the same rule.
+
+For a conversation outside GitHub, **More › Diagnostic info** saves or copies what the app sees
+(app, system, Garmin devices, the connection, recent steps; no serial number or watch ID); nothing
+is sent.
 
 ### When the app asks
 

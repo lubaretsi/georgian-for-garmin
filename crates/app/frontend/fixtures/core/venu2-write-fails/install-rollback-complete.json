@@ -1,0 +1,24 @@
+{
+  "error": {
+    "code": "device_error",
+    "message": "SendObject failed: GeneralError (0x2002). A new object was created as GARMIN/ExtData/006-D9035-02.tmp (0x01000116) and has been deleted. Rolled back the files this run had staged: GARMIN/ExtData/006-D9035-01.tmp (0x01000115) deleted. Files staged before this run were left in place.",
+    "rollback": {
+      "files": [
+        {
+          "action": "delete",
+          "done": true,
+          "path": "GARMIN/ExtData/006-D9035-02.tmp",
+          "result": "GARMIN/ExtData/006-D9035-02.tmp (0x01000116) deleted"
+        },
+        {
+          "action": "delete",
+          "done": true,
+          "path": "GARMIN/ExtData/006-D9035-01.tmp",
+          "result": "GARMIN/ExtData/006-D9035-01.tmp (0x01000115) deleted"
+        }
+      ],
+      "status": "complete"
+    }
+  },
+  "operation": "install"
+}

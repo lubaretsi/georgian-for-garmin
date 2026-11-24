@@ -1,0 +1,22 @@
+{
+  "error": {
+    "busy": {
+      "holder": {
+        "confirmed": false,
+        "kind": "unknown",
+        "name": null,
+        "pid": null
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    },
+    "code": "device_busy",
+    "message": "Another program is using the watch's USB connection, usually the desktop's file manager. On GNOME, eject the watch in Files (or `gio mount -u` its mtp:// address); on KDE, run `kquitapp6 kiod6`. Then try again."
+  },
+  "operation": "inspect"
+}

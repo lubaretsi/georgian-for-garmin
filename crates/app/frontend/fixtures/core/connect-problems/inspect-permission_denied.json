@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "permission_denied",
+    "message": "open the watch: permission denied (Permission denied (os error 13)). Let your user open Garmin devices, then reconnect the watch:\n  echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"091e\", MODE=\"0660\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/70-georgian-for-garmin.rules && sudo udevadm control --reload\nThat is the rule shipped as 70-georgian-for-garmin.rules."
+  },
+  "operation": "inspect"
+}

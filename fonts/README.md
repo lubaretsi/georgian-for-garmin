@@ -66,20 +66,27 @@ this build installs, each part the version the watch declares and Garmin's catal
 | ---- | ----- | --- |
 | `korean-nanum-gothic-medium-compressed` | `006-D8945-67` 17 px, `-68` 22 px, 2.00, Compressed | Lily 2 Active (5.10) |
 | `korean-nanum-gothic-medium` | `006-D8945-22` 27 px, 2.10 | Venu 1st gen (7.80) |
-| `korean-nanum-gothic-bold` | `006-D8945-07` 19 px, 2.20 | Instinct 3 AMOLED 50mm and 45mm |
+| `korean-nanum-gothic-bold` | `006-D8945-07` 19 px, 2.20 | Restore only (Instinct 3 AMOLED 50mm and 45mm) |
 
 Which Korean size a notification uses is known only for the Venu 2, whose pop-up drew from the
 27 px part (`fallback-models.json`). So the packs carry few sizes, to keep the app small: the
-Venu 1st gen gets that same 27 px part, the Lily 2 Active both its sizes, and the Instinct 3 its
-19 px text font, which both sizes declare; the large data-screen fonts ("DB … Size 30–69") are
-left out. Garmin's catalog serves each part at one version: where a watch declares another, the
-part is left out, since install would find an import it doesn't recognise and refuse. The
-Instinct 3 declares `-11`, `-13`, `-15`, `-16` at
-2.30 (`-09`, `-10`, `-12`, `-65` on the 45mm, at 2.30, 2.40 and 2.10) and `-63`, `-64` at 2.10,
-where the catalog serves 2.20 and 2.00, and #33's imports of those differ in size from the
-catalog's files; its `-07` matches in version and in size (1823701 bytes). The Venu 1st gen
-declares its Korean fonts at 0.01, below any release, so `-22` is packed at the catalog's 2.10,
-what Garmin Express would install. None of these packs has been installed on a watch.
+Venu 1st gen gets that same 27 px part, the Lily 2 Active both its sizes; the large data-screen
+fonts ("DB … Size 30–69") are left out. Garmin's catalog serves each part at one version: where
+a watch declares another, the part is left out, since install would find an import it doesn't
+recognise and refuse. The Venu 1st gen declares its Korean fonts at 0.01, below any release, so
+`-22` is packed at the catalog's 2.10, what Garmin Express would install. Neither of the
+installable packs has been installed on a watch.
+
+`korean-nanum-gothic-bold` is `install: false`. 0.3.4 installed it on the Instinct 3 AMOLED: its
+19 px text font, which both sizes declare at 2.20, the version the catalog serves, with the size
+of #33's import (1823701 bytes); its other Korean parts are declared at versions the catalog
+doesn't serve (`-11`, `-13`, `-15`, `-16` at 2.30 and `-63`, `-64` at 2.10 on the 50mm; `-09`,
+`-10`, `-12`, `-65` at 2.30, 2.40 and 2.10 on the 45mm), and #33's imports of those differ in
+size from the catalog's files. On two 45mm watches (16.12) install wrote and verified the font,
+and after the restart notifications still showed boxes and question marks
+([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), #55). Whether the watch
+imported it is unknown. The pack stays, with its pinned hashes, so Restore original font puts
+Garmin's font back where 0.3.4 installed it.
 
 "Compressed" fonts (header flags `0x0603` instead of `0x0403`) store each glyph as the
 Connect IQ SDK's per-glyph RLE stream of its plain bitmap; the codec reads both and writes each
@@ -122,7 +129,7 @@ before anyone has confirmed it. Its fields:
 
 | Field        | Value |
 | ------------ | ----- |
-| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters. `bitmap_korean`: the model's own report declares Garmin's Korean bitmap fonts (`006-D8945`) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the Korean 27 px font `006-D8945-22`, plain and re-encoded as Compressed, rendered natively in notifications. Today the Venu (1st gen), both Instinct 3 AMOLED and the Lily 2 Active |
+| `family`     | `noto_truetype`: Garmin's [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/) lists Noto Sans Armenian (`NotoSansArmenian-Bold`/`-Regular`, Garmin's `006-D9971-08/-09`) among the model's scalable fonts, the fonts Georgian works through on the Forerunner 165. `bitmap_armenian`: the model gets the same firmware as a tested model with bitmap Armenian (`006-D9035`); today only the fenix 7 family (fenix 7 / 7S / 7X and their Pro, epix (Gen 2) and Pro, MARQ (Gen 2), D2 Mach 1), whose 10.43 notes add Armenian characters. `bitmap_korean`: the model's own report declares Garmin's Korean bitmap fonts (`006-D8945`) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to the Korean 27 px font `006-D8945-22`, plain and re-encoded as Compressed, rendered natively in notifications. Today the Venu (1st gen) and the Lily 2 Active; the Instinct 3 AMOLED was predicted so until Georgian in its Korean 19 px font didn't show (#57) |
 | `confidence` | `high`, the only value allowed: a weaker guess stays out of the list |
 | `basis`      | Why, in a sentence. When one device page gives one name to several part numbers, `model` is that page's name and `basis` says so; don't guess which part is which |
 | `source`     | The device reference page, `firmware family of <model>` naming a tested model in this list, the GitHub issue whose watch report declares the font, or `a watch report emailed to the maintainer` (the report's fixture is in `crates/core/tests/reports`) |
@@ -323,9 +330,11 @@ install exactly what stable builds do: a beta never installs a font family no wa
 confirmed ([Host families](#host-families)). Swiss 721 Hebrew (`hebrew-swiss-721-truetype`) is
 `false`: on a fenix 6S Pro our font reached the watch (the hidden listing showed
 `006-D0952-07/-08.bin ro georgian_beta`), its Georgian Unicode range bit was set, and the watch
-still drew question marks (#6). Every build still restores a pack it doesn't install, whatever
-host install chooses on that watch, and recognizes its Georgian builds, so a beta tester can put
-Garmin's originals back.
+still drew question marks (#6). Korean Nanum Gothic Bold (`korean-nanum-gothic-bold`) is `false`:
+on the Instinct 3 AMOLED install wrote it and after the restart Georgian still didn't show in
+notifications (#57, [Korean packs](#korean-packs)). Every build still restores a pack it doesn't
+install, whatever host install chooses on that watch, and recognizes its Georgian builds, so a
+beta tester, or anyone an earlier release installed it for, can put Garmin's originals back.
 
 ### Earlier builds
 
@@ -356,7 +365,7 @@ chance that the font the firmware searches has Georgian.
 | Venu 3, Venu 3S (17.05)                          | `006-D9971-09`, `006-D1053-96/-98`, CJK, Thai          | `006-D9971-09`, `006-D1053-98`                      |
 | Forerunner 165, 165 Music (29.52)                | `006-D9971-08/-09`, `006-D1053-96..99`, CJK, Thai      | `006-D9971-08/-09`, `006-D1053-98/-99`              |
 | fenix 6 Pro Solar, 6S Pro, 6X Pro (28.02)        | `006-D0952-05..08`                                     | none; `006-D0952-07/-08` restore only               |
-| Instinct 3 AMOLED 50mm (15.19), 45mm (16.12)     | `006-D0952-05..08`, `006-D9971-00..03`                 | none; `006-D0952-07/-08` restore only               |
+| Instinct 3 AMOLED 50mm (15.19), 45mm (16.12)     | `006-D0952-05..08`, `006-D9971-00..03`                 | none; `006-D0952-07/-08` (and its Korean `006-D8945-07`) restore only |
 | fenix 7 Pro Solar (26.09), also bitmap Armenian  | `006-D0952-05..08`, `006-D9971-00..03`                 | its bitmap Armenian parts only                      |
 
 - **Noto Sans Armenian** (`armenian-noto-sans-armenian-truetype`: `006-D9971-09` Regular,
@@ -429,8 +438,9 @@ order files are written in:
    bitmap Armenian packs.
 5. `hebrew-noto-sans-hebrew-truetype`.
 6. `hebrew-swiss-721-truetype`, restore-only.
-7. `korean-nanum-gothic-medium-compressed`, `korean-nanum-gothic-medium`,
-   `korean-nanum-gothic-bold`: last, for watches that list none of the above.
+7. `korean-nanum-gothic-medium-compressed`, `korean-nanum-gothic-medium`: last, for watches that
+   list none of the above.
+8. `korean-nanum-gothic-bold`, restore-only.
 
 ## Test marks
 

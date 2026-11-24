@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The app has a new design: a guided Connect → Install → Restart → Check journey in Georgian
+  and English, with one main action per screen. After installing or restoring, the app guides
+  you through restarting the watch and checks on its own that the watch loaded the font. The
+  window is resizable, with the title bar part of the app on macOS.
+- More › Diagnostic info: what the app sees of the watch and the computer, with no serial number
+  or watch ID, saved to your Downloads folder or copied, for when we ask for it. Nothing is sent.
+- On a Mac whose Safari is older than 16.4 (macOS Big Sur or Monterey without the Safari
+  update), the app shows in Georgian and English how to update instead of a broken window; on
+  Linux it asks for a system update.
+- A user who already shared a result for their watch and software is thanked instead of asked
+  again.
+- For developers, the app's UI is `crates/app/frontend` (React, TypeScript, Vite), replacing
+  `crates/app/ui/`, with Storybook, where every screen and the Connect → Install → Restart →
+  Check flows run over a simulated watch built from the core's real results
+  ([development](docs/development.md#frontend-and-storybook)). The demo build's watch waits for
+  you: a Demo watch bar unplugs, restarts, plugs in or holds it. `nix develop` has Node and pnpm;
+  `crates/core/tests/ui_fixtures.rs` writes and checks the fixtures; CI generates the core's
+  TypeScript types, typechecks, and runs the flow and story tests in Chromium and WebKit with
+  axe; releases build the frontend once and embed it.
 - `georgian-for-garmin diagnose` (and the `diagnose` operation in `rpc` and `mcp`) gathers the
   diagnostic info we ask for when helping someone who can't use GitHub: app version and build,
   system, the Garmin USB devices with what holds them, what opening the watch gave, mounted watch
@@ -17,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([command line](docs/command-line.md#diagnostic-info)).
 - A busy watch held by this very process names it as `this_app` instead of another program, and
   the app says so in its own words: wait for the step to finish, or close and reopen the app.
+- `issue-link` (and the `issue_link` operation) takes an `error` alone, as it takes `busy`
+  alone: a report of what stopped the connection, with the app and the computer and no watch.
+  Words of the message that look like identifiers are left out.
+
+### Changed
+
+- Instinct 3 AMOLED: Georgian added to its Korean font didn't show in notifications
+  ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57)), so the app no longer
+  installs there; Restore original font puts Garmin's font back. Both sizes (50mm and 45mm) are
+  listed as not working, and the Korean pack it got (`korean-nanum-gothic-bold`,
+  `006-D8945-07`) is restore-only. The demo build's Instinct 3 is a 45mm with that font to
+  restore.
 
 ### Fixed
 

@@ -431,18 +431,35 @@ pub struct Answers {
     pub connect_version: Option<String>,
 }
 
+/// An error that stopped this program before it could read the watch, as `issue_link` takes
+/// it alone: the error's code and message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReportedError {
+    pub code: ErrorCode,
+    /// The error's message; shared on one line, with each word that looks like an identifier
+    /// replaced by `(id)`.
+    #[schemars(length(max = 2000))]
+    pub message: String,
+}
+
 /// `issue_link`'s input.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueLinkInput {
     /// The `report` from `inspect` or `inspect_drive`. Its `title` and `text` are ignored and
-    /// rebuilt from the other fields. Absent for a watch another program held before it could
-    /// be read: then `busy` is needed, and `outcome` and `answers` aren't taken.
+    /// rebuilt from the other fields. Absent for a watch that couldn't be read: then exactly
+    /// one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
     #[serde(default)]
     pub report: Option<WatchReport>,
     /// `device_busy`'s `busy`: who held the watch. Adds the report's `busy` line.
     #[serde(default)]
     pub busy: Option<Busy>,
+    /// The error that stopped this program before it could read the watch (connecting failed
+    /// for a reason other than a busy watch). Only without `report` and `busy`: the report then
+    /// holds this program, the computer and the error.
+    #[serde(default)]
+    pub error: Option<ReportedError>,
     /// The last install or restore on this watch, if any.
     #[serde(default)]
     pub outcome: Option<Outcome>,
@@ -474,6 +491,16 @@ pub struct FormField {
 
 /// The new-issue link for `input`.
 pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
+    issue_link_on(input, APP_VERSION, &Platform::current())
+}
+
+/// [`issue_link`] as made by app `app_version` on `platform`, which only a report of a busy
+/// watch that couldn't be read takes from here (a watch report carries its own).
+pub fn issue_link_on(
+    input: &IssueLinkInput,
+    app_version: &str,
+    platform: &Platform,
+) -> Result<IssueLink, Error> {
     if let Some(outcome) = &input.outcome
         && outcome.status.is_some() == outcome.error.is_some()
     {
@@ -483,8 +510,12 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
         ));
     }
     let answers = input.answers.as_ref();
-    let (title, report_text) = match (&input.report, &input.busy) {
-        (Some(report), busy) => {
+    let invalid = |message: &str| Err(Error::new(ErrorCode::InvalidInput, message));
+    let (title, report_text) = match (&input.report, &input.busy, &input.error) {
+        (Some(_), _, Some(_)) | (_, Some(_), Some(_)) => {
+            return invalid("error is for a watch that couldn't be read: without report and busy");
+        }
+        (Some(report), busy, None) => {
             let mut text = text(report, input.outcome.as_ref(), answers);
             if let Some(busy) = busy {
                 // After the `app` and `connection` lines.
@@ -496,21 +527,15 @@ pub fn issue_link(input: &IssueLinkInput) -> Result<IssueLink, Error> {
             }
             (title(report), text)
         }
-        (None, Some(busy)) => {
-            if input.outcome.is_some() || answers.is_some() {
-                return Err(Error::new(
-                    ErrorCode::InvalidInput,
-                    "outcome and answers need a report",
-                ));
-            }
-            (busy_title(busy), busy_text(busy))
+        (None, None, None) => return invalid("issue_link needs a report, busy, or error"),
+        (None, _, _) if input.outcome.is_some() || answers.is_some() => {
+            return invalid("outcome and answers need a report");
         }
-        (None, None) => {
-            return Err(Error::new(
-                ErrorCode::InvalidInput,
-                "issue_link needs a report, busy, or both",
-            ));
-        }
+        (None, Some(busy), None) => (busy_title(busy), busy_text(busy, app_version, platform)),
+        (None, None, Some(error)) => (
+            format!("Problem: {}", error.code.as_str()),
+            error_text(error, app_version, platform),
+        ),
     };
     let mut fields: Vec<(&str, String)> = Vec::new();
     if let Some(answers) = answers {
@@ -672,15 +697,40 @@ pub(crate) fn busy_line(busy: &Busy) -> String {
 
 /// The report field's text for a busy watch that couldn't be read: this program and computer,
 /// and the `busy` line.
-fn busy_text(busy: &Busy) -> String {
-    let p = Platform::current();
+fn busy_text(busy: &Busy, app_version: &str, p: &Platform) -> String {
     format!(
         "app {} {} {} {}\n{}\n",
-        column(APP_VERSION),
+        column(app_version),
         column(&p.os),
         column(&p.os_version),
         column(&p.arch),
         busy_line(busy)
+    )
+}
+
+/// The report field's text for an error that stopped this program before it read the watch:
+/// this program and computer, and `error <code> <message>`, the message on one line with words
+/// that look like identifiers replaced by `(id)`.
+fn error_text(error: &ReportedError, app_version: &str, p: &Platform) -> String {
+    let message: Vec<&str> = error
+        .message
+        .split_whitespace()
+        .map(|word| {
+            if looks_like_identifier(word) {
+                "(id)"
+            } else {
+                word
+            }
+        })
+        .collect();
+    format!(
+        "app {} {} {} {}\nerror {} {}\n",
+        column(app_version),
+        column(&p.os),
+        column(&p.os_version),
+        column(&p.arch),
+        error.code.as_str(),
+        column(&message.join(" "))
     )
 }
 
@@ -965,6 +1015,7 @@ mod tests {
         IssueLinkInput {
             report: Some(report),
             busy: None,
+            error: None,
             outcome: Some(Outcome {
                 operation: StageOperation::Install,
                 status: Some(StageStatus::StagedVerified),
@@ -994,6 +1045,7 @@ mod tests {
         let link = issue_link(&IssueLinkInput {
             report: None,
             busy: Some(busy()),
+            error: None,
             outcome: None,
             answers: None,
         })
@@ -1044,7 +1096,42 @@ mod tests {
     }
 
     #[test]
-    fn issue_link_needs_a_report_or_busy() {
+    fn an_error_is_reported_alone_without_identifiers() {
+        let link = issue_link_on(
+            &IssueLinkInput {
+                report: None,
+                busy: None,
+                error: Some(ReportedError {
+                    code: ErrorCode::GarminFolderNotFound,
+                    message: "The watch has no\nGARMIN folder (unit 3998765432).".into(),
+                }),
+                outcome: None,
+                answers: None,
+            },
+            "0.3.4",
+            &Platform {
+                os: "Mac OS".into(),
+                os_version: "15.6.1".into(),
+                arch: "aarch64".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(link.title, "Problem: garmin_folder_not_found");
+        assert_eq!(
+            link.report_text,
+            "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror garmin_folder_not_found \"The watch has \
+             no GARMIN folder (unit (id)\"\n"
+        );
+        assert!(link.report_in_url);
+        assert!(query(&link.url).contains(&("report".into(), link.report_text.clone())));
+    }
+
+    #[test]
+    fn issue_link_needs_a_report_busy_or_error() {
+        let error = ReportedError {
+            code: ErrorCode::Internal,
+            message: "failed".into(),
+        };
         let mut nothing = input(report(), None);
         nothing.report = None;
         nothing.outcome = None;
@@ -1052,14 +1139,31 @@ mod tests {
             issue_link(&nothing).unwrap_err().code,
             ErrorCode::InvalidInput
         );
-        // A busy watch was never read: no outcome, no answers.
-        let mut outcome = input(report(), None);
-        outcome.report = None;
-        outcome.busy = Some(busy());
-        assert_eq!(
-            issue_link(&outcome).unwrap_err().code,
-            ErrorCode::InvalidInput
-        );
+        // A watch that was never read: no outcome, no answers.
+        for (busy, error) in [(Some(busy()), None), (None, Some(error.clone()))] {
+            let mut outcome = input(report(), None);
+            outcome.report = None;
+            outcome.busy = busy;
+            outcome.error = error;
+            assert_eq!(
+                issue_link(&outcome).unwrap_err().code,
+                ErrorCode::InvalidInput
+            );
+        }
+        // An error goes alone: never with a report or with busy.
+        let mut with_report = input(report(), None);
+        with_report.error = Some(error.clone());
+        let mut with_busy = input(report(), None);
+        with_busy.report = None;
+        with_busy.outcome = None;
+        with_busy.busy = Some(busy());
+        with_busy.error = Some(error);
+        for invalid in [with_report, with_busy] {
+            assert_eq!(
+                issue_link(&invalid).unwrap_err().code,
+                ErrorCode::InvalidInput
+            );
+        }
     }
 
     #[test]

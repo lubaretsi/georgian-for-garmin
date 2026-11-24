@@ -61,7 +61,8 @@
         GFG_CATALOG_DIR = farm pkgs "garmin-catalog-fonts" catalogParts;
       };
 
-      python = pkgs: pkgs.python3.withPackages (ps: with ps; [ fonttools jsonschema pillow pytest ]);
+      builderPythonPackages = ps: with ps; [ fonttools jsonschema pillow pytest ];
+      python = pkgs: pkgs.python3.withPackages builderPythonPackages;
 
       # Pre-release versions (with a `-` identifier, e.g. 0.3.0-beta.1) build fonts with beta
       # test marks (fonts/README.md, Test marks); releases build the fonts tested on watches.
@@ -158,13 +159,17 @@
         default = pkgs.mkShell ((catalogInputs pkgs) // {
           GEORGIAN_FOR_GARMIN_FONTS = self.packages.${pkgs.stdenv.hostPlatform.system}.fonts;
           packages = with pkgs; [
-            (python pkgs)
+            # The builder's packages, plus brotli for the frontend's woff2 fonts (pnpm gen:glyphs).
+            (pkgs.python3.withPackages (ps: builderPythonPackages ps ++ [ ps.brotli ]))
             cargo
             rustc
             rustfmt
             clippy
             cargo-tauri
             pkg-config
+            # The app's frontend (crates/app/frontend): Vite, Storybook and Vitest.
+            nodejs
+            pnpm
           ];
           # Tauri's Linux backend (GTK and WebKitGTK), to build and test the app on Linux.
           buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [

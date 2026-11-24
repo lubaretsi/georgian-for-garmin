@@ -1,0 +1,21 @@
+{
+  "input": {
+    "error": {
+      "code": "internal",
+      "message": "inspect stopped unexpectedly: the task panicked"
+    }
+  },
+  "operation": "issue_link",
+  "output": {
+    "fields": [
+      {
+        "id": "report",
+        "value": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror internal \"inspect stopped unexpectedly: the task panicked\"\n"
+      }
+    ],
+    "report_in_url": true,
+    "report_text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror internal \"inspect stopped unexpectedly: the task panicked\"\n",
+    "title": "Problem: internal",
+    "url": "https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml&title=Problem%3A+internal&report=app+0.3.4+%22Mac+OS%22+15.6.1+aarch64%0Aerror+internal+%22inspect+stopped+unexpectedly%3A+the+task+panicked%22%0A"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "input": {
+    "busy": {
+      "holder": {
+        "confirmed": true,
+        "kind": "garmin_express",
+        "name": "Garmin Express",
+        "pid": 812
+      },
+      "interface": {
+        "class": 255,
+        "protocol": 0,
+        "subclass": 255
+      },
+      "product_id": 20087,
+      "product_name": null
+    }
+  },
+  "operation": "issue_link",
+  "output": {
+    "fields": [
+      {
+        "id": "report",
+        "value": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nbusy garmin_express confirmed name=\"Garmin Express\" pid=812 product_id=4e77 product=- interface=ff/ff/00\n"
+      }
+    ],
+    "report_in_url": true,
+    "report_text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nbusy garmin_express confirmed name=\"Garmin Express\" pid=812 product_id=4e77 product=- interface=ff/ff/00\n",
+    "title": "Busy watch: USB product 4e77, held by Garmin Express",
+    "url": "https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml&title=Busy+watch%3A+USB+product+4e77%2C+held+by+Garmin+Express&report=app+0.3.4+%22Mac+OS%22+15.6.1+aarch64%0Abusy+garmin_express+confirmed+name%3D%22Garmin+Express%22+pid%3D812+product_id%3D4e77+product%3D-+interface%3Dff%2Fff%2F00%0A"
+  }
+}

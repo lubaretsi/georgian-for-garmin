@@ -71,6 +71,8 @@ a watch's issue for updates.
 | Forerunner 245 Music | 13.70 | Doesn't work ([#10](https://github.com/lubaretsi/georgian-for-garmin/issues/10)). Its only optional fonts are emoji fonts, which have no letters to add Georgian to. |
 | fenix 5 | 25.00 | Doesn't work ([#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30), [#29](https://github.com/lubaretsi/georgian-for-garmin/issues/29)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
 | Instinct 2 Solar Tactical | 17.22 | Doesn't work ([#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
+| Instinct 3 AMOLED 50mm | 15.19, 16.12 | Doesn't work ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), [#8](https://github.com/lubaretsi/georgian-for-garmin/issues/8), [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33)). Georgian added to its Korean 19 px font didn't show in notifications. |
+| Instinct 3 AMOLED 45mm | 16.12 | Doesn't work ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), [#55](https://github.com/lubaretsi/georgian-for-garmin/issues/55), [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23)). Georgian added to its Korean 19 px font didn't show in notifications. |
 <!-- /watches -->
 
 Where Georgian showed: on the Venu 2, Forerunner 165, Forerunner 255, fenix 7 Pro and epix Pro
@@ -93,12 +95,15 @@ Watches without Garmin's Armenian bitmap fonts get Georgian in their TrueType Ar
 fonts (Noto Sans Armenian, Noto Sans Hebrew) instead; the Forerunner 165 is the first confirmed
 one. On the fenix 6 family the watch had our font but didn't use it for Georgian, so no build
 installs there; the app still puts Garmin's fonts back
-([How it works](docs/how-it-works.md#truetype-fonts)). The Venu (1st gen), Instinct 3 AMOLED and
-Lily 2 Active have no Armenian font this project can use, but their reports list Garmin's Korean
-bitmap fonts, and on the maintainer's Venu 2 Georgian added to a Korean font showed in
-notifications. So the app adds Georgian to one or two of their Korean fonts; no one has
-installed it on these models yet, and restoring the original fonts is untested there too. They
-are listed [below](#likely-to-work-not-confirmed).
+([How it works](docs/how-it-works.md#truetype-fonts)). The Venu (1st gen) and Lily 2 Active have
+no Armenian font this project can use, but their reports list Garmin's Korean bitmap fonts, and
+on the maintainer's Venu 2 Georgian added to a Korean font showed in notifications. So the app
+adds Georgian to one or two of their Korean fonts; no one has installed it on these models yet,
+and restoring the original fonts is untested there too. They are listed
+[below](#likely-to-work-not-confirmed). On the Instinct 3 AMOLED, Georgian added to its Korean
+19 px font didn't show in notifications
+([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57)), so the app no longer
+installs there; **Restore original font** puts Garmin's font back.
 
 ### Likely to work, not confirmed
 
@@ -151,8 +156,6 @@ Where one Garmin page names several models, the row shows that name.
 |  | Forerunner 955 / Solar | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr955.html) |
 |  | Forerunner 965 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr965.html) |
 |  | Forerunner 970 | [Connect IQ device reference](https://developer.garmin.com/connect-iq/articles/device-reference/fr970.html) |
-| Instinct | Instinct 3 AMOLED 50mm | Korean bitmap fonts in its watch report ([#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33)) |
-|  | Instinct 3 AMOLED 45mm | Korean bitmap fonts in its watch report ([#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23)) |
 | Lily | Lily 2 Active | Korean bitmap fonts in its watch report, emailed to the maintainer |
 | MARQ | MARQ (Gen 2) Athlete / Adventurer / Captain / Golfer / Carbon Edition / Commander - Carbon Edition | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
 |  | MARQ (Gen 2) Aviator | Firmware family of the tested fenix 7 Pro Solar, Pro Sapphire Solar |
@@ -179,7 +182,7 @@ and connects by USB. A lent watch comes back with Garmin's original fonts.
 | Newer Noto TrueType fonts | fenix 8, Venu 4, MARQ (Gen 3) | Same fonts as the Forerunner 165, but nobody has seen Georgian on them yet | Needed |
 | Hebrew and Arabic fonts only | fenix 6 Pro / 6S Pro / 6X Pro | Find out why they show question marks | Needed |
 | No fonts to extend | Forerunner 245 / 245 Music, Instinct 2 | Look for any font the watch uses | Needed |
-| Korean bitmap fonts | Venu (1st gen), Instinct 3 AMOLED, Lily 2 Active | Georgian showed in a Korean font on the Venu 2; install and restore on these models are untested | Needed |
+| Korean bitmap fonts | Venu (1st gen), Lily 2 Active, Instinct 3 AMOLED | Georgian showed in a Korean font on the Venu 2 but not on the Instinct 3 AMOLED; install and restore on the Venu and Lily 2 Active are untested | Needed |
 
 ქართულად: თუ გაქვთ საათი ჯგუფიდან, რომელსაც აწერია **Needed**, და შეგიძლიათ გვაჩუქოთ ან თბილისში
 რამდენიმე დღით გვათხოვოთ, მოგვწერეთ: george@lubaretsi.com.
@@ -191,7 +194,7 @@ You need your watch's USB data cable. Download the app for your computer from
 
 | Computer | Download, then |
 |---|---|
-| Mac, macOS 11 or later | `Georgian-for-Garmin-macos.zip`: unzip it and open **Georgian for Garmin** |
+| Mac, macOS 11 or later with Safari 16.4 or later | `Georgian-for-Garmin-macos.zip`: unzip it and open **Georgian for Garmin** |
 | Windows 10 or 11 | `Georgian-for-Garmin-windows-x64-setup.exe` (`-arm64-` on Arm PCs): run it |
 | Debian, Ubuntu | `Georgian-for-Garmin-linux-x86_64.deb` (`-aarch64` on Arm): `sudo apt install ./Georgian-for-Garmin-linux-*.deb` |
 | Other Linux | `Georgian-for-Garmin-linux-x86_64.AppImage`: `chmod +x` it, run it, and [install the udev rule](docs/command-line.md#linux) |
@@ -208,14 +211,20 @@ Then:
 1. Quit Garmin Express if it's running, and connect the watch. If the watch asks how to connect,
    choose MTP. On Linux, [release it from GNOME or KDE](docs/command-line.md#linux) first.
 2. Click **Install Georgian** (**ქართულის დაყენება**).
-3. Unplug the watch and restart it: hold the top button, choose **Power Off**, then turn it on.
-   If you still see boxes, restart the watch once more.
-4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan its code with your phone
-   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`.
+3. Restart the watch as the app shows you: unplug it, hold the power button, choose **Power Off**,
+   turn it on and connect it again. The app checks that the watch loaded the font, and asks for
+   one more restart if it hasn't yet.
+4. Check it: click **Check on the watch** (**საათზე შემოწმება**), scan the code with your phone
+   and tap **Send test notification**, or send yourself `Test მხედრული ᲛᲗᲐᲕᲠᲣᲚᲘ Test`, then
+   tell the app what the watch showed.
 
-To undo, connect the watch, click **Restore original font**, then unplug and restart it again.
+To undo, connect the watch and choose **More › Restore original font** (the **⋯** button in the
+top corner); the app then guides the restart the same way. If we ask you for diagnostic info,
+**More › Diagnostic info** saves it to a file or copies it; it has no serial number or watch ID.
 
-The app is in Georgian, with an English switch in the top corner. The macOS app is tested with a
+The app is in Georgian, with an English switch in the top corner. On a Mac without the Safari
+16.4 update (macOS Big Sur or Monterey that hasn't installed it) the app shows how to update
+instead of its window. The macOS app is tested with a
 watch. On Windows (11 on Arm) and Linux (Ubuntu 24.04) the command-line installer is tested with a
 watch; the Windows and Linux apps are tested only without one so far. The Linux app needs glibc
 2.34 or newer.

@@ -1,0 +1,59 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
+import { defineConfig } from "vitest/config";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { "@": path.join(dirname, "src") } },
+  // `cargo tauri dev` loads the app from this server (tauri.conf.json's devUrl) and shows Rust's
+  // output in the same terminal.
+  server: { port: 5173, strictPort: true },
+  clearScreen: false,
+  // The app loads its one script from the app bundle, not over a network.
+  build: { chunkSizeWarningLimit: 1024 },
+  test: {
+    projects: [
+      {
+        // The flow logic, the copy and the generated types: plain Node, no browser.
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "node",
+          include: ["src/**/*.test.ts"],
+        },
+      },
+      {
+        // Component tests (`*.test.tsx`) in jsdom.
+        extends: true,
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["src/**/*.test.tsx"],
+        },
+      },
+      {
+        // Every story rendered in a real browser, with its play function and axe.
+        extends: true,
+        plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+        // The flow stories' polls, timers and simulated watch run 10 times faster here.
+        define: { "import.meta.env.VITE_FLOW_SPEED": JSON.stringify("10") },
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{ browser: "chromium" }, { browser: "webkit" }],
+          },
+        },
+      },
+    ],
+  },
+});

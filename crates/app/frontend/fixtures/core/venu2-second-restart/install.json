@@ -1,0 +1,54 @@
+{
+  "operation": "install",
+  "output": {
+    "next_step": "Disconnect the USB cable, then restart the watch; it loads the fonts on restart.",
+    "packs": [
+      {
+        "id": "armenian-noto-sans-regular",
+        "kind": "bitmap",
+        "name": "Armenian Font, NotoSans Regular",
+        "parts": [
+          {
+            "bytes": 23101,
+            "handle": "0x01000115",
+            "part": "006-D9035-01",
+            "path": "GARMIN/ExtData/006-D9035-01.tmp",
+            "sha256": "c90dc5c0d3d6eb39185a8fafaa99e81cf2e573e0ce8ed9e8e36c282d008c21cc",
+            "size_px": 21,
+            "status": "staged_verified"
+          },
+          {
+            "bytes": 28341,
+            "handle": "0x01000116",
+            "part": "006-D9035-02",
+            "path": "GARMIN/ExtData/006-D9035-02.tmp",
+            "sha256": "f7735b25dac42b24a4b8a0a1ab592ababf66a4ab4e0f4bb02f1abe8894effe6a",
+            "size_px": 24,
+            "status": "staged_verified"
+          },
+          {
+            "bytes": 35638,
+            "handle": "0x01000117",
+            "part": "006-D9035-03",
+            "path": "GARMIN/ExtData/006-D9035-03.tmp",
+            "sha256": "09e303cb78771212fb00c19608b9c177f51a172366583109003dec7cd2ef052a",
+            "size_px": 27,
+            "status": "staged_verified"
+          },
+          {
+            "bytes": 48004,
+            "handle": "0x01000118",
+            "part": "006-D9035-04",
+            "path": "GARMIN/ExtData/006-D9035-04.tmp",
+            "sha256": "de05a25b6a77e8167bd783fb785ac8a837874c9e33fce72a7b5ffc752ce427d5",
+            "size_px": 31,
+            "status": "staged_verified"
+          }
+        ],
+        "weight": 400
+      }
+    ],
+    "status": "staged_verified",
+    "variant": "georgian"
+  }
+}

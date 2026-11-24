@@ -1,0 +1,21 @@
+{
+  "input": {
+    "error": {
+      "code": "extdata_not_found",
+      "message": "Could not find the watch's GARMIN/ExtData folder; nothing was written."
+    }
+  },
+  "operation": "issue_link",
+  "output": {
+    "fields": [
+      {
+        "id": "report",
+        "value": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror extdata_not_found \"Could not find the watch's GARMIN/ExtData folder; nothing was written.\"\n"
+      }
+    ],
+    "report_in_url": true,
+    "report_text": "app 0.3.4 \"Mac OS\" 15.6.1 aarch64\nerror extdata_not_found \"Could not find the watch's GARMIN/ExtData folder; nothing was written.\"\n",
+    "title": "Problem: extdata_not_found",
+    "url": "https://github.com/lubaretsi/georgian-for-garmin/issues/new?template=watch-report.yml&title=Problem%3A+extdata_not_found&report=app+0.3.4+%22Mac+OS%22+15.6.1+aarch64%0Aerror+extdata_not_found+%22Could+not+find+the+watch%27s+GARMIN%2FExtData+folder%3B+nothing+was+written.%22%0A"
+  }
+}

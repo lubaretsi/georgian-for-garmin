@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "internal",
+    "message": "inspect stopped unexpectedly: the task panicked"
+  },
+  "operation": "inspect"
+}

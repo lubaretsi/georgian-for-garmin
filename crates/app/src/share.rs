@@ -8,10 +8,11 @@ use georgian_for_garmin_core::fonts::{FontSet, Kind};
 use georgian_for_garmin_core::report::PHONE_PAGE;
 use qrcode::QrCode;
 use qrcode::render::svg;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 /// The phone test page, in the app's language.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct PhonePage {
     pub url: String,
     /// The URL's QR code as an SVG `data:` URL.
@@ -40,7 +41,7 @@ pub fn phone_page(language: &str) -> PhonePage {
 }
 
 /// A beta build's test mark as the marker question shows it.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct MarkPicture {
     pub part: String,
     pub kind: Kind,

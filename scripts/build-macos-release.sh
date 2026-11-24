@@ -3,8 +3,9 @@
 # with Apple's toolchain and rustup's Rust, embedding the fonts from `nix build .#fonts`.
 #
 # Run it outside `nix develop`: binaries from the dev shell link Nix store libraries and need the
-# macOS version of Nix's SDK. Nix only builds the fonts and supplies the Tauri CLI, which runs here
-# but is not linked into anything.
+# macOS version of Nix's SDK. Nix only builds the fonts and supplies the Tauri CLI and the
+# dev shell's Node and pnpm, which build the frontend (Tauri's beforeBuildCommand) but are not
+# linked into anything.
 #
 # Signing is ad hoc only: no identity, no notarization. The linker signs only arm64 code, so the
 # universal binaries are re-signed ad hoc to cover both slices (the app by Tauri, through
@@ -43,14 +44,18 @@ system=$("$nix" eval --raw --impure --expr builtins.currentSystem)
 "$nix" build --no-link --print-build-logs ".#fonts" ".#checks.$system.builder"
 fonts=$("$nix" build --no-link --print-out-paths ".#fonts")
 cargo_tauri=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#cargo-tauri)/bin/cargo-tauri
+# The frontend's toolchain, as in the dev shell.
+node_bin=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#nodejs)/bin
+pnpm_bin=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#pnpm)/bin
 
 step "Installing Rust $toolchain for ${targets[*]}"
 "$rustup" toolchain install "$toolchain" --profile minimal --no-self-update \
   --target "$(IFS=,; echo "${targets[*]}")"
 rust_bin=$(dirname "$("$rustup" which --toolchain "$toolchain" cargo)")
 
-# Apple's toolchain only: nothing from Nix, Homebrew or the caller's compiler settings.
-export PATH="$rust_bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# Apple's toolchain only: nothing from Nix (but the frontend's Node and pnpm), Homebrew or the
+# caller's compiler settings.
+export PATH="$rust_bin:$node_bin:$pnpm_bin:/usr/bin:/bin:/usr/sbin:/sbin"
 unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS RUSTC RUSTC_WRAPPER RUSTFLAGS \
   CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_BUILD_TARGET NIX_CFLAGS_COMPILE NIX_LDFLAGS
 DEVELOPER_DIR=$(xcode-select -p)

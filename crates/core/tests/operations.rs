@@ -2535,8 +2535,8 @@ const FENIX_7_PRO: &[(&str, &str, &str)] = &[
     ("006-D8168-20", "2.10", "tmp"),
 ];
 
-/// The Instinct 3 AMOLED 50mm's TrueType fonts (006-B4587-00, software 15.19, issue #8); its
-/// bitmap packs are none of this build's.
+/// The Instinct 3 AMOLED 50mm's fonts (006-B4587-00, software 15.19, issue #8), shortened: of
+/// this build's, only the restore-only Swiss 721 Hebrew and Korean 006-D8945-07.
 const INSTINCT_3_TRUETYPE: &[(&str, &str, &str)] = &[
     ("006-D0952-05", "2.30", "bin"),
     ("006-D0952-06", "2.30", "bin"),
@@ -2636,45 +2636,33 @@ fn the_fenix_7_pro_keeps_todays_bitmap_install() {
 }
 
 #[test]
-fn the_instinct_3_gets_georgian_only_in_its_korean_font() {
+fn the_instinct_3_is_restore_only() {
     // Swiss 721 Hebrew is restore-only in every build: the fenix 6S Pro had our font and still
-    // drew question marks (#6). Of the Instinct 3's fonts, this build installs only the Korean
-    // 006-D8945-07 (its Korean host was confirmed on the Venu 2); the model stays predicted.
+    // drew question marks (#6). So is the Instinct 3's Korean 006-D8945-07: 0.3.4 installed it
+    // and Georgian still didn't show (#57). Install writes nothing; restore may put Garmin's
+    // originals back.
     let fake = Fake::new(reported_watch("006-B4587-00", "1519", INSTINCT_3_TRUETYPE));
     let fonts = FontSet::bundled();
     let inspect = fake.call("inspect", json!({}), &fonts).unwrap();
-    assert_eq!(inspect["supported"], true);
-    assert_eq!(inspect["restorable"], true);
-    assert_eq!(inspect["hosts"]["kind"], "bitmap");
-    assert_eq!(targets(&inspect), ["006-D8945-07"]);
-    assert_eq!(pack_ids(&inspect), ["korean-nanum-gothic-bold"]);
+    assert_eq!(inspect["supported"], false);
+    assert!(targets(&inspect).is_empty());
+    assert_eq!(pack_ids(&inspect), Vec::<&str>::new());
     assert_eq!(
         inspect["hosts"]["restore_only_parts"],
-        json!(["006-D0952-08", "006-D0952-07"])
+        json!(["006-D0952-08", "006-D0952-07", "006-D8945-07"])
     );
-    assert_eq!(inspect["support"]["status"], "expected");
-    assert_eq!(inspect["support"]["prediction"], "bitmap_korean");
-    assert_eq!(inspect["support"]["reason"], Value::Null);
-    assert_eq!(inspect["support"]["issue"], 6);
-    let out = fake.call("install", json!({}), &fonts).unwrap();
-    let paths: Vec<&str> = staged_parts(&out)
-        .iter()
-        .map(|p| p["path"].as_str().unwrap())
-        .collect();
-    assert_eq!(paths, ["GARMIN/ExtData/006-D8945-07.tmp"]);
-    assert!(
-        !fake
-            .writes()
-            .iter()
-            .any(|w| w.contains(".bin") || w.starts_with("delete_object")),
-        "{:?}",
-        fake.writes()
-    );
+    assert_eq!(inspect["support"]["status"], "unsupported");
+    assert_eq!(inspect["support"]["prediction"], Value::Null);
+    assert_eq!(inspect["support"]["issue"], 57);
+    assert_eq!(inspect["support"]["report_wanted"], false);
+    let err = fake.call("install", json!({}), &fonts).unwrap_err();
+    assert_eq!(err.code, ErrorCode::UnsupportedDevice, "{}", err.message);
+    assert!(fake.writes().is_empty(), "{:?}", fake.writes());
 }
 
 /// The bundled registry: pre-release and stable builds install the same packs (Swiss 721
-/// Hebrew in none); only pre-release builds carry test marks. Every part knows the
-/// 0.3.0-beta.2 build it replaces.
+/// Hebrew and the Instinct 3's Korean Nanum Gothic Bold in none); only pre-release builds carry
+/// test marks. Every part knows the 0.3.0-beta.2 build it replaces.
 #[test]
 fn the_bundled_fonts_follow_the_release_channel() {
     let fonts = FontSet::bundled();
@@ -2687,7 +2675,7 @@ fn the_bundled_fonts_follow_the_release_channel() {
     for pack in &fonts.packs {
         assert_eq!(
             pack.install,
-            pack.id != "hebrew-swiss-721-truetype",
+            !["hebrew-swiss-721-truetype", "korean-nanum-gothic-bold"].contains(&pack.id.as_str()),
             "{}",
             pack.id
         );

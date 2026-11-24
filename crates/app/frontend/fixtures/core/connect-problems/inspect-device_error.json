@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "device_error",
+    "message": "open the watch: the device stopped responding"
+  },
+  "operation": "inspect"
+}
