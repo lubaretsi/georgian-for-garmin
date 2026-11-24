@@ -68,3 +68,17 @@ export const OpenOnWindows: StoryObj<ScreenStoryArgs> = {
     if (CSS.supports("scrollbar-width", "thin")) expect(scrollbarWidths(canvasElement, dialog)).toEqual(["thin", "thin"]);
   },
 };
+
+/** The shortest window: More scrolls, and no group cuts off its rows. */
+export const OpenInAShortWindow: StoryObj<ScreenStoryArgs> = {
+  globals: { size: "short" },
+  play: async ({ canvasElement, globals }) => {
+    const dialog = await openMore(canvasElement, storyGlobals(globals).lang);
+    const list = dialog.querySelector(".overflow-y-auto");
+    if (!list) throw new Error("More's list is missing");
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+    for (const section of Array.from(list.children)) {
+      expect(section.scrollHeight - section.clientHeight).toBeLessThanOrEqual(1);
+    }
+  },
+};

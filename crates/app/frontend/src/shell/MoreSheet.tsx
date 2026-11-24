@@ -61,7 +61,9 @@ export function MoreSheet(props: {
           )}
         >
           <Dialog.Title className="px-5 pt-4 pb-3 text-[17px] leading-6 font-semibold text-fg">{m.title}</Dialog.Title>
-          <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
+          {/* The sections keep their height and the list scrolls: a group clips (rounded corners),
+              so as a shrinking flex item it would cut off its own rows in a short window. */}
+          <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4 *:shrink-0">
             <section>
               <GroupHeader id="more-language">{m.language}</GroupHeader>
               <Segmented
