@@ -116,7 +116,7 @@ stateDiagram-v2
   watch --> connect: unplugged
 ```
 
-**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`. When it fails with `no_device`, the app tries `inspectDrive` too. The app doesn't poll during `working`, `check`, `outcome` or `share`; on `error` it polls only after a `no_device` error, to notice the reconnect. The connect help card appears after 10 s without a watch.
+**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`, and on `result` after a restore. When it fails with `no_device`, the app tries `inspectDrive` too. The app doesn't poll during `working`, `check`, `outcome` or `share`; on `error` it polls only after a `no_device` error, to notice the reconnect. The connect help card appears after 10 s without a watch.
 
 **The same watch:** after a restart, the reconnected watch is the same one if `device.part_number` matches. Telling two watches of the same model apart is a non-goal.
 
@@ -262,7 +262,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | confirm_restore | "Put Garmin's original font back? Georgian notifications will show as boxes again." | **Restore original font** | Cancel |
 | working | "Installing Georgian…" / "Restoring Garmin's font…" Keep the watch connected. Progress when known | none | none |
 | restart | §4.1 | per phase | per phase |
-| result | install: "Georgian is on your watch." restore: "Garmin's font is back." | install, not confirmed: **Check on the watch**; confirmed: "Send a test notification" (optional); restore: none | none |
+| result | install: "Georgian is on your watch." restore: "Garmin's font is back." | install, not confirmed: **Check on the watch**; confirmed: "Send a test notification" (optional); restore: none, but the app keeps reading the watch: unplugged → connect, another watch → its screen, the same one stays | none |
 | check / send | "Send yourself a test notification": QR to the phone page, or the test text with a Copy button | "I sent it" | none |
 | check / answer | "What did the watch show?" as a radio group with samples rendered in the app's own type: ქართ / □□□□ / ???? / ქა□□ / Nothing arrived. If letters: where they showed (optional checkboxes). Phone (optional). Beta builds only: the marker pictures | "Continue" (enabled once `result` is set; emits `done`, which on this step means "answers complete") | Back |
 | outcome / works_confirmed | "Georgian works. Thanks!" | Done | none |

@@ -447,9 +447,10 @@ pub struct ReportedError {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueLinkInput {
-    /// The `report` from `inspect` or `inspect_drive`. Its `title` and `text` are ignored and
-    /// rebuilt from the other fields. Absent for a watch that couldn't be read: then exactly
-    /// one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
+    /// The `report` from `inspect` or `inspect_drive`: the watch as last read, before or after
+    /// `outcome`'s operation (after its restart, once verified). Its `title` and `text` are
+    /// ignored and rebuilt from the other fields. Absent for a watch that couldn't be read: then
+    /// exactly one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
     #[serde(default)]
     pub report: Option<WatchReport>,
     /// `device_busy`'s `busy`: who held the watch. Adds the report's `busy` line.
@@ -795,11 +796,7 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
         )
         .unwrap();
     }
-    // With an outcome, the state and files are from the inspect before that operation.
-    let before = outcome
-        .map(|o| format!(" (before {})", snake(&o.operation)))
-        .unwrap_or_default();
-    writeln!(out, "state {}{before}", snake(&report.state)).unwrap();
+    writeln!(out, "state {}", snake(&report.state)).unwrap();
     if let Some(o) = outcome {
         let result = match (o.status, o.error) {
             (Some(status), _) => snake(&status),
@@ -839,7 +836,7 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
     }
     let marks = if report.test_marks { "beta" } else { "off" };
     writeln!(out, "marks {marks}").unwrap();
-    writeln!(out, "parts{before}: part file target tested mark").unwrap();
+    out.push_str("parts: part file target tested mark\n");
     for part in &report.parts {
         writeln!(
             out,
@@ -1199,11 +1196,11 @@ mod tests {
             "app 0.3.0-beta.1 \"Mac OS\" 15.6.1 aarch64",
             "watch \"Venu 2\" 006-B3703-00 19.05",
             "support tested",
-            "state not_installed (before install)",
+            "state not_installed",
             "last install staged_verified 006-D9035-01",
             "answers result=georgian views=popup,opened phone=android marker=B connect=5.10",
             "marks beta",
-            "parts (before install): part file target tested mark",
+            "parts: part file target tested mark",
             "006-D9035-01 none yes tested B",
             "Garmin/ExtData 006-D9035-01.tmp 006-D9035-01 2.10",
             "\"a b\\u0060.bin\" 12 -",

@@ -177,7 +177,15 @@ export function Shell(props: ShellProps) {
                     <Badge>{view.badge}</Badge>
                   </div>
                 ) : null}
-                <h1 ref={headingRef} id={TITLE_ID} tabIndex={-1} className="max-w-[26ch] text-title font-[650] text-balance text-fg">
+                {/* Named from the text itself: where the title wraps before the model name, WebKit
+                    drops the space from the name it builds from the rendered lines. */}
+                <h1
+                  ref={headingRef}
+                  id={TITLE_ID}
+                  tabIndex={-1}
+                  aria-label={view.title}
+                  className="max-w-[26ch] text-title font-[650] text-balance text-fg"
+                >
                   {keepTogether(view.title, watchModel)}
                 </h1>
                 {view.lead ? (

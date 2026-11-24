@@ -138,8 +138,9 @@ Forerunner 165 and fenix 6S Pro) or `unknown`. `state` sums up the parts install
 restart does, so imported Georgian reads `installed`, imported Garmin fonts `not_installed`, and
 an imported font this build doesn't recognise `other`: install and restore refuse it, since a
 new `.tmp` would replace it at the next restart, and the app asks for the font list
-(`inspect --json` marks such a part `imported`). With a last install or restore, the state and
-files are from just before it, and the lines say so.
+(`inspect --json` marks such a part `imported`). A shared result with a last install or restore
+carries the watch as the app read it last: after the restart once the app has verified it, so the
+state shows whether the watch loaded the font.
 
 ### Hidden files
 

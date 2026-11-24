@@ -797,9 +797,10 @@ export interface IssueLinkInput {
    */
   outcome?: Outcome | null;
   /**
-   * The `report` from `inspect` or `inspect_drive`. Its `title` and `text` are ignored and
-   * rebuilt from the other fields. Absent for a watch that couldn't be read: then exactly
-   * one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
+   * The `report` from `inspect` or `inspect_drive`: the watch as last read, before or after
+   * `outcome`'s operation (after its restart, once verified). Its `title` and `text` are
+   * ignored and rebuilt from the other fields. Absent for a watch that couldn't be read: then
+   * exactly one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
    */
   report?: WatchReport | null;
 }

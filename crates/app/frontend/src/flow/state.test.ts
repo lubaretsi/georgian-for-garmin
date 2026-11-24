@@ -273,9 +273,11 @@ describe("the restart step", () => {
     expect(read(state, inspect("venu2", "inspect-restarted")).phase).toMatchObject({ name: "result" });
   });
 
-  test("`other` after the reconnect → the watch's blocked verdict", () => {
+  test("`other` after the reconnect → the watch's blocked verdict, still read every 2 s", () => {
     const other = { ...inspect("errors", "inspect-other"), device: VENU2.device };
-    expect(reconnected(other).phase).toEqual({ name: "watch" });
+    const state = reconnected(other);
+    expect(state.phase).toEqual({ name: "watch" });
+    expect(kinds(state)).toContain("inspect");
   });
 
   test("still starting: device_error and unreadable reads keep polling for 10 s, then error", () => {
@@ -341,11 +343,30 @@ describe("the restart step", () => {
     expect(act(restart, "done").phase).toEqual({ name: "watch" });
   });
 
-  test("restore reconnected with Garmin's font → result", () => {
+  test("restore reconnected with Garmin's font → result, which keeps reading the watch", () => {
     const working = act(act(atWatch(), "restore"), "confirm_restore");
     let state = reduce(working, { type: "op_done", op: "restore", output: output("venu2", "restore_stock", "restore_stock") });
     state = read(read(state, NO_DEVICE), inspect("venu2", "inspect-restored"));
     expect(state.phase).toEqual({ name: "result", op: "restore" });
+    expect(kinds(state)).toEqual(["inspect"]);
+    // The same watch, still connected: the result stays.
+    const same = read(state, inspect("venu2", "inspect-restored"));
+    expect(same.phase).toEqual({ name: "result", op: "restore" });
+    expect(kinds(same)).toEqual(["inspect"]);
+    // Unplugged: the search, which also looks for a drive.
+    const unplugged = read(state, NO_DEVICE);
+    expect(unplugged.phase).toMatchObject({ name: "connect", mode: "searching" });
+    expect(kinds(unplugged)).toEqual(expect.arrayContaining(["inspect", "inspect_drive"]));
+    // Another watch: its own screen.
+    const other = read(state, inspect("lily2active", "inspect"));
+    expect(other.phase).toEqual({ name: "watch" });
+    expect(other.inspect?.device.model).toBe("Lily 2 Active");
+  });
+
+  test("an install's result doesn't read the watch: the check follows", () => {
+    const state = read(read(written(), NO_DEVICE), inspect("venu2", "inspect-restarted"));
+    expect(state.phase).toEqual({ name: "result", op: "install" });
+    expect(kinds(state)).not.toContain("inspect");
   });
 
   test("not verifiable (TrueType): no polling once unplugged; check by hand", () => {
