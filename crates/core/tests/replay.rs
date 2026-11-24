@@ -549,15 +549,11 @@ fn the_lily_2_active_never_writes_over_unknown_imports() {
 }
 
 /// The watches that get Georgian in Korean fonts, from their reports: install writes the Korean
-/// builds of exactly these parts, under the names the watch declares, and nothing else (no
-/// Swiss 721 Hebrew `006-D0952`, no CJK TrueType `006-D9971`); restore writes the pinned
-/// originals. Where a report lists hidden imports (#33, the Lily 2 Active), those of the target
-/// parts are read as Garmin's originals ([`imports_as_garmins`]); the 0.2.2 reports (#8, #23,
-/// #12) list none, so their watches show no import.
-const KOREAN_ROUTE: [(&str, &[&str]); 5] = [
-    ("issue-8.json", &["006-D8945-07"]),
-    ("issue-33.json", &["006-D8945-07"]),
-    ("issue-23.json", &["006-D8945-07"]),
+/// builds of exactly these parts, under the names the watch declares, and nothing else; restore
+/// writes the pinned originals. Where a report lists hidden imports (the Lily 2 Active), those of
+/// the target parts are read as Garmin's originals ([`imports_as_garmins`]); the 0.2.2 report
+/// (#12) lists none, so its watch shows no import.
+const KOREAN_ROUTE: [(&str, &[&str]); 2] = [
     ("issue-12.json", &["006-D8945-22"]),
     ("email-lily2active.json", &["006-D8945-67", "006-D8945-68"]),
 ];
@@ -623,9 +619,7 @@ fn korean_route_watches_install_only_their_korean_builds() {
         let from = watch.0.borrow().written.len();
         let restored = watch.call("restore_stock", &fonts).unwrap();
         assert_eq!(restored["status"], "staged_verified", "{name}");
-        // Every file restore writes is the pinned original of a part it restores: the Korean
-        // ones, and the restore-only Swiss 721 Hebrew the Instinct 3 lists where the watch
-        // doesn't show a hidden import that already is Garmin's (#8 and #23 list none).
+        // Every file restore writes is the pinned original of a part it restores.
         let written = written_since(&watch, from);
         for (file, data) in &written {
             let part = names::resolve(file).unwrap().part;
@@ -719,23 +713,124 @@ fn the_fenix_6_stays_restore_only() {
     }
 }
 
+/// The Instinct 3 AMOLED, 50mm (#8, #33) and 45mm (#23, #55, #57): Georgian added to its Korean
+/// 19 px font `006-D8945-07` didn't show in notifications after 0.3.4 installed it (#55, #57), so
+/// the model is unsupported and that pack restore-only.
+const INSTINCT_3: [&str; 5] = [
+    "issue-8.json",
+    "issue-23.json",
+    "issue-33.json",
+    "issue-55.json",
+    "issue-57.json",
+];
+
+/// Each Instinct 3 report as reported, with 0.3.4's `-07` waiting as a `.tmp`, and, where the
+/// report lists the watch's imports, with it imported (composed: the reports are from before
+/// installing). Install refuses with `unsupported_device` and writes nothing; restore writes only
+/// the pinned originals of the parts it restores, and puts `-07`'s back wherever the watch holds
+/// our build; after the restart Georgian is gone.
+#[test]
+fn the_instinct_3_is_restore_only() {
+    let bundled = FontSet::bundled();
+    let k07 = font_for(&bundled, "006-D8945-07").unwrap();
+    for name in INSTINCT_3 {
+        let reported = imports_as_garmins(fixture(name), &bundled, &["006-D8945-07"]);
+        let mut waiting = reported.clone();
+        waiting["extdata"] = json!([{
+            "name": "006-D8945-07.tmp", "bytes": k07.georgian.len(),
+            "sha256": sha256_hex(&k07.georgian), "file": "georgian"
+        }]);
+        let mut variants = vec![
+            ("as reported", reported.clone(), false),
+            ("waiting", waiting, true),
+        ];
+        if reported["hidden"]["status"] == "listed" {
+            let mut imported = reported.clone();
+            for file in imported["hidden"]["files"].as_array_mut().unwrap() {
+                if file["name"] == "006-D8945-07.fnt" {
+                    file["bytes"] = json!(k07.georgian.len());
+                    file["file"] = json!("georgian");
+                }
+            }
+            variants.push(("imported", imported, true));
+        }
+        for (variant, fixture, ours) in variants {
+            let at = format!("{name} {variant}");
+            let (watch, fonts) = Watch::from_fixture(&fixture);
+            let out = watch.call("inspect", &fonts).unwrap();
+            assert_eq!(out["supported"], false, "{at}");
+            assert_eq!(out["support"]["status"], "unsupported", "{at}");
+            assert_eq!(out["support"]["issue"], 57, "{at}");
+            assert_eq!(
+                out["support"]["reason"]["en"],
+                "Georgian added to its Korean 19 px font didn't show in notifications.",
+                "{at}"
+            );
+            assert_eq!(out["support"]["report_wanted"], false, "{at}");
+            assert!(targets(&out, "target").is_empty(), "{at}");
+            assert_eq!(
+                targets(&out, "restore"),
+                ["006-D0952-08", "006-D0952-07", "006-D8945-07"],
+                "{at}"
+            );
+
+            let err = watch.call("install", &fonts).unwrap_err();
+            assert_eq!(
+                err.code,
+                ErrorCode::UnsupportedDevice,
+                "{at}: {}",
+                err.message
+            );
+            assert!(watch.0.borrow().written.is_empty(), "{at}");
+
+            let restored = watch
+                .call("restore_stock", &fonts)
+                .unwrap_or_else(|e| panic!("{at}: restore: {e}"));
+            let written = written_since(&watch, 0);
+            for (file, data) in &written {
+                let font = font_for(&fonts, file).unwrap();
+                assert_eq!(*data, *font.stock, "{at}: {file}");
+            }
+            if ours {
+                assert_eq!(restored["status"], "staged_verified", "{at}");
+                assert!(
+                    written.iter().any(|(file, _)| file == "006-D8945-07.tmp"),
+                    "{at}: restore didn't put back 006-D8945-07: {written:?}"
+                );
+            }
+            watch.restart(&fonts);
+            assert!(
+                watch
+                    .0
+                    .borrow()
+                    .objects
+                    .values()
+                    .all(|o| o.data != *k07.georgian),
+                "{at}: our 006-D8945-07 is still on the watch"
+            );
+            let s = watch.0.borrow();
+            assert!(s.violations.is_empty(), "{at}: {:?}", s.violations);
+        }
+    }
+}
+
 /// A watch that lists the tested Noto TrueType fonts and a Korean bitmap font gets Georgian in
 /// the TrueType ones: bitmap Armenian first, then TrueType, then Korean. The Forerunner 165
-/// (#18) with the Korean 006-D8945-07 added to what it declares.
+/// (#18) with the Korean 006-D8945-22 added to what it declares.
 #[test]
 fn truetype_comes_before_korean() {
     let mut fr165 = fixture("issue-18.json");
     fr165["declared"].as_array_mut().unwrap().push(json!({
-        "path": "Garmin/ExtData", "file": "006-D8945-07.tmp", "part": "006-D8945-07",
-        "version": "2.20"
+        "path": "Garmin/ExtData", "file": "006-D8945-22.tmp", "part": "006-D8945-22",
+        "version": "2.10"
     }));
     let (watch, fonts) = Watch::from_fixture(&fr165);
     let out = watch.call("inspect", &fonts).unwrap();
     assert_eq!(out["hosts"]["kind"], "truetype");
     let parts = targets(&out, "target");
     assert!(
-        !parts.is_empty() && !parts.contains(&"006-D8945-07"),
+        !parts.is_empty() && !parts.contains(&"006-D8945-22"),
         "{parts:?}"
     );
-    assert_eq!(out["hosts"]["skipped_parts"], json!(["006-D8945-07"]));
+    assert_eq!(out["hosts"]["skipped_parts"], json!(["006-D8945-22"]));
 }

@@ -235,7 +235,9 @@ def test_every_installable_pack_has_a_confirmed_family():
     for p in ENTRIES["packs"]:
         if p.get("install", True):
             assert p["host"] in tested or host(ENTRIES, p["host"]).get("confirmed_by"), p["id"]
-    assert ENTRIES["packs"][SWISS].get("install") is False
+    # Installed, and Georgian didn't show: fenix 6S Pro (#6), Instinct 3 AMOLED (#57).
+    restore_only = {p["id"] for p in ENTRIES["packs"] if p.get("install") is False}
+    assert restore_only == {"hebrew-swiss-721-truetype", "korean-nanum-gothic-bold"}
 
 
 # The first TrueType pack's index, for the schema's error paths.

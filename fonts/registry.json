@@ -517,6 +517,7 @@
       "kind": "bitmap",
       "host": "korean",
       "weight": 700,
+      "install": false,
       "parts": [
         {
           "part": "006-D8945-07",
@@ -640,6 +641,18 @@
       "model_part": "006-B3888-00",
       "issues": [38],
       "unsupported": {"software": ["17.22"], "reason": "usb_drive_only"}
+    },
+    {
+      "model": "Instinct 3 AMOLED 50mm",
+      "model_part": "006-B4587-00",
+      "issues": [57, 8, 33],
+      "unsupported": {"software": ["15.19", "16.12"], "reason": "korean_font_unused"}
+    },
+    {
+      "model": "Instinct 3 AMOLED 45mm",
+      "model_part": "006-B4586-00",
+      "issues": [57, 55, 23],
+      "unsupported": {"software": ["16.12"], "reason": "korean_font_unused"}
     },
     {
       "model": "D2 Mach 1",
@@ -1170,28 +1183,6 @@
       }
     },
     {
-      "model": "Instinct 3 AMOLED 50mm",
-      "model_part": "006-B4587-00",
-      "issues": [6, 8, 33],
-      "prediction": {
-        "family": "bitmap_korean",
-        "confidence": "high",
-        "basis": "Its reports (15.19, 16.12) declare eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications. Install writes only 006-D8945-07 (Bold 19 px, 2.20): Garmin's catalog serves it at the declared version, with the size of #33's import (1823701 bytes). Not installed: -11, -13, -15, -16 (declared 2.30, catalog 2.20), -63, -64 (declared 2.10, catalog 2.00), whose #33 imports differ in size from the catalog's files (-11: 3286495 against 3267959 bytes), and -46, -50, -51, -66, large data-screen fonts.",
-        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/33"
-      }
-    },
-    {
-      "model": "Instinct 3 AMOLED 45mm",
-      "model_part": "006-B4586-00",
-      "issues": [6, 23],
-      "prediction": {
-        "family": "bitmap_korean",
-        "confidence": "high",
-        "basis": "Its report (16.12) declares eleven sizes of Garmin's Korean bitmap fonts (006-D8945) and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22) rendered natively in notifications. Install writes only 006-D8945-07 (Bold 19 px, 2.20), which Garmin's catalog serves at the declared version. Not installed: -09, -11, -12 (declared 2.30, catalog 2.20), -10 (declared 2.40, catalog 2.20), -65 (declared 2.10, catalog 2.00), and -45..-49, large data-screen fonts.",
-        "source": "https://github.com/lubaretsi/georgian-for-garmin/issues/23"
-      }
-    },
-    {
       "model": "Lily 2 Active",
       "model_part": "006-B4477-00",
       "issues": [],
@@ -1328,6 +1319,11 @@
       "id": "emoji_fonts_only",
       "en": "Its only optional fonts are emoji fonts, which have no letters to add Georgian to.",
       "ka": "მისი დამატებითი შრიფტები მხოლოდ ემოჯის შრიფტებია: ასოები არ აქვთ, რომ ქართული დავამატოთ."
+    },
+    {
+      "id": "korean_font_unused",
+      "en": "Georgian added to its Korean 19 px font didn't show in notifications.",
+      "ka": "საათის კორეულ 19 px შრიფტს ქართული დავამატეთ, მაგრამ შეტყობინებებში მაინც არ გამოჩნდა."
     }
   ]
 }

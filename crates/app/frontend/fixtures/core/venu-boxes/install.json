@@ -1,0 +1,27 @@
+{
+  "operation": "install",
+  "output": {
+    "next_step": "Disconnect the USB cable, then restart the watch; it loads the fonts on restart.",
+    "packs": [
+      {
+        "id": "korean-nanum-gothic-medium",
+        "kind": "bitmap",
+        "name": "APAC Font, Nanum Gothic Medium, KOR",
+        "parts": [
+          {
+            "bytes": 3108433,
+            "handle": "0x01000101",
+            "part": "006-D8945-22",
+            "path": "GARMIN/ExtData/006-D8945-22.tmp",
+            "sha256": "6c16ad0b16da833e8f051beb4c0034c52157032bcf7039338148903ec15ca3f3",
+            "size_px": 27,
+            "status": "staged_verified"
+          }
+        ],
+        "weight": 500
+      }
+    ],
+    "status": "staged_verified",
+    "variant": "georgian"
+  }
+}

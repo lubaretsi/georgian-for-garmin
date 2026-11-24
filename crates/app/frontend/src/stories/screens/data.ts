@@ -24,6 +24,7 @@ const venu2 = watchOf(output("venu2", "inspect", "inspect"));
 export const WATCHES = {
   venu2,
   lily2Active: watchOf(output("lily2active", "inspect", "inspect")),
+  venu: watchOf(output("venu-boxes", "inspect", "inspect")),
   instinct3: watchOf(output("instinct3", "inspect", "inspect")),
   fenix6sPro: watchOf(output("fenix6", "inspect", "inspect")),
   forerunner245: watchOf(output("forerunner245-drive", "inspect_drive", "inspect_drive")),
@@ -34,9 +35,10 @@ export const WATCHES = {
   forerunner255Newer: watchOf(output("forerunner255-newer", "inspect", "inspect")),
 } satisfies Record<string, WatchInfo>;
 
-/** The support list's reason for the fenix 6S Pro (issue 6). */
-export function unsupportedReason(): { ka: string; en: string } | null {
-  return output("fenix6", "inspect", "inspect").support.reason ?? null;
+/** The support list's reason for an unsupported scenario's watch: the fenix 6S Pro (issue 6)
+ * unless another is named. */
+export function unsupportedReason(scenario = "fenix6"): { ka: string; en: string } | null {
+  return output(scenario, "inspect", "inspect").support.reason ?? null;
 }
 
 export function issueOf(scenario: string, step = "inspect"): number | null {

@@ -19,8 +19,8 @@
 //!    work: `expected`, with the note that no one has confirmed Georgian on the model yet;
 //! 6. a Lily 2 Active whose Korean fonts already have Georgian, imported at an earlier restart:
 //!    `expected` and `installed`, so the main screen's action is to check it on the watch;
-//! 7. an Instinct 3 AMOLED 50mm whose Korean font has Georgian waiting for a restart:
-//!    `expected` and `waiting`, so the app asks for the restart;
+//! 7. an Instinct 3 AMOLED 45mm whose Korean font has 0.3.4's Georgian, imported at an earlier
+//!    restart; Georgian in it didn't show on that model (#57): `unsupported`, with Restore;
 //! 8. a tactix 7 on software 27.18 with Georgian imported in the parts verified on it:
 //!    `tested` and `installed`, with only a quiet link to check if it didn't work;
 //! 9. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
@@ -115,8 +115,6 @@ enum Extra {
     Leftover,
     /// This build's Georgian in every listed bitmap part, imported as a hidden `<part>.fnt`.
     Installed,
-    /// This build's Georgian in every listed bitmap part, waiting as `<part>.tmp`.
-    Waiting,
 }
 
 /// (description, part number, software version as in `GarminDevice.xml`, fonts listed, what
@@ -165,11 +163,11 @@ const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
         Extra::Installed,
     ),
     (
-        "Instinct 3 AMOLED 50mm",
-        "006-B4587-00",
+        "Instinct 3 AMOLED 45mm",
+        "006-B4586-00",
         "1612",
         Lists::Pack("korean-nanum-gothic-bold"),
-        Extra::Waiting,
+        Extra::Installed,
     ),
     (
         "tactix 7",
@@ -361,17 +359,15 @@ impl Demo {
                             object(EXTDATA, &name, format::UNDEFINED, b"older font".to_vec()),
                         );
                     }
-                    Extra::Installed | Extra::Waiting => {
-                        let imported = matches!(extra, Extra::Installed);
+                    Extra::Installed => {
                         let bitmaps = fonts
                             .fonts()
                             .filter(|(p, f)| p.kind == Kind::Bitmap && parts.contains(&f.part));
                         for (handle, (_, font)) in handles.zip(bitmaps) {
-                            let suffix = if imported { "fnt" } else { "tmp" };
-                            let name = format!("{}.{suffix}", font.part);
+                            let name = format!("{}.fnt", font.part);
                             let data = font.georgian.to_vec();
                             let (mut info, data) = object(EXTDATA, &name, format::UNDEFINED, data);
-                            info.protection_status = u16::from(imported);
+                            info.protection_status = 1;
                             objects.insert(handle, (info, data));
                         }
                     }
@@ -1006,20 +1002,36 @@ mod tests {
         assert_eq!(lily["tested"]["status"], "untested");
         assert_eq!(lily["tested"]["verified_software"], json!([]));
 
-        // The Instinct 3 AMOLED's Georgian waits for a restart, and is in use after one.
-        let demo = attached("Instinct 3 AMOLED 50mm");
+        // The Instinct 3 AMOLED has 0.3.4's Georgian in its Korean font, which didn't show on
+        // that model: unsupported, and Restore puts Garmin's font back.
+        let demo = attached("Instinct 3 AMOLED 45mm");
         let instinct = call(&demo, "inspect").unwrap();
-        assert_eq!(instinct["device"]["model"], "Instinct 3 AMOLED 50mm");
-        assert_eq!(instinct["state"], "waiting");
-        assert_eq!(staged(&instinct), vec!["georgian"]);
-        assert_eq!(instinct["support"]["status"], "expected");
-        assert_eq!(instinct["support"]["prediction"], "bitmap_korean");
-        assert_eq!(instinct["support"]["report_wanted"], true);
+        assert_eq!(instinct["device"]["model"], "Instinct 3 AMOLED 45mm");
+        let k07 = |inspect: &Value| {
+            inspect["fonts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|f| f["part"] == "006-D8945-07")
+                .map(|f| f["file"].clone())
+        };
+        assert_eq!(k07(&instinct), Some(json!("georgian")));
+        assert_eq!(instinct["supported"], false);
+        assert_eq!(instinct["restorable"], true);
+        assert_eq!(instinct["support"]["status"], "unsupported");
+        assert_eq!(instinct["support"]["issue"], 57);
+        assert_eq!(instinct["support"]["report_wanted"], false);
+        assert_eq!(call(&demo, "install"), Err(ErrorCode::UnsupportedDevice));
+        assert_eq!(
+            call(&demo, "restore_stock").unwrap()["status"],
+            "staged_verified"
+        );
         demo.act(Action::Restart);
         for _ in 0..RESTART {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
-        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+        let restored = call(&demo, "inspect").unwrap();
+        assert_eq!(k07(&restored), Some(json!("stock")));
 
         // The tactix 7 has Georgian in every part verified on it: confirmed, no report asked.
         let tactix = call(&attached("tactix 7"), "inspect").unwrap();

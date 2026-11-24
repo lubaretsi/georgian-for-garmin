@@ -19,7 +19,8 @@ type Story = StoryObj<Args>;
 
 export const Venu2Confirmed: Story = { args: { options: { watch: "venu2" } } };
 export const Lily2ActiveFirstConfirmation: Story = { args: { options: { watch: "lily2active" } } };
-export const Instinct3Boxes: Story = { args: { options: { watch: "instinct3" } } };
+export const VenuBoxes: Story = { args: { options: { watch: "venuBoxes" } } };
+export const Instinct3UnsupportedRestore: Story = { args: { options: { watch: "instinct3" } } };
 export const Venu3AnotherFontWaiting: Story = { args: { options: { watch: "venu3" } } };
 export const Fenix6Unsupported: Story = { args: { options: { watch: "fenix6" } } };
 export const Fenix6EarlierTestVersionLeft: Story = { args: { options: { watch: "fenix6BetaLeft" } } };

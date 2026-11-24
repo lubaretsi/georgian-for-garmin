@@ -314,9 +314,10 @@ again, so the app's restart step and **Restart once more** play out as with a re
 other watches
 cover every support status (a tested Forerunner 165, an expected Venu 3 listing parts from two
 packs with a conflict, an unsupported fenix 6S Pro with Restore, an expected Venu with its Korean
-font, which the support list only predicts, a Lily 2 Active with Georgian already installed and
-an Instinct 3 AMOLED 50mm with it waiting for a restart, both only predicted, a tested tactix 7
-with Georgian installed, and an unknown Forerunner 265 listing none of this build's fonts):
+font, which the support list only predicts, a Lily 2 Active with Georgian already installed,
+also only predicted, an unsupported Instinct 3 AMOLED 45mm with 0.3.4's Korean font to restore,
+a tested tactix 7 with Georgian installed, and an unknown Forerunner 265 listing none of this
+build's fonts):
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names, quoted where it has spaces) attaches
 that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` starts with the watch unplugged, so
 the waiting screen stays and shows its help after 10 seconds (**Plug in** brings the Venu 2).

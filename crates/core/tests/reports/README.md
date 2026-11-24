@@ -59,6 +59,14 @@ Korean parts and checks that only the short names are written and imported;
 `the_lily_2_active_never_writes_over_unknown_imports` checks that, with the imports' contents
 unknown as reported, nothing is written.
 
+The Instinct 3 AMOLED's reports (`issue-8`, `-23`, `-33`, `-55`, `-57`) are restore-only: 0.3.4
+installed Georgian in its Korean `006-D8945-07` on two 45mm watches (#55, #57), and after the
+restart notifications still didn't show it. `the_instinct_3_is_restore_only` checks each as
+reported, with 0.3.4's `-07` waiting as a `.tmp`, and, where the report lists the imports, with
+it imported (both composed: the 0.3.4 reports are from before installing): install refuses with
+`unsupported_device` and writes nothing, and restore writes only pinned originals, putting
+`-07`'s back wherever the watch holds our build.
+
 | Fixture | Watch, software | App | Source |
 |---|---|---|---|
 | `issue-2.json` | Venu 3 (006-B4260-00), 17.05 | 0.1.0 | [#2](https://github.com/lubaretsi/georgian-for-garmin/issues/2) |
@@ -94,6 +102,8 @@ unknown as reported, nothing is written.
 | `issue-37.json` | Forerunner 255 (006-B3992-00), 29.52, the same 8 bitmap Armenian parts (`006-D9035-00` declared twice, as the watch listed it) | 0.2.2 | [#37](https://github.com/lubaretsi/georgian-for-garmin/issues/37), the font list for #13's confirmation |
 | `issue-38.json` | Instinct 2 Solar Tactical (006-B3888-00), 17.22, a USB drive; one emoji font, `006-D8952-00` | 0.3.2 | [#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38) |
 | `issue-46.json` | epix Pro (Gen 2) 51mm (006-B4314-00, "EPIX PRO - 51mm"), 27.18, before installing: bitmap Armenian `006-D9035-09`, `-12`, `-13`, `-14`, with the hidden listing | 0.3.3 | [#46](https://github.com/lubaretsi/georgian-for-garmin/issues/46) (report in Notes) |
+| `issue-55.json` | Instinct 3 AMOLED 45mm (006-B4586-00, "Instinct 3 - 45mm, AMOLED"), 16.12, from before installing, with the hidden listing; install then `staged_verified` `006-D8945-07`, and after the restart the answer was question marks | 0.3.4 | [#55](https://github.com/lubaretsi/georgian-for-garmin/issues/55), closed as a duplicate of #57 |
+| `issue-57.json` | Instinct 3 AMOLED 45mm (006-B4586-00), 16.12, as #55, the answer boxes ("squares with question marks" in its comment) | 0.3.4 | [#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57) |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `email-lily2active.json` | Lily 2 Active (006-B4477-00), 5.10, before installing: CJK bitmap fonts and an emoji font under short names, with the hidden listing | 0.3.2 | maintainer email report, owner anonymized |

@@ -31,7 +31,7 @@ export const InstallConfirmedOtherSoftware: ScreenStoryObj = {
 };
 export const InstallConfirmedSomeFonts: ScreenStoryObj = {
   args: {
-    model: watch(WATCHES.instinct3, { kind: "install", confidence: "confirmed_some_fonts" }, { issue: 6, reportWanted: true }),
+    model: watch(WATCHES.venu, { kind: "install", confidence: "confirmed_some_fonts" }, { issue: issueOf("venu-boxes"), reportWanted: true }),
   },
 };
 export const InstallUnconfirmed: ScreenStoryObj = {
@@ -44,7 +44,7 @@ export const InstallNotePartly: ScreenStoryObj = {
 };
 export const InstallNoteBeta: ScreenStoryObj = {
   args: {
-    model: watch(WATCHES.instinct3, { kind: "install", confidence: "unconfirmed", note: "beta" }, { reportWanted: true }),
+    model: watch(WATCHES.venu, { kind: "install", confidence: "unconfirmed", note: "beta" }, { reportWanted: true }),
     restorable: true,
   },
 };
@@ -66,7 +66,7 @@ export const InstalledConfirmedOtherSoftware: ScreenStoryObj = {
   },
 };
 export const InstalledConfirmedSomeFonts: ScreenStoryObj = {
-  args: { model: watch(WATCHES.instinct3, { kind: "installed", confidence: "confirmed_some_fonts" }), restorable: true },
+  args: { model: watch(WATCHES.venu, { kind: "installed", confidence: "confirmed_some_fonts" }), restorable: true },
 };
 export const InstalledUnconfirmed: ScreenStoryObj = {
   args: { model: watch(WATCHES.lily2Active, { kind: "installed", confidence: "unconfirmed" }), restorable: true },
@@ -103,6 +103,17 @@ export const UnsupportedRestorable: ScreenStoryObj = {
       WATCHES.fenix6sPro,
       { kind: "unsupported", reason: unsupportedReason(), restorable: true },
       { issue: issueOf("fenix6-beta-left") },
+    ),
+    restorable: true,
+  },
+};
+/** Instinct 3 AMOLED 45mm (issue 57) with 0.3.4's Korean font: Restore is the main action. */
+export const UnsupportedRestorableInstinct3: ScreenStoryObj = {
+  args: {
+    model: watch(
+      WATCHES.instinct3,
+      { kind: "unsupported", reason: unsupportedReason("instinct3"), restorable: true },
+      { issue: issueOf("instinct3") },
     ),
     restorable: true,
   },

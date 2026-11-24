@@ -107,12 +107,14 @@ and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reach
 hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
 range bit was set, and the watch still drew question marks (#6). The fenix 6 models are
 unsupported; the app shows why, links the issue and restores Garmin's originals. The Instinct 3
-AMOLED used to be listed with them as not working, though no report shows Georgian tried on it
-(#33's hidden listing has Garmin's own Swiss 721 Hebrew); its reports (#8, #23, #33) also
-declare Garmin's Korean bitmap fonts, so it is now predicted to work through those
-(`bitmap_korean`, [Predicted models](../fonts/README.md#predicted-models)) and gets Georgian in
-its Korean 19 px font (`006-D8945-07`) only, as do the Venu 1st gen (27 px, `006-D8945-22`) and
-the Lily 2 Active (`006-D8945-67/-68`), all untested ([Korean packs](../fonts/README.md#korean-packs)).
+AMOLED's reports (#8, #23, #33) also declare Garmin's Korean bitmap fonts, so 0.3.4 added
+Georgian to its Korean 19 px font (`006-D8945-07`). On two 45mm watches (16.12) that install
+wrote and verified the font, and after the restart notifications still showed boxes and question
+marks (#55, #57). Whether the watch imported it is unknown. Both Instinct 3 AMOLED sizes are now
+unsupported, and that Korean pack (`korean-nanum-gothic-bold`) is restore-only, so Restore
+original font puts Garmin's font back. The Venu 1st gen (27 px, `006-D8945-22`) and the Lily 2
+Active (`006-D8945-67/-68`) still get Georgian in their Korean fonts, untested
+([Korean packs](../fonts/README.md#korean-packs)).
 [The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
 These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and

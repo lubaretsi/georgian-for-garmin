@@ -6,6 +6,7 @@ import type { Verdict } from "../model/screens";
 import { confidenceOf, verdictOf, verifiable, verified, watchInfo } from "./verdict";
 
 const reason = output("fenix6", "inspect", "inspect").support.reason ?? null;
+const instinct3Reason = output("instinct3", "inspect", "inspect").support.reason ?? null;
 
 /** §5.1 for every successful inspect the core produced (fixtures/core). */
 const EXPECTED: Record<string, Verdict> = {
@@ -19,13 +20,16 @@ const EXPECTED: Record<string, Verdict> = {
   "fenix6-beta-left/inspect-restored": { kind: "unsupported", reason, restorable: false },
   "forerunner255-newer/inspect": { kind: "install", confidence: "confirmed_other_software" },
   "forerunner265/inspect": { kind: "no_font" },
-  "instinct3/inspect": { kind: "install", confidence: "unconfirmed" },
-  "instinct3/inspect-staged": { kind: "restart_pending", variant: "georgian" },
-  "instinct3/inspect-restarted": { kind: "installed", confidence: "unconfirmed" },
-  "instinct3/inspect-restarted-again": { kind: "installed", confidence: "unconfirmed" },
+  "instinct3/inspect": { kind: "unsupported", reason: instinct3Reason, restorable: true },
+  "instinct3/inspect-restore-staged": { kind: "unsupported", reason: instinct3Reason, restorable: false },
+  "instinct3/inspect-restored": { kind: "unsupported", reason: instinct3Reason, restorable: false },
   "lily2active/inspect": { kind: "install", confidence: "unconfirmed" },
   "lily2active/inspect-staged": { kind: "restart_pending", variant: "georgian" },
   "lily2active/inspect-restarted": { kind: "installed", confidence: "unconfirmed" },
+  "venu-boxes/inspect": { kind: "install", confidence: "unconfirmed" },
+  "venu-boxes/inspect-staged": { kind: "restart_pending", variant: "georgian" },
+  "venu-boxes/inspect-restarted": { kind: "installed", confidence: "unconfirmed" },
+  "venu-boxes/inspect-restarted-again": { kind: "installed", confidence: "unconfirmed" },
   "venu2/inspect": { kind: "install", confidence: "confirmed" },
   "venu2/inspect-staged": { kind: "restart_pending", variant: "georgian" },
   "venu2/inspect-restarted": { kind: "installed", confidence: "confirmed" },
@@ -59,7 +63,7 @@ describe("verdictOf", () => {
 
   // The rules no fixture reaches: the same watches with one field changed.
   const venu2 = output("venu2", "inspect", "inspect");
-  const instinct3 = output("instinct3", "inspect", "inspect");
+  const venu = output("venu-boxes", "inspect", "inspect");
 
   test("a `beta` state is install with its note", () => {
     expect(verdictOf({ ...venu2, state: "beta" })).toEqual({ kind: "install", confidence: "confirmed", note: "beta" });
@@ -71,10 +75,10 @@ describe("verdictOf", () => {
   });
 
   test("a tested target part makes it confirmed for some fonts", () => {
-    const packs = instinct3.packs.map((pack, i) =>
+    const packs = venu.packs.map((pack, i) =>
       i === 0 ? { ...pack, parts: pack.parts.map((part, j) => (j === 0 ? { ...part, tested: "tested" as const } : part)) } : pack,
     );
-    expect(confidenceOf({ ...instinct3, packs })).toBe("confirmed_some_fonts");
+    expect(confidenceOf({ ...venu, packs })).toBe("confirmed_some_fonts");
   });
 });
 

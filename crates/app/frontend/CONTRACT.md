@@ -374,7 +374,8 @@ The flows:
 |---|---|---|
 | Venu 2, confirmed | maintainer Venu 2 | install → restart → verified → works (no share asked) |
 | Lily 2 Active, first confirmation | the composed Lily fixture | short names, install → restart → check → works_first → share |
-| Instinct 3, boxes | issue-33 | install → restart → check boxes → restart once more → share |
+| Venu, boxes | issue-12 with a hidden listing (composed) | install → restart → check boxes → restart once more → share |
+| Instinct 3, unsupported | issue-57 with 0.3.4's Korean font imported (composed) | unsupported, no install → restore → restart → restored |
 | Venu 3, another font waiting | issue-2 + its waiting state | blocked → restart → install |
 | fenix 6, unsupported | issue-6 | unsupported → follow updates; the beta-left variant → restore |
 | Forerunner 245, drive only | issue-16 | drive-only → follow / share font list |

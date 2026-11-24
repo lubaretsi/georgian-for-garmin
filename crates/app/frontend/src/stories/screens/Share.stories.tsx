@@ -10,9 +10,9 @@ import type { ScreenStoryArgs } from "./ScreenStory";
 type What = "result" | "font_list" | "problem";
 type State = "ready" | "opened" | "opened_paste" | "failed";
 
-/** Who shares what: Instinct 3's boxes, Forerunner 265's font list, a problem with no watch. */
+/** Who shares what: the Venu's boxes, Forerunner 265's font list, a problem with no watch. */
 const SOURCES: Record<What, { watch: WatchInfo | null; report: [string, string]; thanks: "tested_next" | "we_look" }> = {
-  result: { watch: WATCHES.instinct3, report: ["instinct3", "issue_link-boxes"], thanks: "we_look" },
+  result: { watch: WATCHES.venu, report: ["venu-boxes", "issue_link-boxes"], thanks: "we_look" },
   font_list: { watch: WATCHES.forerunner265, report: ["forerunner265", "issue_link-font_list"], thanks: "we_look" },
   problem: { watch: null, report: ["busy", "issue_link-problem"], thanks: "we_look" },
 };

@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alone: a report of what stopped the connection, with the app and the computer and no watch.
   Words of the message that look like identifiers are left out.
 
+### Changed
+
+- Instinct 3 AMOLED: Georgian added to its Korean font didn't show in notifications
+  ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57)), so the app no longer
+  installs there; Restore original font puts Garmin's font back. Both sizes (50mm and 45mm) are
+  listed as not working, and the Korean pack it got (`korean-nanum-gothic-bold`,
+  `006-D8945-07`) is restore-only. The demo build's Instinct 3 is a 45mm with that font to
+  restore.
+
 ### Fixed
 
 - A busy watch's USB product name is left out when it looks like an identifier (a serial

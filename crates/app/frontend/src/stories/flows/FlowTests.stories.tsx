@@ -105,8 +105,8 @@ export const Lily2ActiveFirstConfirmation: Story = {
   },
 };
 
-export const Instinct3Boxes: Story = {
-  args: { options: { watch: "instinct3" } },
+export const VenuBoxes: Story = {
+  args: { options: { watch: "venuBoxes" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
     await p.screen(p.copy.watch.install.title);
@@ -128,6 +128,25 @@ export const Instinct3Boxes: Story = {
     await press(p, p.copy.actions.shareResult);
     await p.screen(p.copy.share.title.result);
     await shareOnGitHub(p);
+  },
+};
+
+export const Instinct3UnsupportedRestore: Story = {
+  args: { options: { watch: "instinct3" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    // 0.3.4's Georgian is in its Korean font: no install, and Restore puts Garmin's font back.
+    await p.screen(p.fmt(p.copy.watch.unsupported.title, { model: "Instinct 3 - 45mm, AMOLED" }));
+    await expect(p.app.queryByRole("button", { name: p.copy.actions.install })).toBeNull();
+    await press(p, p.copy.actions.restore);
+    await p.screen(p.copy.confirmRestore.title);
+    await press(p, p.copy.actions.restore);
+    await p.screen(p.copy.restart.unplug.title);
+    await simulate(p, "Unplug");
+    await p.screen(p.copy.restart.restart.title);
+    await simulate(p, "Restart watch");
+    await simulate(p, "Plug in (MTP)");
+    await p.screen(p.copy.result.restore.title);
   },
 };
 

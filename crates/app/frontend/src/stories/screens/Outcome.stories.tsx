@@ -28,16 +28,16 @@ export const WorksFirstSharedBefore: ScreenStoryObj = {
   args: { model: outcome("works_first", WATCHES.lily2Active, "georgian", 1, true), restorable: true },
 };
 
-/** Instinct 3 (issue 33): boxes. Before any restart the app suggests one. */
+/** Venu (1st gen, issue 12): boxes. Before any restart the app suggests one. */
 export const DidntShowRestarts0: ScreenStoryObj = {
-  args: { model: outcome("didnt_show", WATCHES.instinct3, "boxes", 0), restorable: true },
+  args: { model: outcome("didnt_show", WATCHES.venu, "boxes", 0), restorable: true },
 };
 /** After two restarts sharing comes first; here the watch showed some letters. */
 export const DidntShowRestarts2: ScreenStoryObj = {
-  args: { model: outcome("didnt_show", WATCHES.instinct3, "some_letters", 2), restorable: true },
+  args: { model: outcome("didnt_show", WATCHES.venu, "some_letters", 2), restorable: true },
 };
 export const DidntShowSharedBefore: ScreenStoryObj = {
-  args: { model: outcome("didnt_show", WATCHES.instinct3, "question_marks", 2, true), restorable: true },
+  args: { model: outcome("didnt_show", WATCHES.venu, "question_marks", 2, true), restorable: true },
 };
 
 export const NoNotification: ScreenStoryObj = {

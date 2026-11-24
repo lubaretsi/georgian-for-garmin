@@ -15,6 +15,9 @@
 //! - a restart that doesn't import is the watch left as it was;
 //! - the Venu 3's other font waiting (#2's report listed nothing) is a `.tmp` added to its
 //!   listing that is neither Garmin's nor ours;
+//! - the Venu 1st gen's hidden listing (#12's report has none), with its Korean `-22` imported as
+//!   Garmin's original, and the Instinct 3's `-07` imported as our build (#57's report is from
+//!   before installing);
 //! - busy holders and connect problems are the errors the connection would return, built with
 //!   the core's own `Error` builders (the holders as the demo build names them); the problems'
 //!   messages are written here after the core's;
@@ -52,6 +55,7 @@ const SCENARIOS: &[&str] = &[
     "venu2-second-restart",
     "venu2-write-fails",
     "lily2active",
+    "venu-boxes",
     "instinct3",
     "venu3-waiting",
     "fenix6",
@@ -398,21 +402,27 @@ fn lily2active() {
     s.finish();
 }
 
-/// Instinct 3 AMOLED 50mm (#33): install, restart, boxes; another restart; boxes again, shared.
+/// Venu (1st gen, #12): install, restart, boxes; another restart; boxes again, shared. Composed:
+/// its report (0.2.2) has no hidden listing, so the watch is given one with its Korean `-22`
+/// imported as Garmin's original, as the Lily 2 Active's are.
 #[test]
-fn instinct3() {
-    let i3 = imports_as_garmins(
-        fixture("issue-33.json"),
-        &FontSet::bundled(),
-        &["006-D8945-07"],
-    );
-    let (watch, fonts) = Watch::from_fixture(&i3);
-    let mut s = Scenario::new("instinct3", fonts);
-    s.ok("inspect", "inspect", &watch);
+fn venu_boxes() {
+    let mut venu = fixture("issue-12.json");
+    let k22 = font_for(&FontSet::bundled(), "006-D8945-22")
+        .unwrap()
+        .clone();
+    venu["hidden"] = json!({"status": "listed", "files": [
+        {"name": "006-D8945-22.fnt", "bytes": k22.stock.len(), "read_only": true, "file": "stock"}
+    ]});
+    let (watch, fonts) = Watch::from_fixture(&venu);
+    let mut s = Scenario::new("venu-boxes", fonts);
+    let before = s.ok("inspect", "inspect", &watch);
+    assert_eq!(before["support"]["status"], "expected");
     let installed = s.ok("install", "install", &watch);
     s.ok("inspect-staged", "inspect", &watch);
     watch.restart(&s.fonts);
     let after = s.ok("inspect-restarted", "inspect", &watch);
+    assert_eq!(state(&after), "installed");
     watch.restart(&s.fonts);
     let again = s.ok("inspect-restarted-again", "inspect", &watch);
     assert_eq!(after, again);
@@ -420,6 +430,41 @@ fn instinct3() {
         "issue_link-boxes",
         json!({"report": again["report"], "outcome": outcome("install", &installed), "answers": answers("boxes")}),
     );
+    assert!(watch.0.borrow().violations.is_empty());
+    s.finish();
+}
+
+/// Instinct 3 AMOLED 45mm (#57) after 0.3.4 installed its Korean `-07` and the watch restarted
+/// (composed: the report is from before installing, so its `-07` import is set to our build):
+/// unsupported, restorable; restore → restart → Garmin's font.
+#[test]
+fn instinct3() {
+    let mut i3 = fixture("issue-57.json");
+    for file in i3["hidden"]["files"].as_array_mut().unwrap() {
+        if file["name"] == "006-D8945-07.fnt" {
+            file["file"] = json!("georgian");
+        }
+    }
+    let (watch, fonts) = Watch::from_fixture(&i3);
+    let mut s = Scenario::new("instinct3", fonts);
+    let out = s.ok("inspect", "inspect", &watch);
+    assert_eq!(out["support"]["status"], "unsupported");
+    assert_eq!(out["support"]["issue"], 57);
+    assert_eq!(out["restorable"], true);
+    s.ok("restore_stock", "restore_stock", &watch);
+    s.ok("inspect-restore-staged", "inspect", &watch);
+    watch.restart(&s.fonts);
+    let back = s.ok("inspect-restored", "inspect", &watch);
+    let k07 = |inspect: &Value| {
+        inspect["fonts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["part"] == "006-D8945-07")
+            .map(|f| f["file"].clone())
+    };
+    assert_eq!(k07(&out), Some(json!("georgian")));
+    assert_eq!(k07(&back), Some(json!("stock")));
     assert!(watch.0.borrow().violations.is_empty());
     s.finish();
 }
