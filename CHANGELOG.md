@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The demo build's `GEORGIAN_FOR_GARMIN_DEMO_RECORDING=1` (or `PLUG,UNPLUG,BACK` seconds) films
+  an install or restore without the Demo watch bar: the simulated watch is plugged in, unplugged
+  after the app has written to it, and plugged back in restarted once the app has seen it gone
+  ([development](docs/development.md#desktop-app)).
+
 ### Changed
 
 - The README and the Windows guide show a new install video of the 0.4.0 app, and the guide new

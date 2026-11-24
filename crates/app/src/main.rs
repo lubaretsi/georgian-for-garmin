@@ -303,6 +303,14 @@ fn demo_watch(action: demo::Action) {
     demo::act(action);
 }
 
+/// Whether the demo build shows its "Demo watch" bar: not while `GEORGIAN_FOR_GARMIN_DEMO_RECORDING`
+/// plays the watch's side. Only the demo build has this command.
+#[cfg(feature = "demo")]
+#[tauri::command]
+fn demo_watch_bar() -> bool {
+    demo::bar()
+}
+
 /// The diagnostic files this run saved: the only ones `reveal_file` shows.
 #[derive(Default)]
 struct Saved(Mutex<Vec<PathBuf>>);
@@ -561,7 +569,9 @@ fn main() {
             copy_text,
             reveal_file,
             #[cfg(feature = "demo")]
-            demo_watch
+            demo_watch,
+            #[cfg(feature = "demo")]
+            demo_watch_bar
         ])
         .run(tauri::generate_context!())
         .expect("the window could not be opened");
