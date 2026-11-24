@@ -39,6 +39,9 @@
 //! `macos_camera_service`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held
 //! by such a program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`,
 //! `windows`, `linux`) shows another platform's words, and its holders' names.
+//! `GEORGIAN_FOR_GARMIN_DEMO_RECORDING` ([`Recording`]) plays the physical side on a timer for a
+//! filmed install, without the bar: plugged in a moment after the start, unplugged a moment
+//! after the app staged fonts, and back, restarted, a moment later.
 //!
 //! The rest of the app's outside world is kept here too, so the demo build touches nothing of
 //! the user's: diagnostic info is saved to a folder in the temp directory ([`downloads`]), the
@@ -49,7 +52,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
 #[cfg(feature = "demo")]
@@ -185,6 +188,62 @@ const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
     ),
 ];
 
+/// `GEORGIAN_FOR_GARMIN_DEMO_RECORDING`: the watch's physical side on a timer, for filming an
+/// install without the "Demo watch" bar. The watch starts unplugged and is plugged in `plug`
+/// after the start; once the app has written to the watch (Install or Restore: bitmap `.tmp`
+/// files to import or TrueType files in place) and then nothing for `unplug`, the watch is
+/// unplugged; `back` later it is restarted (staged fonts imported) and plugged in again.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Recording {
+    pub plug: Duration,
+    pub unplug: Duration,
+    pub back: Duration,
+}
+
+impl Recording {
+    pub const DEFAULT: Self = Self {
+        plug: Duration::from_secs(5),
+        unplug: Duration::from_secs(4),
+        back: Duration::from_secs(8),
+    };
+
+    /// `1` (or `on`, `true`, `yes`) for the default delays, or `PLUG,UNPLUG,BACK` in seconds.
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim();
+        if ["1", "on", "true", "yes"]
+            .iter()
+            .any(|v| v.eq_ignore_ascii_case(value))
+        {
+            return Some(Self::DEFAULT);
+        }
+        let secs: Vec<Duration> = value
+            .split(',')
+            .map(|s| {
+                s.trim()
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(|s| Duration::try_from_secs_f64(s).ok())
+            })
+            .collect::<Option<_>>()?;
+        match secs[..] {
+            [plug, unplug, back] => Some(Self { plug, unplug, back }),
+            _ => None,
+        }
+    }
+}
+
+/// Where a [`Recording`] is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Take {
+    /// Unplugged since the start, until `plug`.
+    Plugging(Instant),
+    /// Plugged in, waiting for staged fonts.
+    Watching,
+    /// Unplugged (and restarting) since then; back once `back` has passed and the app has seen
+    /// the watch gone (`seen`), since it leaves the unplug step only on a poll that finds no watch.
+    Away { since: Instant, seen: bool },
+}
+
 type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
 
 struct State {
@@ -205,6 +264,10 @@ struct State {
     current: usize,
     next_handle: u32,
     transfer: Duration,
+    /// When the app last wrote a file to the watch.
+    last_write: Option<Instant>,
+    /// `GEORGIAN_FOR_GARMIN_DEMO_RECORDING`.
+    recording: Option<(Recording, Take)>,
 }
 
 impl State {
@@ -387,6 +450,8 @@ impl Demo {
             current: 0,
             next_handle: 0x0100_0100,
             transfer,
+            last_write: None,
+            recording: None,
         })))
     }
 
@@ -409,6 +474,9 @@ impl Demo {
         } else if s.scripted {
             Err(Error::busy(s.busy.clone()))
         } else if s.plug != Plug::Mtp {
+            if let Some((_, Take::Away { seen, .. })) = &mut s.recording {
+                *seen = true;
+            }
             absent("the watch is unplugged.")
         } else if s.restarting > 0 {
             s.restarting -= 1;
@@ -497,6 +565,54 @@ impl Demo {
         s.busy = busy_sample(kind.unwrap_or(HolderKind::GarminExpress), platform);
         s.always_busy = kind.is_some();
     }
+
+    /// Starts a filmed take: the watch unplugged, the opening script skipped, and from then on
+    /// [`Demo::tick`] moves the watch.
+    fn record(&self, recording: Recording, now: Instant) {
+        let mut s = self.state();
+        s.scripted = false;
+        s.plug = Plug::Unplugged;
+        s.recording = Some((recording, Take::Plugging(now)));
+    }
+
+    /// A take's next step, if it's due at `now`: plug in after the start; unplug once the app's
+    /// last write is `unplug` old; restart and plug in `back` later, once the app saw it gone.
+    fn tick(&self, now: Instant) {
+        let mut s = self.state();
+        let Some((rec, take)) = s.recording else {
+            return;
+        };
+        let next = match take {
+            Take::Plugging(start) if now >= start + rec.plug => {
+                s.plug = Plug::Mtp;
+                Take::Watching
+            }
+            Take::Watching
+                if s.plug == Plug::Mtp && s.last_write.is_some_and(|w| now >= w + rec.unplug) =>
+            {
+                // Each write session is played through once.
+                s.last_write = None;
+                s.plug = Plug::Unplugged;
+                Take::Away {
+                    since: now,
+                    seen: false,
+                }
+            }
+            Take::Away { since, seen: true } if now >= since + rec.back => {
+                import_staged(s.objects());
+                s.plug = Plug::Mtp;
+                Take::Watching
+            }
+            take => take,
+        };
+        s.recording = Some((rec, next));
+    }
+
+    /// Whether a filmed take runs (the bar stays hidden then).
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn recording(&self) -> bool {
+        self.state().recording.is_some()
+    }
 }
 
 /// What holds a demo watch for `kind`, named as on `platform`. Windows names no holder, only a
@@ -551,6 +667,23 @@ static WATCH: std::sync::LazyLock<Demo> = std::sync::LazyLock::new(|| {
             kind
         });
     demo.hold(busy, platform);
+    if let Ok(value) = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_RECORDING") {
+        match Recording::parse(&value) {
+            Some(recording) => {
+                demo.record(recording, Instant::now());
+                let take = demo.clone();
+                thread::spawn(move || {
+                    loop {
+                        thread::sleep(Duration::from_millis(100));
+                        take.tick(Instant::now());
+                    }
+                });
+            }
+            None => eprintln!(
+                "GEORGIAN_FOR_GARMIN_DEMO_RECORDING: {value:?} is neither 1 nor PLUG,UNPLUG,BACK seconds"
+            ),
+        }
+    }
     demo
 });
 
@@ -564,6 +697,12 @@ pub fn connect() -> Result<Box<dyn Mtp>, Error> {
 #[cfg(feature = "demo")]
 pub fn act(action: Action) {
     WATCH.act(action);
+}
+
+/// Whether the demo build shows its "Demo watch" bar: not while a filmed take runs.
+#[cfg(feature = "demo")]
+pub fn bar() -> bool {
+    !WATCH.recording()
 }
 
 /// What `diagnose` lists in the demo build: the demo watch on USB and the demo drive.
@@ -761,6 +900,7 @@ impl Mtp for Demo {
             ..info.clone()
         };
         s.objects().insert(handle, (info, data.to_vec()));
+        s.last_write = Some(Instant::now());
         Ok(NewObject {
             storage,
             parent,
@@ -769,11 +909,12 @@ impl Mtp for Demo {
     }
 
     fn delete_object(&mut self, handle: u32) -> Result<(), MtpError> {
-        self.state()
-            .objects()
+        let mut s = self.state();
+        s.objects()
             .remove(&handle)
-            .map(drop)
-            .ok_or(invalid_handle(op::DELETE_OBJECT))
+            .ok_or(invalid_handle(op::DELETE_OBJECT))?;
+        s.last_write = Some(Instant::now());
+        Ok(())
     }
 
     /// The children the normal listing leaves out: the imports.
@@ -1090,5 +1231,139 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn recording_delays_parse() {
+        for on in ["1", "on", "TRUE", " yes "] {
+            assert_eq!(Recording::parse(on), Some(Recording::DEFAULT));
+        }
+        assert_eq!(
+            Recording::parse("2, 1.5,6"),
+            Some(Recording {
+                plug: Duration::from_secs(2),
+                unplug: Duration::from_millis(1500),
+                back: Duration::from_secs(6),
+            })
+        );
+        for bad in ["", "0", "off", "1,2", "1,2,3,4", "1,x,3", "-1,2,3"] {
+            assert_eq!(Recording::parse(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_recording_plugs_unplugs_restarts_and_plugs_back() {
+        let s = Duration::from_secs;
+        let demo = Demo::new(Duration::ZERO);
+        let start = Instant::now();
+        demo.record(
+            Recording {
+                plug: s(5),
+                unplug: s(4),
+                back: s(8),
+            },
+            start,
+        );
+        assert!(demo.recording());
+        // No opening script: unplugged until the plug delay.
+        demo.tick(start + s(4));
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.tick(start + s(5));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "not_installed");
+
+        // Installed: the fonts wait, the watch stays until `unplug` after the last write.
+        call(&demo, "install").unwrap();
+        let wrote = demo.state().last_write.expect("install wrote files");
+        demo.tick(wrote + s(3));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "waiting");
+        demo.tick(wrote + s(4));
+        assert!(demo.usb().is_none());
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+
+        // `back` later: restarted (the fonts imported) and plugged in again, once.
+        demo.tick(wrote + s(11));
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.tick(wrote + s(12));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+        demo.tick(wrote + s(60));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+    }
+
+    #[test]
+    fn without_a_recording_ticks_do_nothing() {
+        let demo = attached("Venu 2");
+        call(&demo, "install").unwrap();
+        assert!(!demo.recording());
+        demo.tick(Instant::now() + Duration::from_secs(3600));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "waiting");
+    }
+
+    /// A take with `model` attached and plugged in at `start`.
+    fn take(model: &str, start: Instant) -> Demo {
+        let demo = Demo::new(Duration::ZERO);
+        assert!(demo.attach(model), "{model}");
+        demo.record(Recording::DEFAULT, start);
+        demo.tick(start + Recording::DEFAULT.plug);
+        demo
+    }
+
+    /// Plays one unplug, restart and plug-in cycle after the last write; returns the watch's state.
+    fn played_through(demo: &Demo) -> Value {
+        let rec = Recording::DEFAULT;
+        let wrote = demo.state().last_write.expect("the app wrote to the watch");
+        demo.tick(wrote + rec.unplug - Duration::from_millis(1));
+        assert!(demo.usb().is_some(), "still plugged in before the delay");
+        demo.tick(wrote + rec.unplug);
+        assert!(demo.usb().is_none(), "unplugged after the delay");
+        assert_eq!(
+            call(demo, "inspect"),
+            Err(ErrorCode::NoDevice),
+            "the app sees it gone"
+        );
+        demo.tick(wrote + rec.unplug + rec.back);
+        assert!(demo.usb().is_some(), "back after the restart");
+        call(demo, "inspect").unwrap()
+    }
+
+    #[test]
+    fn a_recording_plays_install_and_restore_on_truetype_and_bitmap_watches() {
+        for model in ["Forerunner 165", "Venu 2"] {
+            let demo = take(model, Instant::now());
+            assert_eq!(
+                call(&demo, "inspect").unwrap()["state"],
+                "not_installed",
+                "{model}"
+            );
+            call(&demo, "install").unwrap();
+            assert_eq!(played_through(&demo)["state"], "installed", "{model}");
+            call(&demo, "restore_stock").unwrap();
+            assert_eq!(played_through(&demo)["state"], "not_installed", "{model}");
+        }
+    }
+
+    /// The app leaves the unplug step only on a poll that finds no watch (every 2 s): a `back`
+    /// shorter than that must not reconnect before a poll saw the watch gone.
+    #[test]
+    fn a_short_back_waits_until_the_app_saw_the_watch_unplugged() {
+        let s = Duration::from_secs_f64;
+        let rec = Recording {
+            plug: s(0.0),
+            unplug: s(0.5),
+            back: s(0.1),
+        };
+        let demo = Demo::new(Duration::ZERO);
+        let start = Instant::now();
+        demo.record(rec, start);
+        demo.tick(start);
+        call(&demo, "install").unwrap();
+        let wrote = demo.state().last_write.expect("install wrote files");
+        demo.tick(wrote + rec.unplug);
+        assert!(demo.usb().is_none(), "unplugged");
+        // No poll yet: however long it takes, the watch stays away.
+        demo.tick(wrote + rec.unplug + s(60.0));
+        assert!(demo.usb().is_none(), "still away until a poll saw it gone");
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.tick(wrote + rec.unplug + s(60.1));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
     }
 }
