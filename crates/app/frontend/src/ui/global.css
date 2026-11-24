@@ -137,6 +137,13 @@ body {
   :where(.window-frame, .app) ::selection {
     background: rgb(201 42 67 / 0.22);
   }
+  /* WebView2 draws Windows' classic scrollbar (arrow buttons, 15 px at 100%) beside the
+     content, which pushes the centered content off center; the thin standard one in the
+     palette's grays is narrower and closer to Windows 11's. macOS and GTK overlay theirs. */
+  :where(.window-frame, .app)[data-platform="windows"] * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--control-border) transparent;
+  }
 }
 
 .app :focus-visible {
