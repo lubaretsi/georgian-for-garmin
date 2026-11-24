@@ -331,9 +331,10 @@ the app's settings alone (the language and shares last for the run); its diagnos
 
 For filming, `GEORGIAN_FOR_GARMIN_DEMO_RECORDING=1` hides the **Demo watch** bar and plays the
 watch's physical side on a timer: the watch starts unplugged (no opening script) and is plugged
-in 5 seconds after the start; once the app has staged fonts and written nothing for 4 seconds,
-the watch is unplugged; 8 seconds later it is restarted (the fonts imported) and plugged in
-again, so an install plays through to the verified result without a click on the watch's side.
+in 5 seconds after the start; once Install or Restore has written to it and nothing more for 4
+seconds, the watch is unplugged; 8 seconds later, and only after the app has seen it gone, it is
+restarted (staged fonts imported) and plugged in again, so an install plays through to the
+verified result without a click on the watch's side.
 `GEORGIAN_FOR_GARMIN_DEMO_RECORDING=PLUG,UNPLUG,BACK` sets the three delays in seconds (for
 example `3,2.5,6`). It combines with `GEORGIAN_FOR_GARMIN_DEMO_WATCH`.
 

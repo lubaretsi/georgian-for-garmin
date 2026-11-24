@@ -239,8 +239,9 @@ enum Take {
     Plugging(Instant),
     /// Plugged in, waiting for staged fonts.
     Watching,
-    /// Unplugged (and restarting) since then, until `back`.
-    Away(Instant),
+    /// Unplugged (and restarting) since then; back once `back` has passed and the app has seen
+    /// the watch gone (`seen`), since it leaves the unplug step only on a poll that finds no watch.
+    Away { since: Instant, seen: bool },
 }
 
 type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
@@ -473,6 +474,9 @@ impl Demo {
         } else if s.scripted {
             Err(Error::busy(s.busy.clone()))
         } else if s.plug != Plug::Mtp {
+            if let Some((_, Take::Away { seen, .. })) = &mut s.recording {
+                *seen = true;
+            }
             absent("the watch is unplugged.")
         } else if s.restarting > 0 {
             s.restarting -= 1;
@@ -572,7 +576,7 @@ impl Demo {
     }
 
     /// A take's next step, if it's due at `now`: plug in after the start; unplug once the app's
-    /// last write is `unplug` old; restart and plug in `back` later.
+    /// last write is `unplug` old; restart and plug in `back` later, once the app saw it gone.
     fn tick(&self, now: Instant) {
         let mut s = self.state();
         let Some((rec, take)) = s.recording else {
@@ -589,9 +593,12 @@ impl Demo {
                 // Each write session is played through once.
                 s.last_write = None;
                 s.plug = Plug::Unplugged;
-                Take::Away(now)
+                Take::Away {
+                    since: now,
+                    seen: false,
+                }
             }
-            Take::Away(since) if now >= since + rec.back => {
+            Take::Away { since, seen: true } if now >= since + rec.back => {
                 import_staged(s.objects());
                 s.plug = Plug::Mtp;
                 Take::Watching
@@ -1308,6 +1315,11 @@ mod tests {
         assert!(demo.usb().is_some(), "still plugged in before the delay");
         demo.tick(wrote + rec.unplug);
         assert!(demo.usb().is_none(), "unplugged after the delay");
+        assert_eq!(
+            call(demo, "inspect"),
+            Err(ErrorCode::NoDevice),
+            "the app sees it gone"
+        );
         demo.tick(wrote + rec.unplug + rec.back);
         assert!(demo.usb().is_some(), "back after the restart");
         call(demo, "inspect").unwrap()
@@ -1327,5 +1339,31 @@ mod tests {
             call(&demo, "restore_stock").unwrap();
             assert_eq!(played_through(&demo)["state"], "not_installed", "{model}");
         }
+    }
+
+    /// The app leaves the unplug step only on a poll that finds no watch (every 2 s): a `back`
+    /// shorter than that must not reconnect before a poll saw the watch gone.
+    #[test]
+    fn a_short_back_waits_until_the_app_saw_the_watch_unplugged() {
+        let s = Duration::from_secs_f64;
+        let rec = Recording {
+            plug: s(0.0),
+            unplug: s(0.5),
+            back: s(0.1),
+        };
+        let demo = Demo::new(Duration::ZERO);
+        let start = Instant::now();
+        demo.record(rec, start);
+        demo.tick(start);
+        call(&demo, "install").unwrap();
+        let wrote = demo.state().last_write.expect("install wrote files");
+        demo.tick(wrote + rec.unplug);
+        assert!(demo.usb().is_none(), "unplugged");
+        // No poll yet: however long it takes, the watch stays away.
+        demo.tick(wrote + rec.unplug + s(60.0));
+        assert!(demo.usb().is_none(), "still away until a poll saw it gone");
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.tick(wrote + rec.unplug + s(60.1));
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
     }
 }
