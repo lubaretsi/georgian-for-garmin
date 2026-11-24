@@ -43,12 +43,19 @@ export function StepIndicator({ current, allDone, labels }: { current: StepId; a
                   "relative flex size-[18px] items-center justify-center rounded-full text-label font-semibold tabular-nums",
                   state === "current" && (allDone ? "bg-success text-on-accent" : "bg-accent text-on-accent"),
                   state === "done" && "text-fg",
-                  state === "next" && "text-fg-2",
+                  state === "next" && "bg-fill text-fg-2",
                 )}
               >
                 {state === "done" || allDone ? <Check size={state === "current" ? 12 : 14} strokeWidth={2.8} /> : i + 1}
               </span>
-              <span className={cn("relative text-label font-semibold whitespace-nowrap text-fg", state !== "current" && "sr-only")}>
+              {/* Text sits on its own solid fill (the thumb's, the track's), so its contrast holds and
+                  is measurable while the thumb slides under it. */}
+              <span
+                className={cn(
+                  "relative bg-control-bg text-label font-semibold whitespace-nowrap text-fg",
+                  state !== "current" && "sr-only",
+                )}
+              >
                 {labels[step]}
                 {state === "done" || allDone ? <span className="sr-only">, {labels.done}</span> : null}
               </span>

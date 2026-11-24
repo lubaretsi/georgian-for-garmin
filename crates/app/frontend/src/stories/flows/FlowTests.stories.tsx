@@ -17,14 +17,13 @@ export default {
   render: (args, { globals }) => <FlowStory options={args.options} globals={globals} />,
   parameters: { frame: false, layout: "padded" },
   // The a11y addon checks the story as it first renders; a flow ends on another screen, so axe
-  // checks that one too. "Needs review" items are what axe can't measure (text over the design's
-  // gradients and pseudo-element backgrounds), whose contrast the design's tokens carry: logged.
+  // checks that one too, and fails on "needs review" items as well as violations: text sits on
+  // solid backgrounds, so axe can measure every contrast.
   afterEach: async ({ canvasElement }) => {
     const results = await axe.run(canvasElement, { resultTypes: ["violations", "incomplete"] });
-    const describe = (r: axe.Result) =>
-      `${r.id}: ${r.nodes.map((n) => `${n.target.join(" ")} (${(n.any[0] ?? n.all[0] ?? n.none[0])?.message ?? ""})`).join("; ")}`;
-    for (const item of results.incomplete) console.info(`axe needs review: ${describe(item)}`);
-    expect(results.violations.map(describe)).toEqual([]);
+    const describe = (kind: string) => (r: axe.Result) =>
+      `${kind} ${r.id}: ${r.nodes.map((n) => `${n.target.join(" ")} (${(n.any[0] ?? n.all[0] ?? n.none[0])?.message ?? ""})`).join("; ")}`;
+    expect([...results.violations.map(describe("violation")), ...results.incomplete.map(describe("needs review"))]).toEqual([]);
   },
 } satisfies Meta<Args>;
 
