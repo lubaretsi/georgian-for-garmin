@@ -4,7 +4,8 @@
 # the system's GCC and GTK/WebKitGTK, embedding the fonts from `nix build .#fonts`.
 #
 # Run it outside `nix develop`: binaries from the dev shell link Nix store libraries. Nix only
-# builds the fonts and supplies the Tauri CLI, which runs here but is not linked into anything.
+# builds the fonts and supplies the Tauri CLI and the dev shell's Node and pnpm, which build the
+# frontend (Tauri's beforeBuildCommand) but are not linked into anything.
 #
 # The app links the system's glibc, GTK 3 and WebKitGTK 4.1, so it runs on distributions with a
 # glibc at least as new as the build machine's (release.yml builds on Ubuntu 22.04: glibc 2.35).
@@ -52,14 +53,18 @@ system=$("$nix" eval --raw --impure --expr builtins.currentSystem)
 "$nix" build --no-link --print-build-logs ".#fonts" ".#checks.$system.builder"
 fonts=$("$nix" build --no-link --print-out-paths ".#fonts")
 cargo_tauri=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#cargo-tauri)/bin/cargo-tauri
+# The frontend's toolchain, as in the dev shell.
+node_bin=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#nodejs)/bin
+pnpm_bin=$("$nix" build --no-link --print-out-paths --inputs-from . nixpkgs#pnpm)/bin
 
 step "Installing Rust $toolchain for $gnu_target and $musl_target"
 "$rustup" toolchain install "$toolchain" --profile minimal --no-self-update \
   --target "$gnu_target,$musl_target"
 rust_bin=$(dirname "$("$rustup" which --toolchain "$toolchain" cargo)")
 
-# The system's toolchain only: nothing from Nix or the caller's compiler settings.
-export PATH="$rust_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# The system's toolchain only: nothing from Nix (but the frontend's Node and pnpm) or the
+# caller's compiler settings.
+export PATH="$rust_bin:$node_bin:$pnpm_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS RUSTC RUSTC_WRAPPER RUSTFLAGS PKG_CONFIG_PATH \
   CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_BUILD_TARGET NIX_CFLAGS_COMPILE NIX_LDFLAGS
 export CARGO_TARGET_DIR=$work/cargo

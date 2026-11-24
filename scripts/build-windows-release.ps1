@@ -9,6 +9,11 @@ Nix doesn't run on Windows: build the fonts on Linux or macOS (`nix build .#font
 their folder as -Fonts or in GEORGIAN_FOR_GARMIN_FONTS. The core's build script checks every
 font against the folder's manifest; the builder's tests pin the manifest's hashes.
 
+The app's frontend is built there too, with the dev shell's pnpm (`nix develop --command bash
+-c 'cd crates/app/frontend && pnpm install --frozen-lockfile && pnpm build'`): pass its dist
+folder as -Frontend or in GEORGIAN_FOR_GARMIN_FRONTEND. The app embeds it instead of running
+Tauri's beforeBuildCommand.
+
 Nothing is signed: Windows SmartScreen warns before the first run. The installer is NSIS,
 installs for the current user without administrator rights, and fetches Microsoft's WebView2
 runtime only if Windows lacks it. Binaries link the C runtime statically (.cargo/config.toml),
@@ -24,6 +29,7 @@ v<workspace version>.
 [CmdletBinding()]
 param(
     [string]$Fonts = $env:GEORGIAN_FOR_GARMIN_FONTS,
+    [string]$Frontend = $env:GEORGIAN_FOR_GARMIN_FRONTEND,
     [ValidateSet('x64', 'arm64')]
     [string[]]$Arch = @('x64', 'arm64')
 )
@@ -75,6 +81,9 @@ if (-not (Test-Path -LiteralPath $manifestPath)) { throw "$Fonts has no manifest
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
 $packKinds = @{}
 foreach ($pack in $manifest.packs) { $packKinds[$pack.id] = $pack.kind }
+if (-not $Frontend) { throw 'pass the built frontend (crates/app/frontend/dist, see above) as -Frontend or in GEORGIAN_FOR_GARMIN_FRONTEND' }
+$Frontend = (Resolve-Path -LiteralPath $Frontend).Path
+if (-not (Test-Path -LiteralPath (Join-Path $Frontend 'index.html'))) { throw "$Frontend has no index.html; is it the frontend's dist folder?" }
 $rustup = (Get-Command rustup -ErrorAction SilentlyContinue)
 if (-not $rustup) { throw 'rustup is needed (https://rustup.rs)' }
 $hostTriple = 'x86_64-pc-windows-msvc'
@@ -144,8 +153,14 @@ Invoke-Checked $cargo (@('build', '--locked', '--release', '-p', 'georgian-for-g
 Step 'Building the app'
 Push-Location crates\app
 try {
+    # The prebuilt frontend, and no beforeBuildCommand (null removes it from tauri.conf.json); a
+    # file, so no quotes go through Windows PowerShell's native argument passing.
+    $tauriConfig = Join-Path $work 'frontend.tauri.json'
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+    @{ build = @{ frontendDist = $Frontend; beforeBuildCommand = $null } } | ConvertTo-Json -Compress |
+        Set-Content -LiteralPath $tauriConfig -Encoding ASCII
     foreach ($t in $Targets) {
-        Invoke-Checked $cargoTauri @('build', '--ci', '--target', $t.Triple, '--bundles', 'nsis', '--', '--locked')
+        Invoke-Checked $cargoTauri @('build', '--ci', '--config', $tauriConfig, '--target', $t.Triple, '--bundles', 'nsis', '--', '--locked')
     }
 } finally {
     Pop-Location
