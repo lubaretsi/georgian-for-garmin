@@ -1,9 +1,8 @@
 // Story data from the core's fixtures (fixtures/core, written by crates/core/tests/ui_fixtures.rs):
 // real models, part numbers, software, busy holders, rollbacks and shared text.
 
-import type { DiagnoseOutput } from "../../core/app-types";
 import type { Lang } from "../../core/backend";
-import type { InspectOutput } from "../../core/types.gen";
+import type { DiagnoseOutput, InspectOutput } from "../../core/types.gen";
 import { copyFor, fmt } from "../../copy";
 import { diagnosticsSummary } from "../../flow/screen";
 import { failure, fixtureFile, output } from "../../mock/fixtures";

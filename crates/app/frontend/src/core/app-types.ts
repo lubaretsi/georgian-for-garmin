@@ -3,62 +3,7 @@
 // `MarkPicture`) and crates/core/src/error.rs (`Rollback`). Phase 2 derives `JsonSchema` for
 // them and generates these too.
 
-import type { Busy, ErrorCode, Holder, IssueLinkInput, Kind, WatchReport } from "./types.gen";
-
-/**
- * PENDING: the core's `diagnose` operation (contract §11) is being built on `feat/diagnose`;
- * until it lands, its input and output are typed here by hand, after that branch's shape, and
- * only the mock answers. Once it lands, `pnpm gen:types` generates them and these go.
- */
-export type DiagnoseEvent = {
-  /** Local time, without a zone: "2026-11-24T03:14:05". */
-  time: string;
-  kind: "poll" | "operation_start" | "operation_end" | "answer" | "share";
-  /** The error code or the state, at most 200 characters: "no_device", "install: staged_verified". */
-  detail: string;
-  /** The watch's model name, if one was read. */
-  model: string | null;
-};
-export type DiagnoseInput = { events?: DiagnoseEvent[] };
-/** `Holder`, with `this_app` when the busy detection names this very process. */
-export type DiagnoseHolder = Omit<Holder, "kind"> & { kind: Holder["kind"] | "this_app" };
-export type DiagnoseOutput = {
-  /** `build`: "release" or "debug", plus ", dev operations" or ", beta fonts". */
-  app: { version: string; build: string };
-  system: { os: string; os_version: string; arch: string };
-  /** Garmin devices only (vendor 0x091E); never serial numbers. `note`: why not listed, or what this platform can't tell. */
-  usb: {
-    listed: boolean;
-    note: string | null;
-    devices: {
-      product_id: number;
-      product_name: string | null;
-      mtp: boolean;
-      /** Empty on Windows. */
-      interfaces: { class: number; subclass: number; protocol: number }[];
-      holder: DiagnoseHolder | null;
-    }[];
-  };
-  /** A read-only connect attempt through the process's own connection. */
-  connection: { ok: boolean; code: ErrorCode | null; message: string | null; busy: Busy | null };
-  /** Mounted volumes that look like a Garmin watch. */
-  drives: {
-    listed: boolean;
-    note: string | null;
-    volumes: {
-      volume: string;
-      model: string | null;
-      part_number: string | null;
-      software_version: string | null;
-      error: string | null;
-    }[];
-  };
-  /** inspect's report, only when the connection worked. */
-  watch: WatchReport | null;
-  events: DiagnoseEvent[];
-  /** All of the above as readable text; its first line says it has no serial number or watch ID. */
-  text: string;
-};
+import type { Busy, ErrorCode, IssueLinkInput, Kind } from "./types.gen";
 
 /**
  * `issue_link`'s input, with the `error` it is planned to take alone, as it takes `busy` alone:

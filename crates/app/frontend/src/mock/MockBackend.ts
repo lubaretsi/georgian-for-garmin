@@ -5,17 +5,17 @@
 // a restart (the USB connection drops for a moment) imports what waits; a program holding the
 // watch; a write that fails and leaves files behind; what the next test notification shows.
 
+import type { Failure, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "../core/app-types";
+import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
 import type {
   DiagnoseInput,
   DiagnoseOutput,
-  Failure,
-  IssueLinkRequest,
-  MarkPicture,
-  PhonePage,
-  Shared,
-} from "../core/app-types";
-import type { Backend, Lang, Platform, Progress, ShareKey } from "../core/backend";
-import type { HolderKind, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "../core/types.gen";
+  HolderKind,
+  InspectDriveOutput,
+  InspectOutput,
+  IssueLink,
+  StageOutput,
+} from "../core/types.gen";
 import { localTime, shareKeyId } from "../flow/state";
 import type { Result } from "../model/screens";
 import { failure, fixtureFile, output } from "./fixtures";

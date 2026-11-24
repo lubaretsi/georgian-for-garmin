@@ -2,8 +2,8 @@
 
 import { describe, expect, test } from "vitest";
 
-import type { DiagnoseOutput, Failure } from "../core/app-types";
-import type { InspectOutput } from "../core/types.gen";
+import type { Failure } from "../core/app-types";
+import type { DiagnoseOutput, InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
 import type { ActionId, ActionPayload } from "../model/screens";
 import { type FlowEvent, type FlowState, initialState, localTime, MAX_EVENTS, POLL_MS, reduce } from "./state";

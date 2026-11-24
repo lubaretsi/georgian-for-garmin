@@ -3,8 +3,8 @@
 // over `invoke`; Storybook and the tests use `MockBackend` (src/mock/).
 
 import type { Result } from "../model/screens";
-import type { DiagnoseInput, DiagnoseOutput, IssueLinkRequest, MarkPicture, PhonePage, Shared } from "./app-types";
-import type { InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "./types.gen";
+import type { IssueLinkRequest, MarkPicture, PhonePage, Shared } from "./app-types";
+import type { DiagnoseInput, DiagnoseOutput, InspectDriveOutput, InspectOutput, IssueLink, StageOutput } from "./types.gen";
 
 export interface Backend {
   /** Rejects with `Failure`. */

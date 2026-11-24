@@ -111,9 +111,15 @@ export const en = {
         fileManager: "Your file manager",
         named: "“{program}”",
         unknown: "Another program",
+        thisApp: "This app",
       },
       nameCut: "The system shows only the start of the program's name.",
       lead: "Only one program can use the watch at a time. Free it like this:",
+      /** The watch held by this very app: an earlier step of it hasn't finished. */
+      thisApp: {
+        title: "This app is still using the watch",
+        lead: "An earlier step hasn't finished yet.",
+      },
       steps: {
         garmin_express: {
           macos: [
@@ -171,6 +177,20 @@ export const en = {
           linux: [
             "Eject the watch in your file manager: it's the most common cause.",
             "If that doesn't help, restart the computer and try again before opening other apps.",
+          ],
+        },
+        this_app: {
+          macos: [
+            "Wait for that step to finish: the app tries again on its own.",
+            "If the watch stays busy, quit the app and open it again.",
+          ],
+          windows: [
+            "Wait for that step to finish: the app tries again on its own.",
+            "If the watch stays busy, close the app and open it again.",
+          ],
+          linux: [
+            "Wait for that step to finish: the app tries again on its own.",
+            "If the watch stays busy, close the app and open it again.",
           ],
         },
       },

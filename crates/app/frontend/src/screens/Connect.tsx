@@ -103,6 +103,8 @@ export function programName(copy: Copy, platform: Platform | null, busy: BusyVie
       return named();
     case "unknown":
       return { program: p.unknown, cut: false };
+    case "this_app":
+      return { program: p.thisApp, cut: false };
   }
 }
 
@@ -111,12 +113,16 @@ export function ConnectBusy(model: Busy, ctx: ScreenContext): ScreenView {
   const b = ctx.copy.connect.busy;
   const { program, cut } = programName(ctx.copy, ctx.platform, model.busy);
   const steps = b.steps[model.busy.kind][ctx.platform];
+  // This very app still on an earlier step: its own words, not "free it from another program".
+  const thisApp = model.busy.kind === "this_app";
   return {
     // Busy while the app follows a restart: the journey stays on Restart.
     step: model.duringRestart ? "restart" : "connect",
     hero: <WatchScene face="busy" cable="plugged" />,
-    title: fmt(model.busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program }),
-    lead: b.lead,
+    title: thisApp
+      ? b.thisApp.title
+      : fmt(model.busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program }),
+    lead: thisApp ? b.thisApp.lead : b.lead,
     status: { text: b.retrying, busy: true },
     content: (
       <div>

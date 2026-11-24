@@ -31,6 +31,8 @@ const mtpLinux = busyFrom("inspect-desktop_mtp-linux");
 const otherLinux = busyFrom("inspect-other-linux");
 const otherCut = busyFrom("inspect-other-macos-cut");
 const unknown = busyFrom("inspect-unknown-linux");
+const thisApp = busyFrom("inspect-this_app-macos");
+const thisAppWindows = busyFrom("inspect-this_app-windows");
 
 export const BusyGarminExpressMacos: ScreenStoryObj = { args: { platform: "macos", model: busy(express) } };
 export const BusyGarminExpressWindows: ScreenStoryObj = { args: { platform: "windows", model: busy(expressWindows) } };
@@ -53,6 +55,10 @@ export const BusyOtherLinux: ScreenStoryObj = { args: { platform: "linux", model
 export const BusyUnknownMacos: ScreenStoryObj = { args: { platform: "macos", model: busy(unknown) } };
 export const BusyUnknownWindows: ScreenStoryObj = { args: { platform: "windows", model: busy(unknown) } };
 export const BusyUnknownLinux: ScreenStoryObj = { args: { platform: "linux", model: busy(unknown) } };
+/** This very app still has the watch open for an earlier step. */
+export const BusyThisAppMacos: ScreenStoryObj = { args: { platform: "macos", model: busy(thisApp) } };
+export const BusyThisAppWindows: ScreenStoryObj = { args: { platform: "windows", model: busy(thisAppWindows) } };
+export const BusyThisAppLinux: ScreenStoryObj = { args: { platform: "linux", model: busy(thisApp) } };
 /** Garmin Express takes the watch while the app waits for it after a restart. */
 export const BusyDuringRestart: ScreenStoryObj = { args: { platform: "macos", model: busy(express, true) } };
 

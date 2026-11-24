@@ -8,7 +8,7 @@ import { en } from "../../copy/en";
 import { errorGroup } from "../../screens/ErrorScreen";
 
 const PLATFORMS: Platform[] = ["macos", "windows", "linux"];
-const HOLDERS: HolderKind[] = ["garmin_express", "macos_camera_service", "desktop_mtp", "other", "unknown"];
+const HOLDERS: HolderKind[] = ["garmin_express", "macos_camera_service", "desktop_mtp", "this_app", "other", "unknown"];
 const PROBLEMS: ConnectProblem[] = [
   "permission_denied",
   "multiple_devices",

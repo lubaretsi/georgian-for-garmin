@@ -112,7 +112,7 @@ export type View = "popup" | "list" | "opened";
  * This interface was referenced by `Operations`'s JSON-Schema
  * via the `definition` "HolderKind".
  */
-export type HolderKind = "garmin_express" | "macos_camera_service" | "desktop_mtp" | "other" | "unknown";
+export type HolderKind = "garmin_express" | "macos_camera_service" | "desktop_mtp" | "this_app" | "other" | "unknown";
 /**
  * Stable, machine-readable error codes.
  *
@@ -149,6 +149,13 @@ export type StageOperation = "install" | "restore_stock";
  * via the `definition` "HiddenListingStatus".
  */
 export type HiddenListingStatus = "listed" | "unsupported" | "error";
+/**
+ * What kind of step an event is.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "EventKind".
+ */
+export type EventKind = ("operation_start" | "operation_end") | "poll" | "answer" | "share";
 
 /**
  * Each operation's input and output, by the operation's name.
@@ -181,6 +188,10 @@ export interface Operations {
   wait_for_watch: {
     input: WaitInput;
     output: WaitOutput;
+  };
+  diagnose: {
+    input: DiagnoseInput;
+    output: DiagnoseOutput;
   };
 }
 /**
@@ -802,7 +813,8 @@ export interface Busy {
    */
   product_id?: number | null;
   /**
-   * The watch's USB product name, when it has one and the system shows it.
+   * The watch's USB product name, when it has one, the system shows it, and it doesn't look
+   * like an identifier ([`product_name`]).
    */
   product_name?: string | null;
 }
@@ -1015,4 +1027,183 @@ export interface WaitOutput {
    * Seconds this call waited.
    */
   waited_seconds: number;
+}
+/**
+ * `diagnose`'s input.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "DiagnoseInput".
+ */
+export interface DiagnoseInput {
+  /**
+   * The app's recent steps, oldest first, at most 50. Nothing in them may look like an
+   * identifier (a run of 9 or more digits, or a word of 12 or more letters and digits with 4
+   * or more digits): such input is refused.
+   *
+   * @maxItems 50
+   */
+  events?: Event[] | null;
+}
+/**
+ * One of the app's recent steps.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "Event".
+ */
+export interface Event {
+  /**
+   * The error code or state, e.g. "no_device", "install: staged_verified", "result: boxes".
+   */
+  detail: string;
+  kind: EventKind;
+  /**
+   * The watch's model name, e.g. "Venu 2"; null when none was known.
+   */
+  model?: string | null;
+  /**
+   * Local time without a zone, e.g. "2026-11-24T03:14:05".
+   */
+  time: string;
+}
+/**
+ * `diagnose`'s output.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "DiagnoseOutput".
+ */
+export interface DiagnoseOutput {
+  app: AppInfo;
+  connection: ConnectionReport;
+  drives: DrivesReport;
+  /**
+   * The input's events, as given.
+   */
+  events: Event[];
+  system: Platform;
+  /**
+   * All of the above as readable text; its first line says it holds no serial number or
+   * watch ID.
+   */
+  text: string;
+  usb: UsbReport;
+  /**
+   * The watch report (the one `issue_link` takes) when the connection worked; else null.
+   */
+  watch?: WatchReport | null;
+}
+/**
+ * This program.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "AppInfo".
+ */
+export interface AppInfo {
+  /**
+   * "release" or "debug", with ", dev operations" when built with them and ", beta fonts"
+   * when its Georgian fonts carry test marks.
+   */
+  build: string;
+  version: string;
+}
+/**
+ * What opening and reading the watch gave.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "ConnectionReport".
+ */
+export interface ConnectionReport {
+  /**
+   * `device_busy`: who holds the watch, as far as the system tells.
+   */
+  busy?: Busy | null;
+  /**
+   * The error's code when not.
+   */
+  code?: ErrorCode | null;
+  /**
+   * The error's message when not.
+   */
+  message?: string | null;
+  /**
+   * The watch was opened and its report read.
+   */
+  ok: boolean;
+}
+/**
+ * Mounted volumes that look like a Garmin watch.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "DrivesReport".
+ */
+export interface DrivesReport {
+  /**
+   * Whether this system's volumes could be looked through.
+   */
+  listed: boolean;
+  note?: string | null;
+  volumes: Volume[];
+}
+/**
+ * A mounted volume that looks like a Garmin watch (it has `GARMIN/GarminDevice.xml`).
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "Volume".
+ */
+export interface Volume {
+  /**
+   * The error code when its `GarminDevice.xml` couldn't be read.
+   */
+  error?: string | null;
+  model?: string | null;
+  part_number?: string | null;
+  software_version?: string | null;
+  /**
+   * The volume's name ("GARMIN") or drive ("E:"), never its full path.
+   */
+  volume: string;
+}
+/**
+ * The Garmin USB devices the system lists.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "UsbReport".
+ */
+export interface UsbReport {
+  devices: UsbDevice[];
+  /**
+   * Whether the system's devices could be listed.
+   */
+  listed: boolean;
+  /**
+   * Why they couldn't be, or what this system doesn't tell.
+   */
+  note?: string | null;
+}
+/**
+ * A Garmin USB device (vendor 0x091E) as the system lists it.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "UsbDevice".
+ */
+export interface UsbDevice {
+  /**
+   * The program that has it open, when the system tells (macOS, Linux); null otherwise.
+   */
+  holder?: Holder | null;
+  /**
+   * Its interfaces' class, subclass and protocol; empty on Windows.
+   */
+  interfaces: UsbInterface[];
+  /**
+   * Whether it has an MTP interface (on Windows: WPD lists only MTP devices).
+   */
+  mtp: boolean;
+  /**
+   * The USB product ID (20087, 0x4E77, for a Venu 2).
+   */
+  product_id: number;
+  /**
+   * The USB product name, when the device has one and the system shows it.
+   */
+  product_name?: string | null;
 }

@@ -148,6 +148,7 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     { kind: "garmin_express", name: "Garmin Express", confirmed: true },
     { kind: "other", name: "Photos", confirmed: true },
     { kind: "unknown", confirmed: false },
+    { kind: "this_app", name: "Georgian for Gar", pid: 4100, confirmed: true },
   ];
   /** A raw code, as in "device_busy": the full text shows these, the summary never does. */
   const SNAKE_CASE = /\b[a-z0-9]+(_[a-z0-9]+)+\b/i;
@@ -162,9 +163,10 @@ describe("plain words in the main flow (§2.3, §7)", () => {
             {
               app: { version: "0.4.0", build: "release" },
               system: { os: "macOS", os_version: "15.6.1", arch: "arm64" },
-              usb: { listed: true, note: null, devices: [] },
+              // Notes on what the system can't tell stay in the full text, never the summary.
+              usb: { listed: false, note: "this platform lists only WPD's MTP devices: usb_listing_unavailable", devices: [] },
               connection: { ok: false, code, message: code, busy: holder ? { holder } : null },
-              drives: { listed: true, note: null, volumes: [] },
+              drives: { listed: false, note: "mount table unreadable: drive_listing_unavailable", volumes: [] },
               watch: null,
               events: [],
               text: `connection ${code}\n`,

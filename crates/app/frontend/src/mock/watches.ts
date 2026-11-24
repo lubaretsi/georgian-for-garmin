@@ -141,5 +141,7 @@ export function busyStep(kind: HolderKind, platform: Platform): Step {
       return platform === "macos" ? "busy/inspect-other-macos-cut" : "busy/inspect-other-linux";
     case "unknown":
       return "busy/inspect-unknown-linux";
+    case "this_app":
+      return platform === "windows" ? "busy/inspect-this_app-windows" : "busy/inspect-this_app-macos";
   }
 }

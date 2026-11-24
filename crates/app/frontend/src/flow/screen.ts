@@ -2,9 +2,9 @@
 // sheet). Pure; the share summary and "What the app sees" are in the state's language.
 
 import { type Copy, copyFor, fmt, list } from "../copy";
-import type { DiagnoseOutput, Failure } from "../core/app-types";
+import type { Failure } from "../core/app-types";
 import type { Lang, ShareKey } from "../core/backend";
-import type { ErrorCode, Holder, InspectDriveOutput, InspectOutput } from "../core/types.gen";
+import type { DiagnoseOutput, ErrorCode, Holder, InspectDriveOutput, InspectOutput } from "../core/types.gen";
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
 import { programName } from "../screens/Connect";
 import { errorGroup } from "../screens/ErrorScreen";
@@ -80,13 +80,15 @@ function summary(state: FlowState, copy: Copy, phase: Extract<Phase, { name: "sh
 
 /**
  * A failure in the summary's plain words (§2.3), from the connect and error screens' copy: the
- * busy title naming the holder when known, the connect problem's or the error's title. The raw
- * code stays in the full text.
+ * busy title naming the holder when known (this very app in its own words), the connect
+ * problem's or the error's title. The raw code, and `diagnose`'s notes on what this system
+ * can't tell, stay in the full text.
  */
 function problemWords(copy: Copy, code: ErrorCode, holder: Holder | null): string {
   if (code === "no_device") return copy.diagnostics.summary.noWatchFound;
   if (code === "device_busy") {
     const b = copy.connect.busy;
+    if (holder?.kind === "this_app") return b.thisApp.title;
     const busy = { kind: holder?.kind ?? "unknown", name: holder?.name ?? null, confirmed: holder?.confirmed ?? false };
     const { program } = programName(copy, null, busy);
     return fmt(busy.confirmed ? b.title.confirmed : b.title.unconfirmed, { program });
