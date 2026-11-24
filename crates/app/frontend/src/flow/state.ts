@@ -201,6 +201,12 @@ function coherent(answers: Answers): Answers {
   return { ...answers, views: VIEWS.filter((view) => answers.views.includes(view)) };
 }
 
+/** The drive on screen: the drive phase's, or one that came back during a restart (§4.1). */
+export function shownDrive(phase: Phase): InspectDriveOutput | null {
+  if (phase.name === "drive") return phase.drive;
+  return phase.name === "restart" && phase.interruption?.kind === "drive" ? phase.interruption.drive : null;
+}
+
 /** Whether the app reads the watch every 2 s in `phase` (§4, Polling). */
 export function polls(phase: Phase): boolean {
   switch (phase.name) {
@@ -387,14 +393,15 @@ function shareInput(state: FlowState, what: ShareWhat): IssueLinkInput {
     if (phase.mode === "problem") return { error: { code: phase.failure.code, message: phase.failure.message } };
     return {};
   }
-  const report = phase.name === "drive" ? phase.drive.report : state.inspect?.report;
+  const drive = shownDrive(phase);
+  const report = drive ? drive.report : state.inspect?.report;
   if (!report) return {};
   const input: IssueLinkInput = { report };
   if (phase.name === "restart" && phase.interruption?.kind === "busy" && phase.interruption.failure.busy) {
     input.busy = phase.interruption.failure.busy;
   }
   const last = state.lastOp;
-  if (last && phase.name !== "drive") {
+  if (last && !drive) {
     const operation = last.op === "install" ? "install" : "restore_stock";
     input.outcome =
       "output" in last
@@ -762,7 +769,7 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
       return phase.name === "share" ? { ...state, phase: { ...phase, state: "failed" } } : state;
     case "shared": {
       if (phase.name !== "share") return state;
-      const source = phase.back.name === "drive" ? phase.back.drive : state.inspect;
+      const source = shownDrive(phase.back) ?? state.inspect;
       const result = phase.what === "result" ? answersFor(state).result : undefined;
       const key = source && phase.what !== "problem" ? keyFor(source, result ?? "font_list") : null;
       const next: FlowState = {

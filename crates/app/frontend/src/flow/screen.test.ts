@@ -8,7 +8,7 @@ import type { DiagnoseOutput, Failure, InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
 import type { ActionId, ActionPayload } from "../model/screens";
 import { moreModel, toScreen } from "./screen";
-import { type FlowState, initialState, reduce } from "./state";
+import { type FlowState, initialState, reduce, shareKeyId } from "./state";
 
 const inspect = (scenario: string, step: string) => output(scenario, step, "inspect");
 const NO_DEVICE = failure("connect-problems", "inspect-no_device");
@@ -398,5 +398,32 @@ describe("moreModel", () => {
 
   test("no restore while writing", () => {
     expect(moreModel(act(atWatch(), "install")).restorable).toBe(false);
+  });
+});
+
+describe("a drive back during a restart", () => {
+  // Another watch than the one installed on, as a USB drive: everything is about the drive.
+  const drive = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+  const atDrive = () => {
+    const state = read(read(written(), NO_DEVICE), NO_DEVICE);
+    return reduce(state, { type: "drive_inspected", token: state.token, output: drive });
+  };
+
+  test("its share: the drive's report, its watch, no install outcome, remembered for the drive", () => {
+    const state = atDrive();
+    expect(toScreen(state)).toMatchObject({ screen: "drive", duringRestart: true });
+    const sharing = act(state, "share", { action: "share", what: "font_list" });
+    expect(sharing.effects).toEqual([{ kind: "issue_link", input: { report: drive.report } }]);
+    expect(toScreen(sharing)).toMatchObject({ screen: "share", watch: { model: drive.device.model } });
+    const opened = reduce(sharing, { type: "shared", shared: { complete: true, url: "https://github.com/x" } });
+    const key = { modelPart: drive.device.part_number, software: drive.device.software_version, result: "font_list" as const };
+    expect(opened.shared).toEqual({ [shareKeyId(key)]: true });
+  });
+
+  test("More: what the app sees of the drive, no restore", () => {
+    const more = moreModel(atDrive());
+    expect(more.seen?.[0]).toEqual({ label: "Model", value: drive.device.model });
+    expect(more.reportText).toBe(drive.report.text);
+    expect(more.restorable).toBe(false);
   });
 });

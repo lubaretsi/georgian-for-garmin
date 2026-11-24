@@ -15,7 +15,7 @@ import type {
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
 import { programName } from "../screens/Connect";
 import { errorGroup } from "../screens/ErrorScreen";
-import { answersFor, type FlowState, type Phase, shareKeyId } from "./state";
+import { answersFor, type FlowState, type Phase, shareKeyId, shownDrive } from "./state";
 import { confidenceOf, verdictOf, watchInfo } from "./verdict";
 
 const PROBLEMS: readonly ConnectProblem[] = [
@@ -37,9 +37,10 @@ function currentWatch(state: FlowState): WatchInfo {
   return watchInfo(state.inspect);
 }
 
-/** The watch a share is about: the drive's or the one read over MTP; none from connect. */
+/** The watch a share is about: the drive on screen or the one read over MTP; none from connect. */
 function sharedWatch(state: FlowState, back: Phase): WatchInfo | null {
-  if (back.name === "drive") return watchInfo(back.drive);
+  const drive = shownDrive(back);
+  if (drive) return watchInfo(drive);
   if (back.name === "connect" || !state.inspect) return null;
   return watchInfo(state.inspect);
 }
@@ -308,7 +309,8 @@ export function toScreen(state: FlowState): ScreenModel {
 /** The More sheet's data (§5.2, More). */
 export function moreModel(state: FlowState): MoreModel {
   const phase = state.phase;
-  const source = phase.name === "drive" ? phase.drive : state.inspect;
+  const drive = shownDrive(phase);
+  const source = drive ?? state.inspect;
   const busy = phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics";
   const labels = copyFor(state.lang).more.seen.labels;
   const seen = source && [
@@ -322,7 +324,7 @@ export function moreModel(state: FlowState): MoreModel {
     ...("state" in source ? [{ label: labels.state, value: source.state }] : []),
   ];
   return {
-    restorable: !busy && phase.name !== "drive" && (state.inspect?.restorable ?? false),
+    restorable: !busy && !drive && (state.inspect?.restorable ?? false),
     seen,
     reportText: source?.report.text ?? null,
     version: state.version,
