@@ -11,8 +11,8 @@ font against the folder's manifest; the builder's tests pin the manifest's hashe
 
 The app's frontend is built there too, with the dev shell's pnpm (`nix develop --command bash
 -c 'cd crates/app/frontend && pnpm install --frozen-lockfile && pnpm build'`): pass its dist
-folder as -Frontend or in GEORGIAN_FOR_GARMIN_FRONTEND. The app embeds it instead of running
-Tauri's beforeBuildCommand.
+folder as -Frontend or in GEORGIAN_FOR_GARMIN_FRONTEND. It is copied to crates\app\frontend\dist
+(replacing what's there) and embedded from there, instead of running Tauri's beforeBuildCommand.
 
 Nothing is signed: Windows SmartScreen warns before the first run. The installer is NSIS,
 installs for the current user without administrator rights, and fetches Microsoft's WebView2
@@ -153,11 +153,24 @@ Invoke-Checked $cargo (@('build', '--locked', '--release', '-p', 'georgian-for-g
 Step 'Building the app'
 Push-Location crates\app
 try {
-    # The prebuilt frontend, and no beforeBuildCommand (null removes it from tauri.conf.json); a
-    # file, so no quotes go through Windows PowerShell's native argument passing.
+    # The prebuilt frontend goes where tauri.conf.json's frontendDist (frontend\dist) expects it,
+    # and the beforeBuildCommand is dropped (null removes it). frontendDist isn't overridden with
+    # the folder's path: Tauri takes a value that parses as a URL for one, and an absolute Windows
+    # path does ("C:" reads as a scheme), so the app would open file:///C:/... instead of its
+    # embedded files. The override is a file, so no quotes go through Windows PowerShell's native
+    # argument passing.
+    $frontendDist = Join-Path (Get-Location).Path 'frontend\dist'
+    if ((Test-Path -LiteralPath $frontendDist) -and (Resolve-Path -LiteralPath $frontendDist).Path -eq $Frontend) {
+        Write-Host "Using the frontend in $frontendDist"
+    } else {
+        if (Test-Path -LiteralPath $frontendDist) { Remove-Item -LiteralPath $frontendDist -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path $frontendDist | Out-Null
+        Get-ChildItem -LiteralPath $Frontend | Copy-Item -Destination $frontendDist -Recurse -Force
+        Write-Host "Copied the frontend from $Frontend to $frontendDist"
+    }
     $tauriConfig = Join-Path $work 'frontend.tauri.json'
     New-Item -ItemType Directory -Force -Path $work | Out-Null
-    @{ build = @{ frontendDist = $Frontend; beforeBuildCommand = $null } } | ConvertTo-Json -Compress |
+    @{ build = @{ beforeBuildCommand = $null } } | ConvertTo-Json -Compress |
         Set-Content -LiteralPath $tauriConfig -Encoding ASCII
     foreach ($t in $Targets) {
         Invoke-Checked $cargoTauri @('build', '--ci', '--config', $tauriConfig, '--target', $t.Triple, '--bundles', 'nsis', '--', '--locked')
