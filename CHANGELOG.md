@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after the app has written to it, and plugged back in restarted once the app has seen it gone
   ([development](docs/development.md#desktop-app)).
 
+### Changed
+
+- The README and the Windows guide show a new install video of the 0.4.0 app, and the guide new
+  screenshots of the connect, watch and restart screens; step 8 names the
+  **სატესტო შეტყობინების გაგზავნა** button.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added

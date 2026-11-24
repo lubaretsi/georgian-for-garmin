@@ -18,10 +18,10 @@ The app isn't signed, so your computer warns the first time; [Install](#install)
 click. Windows on Arm, other Linux and the command-line tools:
 [all downloads](https://github.com/lubaretsi/georgian-for-garmin/releases/latest).
 
-Installing on Windows, start to finish in 46 seconds
+Installing on Windows, start to finish in 43 seconds
 ([step by step in Georgian](docs/install-windows.md)):
 
-https://github.com/user-attachments/assets/c4adbad8-d956-4ab3-ba71-5f67e415e6df
+https://github.com/user-attachments/assets/3c7487cb-5c21-4724-a1b0-70edb7272850
 
 <img src="docs/venu-2-georgian-notification.jpg" alt="Garmin Venu 2 showing a Gmail notification in Georgian" width="360">
 
@@ -224,9 +224,9 @@ top corner); the app then guides the restart the same way. If we ask you for dia
 
 The app is in Georgian, with an English switch in the top corner. On a Mac without the Safari
 16.4 update (macOS Big Sur or Monterey that hasn't installed it) the app shows how to update
-instead of its window. The macOS app is tested with a
-watch. On Windows (11 on Arm) and Linux (Ubuntu 24.04) the command-line installer is tested with a
-watch; the Windows and Linux apps are tested only without one so far. The Linux app needs glibc
+instead of its window. The macOS app is tested with a watch, and so are the Windows app and the
+command-line installer on Windows 11 on Arm. On Linux (Ubuntu 24.04) the command-line installer
+is tested with a watch, the app only without one so far. The Linux app needs glibc
 2.34 or newer.
 
 ## Command line
