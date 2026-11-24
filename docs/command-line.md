@@ -71,8 +71,9 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `inspect-drive` | Reads a watch that connects as a USB drive instead of MTP (`--path` its volume; default: the one mounted volume with `GARMIN/GarminDevice.xml`). Nothing installs this way; `--report` prints the same report. Read-only. |
 | `issue-link` | Prints the GitHub link that opens the watch report form filled in, from `--input` `{"report": …, "outcome": …, "answers": …, "busy": …, "error": …}` (`report` as `inspect --report --json` prints it; for a watch that couldn't be read, `busy` as a `device_busy` error gives it, or `error` as `{"code", "message"}` of what stopped the connection, each alone). Touches nothing. |
 | `extdata-list` | Lists every file in the watch's hidden `GARMIN/ExtData` folder: the normal listing plus, on watches that answer Garmin's `GetObjectIds` (0x9002), the files it leaves out (on the Venu 2 the read-only fonts the watch imported), with size, `hidden` and `read_only`. `--hash 006-D9035-03.fnt,…` reads those files and adds their SHA-256s. Pages with `--offset` and `--limit` (default 200); `--output-file FILE` writes the whole list as JSON instead. Read-only. |
-| `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait. Read-only. |
+| `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait, `garmin_mode` too. Read-only. |
 | `diagnose` | Prints the diagnostic info we ask for when helping someone: app, system, the Garmin USB devices, what opening the watch gave, mounted watch volumes, the watch report, and the app's recent steps (`--input` `{"events": […]}`). No serial number or watch ID. `--save FILE` writes it to a new file instead; an existing file is never overwritten ([below](#diagnostic-info)). Read-only. |
+| `switch-to-mtp` | Switches a watch connected in Garmin mode (the `garmin_mode` error) to file-transfer (MTP) mode, as Garmin Express does, then waits up to 15 s for it to come back ([below](#garmin-mode)). Changes how the watch connects, no file. |
 | `rpc` | Serves every command as JSON-RPC 2.0 on stdin and stdout, keeping the watch open between calls ([below](#sessions-rpc-and-mcp)). |
 | `mcp` | Serves every command as an MCP tool over stdio, with the official MCP SDK, keeping the watch open between calls. |
 
@@ -86,7 +87,7 @@ Options:
   (15, 21, 24 and 25 px each come in two packs).
 - `--json`: print one JSON value on stdout; errors go to stderr as
   `{"error": {"code": "…", "message": "…"}}`, and `device_busy` adds `busy`
-  ([below](#busy-watch)).
+  ([below](#busy-watch)), `garmin_mode` adds `garmin_mode` ([below](#garmin-mode)).
 - `--input FILE` or `--input -`: take the input as a JSON object keyed like the command's input
   schema, e.g. `{"parts": ["006-D9035-03"]}`. Flags given too override it.
 - `--help --json`: print every command's definition, with JSON Schemas for its input and output,
@@ -115,7 +116,8 @@ $ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params":
 - The method is the operation's name, `params` its input (an object; absent means `{}`), the
   result its output. `params._meta` is protocol metadata, removed before the input is checked.
 - Errors: `{"code": …, "message": …, "data": {"code": "<error code>", "message": …}}`, with `busy`
-  in `data` for `device_busy` and `rollback` after a failed write ([below](#failed-writes)).
+  in `data` for `device_busy`, `garmin_mode` for `garmin_mode` and `rollback` after a failed
+  write ([below](#failed-writes)).
   `code` is -32602 for `invalid_input`, -32800 for `cancelled`,
   -32000 for any other error code ([below](#exit-codes-and-errors)), -32601 for an unknown
   method, -32600 for a message that isn't a request (batches aren't supported) and -32700 for a
@@ -123,7 +125,8 @@ $ printf '%s\n' '{"jsonrpc": "2.0", "id": 1, "method": "extdata_list", "params":
 - Progress: a request with `params._meta.progressToken` gets
   `{"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progressToken": …, "progress": …, "total": …, "message": …}}`
   at each step: one per file for `install` and `restore_stock` (0 when every file was checked,
-  then each file written), two for `stage_file`, the seconds waited for `wait_for_watch`.
+  then each file written), two for `stage_file`, the seconds waited for `wait_for_watch` and,
+  after the request, for `switch_to_mtp`.
 - Cancellation: `{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": …}}`
   stops a queued or running call. It answers with -32800 (`cancelled`). `install`,
   `restore_stock` and `stage_file` stop between files: before the first write nothing is written;
@@ -226,10 +229,12 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | Code | Meaning | What to do |
 |---|---|---|
 | `no_device` | No Garmin watch in USB file-transfer mode | Connect it with a data cable; try another port or cable. |
+| `garmin_mode` | No watch in file-transfer mode, but one in Garmin mode (USB `091e:0003`), as a watch whose USB Mode is Garmin connects when its "Use MTP?" question goes unanswered; `garmin_mode.switchable` says whether `switch-to-mtp` can switch it here ([below](#garmin-mode)) | Run `switch-to-mtp`, or choose MTP on the watch when it asks, or unplug it and connect it again. For good: Settings › System › USB Mode › MTP. |
 | `device_busy` | Another program holds the watch's USB connection | The message names it when the system tells ([below](#busy-watch)) and says how to free it on this system. Then try again. |
 | `permission_denied` | This user may not open the watch's USB device | On Linux, install the udev rule (above); the message also gives a one-line fix. |
+| `device_locked` | `switch-to-mtp`: the watch reports that it is locked, so it wasn't switched | Unlock the watch, then choose MTP on it when it asks, or unplug it and connect it again. |
 | `multiple_devices` | More than one Garmin device is connected | Leave only the watch connected. |
-| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font) | Share `inspect --report` in an issue. |
+| `unsupported_device` | The watch lists none of the bundled font packs, or not a requested part, or lists a TrueType part whose file can't be read at another version or file name than the bundled one (perhaps a newer Garmin font); for `switch-to-mtp`, the watch doesn't offer the switch (it doesn't list A1050) | Share `inspect --report` in an issue. For `switch-to-mtp`: choose MTP on the watch when it asks. |
 | `conflict` | A part's file, or the font the watch imported for it (a bitmap part's `.fnt`, which the next restart would replace), in either listing and under either name form (`006-D9035-02.tmp` or Garmin's short `D903502.tmp`), is neither Garmin's original nor one of this program's builds, by content, or the part has several such files (the error names them); nothing was written | For a waiting `.tmp`, unplug and restart the watch so it loads that file, then run again. Otherwise share `inspect --report` in an issue. |
 | `restore_first` | Install: a TrueType file the watch doesn't let be read is declared below 1.00, as watches declared this program's builds before 0.3.0; install never writes over a file it can't identify, so nothing was written | Run `restore-stock`, restart the watch, then install again. |
 | `verification_failed` | A copied file read back differently; it was deleted, and a replaced `.bin` written back, where that worked (`rollback`, [below](#failed-writes)) | Run again. |
@@ -288,6 +293,40 @@ The message says how to free the watch on this system. For macOS's camera servic
 Image Capture, Preview and other photo importers, then unplug and reconnect the watch; if it is
 still busy, share the error in an issue so we can look. No Garmin watch has been seen held by it
 yet.
+
+### Garmin mode
+
+A watch whose Settings › System › USB Mode is Garmin asks "Use MTP?" each time it is connected
+and after each restart. Unanswered, it stays in Garmin mode: USB `091e:0003`, Garmin's own
+protocol, which no file transfer goes through. Connecting then fails with `garmin_mode`:
+
+```json
+{"error": {"code": "garmin_mode", "message": "…", "garmin_mode": {"switchable": true, "reason": null}}}
+```
+
+`switch-to-mtp` asks the watch to come back in file-transfer (MTP) mode, the way Garmin Express
+does: it starts a session, asks whether the watch is locked (no answer within 5 s counts as not
+locked; a locked watch fails with `device_locked`), asks for its product data, and sends the
+switch request only if the watch lists the protocol for it, A1050 (otherwise
+`unsupported_device`). Then it waits up to 15 s for a Garmin MTP device to appear:
+
+```json
+{"status": "switched", "product": {"product_id": 3703, "software_version": "19.05",
+  "description": "VENU 2 V19.05"}, "protocols": ["P000", "L001", "A010", "A903", "A1050"],
+  "waited_seconds": 4.2}
+```
+
+`status` is `timed_out` when no MTP watch appeared in time; it isn't retried. A watch in Garmin
+mode also sends its position and the time unasked: those, and its unit ID, are dropped as they
+arrive, so no output, trace or diagnostic info holds them.
+
+- macOS and Linux talk to the watch directly. On Linux, the kernel's `garmin_gps` driver binds to
+  devices in Garmin mode where it is loaded (Ubuntu blacklists it); `switch-to-mtp` detaches it
+  for the switch, and the kernel attaches it again afterwards. If it can't be detached, the
+  error is `device_busy`.
+- Windows reaches devices in Garmin mode only through Garmin's own USB driver, which this
+  program doesn't use: there, `garmin_mode` has `switchable` false and `reason` `no_driver`, and
+  the watch's own question (or USB Mode › MTP) is the way out.
 
 ## Diagnostic info
 

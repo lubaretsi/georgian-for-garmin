@@ -1,4 +1,5 @@
-//! USB backend: a PTP session over the watch's MTP bulk endpoints, through `nusb`.
+//! USB backend: a PTP session over the watch's MTP bulk endpoints, through `nusb`; and a watch
+//! in Garmin mode found and asked to come back as MTP ([`crate::garmin_usb`]).
 
 use std::time::{Duration, Instant};
 
@@ -12,10 +13,13 @@ use nusb::{Endpoint, ErrorKind, Interface, MaybeFuture};
 use crate::GARMIN_VENDOR_ID;
 use crate::busy::{self, Busy, UsbInterface};
 use crate::error::{Error, ErrorCode};
+use crate::garmin_mode::{GARMIN_MODE_PRODUCT_ID, GarminMode, SwitchOutput, SwitchStatus};
+use crate::garmin_usb;
 use crate::mtp::{
     CreateError, DeviceStatus, Link, Mtp, MtpError, NewObject, Session, TransportError,
 };
 use crate::ptp::{DeviceInfo, ObjectInfo};
+use crate::session::Control;
 use crate::trace;
 
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -296,17 +300,174 @@ impl Link for NusbLink {
 /// An open MTP session with a connected Garmin watch.
 pub struct UsbMtp(Session<NusbLink>);
 
-/// The Garmin devices with an MTP interface.
-fn garmin_mtp_devices() -> Result<Vec<nusb::DeviceInfo>, Error> {
+/// The Garmin devices `keep` takes.
+fn garmin_devices(keep: fn(&nusb::DeviceInfo) -> bool) -> Result<Vec<nusb::DeviceInfo>, Error> {
     Ok(nusb::list_devices()
         .wait()
         .map_err(|e| device_error("cannot list USB devices", e))?
-        .filter(|d| {
-            d.vendor_id() == GARMIN_VENDOR_ID
-                && d.interfaces()
-                    .any(|i| is_mtp_class(i.class(), i.subclass(), i.protocol()))
-        })
+        .filter(|d| d.vendor_id() == GARMIN_VENDOR_ID && keep(d))
         .collect())
+}
+
+/// The Garmin devices with an MTP interface.
+fn garmin_mtp_devices() -> Result<Vec<nusb::DeviceInfo>, Error> {
+    garmin_devices(|d| {
+        d.interfaces()
+            .any(|i| is_mtp_class(i.class(), i.subclass(), i.protocol()))
+    })
+}
+
+/// The Garmin devices in Garmin mode.
+fn garmin_mode_devices() -> Result<Vec<nusb::DeviceInfo>, Error> {
+    garmin_devices(|d| d.product_id() == GARMIN_MODE_PRODUCT_ID)
+}
+
+/// A claimed device in Garmin mode.
+struct NusbGarminLink {
+    bulk_in: Endpoint<Bulk, In>,
+    bulk_out: Endpoint<Bulk, Out>,
+    interrupt_in: Endpoint<Interrupt, In>,
+    // Released last; on Linux, a kernel driver detached for the claim is attached again then.
+    _interface: Interface,
+}
+
+/// The bulk IN read size after Data Available, as Garmin Express reads.
+const GARMIN_BULK_READ: usize = 4096;
+
+fn read_in<T: BulkOrInterrupt>(
+    endpoint: &mut Endpoint<T, In>,
+    len: usize,
+    timeout: Duration,
+) -> Result<Vec<u8>, TransportError> {
+    let done = transfer(endpoint, Buffer::new(len), timeout)?;
+    done.status.map_err(transport)?;
+    Ok(done.buffer.into_vec())
+}
+
+impl garmin_usb::Link for NusbGarminLink {
+    fn max_packet_size(&self) -> usize {
+        self.bulk_out.max_packet_size()
+    }
+
+    fn interrupt_size(&self) -> usize {
+        self.interrupt_in.max_packet_size()
+    }
+
+    fn write(&mut self, data: &[u8], timeout: Duration) -> Result<(), TransportError> {
+        let buffer = if data.is_empty() {
+            Buffer::new(0)
+        } else {
+            Buffer::from(data.to_vec())
+        };
+        let done = transfer(&mut self.bulk_out, buffer, timeout)?;
+        done.status.map_err(transport)?;
+        if done.actual_len != data.len() {
+            return Err(TransportError::Other(format!(
+                "sent {} of {} bytes",
+                done.actual_len,
+                data.len()
+            )));
+        }
+        Ok(())
+    }
+
+    fn read_interrupt(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
+        let len = self.interrupt_in.max_packet_size();
+        read_in(&mut self.interrupt_in, len, timeout)
+    }
+
+    fn read_bulk(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
+        let packet = self.bulk_in.max_packet_size().max(1);
+        let len = GARMIN_BULK_READ.div_ceil(packet) * packet;
+        read_in(&mut self.bulk_in, len, timeout)
+    }
+
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+}
+
+/// Opens a device in Garmin mode and claims its first interface, as Garmin Express does: bulk
+/// IN, bulk OUT and interrupt IN. An unconfigured device (as macOS leaves one of a vendor class)
+/// gets its first configuration first. With `detach`, a kernel driver bound to the interface
+/// (Linux's `garmin_gps`) is detached for the claim.
+fn open_garmin_link(info: &nusb::DeviceInfo, detach: bool) -> Result<NusbGarminLink, Error> {
+    let device = info
+        .open()
+        .wait()
+        .map_err(|e| device_error("cannot open the watch", e))?;
+    let first = device
+        .configurations()
+        .next()
+        .map(|c| c.configuration_value());
+    let active = device
+        .active_configuration()
+        .ok()
+        .map(|c| c.configuration_value());
+    if let Some(value) = first
+        && active.is_none()
+    {
+        device
+            .set_configuration(value)
+            .wait()
+            .map_err(|e| device_error("cannot configure the watch's USB connection", e))?;
+    }
+    let endpoints = {
+        let config = device.active_configuration().map_err(|e| {
+            Error::new(
+                ErrorCode::DeviceError,
+                format!("cannot read the watch's USB configuration: {e}"),
+            )
+        })?;
+        find_garmin_endpoints(&config).ok_or_else(|| {
+            Error::new(
+                ErrorCode::UnsupportedDevice,
+                "The Garmin device in Garmin mode exposes no bulk and interrupt endpoints.",
+            )
+        })?
+    };
+    let claim = if detach {
+        device
+            .detach_and_claim_interface(endpoints.interface)
+            .wait()
+    } else {
+        device.claim_interface(endpoints.interface).wait()
+    };
+    let interface = claim.map_err(|e| device_error("cannot claim the watch's interface", e))?;
+    let link = NusbGarminLink {
+        bulk_in: interface
+            .endpoint::<Bulk, In>(endpoints.bulk_in)
+            .map_err(|e| device_error("cannot open the bulk IN endpoint", e))?,
+        bulk_out: interface
+            .endpoint::<Bulk, Out>(endpoints.bulk_out)
+            .map_err(|e| device_error("cannot open the bulk OUT endpoint", e))?,
+        interrupt_in: interface
+            .endpoint::<Interrupt, In>(endpoints.interrupt_in)
+            .map_err(|e| device_error("cannot open the interrupt endpoint", e))?,
+        _interface: interface,
+    };
+    trace!(
+        "Garmin mode: claimed interface {} (bulk IN {:#04x}, OUT {:#04x}, interrupt IN {:#04x})",
+        endpoints.interface, endpoints.bulk_in, endpoints.bulk_out, endpoints.interrupt_in
+    );
+    Ok(link)
+}
+
+/// The first interface's bulk IN, bulk OUT and interrupt IN endpoints.
+fn find_garmin_endpoints(config: &ConfigurationDescriptor<'_>) -> Option<MtpEndpoints> {
+    let interface = config.interfaces().next()?;
+    let alt = interface.first_alt_setting();
+    let find = |kind: TransferType, dir: Direction| {
+        alt.endpoints()
+            .find(|e| e.transfer_type() == kind && e.direction() == dir)
+            .map(|e| e.address())
+    };
+    Some(MtpEndpoints {
+        interface: interface.interface_number(),
+        bulk_in: find(TransferType::Bulk, Direction::In)?,
+        bulk_out: find(TransferType::Bulk, Direction::Out)?,
+        interrupt_in: find(TransferType::Interrupt, Direction::In)?,
+    })
 }
 
 /// The watch, when `candidates` (the Garmin MTP devices) has exactly one.
@@ -433,6 +594,8 @@ trait Bus {
     type Info;
     type Device;
     type Session;
+    /// A claimed device in Garmin mode.
+    type Garmin: garmin_usb::Link;
     /// The Garmin devices with an MTP interface.
     fn watches(&mut self) -> Result<Vec<Self::Info>, Error>;
     fn id(info: &Self::Info) -> Self::Id;
@@ -442,6 +605,11 @@ trait Bus {
     fn reset(&mut self, device: Self::Device) -> Result<(), Error>;
     fn now(&self) -> Instant;
     fn sleep(&mut self, duration: Duration);
+    /// The Garmin devices in Garmin mode.
+    fn garmin_mode(&mut self) -> Result<Vec<Self::Info>, Error>;
+    /// Opens a device in Garmin mode and claims it; `detach` detaches a kernel driver bound to
+    /// it first.
+    fn claim_garmin(&mut self, info: &Self::Info, detach: bool) -> Result<Self::Garmin, Error>;
 }
 
 /// This computer's USB devices.
@@ -452,6 +620,7 @@ impl Bus for Nusb {
     type Info = nusb::DeviceInfo;
     type Device = nusb::Device;
     type Session = UsbMtp;
+    type Garmin = NusbGarminLink;
 
     fn watches(&mut self) -> Result<Vec<nusb::DeviceInfo>, Error> {
         garmin_mtp_devices()
@@ -483,6 +652,18 @@ impl Bus for Nusb {
     fn sleep(&mut self, duration: Duration) {
         std::thread::sleep(duration);
     }
+
+    fn garmin_mode(&mut self) -> Result<Vec<nusb::DeviceInfo>, Error> {
+        garmin_mode_devices()
+    }
+
+    fn claim_garmin(
+        &mut self,
+        info: &nusb::DeviceInfo,
+        detach: bool,
+    ) -> Result<NusbGarminLink, Error> {
+        open_garmin_link(info, detach).map_err(|e| name_holder(e, info))
+    }
 }
 
 fn disconnected() -> Error {
@@ -506,7 +687,12 @@ pub fn connect() -> Result<UsbMtp, Error> {
 }
 
 fn connect_with<B: Bus>(bus: &mut B) -> Result<B::Session, Error> {
-    let info = single(bus.watches()?)?;
+    let watches = bus.watches()?;
+    // No MTP watch, but one in Garmin mode: say so. A failed listing tells nothing.
+    if watches.is_empty() && bus.garmin_mode().is_ok_and(|d| !d.is_empty()) {
+        return Err(Error::garmin_mode(GarminMode::here()));
+    }
+    let info = single(watches)?;
     let old = B::id(&info);
     let Opened { device, session } = bus.open(&info)?;
     let error = match session {
@@ -563,6 +749,84 @@ fn connect_with<B: Bus>(bus: &mut B) -> Result<B::Session, Error> {
         Err(MtpError::Transport { .. }) if gone(bus, new) => Err(disconnected()),
         Err(e) => Err(unresponsive(&e)),
     }
+}
+
+/// How long `switch_to_mtp` waits for a Garmin MTP device to appear after the request.
+pub(crate) const SWITCH_TIMEOUT: Duration = Duration::from_secs(15);
+/// How often it looks meanwhile.
+const SWITCH_POLL: Duration = Duration::from_millis(250);
+/// Linux's `garmin_gps` driver binds to devices in Garmin mode where it is loaded; the claim
+/// detaches it (and the release attaches it again).
+const DETACH_KERNEL_DRIVER: bool = cfg!(target_os = "linux");
+
+/// Switches the single Garmin device in Garmin mode to MTP ([`garmin_usb::request_mtp`]), then
+/// waits up to [`SWITCH_TIMEOUT`] for a Garmin MTP device to appear. Never retried here.
+pub fn switch_to_mtp(control: &Control<'_>) -> Result<SwitchOutput, Error> {
+    switch_with(&mut Nusb, control, DETACH_KERNEL_DRIVER)
+}
+
+fn switch_with<B: Bus>(
+    bus: &mut B,
+    control: &Control<'_>,
+    detach: bool,
+) -> Result<SwitchOutput, Error> {
+    let mut devices = bus.garmin_mode()?;
+    let info = match devices.len() {
+        0 => {
+            return Err(Error::new(
+                ErrorCode::NoDevice,
+                "No Garmin watch in Garmin mode was found.",
+            ));
+        }
+        1 => devices.pop().unwrap(),
+        n => {
+            return Err(Error::new(
+                ErrorCode::MultipleDevices,
+                format!("{n} Garmin devices in Garmin mode are connected; connect only the watch."),
+            ));
+        }
+    };
+    // The MTP devices already there don't count as the watch coming back.
+    let before: Vec<B::Id> = bus
+        .watches()
+        .map(|w| w.iter().map(B::id).collect())
+        .unwrap_or_default();
+    let link = bus.claim_garmin(&info, detach)?;
+    let identified = garmin_usb::request_mtp(link, &|| control.cancelled())?;
+    let timeout = SWITCH_TIMEOUT.as_secs_f64();
+    let status = loop {
+        let waited = bus.now().saturating_duration_since(identified.sent);
+        if bus
+            .watches()
+            .is_ok_and(|w| w.iter().any(|i| !before.contains(&B::id(i))))
+        {
+            break SwitchStatus::Switched;
+        }
+        if waited >= SWITCH_TIMEOUT {
+            break SwitchStatus::TimedOut;
+        }
+        control.report(
+            waited.as_secs_f64(),
+            Some(timeout),
+            "Waiting for the watch to come back in file-transfer (MTP) mode",
+        );
+        if control.cancelled() {
+            return Err(Error::new(
+                ErrorCode::Cancelled,
+                "Cancelled while waiting for the watch to come back in MTP mode; it had already \
+                 been asked to switch.",
+            ));
+        }
+        bus.sleep(SWITCH_POLL);
+    };
+    let waited = bus.now().saturating_duration_since(identified.sent);
+    trace!("Garmin mode: {status:?} after {waited:?}");
+    Ok(SwitchOutput {
+        status,
+        product: identified.product,
+        protocols: identified.protocols,
+        waited_seconds: (waited.as_secs_f64() * 10.0).round() / 10.0,
+    })
 }
 
 // Every method is forwarded, the trait's defaults included: a default left here would answer
@@ -638,7 +902,13 @@ impl Mtp for UsbMtp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::garmin_usb::tests::{
+        Clock, FakeLink, SECRET, Script, private_packets, start, venu2,
+    };
     use crate::mtp::Phase;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use std::sync::atomic::AtomicBool;
 
     /// How long the fake takes to open a session, and to reset a device.
     const OPENING: Duration = Duration::from_secs(1);
@@ -646,14 +916,53 @@ mod tests {
 
     /// Devices are ids; the session is the id of the device it opened.
     struct FakeBus {
-        start: Instant,
-        elapsed: Duration,
+        clock: Clock,
         /// The Garmin MTP devices listed at each time since the start.
         listed: fn(Duration) -> Vec<u64>,
         /// The devices whose MTP session opens; others fail with a timed-out transfer.
         answering: &'static [u64],
         reset_fails: bool,
         resets: usize,
+        /// The Garmin devices in Garmin mode listed at each time since the start.
+        garmin: fn(Duration) -> Vec<u64>,
+        /// How a device in Garmin mode answers.
+        script: Script,
+        /// A kernel driver is bound to the device in Garmin mode: a claim without detaching it
+        /// is refused.
+        kernel_driver: bool,
+        /// Detaching the kernel driver is refused too.
+        detach_refused: bool,
+        detached: usize,
+        claims: usize,
+        /// Everything written to a device in Garmin mode.
+        written: Rc<RefCell<Vec<Vec<u8>>>>,
+    }
+
+    impl FakeBus {
+        fn new(listed: fn(Duration) -> Vec<u64>) -> Self {
+            FakeBus {
+                clock: Clock::default(),
+                listed,
+                answering: &[],
+                reset_fails: false,
+                resets: 0,
+                garmin: |_| vec![],
+                script: venu2(),
+                kernel_driver: false,
+                detach_refused: false,
+                detached: 0,
+                claims: 0,
+                written: Default::default(),
+            }
+        }
+
+        fn elapsed(&self) -> Duration {
+            self.clock.get()
+        }
+
+        fn advance(&mut self, by: Duration) {
+            self.clock.set(self.clock.get() + by);
+        }
     }
 
     impl Bus for FakeBus {
@@ -661,9 +970,10 @@ mod tests {
         type Info = u64;
         type Device = u64;
         type Session = u64;
+        type Garmin = FakeLink;
 
         fn watches(&mut self) -> Result<Vec<u64>, Error> {
-            Ok((self.listed)(self.elapsed))
+            Ok((self.listed)(self.elapsed()))
         }
 
         fn id(info: &u64) -> u64 {
@@ -671,7 +981,7 @@ mod tests {
         }
 
         fn open(&mut self, info: &u64) -> Result<Opened<u64, u64>, Error> {
-            self.elapsed += OPENING;
+            self.advance(OPENING);
             let session = if self.answering.contains(info) {
                 Ok(*info)
             } else {
@@ -688,7 +998,7 @@ mod tests {
         }
 
         fn reset(&mut self, _: u64) -> Result<(), Error> {
-            self.elapsed += RESETTING;
+            self.advance(RESETTING);
             self.resets += 1;
             if self.reset_fails {
                 Err(Error::new(
@@ -701,11 +1011,29 @@ mod tests {
         }
 
         fn now(&self) -> Instant {
-            self.start + self.elapsed
+            start() + self.elapsed()
         }
 
         fn sleep(&mut self, duration: Duration) {
-            self.elapsed += duration;
+            self.advance(duration);
+        }
+
+        fn garmin_mode(&mut self) -> Result<Vec<u64>, Error> {
+            Ok((self.garmin)(self.elapsed()))
+        }
+
+        fn claim_garmin(&mut self, _: &u64, detach: bool) -> Result<FakeLink, Error> {
+            self.claims += 1;
+            if self.kernel_driver {
+                if !detach || self.detach_refused {
+                    return Err(Error::busy(Busy::unknown()));
+                }
+                self.kernel_driver = false;
+                self.detached += 1;
+            }
+            let mut link = FakeLink::new(self.clock.clone(), self.script.clone());
+            link.written = self.written.clone();
+            Ok(link)
         }
     }
 
@@ -715,12 +1043,9 @@ mod tests {
         reset_fails: bool,
     ) -> (Result<u64, Error>, FakeBus) {
         let mut bus = FakeBus {
-            start: Instant::now(),
-            elapsed: Duration::ZERO,
-            listed,
             answering,
             reset_fails,
-            resets: 0,
+            ..FakeBus::new(listed)
         };
         (connect_with(&mut bus), bus)
     }
@@ -743,7 +1068,7 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
         assert_eq!(bus.resets, 0);
-        assert_eq!(bus.elapsed, OPENING);
+        assert_eq!(bus.elapsed(), OPENING);
     }
 
     #[test]
@@ -755,14 +1080,14 @@ mod tests {
         assert!(error.message.contains("disconnected"), "{error:?}");
         assert_eq!(bus.resets, 1);
         assert!(
-            bus.elapsed >= secs(2.0) + UNPLUGGED_GRACE - REENUMERATE_POLL,
+            bus.elapsed() >= secs(2.0) + UNPLUGGED_GRACE - REENUMERATE_POLL,
             "{:?}",
-            bus.elapsed
+            bus.elapsed()
         );
         assert!(
-            bus.elapsed <= secs(2.0) + UNPLUGGED_GRACE + REENUMERATE_POLL,
+            bus.elapsed() <= secs(2.0) + UNPLUGGED_GRACE + REENUMERATE_POLL,
             "{:?}",
-            bus.elapsed
+            bus.elapsed()
         );
     }
 
@@ -790,9 +1115,9 @@ mod tests {
         assert!(error.message.contains("did not come back"), "{error:?}");
         assert_eq!(bus.resets, 1);
         assert!(
-            bus.elapsed >= OPENING + RESETTING + REENUMERATE_TIMEOUT,
+            bus.elapsed() >= OPENING + RESETTING + REENUMERATE_TIMEOUT,
             "{:?}",
-            bus.elapsed
+            bus.elapsed()
         );
     }
 
@@ -804,7 +1129,7 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
         assert_eq!(bus.resets, 1);
-        assert_eq!(bus.elapsed, OPENING + RESETTING);
+        assert_eq!(bus.elapsed(), OPENING + RESETTING);
     }
 
     #[test]
@@ -827,6 +1152,225 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
         assert_eq!(bus.resets, 1);
+    }
+
+    #[test]
+    fn no_mtp_watch_but_one_in_garmin_mode_is_garmin_mode_not_no_device() {
+        let mut bus = FakeBus {
+            garmin: |_| vec![7],
+            ..FakeBus::new(|_| vec![])
+        };
+        let error = connect_with(&mut bus).unwrap_err();
+        assert_eq!(error.code, ErrorCode::GarminMode, "{error:?}");
+        assert_eq!(error.garmin_mode.as_deref(), Some(&GarminMode::here()));
+        assert_eq!(
+            error.to_json()["error"]["garmin_mode"],
+            serde_json::json!({"switchable": true, "reason": null})
+        );
+        assert_eq!(bus.claims, 0, "detecting opens nothing");
+
+        let (result, _) = connect_fake(|_| vec![], &[], false);
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::NoDevice, "{error:?}");
+        assert!(error.garmin_mode.is_none());
+
+        // An MTP watch is opened as ever, whatever else is connected.
+        let mut bus = FakeBus {
+            answering: &[1],
+            garmin: |_| vec![7],
+            ..FakeBus::new(|_| vec![1])
+        };
+        assert_eq!(connect_with(&mut bus).unwrap(), 1);
+    }
+
+    fn switch(bus: &mut FakeBus, detach: bool) -> Result<SwitchOutput, Error> {
+        switch_with(bus, &Control::NONE, detach)
+    }
+
+    fn written(bus: &FakeBus) -> Vec<String> {
+        bus.written
+            .borrow()
+            .iter()
+            .map(|w| w.iter().map(|b| format!("{b:02x}")).collect())
+            .collect()
+    }
+
+    /// The Venu 2 as seen: back as MTP about 4 s after the switch, which goes out after the
+    /// locked query's 5 s.
+    fn venu2_bus() -> FakeBus {
+        FakeBus {
+            garmin: |t| if t < secs(6.0) { vec![7] } else { vec![] },
+            ..FakeBus::new(|t| if t >= secs(9.2) { vec![8] } else { vec![] })
+        }
+    }
+
+    #[test]
+    fn a_watch_that_comes_back_as_mtp_is_switched() {
+        let mut bus = venu2_bus();
+        let out = switch(&mut bus, false).unwrap();
+        assert_eq!(out.status, SwitchStatus::Switched);
+        assert_eq!(out.protocols, ["P000", "L001", "A010", "A903", "A1050"]);
+        assert_eq!(out.product.as_ref().unwrap().description, "VENU 2 V19.05");
+        assert!((4.0..=4.5).contains(&out.waited_seconds), "{out:?}");
+        assert_eq!(
+            written(&bus),
+            [
+                "000000000500000000000000",
+                "140000008b22000000000000",
+                "14000000f900000000000000",
+                "140000002f0400000100000000",
+            ]
+        );
+        assert_eq!(bus.claims, 1);
+    }
+
+    #[test]
+    fn a_watch_that_never_comes_back_times_out_after_15_s_without_a_retry() {
+        let mut bus = FakeBus {
+            garmin: |_| vec![7],
+            ..FakeBus::new(|_| vec![])
+        };
+        bus.script.gone_after_switch = false;
+        let out = switch(&mut bus, false).unwrap();
+        assert_eq!(out.status, SwitchStatus::TimedOut);
+        assert!(
+            (SWITCH_TIMEOUT.as_secs_f64()..=SWITCH_TIMEOUT.as_secs_f64() + 0.3)
+                .contains(&out.waited_seconds),
+            "{out:?}"
+        );
+        assert_eq!(bus.claims, 1);
+        assert_eq!(written(&bus).len(), 4, "the switch went out once");
+    }
+
+    #[test]
+    fn an_mtp_device_already_there_is_not_the_watch_coming_back() {
+        let mut bus = FakeBus {
+            garmin: |_| vec![7],
+            ..FakeBus::new(|_| vec![1])
+        };
+        assert_eq!(
+            switch(&mut bus, false).unwrap().status,
+            SwitchStatus::TimedOut
+        );
+    }
+
+    #[test]
+    fn switching_needs_exactly_one_device_in_garmin_mode() {
+        let mut bus = FakeBus::new(|_| vec![1]);
+        assert_eq!(
+            switch(&mut bus, false).unwrap_err().code,
+            ErrorCode::NoDevice
+        );
+        let mut bus = FakeBus {
+            garmin: |_| vec![7, 9],
+            ..FakeBus::new(|_| vec![])
+        };
+        assert_eq!(
+            switch(&mut bus, false).unwrap_err().code,
+            ErrorCode::MultipleDevices
+        );
+        assert_eq!(bus.claims, 0);
+    }
+
+    #[test]
+    fn a_kernel_driver_is_detached_for_the_claim() {
+        let mut bus = venu2_bus();
+        bus.kernel_driver = true;
+        assert_eq!(
+            switch(&mut bus, true).unwrap().status,
+            SwitchStatus::Switched
+        );
+        assert_eq!(bus.detached, 1);
+
+        // Without detaching, or when detaching is refused, the claim fails as device_busy,
+        // not no_device, and nothing is sent.
+        for refused in [false, true] {
+            let mut bus = venu2_bus();
+            bus.kernel_driver = true;
+            bus.detach_refused = refused;
+            let error = switch(&mut bus, refused).unwrap_err();
+            assert_eq!(error.code, ErrorCode::DeviceBusy, "{error:?}");
+            assert!(written(&bus).is_empty());
+        }
+        assert!(cfg!(target_os = "linux") == DETACH_KERNEL_DRIVER);
+    }
+
+    #[test]
+    fn a_locked_or_unsupported_watch_is_not_waited_for() {
+        for (script, code) in [
+            (
+                Script {
+                    locked_reply: Some(vec![1]),
+                    ..venu2()
+                },
+                ErrorCode::DeviceLocked,
+            ),
+            (
+                Script {
+                    protocols: Some(vec![(b'A', 10)]),
+                    ..venu2()
+                },
+                ErrorCode::UnsupportedDevice,
+            ),
+            (
+                Script {
+                    protocols: None,
+                    ..venu2()
+                },
+                ErrorCode::DeviceError,
+            ),
+            (
+                Script {
+                    session_on_try: vec![],
+                    ..venu2()
+                },
+                ErrorCode::DeviceError,
+            ),
+        ] {
+            let mut bus = FakeBus {
+                script,
+                ..venu2_bus()
+            };
+            assert_eq!(switch(&mut bus, false).unwrap_err().code, code);
+            assert!(bus.elapsed() <= secs(10.1), "{:?}", bus.elapsed());
+            assert!(!written(&bus).iter().any(|w| w.starts_with("140000002f04")));
+        }
+    }
+
+    #[test]
+    fn cancelling_the_wait_stops_it() {
+        let mut bus = FakeBus {
+            garmin: |_| vec![7],
+            ..FakeBus::new(|_| vec![])
+        };
+        let cancel = AtomicBool::new(false);
+        let progress = |_| cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+        let control = Control::new(Some(&progress), Some(&cancel));
+        let error = switch_with(&mut bus, &control, false).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        assert!(error.message.contains("already been asked"), "{error:?}");
+    }
+
+    #[test]
+    fn position_and_time_never_reach_the_output() {
+        let mut bus = venu2_bus();
+        bus.script.unasked = private_packets();
+        let out = switch(&mut bus, false).unwrap();
+        assert_eq!(out.status, SwitchStatus::Switched);
+        let json = serde_json::to_string(&out).unwrap();
+        let decimal: Vec<String> = SECRET.iter().map(u8::to_string).collect();
+        assert!(!json.contains(&decimal.join(",")), "{json}");
+        let latin1: String = SECRET.iter().map(|&b| char::from(b)).collect();
+        assert!(!json.contains(&latin1), "{json}");
+        assert_eq!(
+            serde_json::to_value(&out)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .len(),
+            4,
+            "status, product, protocols, waited_seconds: {json}"
+        );
     }
 
     #[test]

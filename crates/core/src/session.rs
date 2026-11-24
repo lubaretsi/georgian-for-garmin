@@ -20,6 +20,7 @@ use serde_json::Value;
 use crate::diagnose::{self, DiagnoseInput, Probe};
 use crate::error::{Error, ErrorCode};
 use crate::fonts::FontSet;
+use crate::garmin_mode::{SwitchInput, SwitchOutput};
 use crate::listing;
 use crate::mtp::Mtp;
 use crate::ops::{
@@ -131,12 +132,17 @@ pub struct WaitOutput {
 const DEFAULT_WAIT: f64 = 60.0;
 const POLL: Duration = Duration::from_millis(500);
 
+/// Switches a watch in Garmin mode to MTP: [`crate::switch_to_mtp`], or a fake in the tests.
+pub type Switch<'a> = dyn FnMut(&Control<'_>) -> Result<SwitchOutput, Error> + 'a;
+
 /// Runs operations against one watch.
 pub struct Session<'a> {
     fonts: Cow<'a, FontSet>,
     watch: Watch<'a>,
     /// Where `diagnose` lists USB devices and volumes.
     probe: Probe<'a>,
+    /// How `switch_to_mtp` switches a watch in Garmin mode.
+    switch: Box<Switch<'a>>,
     #[cfg(feature = "dev")]
     staged_log: Option<std::path::PathBuf>,
     /// Whether `mtp_trace` turned the live trace on.
@@ -166,6 +172,7 @@ impl<'a> Session<'a> {
                 hashes: HashCache::new(),
             },
             probe: Probe::system(),
+            switch: Box::new(crate::switch_to_mtp),
             #[cfg(feature = "dev")]
             staged_log: crate::dev::default_log(),
             #[cfg(feature = "dev")]
@@ -190,6 +197,12 @@ impl<'a> Session<'a> {
     /// Where `diagnose` lists USB devices and volumes, instead of this computer.
     pub fn with_probe(mut self, probe: Probe<'a>) -> Self {
         self.probe = probe;
+        self
+    }
+
+    /// How `switch_to_mtp` switches a watch in Garmin mode, instead of this computer's USB.
+    pub fn with_switch(mut self, switch: Box<Switch<'a>>) -> Self {
+        self.switch = switch;
         self
     }
 
@@ -274,6 +287,10 @@ impl<'a> Session<'a> {
                 let drives = (self.probe.drives)();
                 let connection = watch.run(|dev, _| ops::inspect(dev, fonts));
                 to_value(diagnose::diagnose(fonts, events, usb, drives, connection))
+            }
+            "switch_to_mtp" => {
+                let SwitchInput {} = parse(input)?;
+                to_value((self.switch)(control)?)
             }
             #[cfg(feature = "dev")]
             "read_file" => {

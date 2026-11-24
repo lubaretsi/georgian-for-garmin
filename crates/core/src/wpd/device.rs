@@ -248,6 +248,10 @@ pub fn connect() -> Result<WpdMtp, Error> {
         .collect();
     let id = match garmin.len() {
         0 => {
+            // Seen by its device ID alone: Windows has no MTP device for it.
+            if crate::garmin_mode::listed_on_windows() {
+                return Err(Error::garmin_mode(crate::garmin_mode::GarminMode::here()));
+            }
             return Err(Error::new(
                 ErrorCode::NoDevice,
                 "No Garmin watch in USB file-transfer (MTP) mode was found. Connect it with a data cable.",

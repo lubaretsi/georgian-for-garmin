@@ -13,6 +13,7 @@ use std::time::Duration;
 
 use fake::Watch;
 use georgian_for_garmin_core::fonts::sha256_hex;
+use georgian_for_garmin_core::garmin_mode::{GarminMode, SwitchOutput, SwitchStatus};
 use georgian_for_garmin_core::names::{self, Role};
 use georgian_for_garmin_core::session::{Control, Progress, Session, Worker};
 use georgian_for_garmin_core::{Error, ErrorCode, ops, rpc};
@@ -311,6 +312,48 @@ fn wait_for_watch_times_out_and_stops_on_cancel() {
     let input = json!({"timeout_seconds": 60});
     let error = recorder.run(&mut s, "wait_for_watch", input).unwrap_err();
     assert_eq!(error.code, ErrorCode::Cancelled);
+}
+
+/// A watch in Garmin mode ends `wait_for_watch` at once with `garmin_mode`, which says whether
+/// it can be switched; `switch_to_mtp` runs the session's switch once per call.
+#[test]
+fn garmin_mode_ends_the_wait_and_switch_to_mtp_runs_once_per_call() {
+    let mode = GarminMode {
+        switchable: true,
+        reason: None,
+    };
+    let switches = std::cell::Cell::new(0);
+    let mut s = Session::new(
+        Cow::Owned(fake::fonts()),
+        Box::new(move || Err(Error::garmin_mode(mode.clone()))),
+    )
+    .with_poll_interval(Duration::from_millis(10))
+    .with_switch(Box::new(|_| {
+        switches.set(switches.get() + 1);
+        Ok(SwitchOutput {
+            status: SwitchStatus::TimedOut,
+            product: None,
+            protocols: vec!["A1050".into()],
+            waited_seconds: 15.0,
+        })
+    }));
+    let start = std::time::Instant::now();
+    let error = call(&mut s, "wait_for_watch", json!({"timeout_seconds": 30})).unwrap_err();
+    assert!(start.elapsed() < Duration::from_secs(5));
+    assert_eq!(error.code, ErrorCode::GarminMode);
+    assert_eq!(
+        error.to_json()["error"]["garmin_mode"],
+        json!({"switchable": true, "reason": null})
+    );
+    assert!(error.message.contains("USB Mode › MTP"), "{error:?}");
+    assert_eq!(
+        code(call(&mut s, "inspect", json!({}))),
+        ErrorCode::GarminMode
+    );
+    let out = call(&mut s, "switch_to_mtp", json!({})).unwrap();
+    assert_eq!(out["status"], "timed_out");
+    drop(s);
+    assert_eq!(switches.get(), 1, "no retry on its own");
 }
 
 #[test]

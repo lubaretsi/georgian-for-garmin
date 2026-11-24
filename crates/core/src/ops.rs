@@ -461,7 +461,9 @@ impl Operation {
 // volume, and `issue_link` computes a link from its input without touching anything.
 // `extdata_list` and `wait_for_watch` only read; `extdata_list` writes a local file only when
 // asked to. `diagnose` lists USB devices and volumes and reads the watch as `inspect` does.
-static OPERATIONS: [Operation; 8] = [
+// `switch_to_mtp` changes only how the watch connects, no file, and a repeat has nothing more to
+// switch.
+static OPERATIONS: [Operation; 9] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
@@ -587,8 +589,8 @@ static OPERATIONS: [Operation; 8] = [
                       was unplugged and restarted, checking twice a second for up to \
                       timeout_seconds. Returns at once when the session already holds a working \
                       connection. Other failures than no watch (device_busy, permission_denied, \
-                      multiple_devices) end the wait with that error. Reports progress and stops \
-                      on cancellation. Read-only.",
+                      multiple_devices, garmin_mode) end the wait with that error. Reports \
+                      progress and stops on cancellation. Read-only.",
         read_only: true,
         destructive: false,
         idempotent: true,
@@ -624,6 +626,28 @@ static OPERATIONS: [Operation; 8] = [
         open_world: false,
         input: || schema_for!(crate::diagnose::DiagnoseInput),
         output: || schema_for!(crate::diagnose::DiagnoseOutput),
+    },
+    Operation {
+        name: "switch_to_mtp",
+        title: "Switch the watch to MTP",
+        description: "Switch a watch connected in Garmin mode (USB 091e:0003, where connecting \
+                      fails with garmin_mode) to file-transfer (MTP) mode, as Garmin Express \
+                      does: start a session, ask whether the watch is locked (no answer within \
+                      5 s counts as not locked; locked fails with device_locked), ask for its \
+                      product data and protocol list, and only if the list has A1050 (else \
+                      unsupported_device) send the switch request. Then wait up to 15 s for a \
+                      Garmin MTP device to appear: status switched or timed_out, with the \
+                      watch's product data and protocols. Never retried on its own; reports \
+                      progress and stops on cancellation while waiting. Nothing else the watch \
+                      sends (its position, the time, its unit ID) is kept. macOS and Linux; on \
+                      Windows it fails with garmin_mode (switchable false, reason no_driver) \
+                      when such a watch is connected. Writes no file.",
+        read_only: false,
+        destructive: false,
+        idempotent: true,
+        open_world: false,
+        input: || schema_for!(crate::garmin_mode::SwitchInput),
+        output: || schema_for!(crate::garmin_mode::SwitchOutput),
     },
 ];
 

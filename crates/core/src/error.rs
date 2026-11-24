@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::busy::Busy;
+use crate::garmin_mode::GarminMode;
 use crate::mtp::MtpError;
 
 /// Stable, machine-readable error codes.
@@ -14,15 +15,21 @@ pub enum ErrorCode {
     InvalidInput,
     /// No Garmin watch in MTP mode is connected.
     NoDevice,
+    /// No Garmin watch in MTP mode is connected, but one in Garmin mode is (USB `091e:0003`);
+    /// the error's `garmin_mode` says whether `switch_to_mtp` can switch it here.
+    GarminMode,
     /// More than one Garmin MTP device is connected.
     MultipleDevices,
     /// Another program holds the watch; the error's `busy` names it when the system tells.
     DeviceBusy,
     /// This user may not open the watch's USB device (on Linux: no udev rule).
     PermissionDenied,
+    /// `switch_to_mtp`: the watch reports that it is locked, so it isn't switched.
+    DeviceLocked,
     /// The watch lists none of this build's font packs or not a requested part, lists a
     /// TrueType part it doesn't let be read at another version or file name than this
-    /// operation accepts, or lacks a needed MTP operation.
+    /// operation accepts, or lacks a needed MTP operation; for `switch_to_mtp`, the watch doesn't
+    /// list the switch to MTP.
     UnsupportedDevice,
     /// This build does not bundle the requested font size.
     FontUnavailable,
@@ -54,9 +61,11 @@ impl ErrorCode {
         match self {
             ErrorCode::InvalidInput => "invalid_input",
             ErrorCode::NoDevice => "no_device",
+            ErrorCode::GarminMode => "garmin_mode",
             ErrorCode::MultipleDevices => "multiple_devices",
             ErrorCode::DeviceBusy => "device_busy",
             ErrorCode::PermissionDenied => "permission_denied",
+            ErrorCode::DeviceLocked => "device_locked",
             ErrorCode::UnsupportedDevice => "unsupported_device",
             ErrorCode::FontUnavailable => "font_unavailable",
             ErrorCode::GarminFolderNotFound => "garmin_folder_not_found",
@@ -117,6 +126,8 @@ pub struct Error {
     pub message: String,
     /// `device_busy`: who holds the watch, as far as the system tells.
     pub busy: Option<Box<Busy>>,
+    /// `garmin_mode`: whether the watch can be switched to MTP here.
+    pub garmin_mode: Option<Box<GarminMode>>,
     /// A failed write: how undoing this call's changes went.
     pub rollback: Option<Box<Rollback>>,
 }
@@ -127,6 +138,7 @@ impl Error {
             code,
             message: message.into(),
             busy: None,
+            garmin_mode: None,
             rollback: None,
         }
     }
@@ -144,6 +156,14 @@ impl Error {
         Error {
             busy: Some(Box::new(busy)),
             ..Error::new(ErrorCode::DeviceBusy, message)
+        }
+    }
+
+    /// `garmin_mode` with whether the watch can be switched here, and the message for it.
+    pub fn garmin_mode(mode: GarminMode) -> Self {
+        Error {
+            garmin_mode: Some(Box::new(mode.clone())),
+            ..Error::new(ErrorCode::GarminMode, mode.message())
         }
     }
 
@@ -178,12 +198,15 @@ impl Error {
         }
     }
 
-    /// `{"error": {"code": …, "message": …}}`, with `busy` for `device_busy` and `rollback`
-    /// after a failed write.
+    /// `{"error": {"code": …, "message": …}}`, with `busy` for `device_busy`, `garmin_mode` for
+    /// `garmin_mode` and `rollback` after a failed write.
     pub fn to_json(&self) -> serde_json::Value {
         let mut error = serde_json::json!({"code": self.code.as_str(), "message": self.message});
         if let Some(busy) = &self.busy {
             error["busy"] = serde_json::to_value(busy).expect("Busy serializes");
+        }
+        if let Some(mode) = &self.garmin_mode {
+            error["garmin_mode"] = serde_json::to_value(mode).expect("GarminMode serializes");
         }
         if let Some(rollback) = &self.rollback {
             error["rollback"] = serde_json::to_value(rollback).expect("Rollback serializes");

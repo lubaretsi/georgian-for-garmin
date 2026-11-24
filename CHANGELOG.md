@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an install or restore without the Demo watch bar: the simulated watch is plugged in, unplugged
   after the app has written to it, and plugged back in restarted once the app has seen it gone
   ([development](docs/development.md#desktop-app)).
+- The command line, `rpc` and `mcp` tell a watch connected in Garmin mode (USB `091e:0003`, as
+  when its "Use MTP?" question goes unanswered) from no watch: connecting fails with the new
+  error `garmin_mode` instead of `no_device`, saying whether the watch can be switched here. The
+  new `switch-to-mtp` (`switch_to_mtp`) switches it to file-transfer (MTP) mode on macOS and
+  Linux, as Garmin Express does, and waits up to 15 s for it to come back; a watch that reports
+  itself locked fails with the new error `device_locked`. On Windows, `garmin_mode` says the
+  watch can't be switched there ([command line](docs/command-line.md#garmin-mode)).
 
 ### Changed
 

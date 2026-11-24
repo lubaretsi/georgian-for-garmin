@@ -37,6 +37,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use georgian_for_garmin_core::busy::Busy;
 use georgian_for_garmin_core::error::Rollback;
 use georgian_for_garmin_core::fonts::FontSet;
+use georgian_for_garmin_core::garmin_mode::GarminMode;
 use georgian_for_garmin_core::mtp::Mtp;
 use georgian_for_garmin_core::session::{self, Control, Session};
 use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
@@ -50,7 +51,8 @@ use tauri_plugin_opener::OpenerExt;
 
 use settings::ShareKey;
 
-/// An operation failure as the frontend receives it; `busy` only for `device_busy`.
+/// An operation failure as the frontend receives it; `busy` only for `device_busy`,
+/// `garmin_mode` only for `garmin_mode`.
 #[derive(Debug, Serialize, JsonSchema)]
 struct Failure {
     code: ErrorCode,
@@ -58,6 +60,9 @@ struct Failure {
     /// `device_busy`: who holds the watch, as far as the system tells.
     #[serde(skip_serializing_if = "Option::is_none")]
     busy: Option<Box<Busy>>,
+    /// `garmin_mode`: whether the watch can be switched to MTP here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    garmin_mode: Option<Box<GarminMode>>,
     /// A failed install or restore: how undoing it went.
     #[serde(skip_serializing_if = "Option::is_none")]
     rollback: Option<Box<Rollback>>,
@@ -69,6 +74,7 @@ impl From<Error> for Failure {
             code: e.code,
             message: e.message,
             busy: e.busy,
+            garmin_mode: e.garmin_mode,
             rollback: e.rollback,
         }
     }
