@@ -9,7 +9,10 @@ import { initialGlobals, storyGlobals, windowSizeTitles } from "./globals";
  * `parameters.frame === false` (the flows) places its own `WindowFrame` beside the simulator.
  */
 const frame: Decorator = (Story, context) => {
-  const { lang, platform, theme, width, height } = storyGlobals(context.globals);
+  const { lang, theme, width, height, ...g } = storyGlobals(context.globals);
+  // A story that pins its platform in args (busy × platform, Linux permissions) gets that window.
+  const pinned: unknown = context.args.platform;
+  const platform = pinned === "macos" || pinned === "windows" || pinned === "linux" ? pinned : g.platform;
   document.documentElement.dataset.theme = theme;
   document.documentElement.lang = lang;
   if (context.parameters.frame === false) return <Story />;
