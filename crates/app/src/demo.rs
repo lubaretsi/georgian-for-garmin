@@ -35,9 +35,9 @@
 //! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one first; set to `none`,
 //! no watch is ever found, over MTP or as a drive, so the waiting screen stays (and shows its
 //! help). `GEORGIAN_FOR_GARMIN_DEMO_BUSY` set to a holder kind (`garmin_express`,
-//! `macos_camera_service`, `desktop_mtp`, `other`, `unknown`) finds the watch held by such a
-//! program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`, `windows`,
-//! `linux`) shows another platform's words, and its holders' names.
+//! `macos_camera_service`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held
+//! by such a program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`,
+//! `windows`, `linux`) shows another platform's words, and its holders' names.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -423,6 +423,7 @@ fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
         }
         HolderKind::DesktopMtp => Holder::named("Android File Tra", Some(1450), true),
         HolderKind::Other => Holder::named("usb-helper", Some(3070), true),
+        HolderKind::ThisApp => Holder::named("georgian-for-ga", Some(std::process::id()), true),
         HolderKind::Unknown => Holder::unknown(),
     };
     // A still-image interface where macOS's camera service takes it, Garmin's MTP one elsewhere.
@@ -816,6 +817,7 @@ mod tests {
             HolderKind::GarminExpress,
             HolderKind::MacosCameraService,
             HolderKind::DesktopMtp,
+            HolderKind::ThisApp,
             HolderKind::Other,
             HolderKind::Unknown,
         ];

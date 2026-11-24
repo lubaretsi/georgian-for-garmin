@@ -34,7 +34,7 @@ const CANCEL_TRANSACTION: u16 = 0x4001;
 
 /// Interface classes that carry MTP: still-image class (6/1/1) as most devices declare it, and
 /// the vendor-specific (0xFF/0xFF/0x00) interface Garmin watches use.
-fn is_mtp_class(class: u8, subclass: u8, protocol: u8) -> bool {
+pub(crate) fn is_mtp_class(class: u8, subclass: u8, protocol: u8) -> bool {
     matches!(
         (class, subclass, protocol),
         (0x06, 0x01, 0x01) | (0xFF, 0xFF, 0x00)
@@ -397,7 +397,7 @@ fn name_holder(e: Error, info: &nusb::DeviceInfo) -> Error {
     #[cfg(target_os = "linux")]
     let (holder, product_name) = (
         busy::linux(info.busnum(), info.device_address()),
-        info.product_string().map(str::to_owned),
+        busy::product_name(info.product_string()),
     );
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let (holder, product_name) = (busy::Holder::unknown(), None);

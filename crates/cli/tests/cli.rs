@@ -33,7 +33,7 @@ fn json_error(out: &Output) -> Value {
     serde_json::from_slice(&out.stderr).expect("stderr is one JSON value")
 }
 
-const OPERATIONS: [&str; 7] = [
+const OPERATIONS: [&str; 8] = [
     "inspect",
     "install",
     "restore_stock",
@@ -41,6 +41,7 @@ const OPERATIONS: [&str; 7] = [
     "issue_link",
     "extdata_list",
     "wait_for_watch",
+    "diagnose",
 ];
 const DEV_OPERATIONS: [&str; 13] = [
     "read_file",
@@ -383,4 +384,86 @@ fn inspect_drive_names_a_missing_volume() {
     assert_eq!(out.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&out.stderr).unwrap();
     assert_eq!(error["error"]["code"], "garmin_folder_not_found");
+}
+
+#[test]
+fn diagnose_is_read_only_in_help_json() {
+    let out = run(&["diagnose", "--help", "--json"], "");
+    assert_eq!(out.status.code(), Some(0));
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let tool = &tools["tools"][0];
+    assert_eq!(tool["name"], "diagnose");
+    assert_eq!(
+        tool["annotations"],
+        json!({"title": "Diagnostic info", "readOnlyHint": true, "destructiveHint": false,
+               "idempotentHint": true, "openWorldHint": false})
+    );
+    assert_eq!(tool["inputSchema"]["properties"]["events"]["maxItems"], 50);
+    for key in [
+        "app",
+        "system",
+        "usb",
+        "connection",
+        "drives",
+        "watch",
+        "events",
+        "text",
+    ] {
+        assert!(tool["outputSchema"]["properties"][key].is_object(), "{key}");
+    }
+    let out = run(&["diagnose", "-h"], "");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("--save <FILE>"));
+}
+
+fn temp_path(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("gfg-cli-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join("diagnostics.txt")
+}
+
+/// An existing file is refused before anything is looked at, and left as it was.
+#[test]
+fn diagnose_save_never_overwrites() {
+    let path = temp_path("save");
+    std::fs::write(&path, "mine").unwrap();
+    let out = run(
+        &["diagnose", "--save", path.to_str().unwrap(), "--json"],
+        "",
+    );
+    let error = json_error(&out);
+    assert_eq!(error["error"]["code"], "invalid_input");
+    assert!(
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("already exists"),
+        "{error}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "mine");
+    let out = run(&["diagnose", "--save", path.to_str().unwrap()], "");
+    assert_eq!(out.status.code(), Some(2));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "mine");
+}
+
+/// Events are checked before anything is looked at: a serial number in one is refused.
+#[test]
+fn diagnose_refuses_identifier_events() {
+    let path = temp_path("refused");
+    let input = json!({"events": [{"time": "2026-11-24T03:14:05", "kind": "poll",
+                                   "detail": "serial FAKESERIAL0042", "model": "Venu 2"}]});
+    let out = run(
+        &[
+            "diagnose",
+            "--input",
+            "-",
+            "--save",
+            path.to_str().unwrap(),
+            "--json",
+        ],
+        &input.to_string(),
+    );
+    let error = json_error(&out);
+    assert_eq!(error["error"]["code"], "invalid_input");
+    assert!(!path.exists());
 }

@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `nix develop` has Node and pnpm; `crates/core/tests/ui_fixtures.rs` writes and checks the
   fixtures; CI generates the core's TypeScript types, typechecks, and runs the flow and story
   tests in Chromium and WebKit with axe.
+- `georgian-for-garmin diagnose` (and the `diagnose` operation in `rpc` and `mcp`) gathers the
+  diagnostic info we ask for when helping someone who can't use GitHub: app version and build,
+  system, the Garmin USB devices with what holds them, what opening the watch gave, mounted watch
+  volumes, the watch report, and the app's recent steps, as JSON and as readable text with no
+  serial number or watch ID. `--save FILE` writes the text to a new file
+  ([command line](docs/command-line.md#diagnostic-info)).
+- A busy watch held by this very process names it as `this_app` instead of another program, and
+  the app says so in its own words: wait for the step to finish, or close and reopen the app.
+
+### Fixed
+
+- A busy watch's USB product name is left out when it looks like an identifier (a serial
+  number in the product string): from `device_busy` errors, the app's busy screen, and the
+  `busy` line and title of watch report links (`issue_link`), including a `busy` passed in.
 
 ## [0.3.4] - 2026-11-24
 

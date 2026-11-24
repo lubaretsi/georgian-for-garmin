@@ -32,8 +32,9 @@ use windows::Win32::System::Variant::{VT_ERROR, VT_LPWSTR, VT_UI4};
 use windows::core::{GUID, HSTRING, Interface, PWSTR, w};
 
 use super::{
-    format_code, format_guid, is_garmin_device_id, mtp_error, object_id, open_error, parent_handle,
-    parse_object_id, parse_storage_id, read_only_from_object_info, storage_object_id,
+    ListedDevice, format_code, format_guid, is_garmin_device_id, mtp_error, object_id, open_error,
+    parent_handle, parse_object_id, parse_storage_id, product_id_from_device_id,
+    read_only_from_object_info, storage_object_id,
 };
 use crate::error::{Error, ErrorCode};
 use crate::mtp::{CreateError, Mtp, MtpError, NewObject, RawResponse};
@@ -160,6 +161,38 @@ fn device_ids(manager: &IPortableDeviceManager) -> Result<Vec<String>, Error> {
     }
     ids.truncate(count as usize);
     Ok(ids.into_iter().map(|p| unsafe { take_string(p) }).collect())
+}
+
+/// A device's description as WPD gives it (the driver's name for the device, such as its model),
+/// or None. Never its friendly name, which the owner may have set to their own name.
+fn device_description(manager: &IPortableDeviceManager, id: &str) -> Option<String> {
+    let id = HSTRING::from(id);
+    let mut len = 0u32;
+    unsafe { manager.GetDeviceDescription(&id, PWSTR::null(), &mut len) }.ok()?;
+    if len == 0 {
+        return None;
+    }
+    let mut buffer = vec![0u16; len as usize];
+    unsafe { manager.GetDeviceDescription(&id, PWSTR(buffer.as_mut_ptr()), &mut len) }.ok()?;
+    let end = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    let text = String::from_utf16_lossy(&buffer[..end]).trim().to_owned();
+    (!text.is_empty()).then_some(text)
+}
+
+/// The Garmin devices WPD lists: each one's USB product ID (from its device ID, of which nothing
+/// else is kept) and description.
+pub fn garmin_devices() -> Result<Vec<ListedDevice>, Error> {
+    let _com = Com::init();
+    let manager: IPortableDeviceManager =
+        create(&PortableDeviceManager).map_err(opening("cannot start Windows Portable Devices"))?;
+    Ok(device_ids(&manager)?
+        .into_iter()
+        .filter(|id| is_garmin_device_id(id))
+        .map(|id| ListedDevice {
+            product_id: product_id_from_device_id(&id),
+            description: device_description(&manager, &id),
+        })
+        .collect())
 }
 
 fn client_info() -> windows::core::Result<IPortableDeviceValues> {

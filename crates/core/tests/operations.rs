@@ -2059,6 +2059,7 @@ fn tool_definitions_follow_the_schemas() {
         "issue_link",
         "extdata_list",
         "wait_for_watch",
+        "diagnose",
     ];
     if cfg!(feature = "dev") {
         expected.extend(["read_file", "stage_file", "remove_staged"]);
@@ -2076,7 +2077,7 @@ fn tool_definitions_follow_the_schemas() {
         ]);
     }
     assert_eq!(names, expected);
-    for pure in &tools["tools"].as_array().unwrap()[3..7] {
+    for pure in &tools["tools"].as_array().unwrap()[3..8] {
         assert_eq!(pure["annotations"]["readOnlyHint"], true);
         assert_eq!(pure["annotations"]["destructiveHint"], false);
     }
@@ -2090,17 +2091,17 @@ fn tool_definitions_follow_the_schemas() {
         assert_eq!(tool["annotations"]["openWorldHint"], false);
     }
     if cfg!(feature = "dev") {
-        let stage = &tools["tools"][8];
+        let stage = &tools["tools"][9];
         assert_eq!(stage["annotations"]["destructiveHint"], true);
         let input = &stage["inputSchema"]["properties"];
         assert!(input["name"]["pattern"].is_string(), "{input}");
         assert_eq!(input["garmin_sha256"]["items"]["pattern"], "^[0-9a-f]{64}$");
-        assert_eq!(tools["tools"][7]["annotations"]["readOnlyHint"], true);
-        assert_eq!(tools["tools"][9]["annotations"]["destructiveHint"], true);
+        assert_eq!(tools["tools"][8]["annotations"]["readOnlyHint"], true);
+        assert_eq!(tools["tools"][10]["annotations"]["destructiveHint"], true);
         // The raw operations: the reads, ptp_transaction and mtp_trace only read; of the two
         // writes, only mtp_delete is destructive.
         let all = tools["tools"].as_array().unwrap();
-        for tool in &all[10..] {
+        for tool in &all[11..] {
             let writes = ["mtp_create", "mtp_delete"].contains(&tool["name"].as_str().unwrap());
             assert_eq!(
                 tool["annotations"]["readOnlyHint"], !writes,
@@ -2116,7 +2117,7 @@ fn tool_definitions_follow_the_schemas() {
             let input = &tool["inputSchema"]["properties"];
             assert_eq!(input["allow_write"].is_object(), writes, "{}", tool["name"]);
         }
-        let ptp = &all[16]["inputSchema"]["properties"];
+        let ptp = &all.iter().find(|t| t["name"] == "ptp_transaction").unwrap()["inputSchema"]["properties"];
         assert_eq!(ptp["params"]["maxItems"], 5, "{ptp}");
         assert!(ptp.get("data_out").is_none(), "{ptp}");
     }

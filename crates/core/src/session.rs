@@ -17,6 +17,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::diagnose::{self, DiagnoseInput, Probe};
 use crate::error::{Error, ErrorCode};
 use crate::fonts::FontSet;
 use crate::listing;
@@ -134,6 +135,8 @@ const POLL: Duration = Duration::from_millis(500);
 pub struct Session<'a> {
     fonts: Cow<'a, FontSet>,
     watch: Watch<'a>,
+    /// Where `diagnose` lists USB devices and volumes.
+    probe: Probe<'a>,
     #[cfg(feature = "dev")]
     staged_log: Option<std::path::PathBuf>,
     /// Whether `mtp_trace` turned the live trace on.
@@ -162,6 +165,7 @@ impl<'a> Session<'a> {
                 poll: POLL,
                 hashes: HashCache::new(),
             },
+            probe: Probe::system(),
             #[cfg(feature = "dev")]
             staged_log: crate::dev::default_log(),
             #[cfg(feature = "dev")]
@@ -180,6 +184,12 @@ impl<'a> Session<'a> {
     /// How often `wait_for_watch` tries to open the watch.
     pub fn with_poll_interval(mut self, poll: Duration) -> Self {
         self.watch.poll = poll;
+        self
+    }
+
+    /// Where `diagnose` lists USB devices and volumes, instead of this computer.
+    pub fn with_probe(mut self, probe: Probe<'a>) -> Self {
+        self.probe = probe;
         self
     }
 
@@ -252,6 +262,18 @@ impl<'a> Session<'a> {
             "wait_for_watch" => {
                 let WaitInput { timeout_seconds } = parse(input)?;
                 to_value(watch.wait(timeout_seconds.unwrap_or(DEFAULT_WAIT), control)?)
+            }
+            "diagnose" => {
+                let DiagnoseInput { events } = parse(input)?;
+                let events = events.unwrap_or_default();
+                diagnose::check_events(&events)?;
+                // Listed before the watch is opened, so a holder is another program's unless
+                // this session already holds the watch. The watch goes through the session's
+                // connection, as for inspect: a second open would find it busy.
+                let usb = (self.probe.usb)();
+                let drives = (self.probe.drives)();
+                let connection = watch.run(|dev, _| ops::inspect(dev, fonts));
+                to_value(diagnose::diagnose(fonts, events, usb, drives, connection))
             }
             #[cfg(feature = "dev")]
             "read_file" => {

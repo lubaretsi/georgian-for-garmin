@@ -615,8 +615,9 @@ mod tests {
             assert_eq!(platforms, PLATFORMS.into(), "{language}.busy");
             for (platform, words) in busy {
                 let words = words.as_object().expect("a table by holder kind");
-                // Kinds without their own words get `other` (named) or `unknown`.
-                for key in ["other", "unknown"] {
+                // Kinds without their own words get `other` (named) or `unknown`; this app
+                // itself is never "another program", so it has its own words everywhere.
+                for key in ["this_app", "other", "unknown"] {
                     assert!(
                         words.contains_key(key),
                         "{language}.busy.{platform} lacks {key}"

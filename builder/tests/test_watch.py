@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
+from no_watch import NotListed, garmin_devices, opens_a_watch, skip_reason
 from registry_data import PINS
 
 from garmin_fonts.watch import Watch, WatchError, _part_of
@@ -307,14 +308,75 @@ def test_ctrl_c_in_a_terminal_cancels_and_keeps_the_session():
                                                 "software": "19.05"}, "exit": 0}
 
 
-@pytest.mark.skipif(not (os.environ.get("GEORGIAN_FOR_GARMIN_CLI")
-                         and os.environ.get("GFG_TEST_NO_WATCH") == "1"),
-                    reason="needs a dev CLI and no watch attached (GFG_TEST_NO_WATCH=1, as in CI): "
-                           "wait_for_watch looks for one over USB")
+@opens_a_watch
 def test_ctrl_c_in_a_terminal_cancels_the_real_rpc():
     outcome = group_sigint("wait_for_watch", {"timeout_seconds": 60},
                            [os.environ["GEORGIAN_FOR_GARMIN_CLI"]])
     assert outcome == {"alive": True, "after": "invalid_input", "exit": 0}
+
+
+def test_calls_that_open_a_watch_run_only_with_no_garmin_device_attached():
+    """Opt-in and a USB listing that worked and found no Garmin device: run. Anything else:
+    skip, saying why."""
+    def a_test():
+        pass
+
+    def found(n):
+        return lambda: n
+
+    def fails():
+        raise NotListed("not covered here")
+
+    opted = {"GFG_TEST_NO_WATCH": "1", "GEORGIAN_FOR_GARMIN_CLI": "/a/dev/build"}
+    cases = [
+        (opted, found(0), None),
+        (opted, found(1), "1 Garmin USB device(s) attached"),
+        (opted, fails, "USB couldn't be checked for one (not covered here)"),
+        ({**opted, "GFG_TEST_NO_WATCH": "0"}, found(0), "opt in with GFG_TEST_NO_WATCH=1"),
+        ({"GEORGIAN_FOR_GARMIN_CLI": "/a/dev/build"}, found(0), "opt in"),
+        ({"GFG_TEST_NO_WATCH": "1"}, found(0), "GEORGIAN_FOR_GARMIN_CLI"),
+    ]
+    for environ, count, expected in cases:
+        reason = skip_reason(environ, count)
+        assert (reason is None) if expected is None else (expected in reason), (environ, reason)
+        skip = opens_a_watch(a_test, environ, count).pytestmark[-1]
+        assert skip.name == "skipif" and skip.args == (expected is not None,), environ
+    # Without the opt-in, USB isn't even looked at.
+    def never():
+        raise AssertionError("USB listed without the opt-in")
+
+    assert "opt in" in skip_reason({}, never)
+
+
+def test_garmin_devices_are_counted_without_opening_any(tmp_path):
+    def device(name, vendor):
+        (tmp_path / "bus/usb/devices" / name).mkdir(parents=True)
+        (tmp_path / "bus/usb/devices" / name / "idVendor").write_text(f"{vendor}\n")
+
+    (tmp_path / "bus").mkdir()
+    assert garmin_devices("linux", tmp_path) == 0, "no USB bus: no Garmin device"
+    device("usb1", "1d6b")
+    (tmp_path / "bus/usb/devices/1-0:1.0").mkdir()  # an interface: no idVendor
+    assert garmin_devices("linux", tmp_path) == 0
+    device("1-1", "091e")
+    assert garmin_devices("linux", tmp_path) == 1
+    with pytest.raises(NotListed):
+        garmin_devices("linux", tmp_path / "missing")
+
+    def ioreg(out, error=None):
+        def run(*args, **kwargs):
+            if error:
+                raise error
+            return subprocess.CompletedProcess(args, 0, stdout=out)
+        return run
+
+    listing = '+-o Root\n  | "idVendor" = 1452\n  |   "idVendor" = 2334\n'
+    assert garmin_devices("darwin", run=ioreg(listing)) == 1
+    assert garmin_devices("darwin", run=ioreg('"idVendor" = 23345\n')) == 0
+    with pytest.raises(NotListed):
+        garmin_devices("darwin", run=ioreg("", FileNotFoundError("ioreg")))
+    with pytest.raises(NotListed):
+        garmin_devices("win32")
 
 
 # A Python that opens two sessions, makes a call (one the real core refuses before it looks for a

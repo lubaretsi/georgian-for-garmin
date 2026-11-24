@@ -5,7 +5,7 @@
 //! [`session`] keeps the watch open between calls, [`rpc`] serves them as JSON-RPC.
 //! [`report`] builds the shareable watch report, [`drive`] reads watches that mount as a drive,
 //! [`support`] derives a watch's status in the support list, [`busy`] names what holds a busy
-//! watch.
+//! watch, [`diagnose`] gathers the diagnostic info people send us.
 
 // The development operations write files of any content to a watch; they never ship.
 #[cfg(all(feature = "dev", not(debug_assertions)))]
@@ -17,6 +17,7 @@ compile_error!(
 pub mod busy;
 #[cfg(feature = "dev")]
 pub mod dev;
+pub mod diagnose;
 pub mod drive;
 pub mod error;
 pub mod extdata;
