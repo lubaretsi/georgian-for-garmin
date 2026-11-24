@@ -574,6 +574,24 @@ pub fn mark_shared(key: ShareKey) {
     }
 }
 
+/// The language chosen in the demo build, for this run only, so the demo leaves the app's
+/// settings alone.
+#[cfg(feature = "demo")]
+static LANGUAGE: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(feature = "demo")]
+pub fn language() -> Option<String> {
+    LANGUAGE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
+#[cfg(feature = "demo")]
+pub fn set_language(language: String) {
+    *LANGUAGE.lock().unwrap_or_else(PoisonError::into_inner) = Some(language);
+}
+
 /// The platform named by `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM`, if it names one of the app's.
 #[cfg(feature = "demo")]
 pub fn platform() -> Option<&'static str> {
