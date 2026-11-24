@@ -104,8 +104,9 @@ export function Shell(props: ShellProps) {
           data-tauri-drag-region
           className={cn(
             "absolute inset-x-0 top-0 z-20 flex h-[var(--toolbar-h)] items-center gap-2 border-b pr-3",
-            "transition-[background-color,border-color] duration-200",
-            scrolled ? "border-sep bg-toolbar backdrop-blur-xl backdrop-saturate-150" : "border-transparent bg-canvas",
+            // A solid fill behind the toolbar's text (§2.9); the hairline shows once content scrolls under it.
+            "bg-canvas transition-[border-color] duration-200",
+            scrolled ? "border-sep" : "border-transparent",
           )}
           style={{ paddingLeft: platform === "macos" ? MAC_TOOLBAR_INSET : 12 }}
         >

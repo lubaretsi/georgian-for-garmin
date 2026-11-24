@@ -4,6 +4,7 @@ import { Checkbox as CheckboxPrimitive, RadioGroup as RadioGroupPrimitive } from
 import { type ReactNode, useId } from "react";
 
 import { cn } from "./cn";
+import { Hairline } from "./Group";
 
 /* ---- Radio rows: a native list of choices, each a real radio, with a trailing sample ---- */
 
@@ -24,8 +25,7 @@ export function RadioRows<T extends string>(props: {
       onValueChange={(v) => props.onChange(v as T)}
       className={cn(
         "overflow-hidden rounded-group bg-group shadow-group",
-        "[&>*+*]:before:absolute [&>*+*]:before:top-0 [&>*+*]:before:right-0 [&>*+*]:before:left-11",
-        "[&>*+*]:before:h-px [&>*+*]:before:bg-sep [&>*+*]:before:content-['']",
+        "[--inset:44px] [&>:first-child>.hairline]:hidden",
       )}
     >
       {props.choices.map((choice) => (
@@ -39,6 +39,7 @@ export function RadioRows<T extends string>(props: {
             "data-[state=checked]:bg-accent-soft",
           )}
         >
+          <Hairline />
           <RadioDot />
           <span lang={choice.lang} className="flex-1 text-row text-fg group-data-[state=checked]:font-medium">
             {choice.label}
@@ -75,7 +76,8 @@ function RadioDot() {
 export function CheckboxRow(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   const id = useId();
   return (
-    <label htmlFor={id} className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-group-hover">
+    <label htmlFor={id} className="relative flex min-h-11 items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-group-hover">
+      <Hairline />
       <Checkbox id={id} checked={props.checked} onCheckedChange={(c) => props.onChange(c === true)} />
       <span className="flex-1 text-row text-fg select-none">{props.label}</span>
     </label>

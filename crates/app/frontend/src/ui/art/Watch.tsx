@@ -1,6 +1,6 @@
 import { type ReactNode, useId } from "react";
 
-import { RESULT_SAMPLES } from "../../copy/shared";
+import { type Word, WORDS } from "./glyphs";
 
 /**
  * One device, drawn once and reused everywhere (§10): a round watch with a silver case, a dark
@@ -149,7 +149,14 @@ function PowerHighlight() {
   );
 }
 
-export const faceText = { fontFamily: "var(--font)", fontWeight: 600 } as const;
+/** A word drawn from its glyph outlines (glyphs.ts): `size` is the font size, `y` the baseline. */
+export function WordPath(props: { word: Word; x?: number; y: number; size: number; anchor?: "start" | "middle"; fill: string }) {
+  const s = props.size / 1000;
+  const left = (props.x ?? 0) - (props.anchor === "middle" ? (props.word.width * s) / 2 : 0);
+  return <path d={props.word.d} transform={`translate(${left} ${props.y}) scale(${s})`} fill={props.fill} />;
+}
+
+const FACE = "var(--face-fg)";
 
 /** A notification as the watch draws it: an app dot and a sender line, the text, two lines. */
 function Notification({ children }: { children: ReactNode }) {
@@ -211,9 +218,7 @@ function FaceContent({ face }: { face: Face }) {
     case "georgian":
       return (
         <Notification>
-          <text y="7" textAnchor="middle" fontSize="18" fill="var(--face-fg)" style={faceText}>
-            {RESULT_SAMPLES.georgian}
-          </text>
+          <WordPath word={WORDS.georgian} y={7} size={18} anchor="middle" fill={FACE} />
         </Notification>
       );
     case "boxes":
@@ -227,17 +232,13 @@ function FaceContent({ face }: { face: Face }) {
     case "question_marks":
       return (
         <Notification>
-          <text y="7" textAnchor="middle" fontSize="18" fill="var(--face-fg)" style={faceText}>
-            {RESULT_SAMPLES.question_marks}
-          </text>
+          <WordPath word={WORDS.questionMarks} y={7} size={18} anchor="middle" fill={FACE} />
         </Notification>
       );
     case "some_letters":
       return (
         <Notification>
-          <text x="-10" y="7" textAnchor="middle" fontSize="18" fill="var(--face-fg)" style={faceText}>
-            {RESULT_SAMPLES.some_letters.slice(0, 2)}
-          </text>
+          <WordPath word={WORDS.someLetters} x={-10} y={7} size={18} anchor="middle" fill={FACE} />
           <Tofu x={3} y={-8} />
           <Tofu x={14} y={-8} />
         </Notification>
@@ -245,9 +246,7 @@ function FaceContent({ face }: { face: Face }) {
     case "time":
       return (
         <g>
-          <text y="6" textAnchor="middle" fontSize="22" fill="var(--face-fg)" style={{ ...faceText, fontWeight: 500 }}>
-            10:09
-          </text>
+          <WordPath word={WORDS.time} y={6} size={22} anchor="middle" fill={FACE} />
           <rect x="-12" y="16" width="24" height="3.5" rx="1.75" fill="var(--face-dim)" opacity="0.6" />
         </g>
       );
@@ -297,9 +296,11 @@ function FaceContent({ face }: { face: Face }) {
     case "drive":
       return (
         <g {...glyph}>
-          <rect x="-16" y="-9" width="26" height="18" rx="3" />
-          <path d="M10 -5h6v10h-6" />
-          <path d="M-9 -2h12M-9 3h8" strokeWidth={1.8} opacity="0.7" />
+          {/* a USB stick, connector up */}
+          <rect x="-9" y="-5" width="18" height="24" rx="3.5" />
+          <path d="M-6 -5v-11h12v11" />
+          <path d="M-2.8 -12.5h1.6M1.2 -12.5h1.6" strokeWidth={2} />
+          <circle cx="0" cy="9" r="2.2" fill="var(--face-fg)" stroke="none" opacity="0.7" />
         </g>
       );
     case "alert":
@@ -335,12 +336,12 @@ export function MiniFace({ sample, size = 40 }: { sample: Sample; size?: number 
 }
 
 function MiniContent({ sample }: { sample: Sample }) {
-  const text = { textAnchor: "middle" as const, fontSize: 10.5, fill: "var(--face-fg)", style: faceText, y: 3.8 };
+  const word = (w: Word, x = 0) => <WordPath word={w} x={x} y={3.8} size={10.5} anchor="middle" fill={FACE} />;
   switch (sample) {
     case "georgian":
-      return <text {...text}>{RESULT_SAMPLES.georgian}</text>;
+      return word(WORDS.georgian);
     case "question_marks":
-      return <text {...text}>{RESULT_SAMPLES.question_marks}</text>;
+      return word(WORDS.questionMarks);
     case "boxes":
       return (
         <>
@@ -352,9 +353,7 @@ function MiniContent({ sample }: { sample: Sample }) {
     case "some_letters":
       return (
         <>
-          <text {...text} x={-5.5}>
-            {RESULT_SAMPLES.some_letters.slice(0, 2)}
-          </text>
+          {word(WORDS.someLetters, -5.5)}
           {[0, 1].map((i) => (
             <Tofu key={i} x={1.5 + i * 6} y={-4} w={4.5} h={7.5} stroke={1.1} />
           ))}

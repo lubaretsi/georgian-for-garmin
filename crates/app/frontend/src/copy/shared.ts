@@ -12,16 +12,5 @@ export const LINUX_UDEV_COMMANDS = [
 
 export const REPO_URL = "https://github.com/lubaretsi/georgian-for-garmin";
 
-/** The rendered answer samples (§5.2): Georgian, boxes, question marks, some letters. */
-export const RESULT_SAMPLES = {
-  georgian: "ქართ",
-  boxes: "□□□□",
-  question_marks: "????",
-  some_letters: "ქა□□",
-} as const;
-
-/** The Georgian notification the install picture shows ("hello!"); illustration text, the same in both languages. */
-export const GREETING = "სალამი!";
-
 /** The language names the switch shows, each in its own language. */
 export const LANGUAGE_NAMES = { ka: "ქართული", en: "English" } as const;

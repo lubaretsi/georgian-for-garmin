@@ -34,7 +34,6 @@
   --danger-ink: #b0262a;
   --danger-soft: #fbeaea;
   --sep: rgb(60 60 67 / 0.14);
-  --toolbar: rgb(242 242 245 / 0.94);
   --tile: linear-gradient(180deg, #8e8e96, #6e6e76);
   --tile-accent: linear-gradient(180deg, #db3a53, #c22840);
   --tile-green: linear-gradient(180deg, #34b55a, #23974a);
@@ -88,7 +87,6 @@
     --danger-ink: #ff8f87;
     --danger-soft: #3b2224;
     --sep: rgb(255 255 255 / 0.1);
-    --toolbar: rgb(28 28 30 / 0.94);
     --tile: linear-gradient(180deg, #7a7a82, #5d5d64);
     --celebrate: rgb(63 191 104 / 0.1);
     --elev-group: 0 0 0 0.5px rgb(255 255 255 / 0.06);
@@ -137,7 +135,6 @@
   --danger-ink: #ff8f87;
   --danger-soft: #3b2224;
   --sep: rgb(255 255 255 / 0.1);
-  --toolbar: rgb(28 28 30 / 0.94);
   --tile: linear-gradient(180deg, #7a7a82, #5d5d64);
   --celebrate: rgb(63 191 104 / 0.1);
   --elev-group: 0 0 0 0.5px rgb(255 255 255 / 0.06);

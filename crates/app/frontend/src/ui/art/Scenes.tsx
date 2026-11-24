@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-import { GREETING, RESULT_SAMPLES } from "../../copy/shared";
 import { AppIconShape } from "./AppIcon";
-import { CheckBadge, type Face, faceText, useSvgId, WatchDevice } from "./Watch";
+import { WORDS } from "./glyphs";
+import { CheckBadge, type Face, useSvgId, WatchDevice, WordPath } from "./Watch";
 
 /**
  * The hero pictures. All are decorative (aria-hidden): the heading and text say the same.
@@ -99,9 +99,7 @@ function Bubble({ x, y }: { x: number; y: number }) {
       <g transform="translate(8 10)">
         <AppIconShape size={20} />
       </g>
-      <text x={34} y={25} fontSize={13} fill="var(--text)" style={faceText}>
-        {GREETING}
-      </text>
+      <WordPath word={WORDS.greeting} x={34} y={25} size={13} fill="var(--text)" />
     </g>
   );
 }
@@ -139,9 +137,7 @@ function Phone({ x, y, rotate, children }: { x: number; y: number; rotate: numbe
       <rect x="7" y="22" width="54" height="31" rx="8" fill="var(--face-fg)" opacity="0.95" />
       <circle cx="15" cy="30" r="3.5" fill="var(--success)" />
       <rect x="22" y="28.25" width="24" height="3.5" rx="1.75" fill="var(--face-dim)" />
-      <text x="12" y="47" fontSize="12" fill="var(--glass)" style={faceText}>
-        {RESULT_SAMPLES.georgian}
-      </text>
+      <WordPath word={WORDS.georgian} x={12} y={47} size={12} fill="var(--glass)" />
       <rect x="7" y="58" width="54" height="18" rx="7" fill="var(--face-fg)" opacity="0.12" />
       <rect x="7" y="80" width="54" height="18" rx="7" fill="var(--face-fg)" opacity="0.07" />
       {children}
@@ -178,6 +174,41 @@ export function CelebrateScene() {
       <g className="anim-twinkle" style={{ animationDelay: "1.2s" }}>
         <path d="M200 182 l3 -7 l3 7 l-3 7 Z" fill="#f2b33d" />
       </g>
+    </Hero>
+  );
+}
+
+/**
+ * share: the report as a card (the app's icon, labelled lines), with what happened to it: a
+ * green check once GitHub opened, a red mark when it didn't.
+ */
+export function ShareScene({ state }: { state: "ready" | "opened" | "failed" }) {
+  const rows = [0, 1, 2, 3];
+  return (
+    <Hero viewBox="40 0 240 220">
+      <g transform="rotate(-3 160 110)">
+        <rect x="104" y="34" width="112" height="152" rx="14" fill="var(--device-shadow)" opacity="0.5" style={{ filter: "blur(7px)" }} />
+        <rect x="102" y="28" width="116" height="156" rx="14" fill="var(--group)" stroke="var(--case-edge)" strokeOpacity="0.45" strokeWidth="0.75" />
+        <g transform="translate(116 42)">
+          <AppIconShape size={22} />
+        </g>
+        <rect x="146" y="47" width="52" height="5" rx="2.5" fill="var(--text)" opacity="0.7" />
+        <rect x="146" y="57" width="34" height="4" rx="2" fill="var(--text-2)" opacity="0.5" />
+        {rows.map((i) => (
+          <g key={i}>
+            <rect x="116" y={84 + i * 22} width="38" height="4" rx="2" fill="var(--text-2)" opacity="0.55" />
+            <rect x={176 - (i % 2) * 10} y={84 + i * 22} width={28 + (i % 2) * 10} height="4" rx="2" fill="var(--text)" opacity="0.35" />
+            {i < rows.length - 1 ? <rect x="116" y={95 + i * 22} width="88" height="0.75" fill="var(--case-edge)" opacity="0.35" /> : null}
+          </g>
+        ))}
+      </g>
+      {state === "opened" ? <CheckBadge x={214} y={170} r={15} /> : null}
+      {state === "failed" ? (
+        <g transform="translate(214 170)">
+          <circle r="15" fill="var(--danger-ink)" stroke="var(--bg)" strokeWidth="3" />
+          <path d="M-5 -5l10 10M5 -5l-10 10" stroke="var(--bg)" strokeWidth="2.6" strokeLinecap="round" />
+        </g>
+      ) : null}
     </Hero>
   );
 }

@@ -11,7 +11,7 @@ import { Button } from "../ui/Button";
 import { Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
-import { Group, GroupHeader, Tile, TILE_INSET, ValueRow } from "../ui/Group";
+import { Group, GroupHeader, Hairline, Tile, TILE_INSET, ValueRow } from "../ui/Group";
 
 /**
  * More (§5.2, §11), a sheet that drops from the toolbar over the dimmed window: language,
@@ -136,38 +136,41 @@ export function MoreSheet(props: {
   );
 }
 
-/** A command row: its name is the title; the detail line describes it. */
+/**
+ * A command row. The button holds only the title, so its name is exactly what it shows; the
+ * detail line describes it, and the button's hit area stretches over the whole row.
+ */
 function SheetRow(props: { icon: ReactNode; title: string; detail?: string; onPress: () => void }) {
   const id = useId();
   return (
-    <button
-      type="button"
-      data-focus="inset"
-      aria-labelledby={`${id}-title`}
-      aria-describedby={props.detail ? `${id}-detail` : undefined}
-      onClick={props.onPress}
-      className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-group-hover active:bg-group-active"
-    >
+    <div className="relative flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 hover:bg-group-hover active:bg-group-active">
+      <Hairline />
       <Tile>{props.icon}</Tile>
-      <span className="min-w-0 flex-1">
-        <span id={`${id}-title`} className="block text-row text-fg">
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          aria-describedby={props.detail ? `${id}-detail` : undefined}
+          onClick={props.onPress}
+          className="block w-full rounded-[4px] text-left text-row text-fg after:absolute after:inset-0"
+        >
           {props.title}
-        </span>
+        </button>
         {props.detail ? (
-          <span id={`${id}-detail`} className="block text-row text-fg-2">
+          <p id={`${id}-detail`} className="text-row text-fg-2">
             {props.detail}
-          </span>
+          </p>
         ) : null}
-      </span>
+      </div>
       <ChevronRight size={16} className="text-fg-2" aria-hidden="true" />
-    </button>
+    </div>
   );
 }
 
 /** A row that opens in place, like a disclosure row in System Settings. */
 function Section(props: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <Collapsible.Root className="group/section">
+    <Collapsible.Root className="group/section relative">
+      <Hairline />
       <h3>
         <Collapsible.Trigger
           data-focus="inset"

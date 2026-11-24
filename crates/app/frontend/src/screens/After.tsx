@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { fmt } from "../copy";
 import type { Result, ScreenModel } from "../model/screens";
-import { CelebrateScene, MissedScene, WatchScene } from "../ui/art/Scenes";
+import { CelebrateScene, MissedScene, ShareScene, WatchScene } from "../ui/art/Scenes";
 import { MiniFace } from "../ui/art/Watch";
 import { Alert } from "../ui/Alert";
 import { Badge } from "../ui/Controls";
@@ -144,6 +144,7 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
     case "ready":
       return {
         step,
+        hero: <ShareScene state="ready" />,
         title: s.title[model.what],
         lead: why,
         content: (
@@ -166,9 +167,9 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
     case "opened_paste":
       return {
         step,
+        hero: <ShareScene state="opened" />,
         title: s.opened.title,
         lead: s.opened.body,
-        status: { text: s.opened.title, busy: false },
         content: (
           <>
             {model.state === "opened_paste" ? (
@@ -185,6 +186,7 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
     case "failed":
       return {
         step,
+        hero: <ShareScene state="failed" />,
         title: s.failed.title,
         content: (
           <>

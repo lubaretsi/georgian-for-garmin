@@ -21,7 +21,6 @@ export const buttonVariants = cva(
       variant: {
         primary: [
           "bg-accent text-on-accent shadow-control",
-          "bg-[linear-gradient(180deg,rgb(255_255_255/0.1),rgb(255_255_255/0))]",
           "hover:bg-accent-hover active:bg-accent-active",
         ],
         secondary: [

@@ -6,6 +6,8 @@ import { cn } from "./cn";
 /**
  * Inset grouped lists, as in System Settings: a rounded container, rows split by hairlines
  * that start at the text column (`--inset`), a small header and a footnote outside it.
+ * Each row draws its own hairline (a real element, so text never sits on a pseudo-element
+ * background); the first row's is hidden, also when rows are wrapped in `li`.
  */
 export function Group({
   className,
@@ -16,12 +18,20 @@ export function Group({
     <As
       className={cn(
         "overflow-hidden rounded-group bg-group shadow-group",
-        "[&>*+*]:relative [&>*+*]:before:absolute [&>*+*]:before:top-0 [&>*+*]:before:right-0",
-        "[&>*+*]:before:left-[var(--inset,14px)] [&>*+*]:before:h-px [&>*+*]:before:bg-sep",
-        "[&>*+*]:before:content-['']",
+        "[&>:first-child>.hairline]:hidden [&>:first-child>*>.hairline]:hidden",
         className,
       )}
       {...props}
+    />
+  );
+}
+
+/** The separator above a row; its row is `relative`. */
+export function Hairline() {
+  return (
+    <span
+      aria-hidden="true"
+      className="hairline pointer-events-none absolute top-0 right-0 left-[var(--inset,14px)] h-px bg-sep"
     />
   );
 }
@@ -106,7 +116,8 @@ export function Row({
   strong?: boolean;
 }) {
   return (
-    <div className={cn("flex min-h-11 items-center gap-3 px-3.5 py-2.5", className)}>
+    <div className={cn("relative flex min-h-11 items-center gap-3 px-3.5 py-2.5", className)}>
+      <Hairline />
       {lead}
       <div className="min-w-0 flex-1">
         <div className={cn("text-row text-fg", strong && "font-medium")}>{title}</div>
@@ -117,10 +128,13 @@ export function Row({
   );
 }
 
-/** A label and value row ("Software — 5.10"), inside a `Group as="dl"`. */
+/**
+ * A label and value row ("Software — 5.10"), inside a `Group as="dl"`. Its hairline is a top
+ * border (a `dl` row may hold only `dt` and `dd`), starting at the text like the others.
+ */
 export function ValueRow({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
-    <div className="flex min-h-11 items-center gap-4 px-3.5 py-2.5">
+    <div className="ml-3.5 flex min-h-11 items-center gap-4 border-t border-sep py-2.5 pr-3.5 first:border-t-0">
       <dt className="shrink-0 text-row text-fg">{label}</dt>
       <dd className="ml-auto min-w-0 text-right text-row break-words text-fg-2">{value}</dd>
     </div>
