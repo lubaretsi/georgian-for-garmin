@@ -10,13 +10,17 @@
     "windows": [
       {
         "title": "Georgian for Garmin",
-        "width": 420,
-        "height": 680,
-        "resizable": false,
-        "maximizable": false,
+        "width": 480,
+        "height": 720,
+        "minWidth": 420,
+        "minHeight": 560,
+        "resizable": true,
         "fullscreen": false,
         "center": true,
-        "visible": false
+        "visible": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 20, "y": 19 }
       }
     ],
     "security": {
