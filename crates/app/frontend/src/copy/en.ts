@@ -8,6 +8,17 @@ export const en = {
     demo: "Demo: no real watch",
   },
 
+  /** The demo build's bar that acts out the watch's physical side. */
+  demoWatch: {
+    label: "Demo watch",
+    unplug: "Unplug",
+    restart: "Restart watch",
+    plug: "Plug in",
+    plug_drive: "Plug in as a drive",
+    hold: "Garmin Express holds it",
+    release: "Release",
+  },
+
   header: {
     language: "Language",
     more: "More",

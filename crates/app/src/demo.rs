@@ -26,11 +26,13 @@
 //! 9. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
 //!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
-//! After every install or restore the app calls [`written`]: the watch is "unplugged and
-//! restarted", so the next [`RESTART`] connections find no watch, then the same watch is back
-//! with every staged `.tmp` file imported as a hidden read-only `<part>.fnt` (replacing the
-//! earlier one), which only Garmin's `GetObjectIds` lists, as the Venu 2 does. So the Venu 2
-//! comes back with Georgian installed.
+//! After the opening script, the physical side is the user's, through the demo build's "Demo
+//! watch" bar ([`act`]): Unplug, Restart watch, Plug in (over MTP or as a drive), and Garmin
+//! Express holding the watch or releasing it. After an install or restore the watch stays
+//! connected with its files waiting, as a real one does. A restart imports every staged `.tmp`
+//! file as a hidden read-only `<part>.fnt` (replacing the earlier one), which only Garmin's
+//! `GetObjectIds` lists, as the Venu 2 does; restarted while plugged in, the watch is gone for
+//! [`RESTART`] connections, then back. So the Venu 2 comes back with Georgian installed.
 //! `GEORGIAN_FOR_GARMIN_DEMO_WATCH` set to a watch's name attaches that one instead of the Venu
 //! 2; set to `none`, no watch is ever found, over MTP or as a drive, so the waiting screen stays
 //! (and shows its help). `GEORGIAN_FOR_GARMIN_DEMO_BUSY` set to a holder kind (`garmin_express`,
@@ -69,8 +71,28 @@ const LEFTOVER: u32 = 0x0100_0004;
 /// Connections that find no watch, then connections that find it busy.
 const ABSENT: usize = 3;
 const BUSY: usize = 2;
-/// Connections that find no watch after a write, while it is unplugged and restarting.
-pub const RESTART: usize = 3;
+/// Connections that find no watch while it restarts plugged in.
+pub const RESTART: usize = 2;
+
+/// How the demo watch is connected, after the opening script.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Plug {
+    Mtp,
+    Drive,
+    Unplugged,
+}
+
+/// What the demo build's "Demo watch" bar does to the watch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Action {
+    Unplug,
+    Restart,
+    Plug,
+    PlugDrive,
+    Hold,
+    Release,
+}
 
 /// What a demo watch lists under `Garmin/ExtData`.
 #[derive(Clone, Copy)]
@@ -169,14 +191,17 @@ type Objects = BTreeMap<u32, (ObjectInfo, Vec<u8>)>;
 
 struct State {
     connects: usize,
-    /// `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none`: no watch, over MTP or as a drive, ever.
-    unplugged: bool,
     /// What holds the watch in the script's busy connections.
     busy: Busy,
     /// `GEORGIAN_FOR_GARMIN_DEMO_BUSY`: every connection finds the watch busy.
     always_busy: bool,
-    /// Connections left that find no watch while it restarts after a write.
+    /// Connections left that find no watch while it restarts plugged in.
     restarting: usize,
+    /// Whether the opening script (no watch, then busy) still runs; any control ends it.
+    scripted: bool,
+    plug: Plug,
+    /// Garmin Express holds the watch (the bar's "Garmin Express holds it").
+    held: bool,
     /// Each watch's objects.
     watches: Vec<Objects>,
     current: usize,
@@ -356,10 +381,12 @@ impl Demo {
             .collect();
         Demo(Arc::new(Mutex::new(State {
             connects: 0,
-            unplugged: false,
             busy: busy_sample(HolderKind::GarminExpress, "macos"),
             always_busy: false,
             restarting: 0,
+            scripted: true,
+            plug: Plug::Mtp,
+            held: false,
             watches,
             current: 0,
             next_handle: 0x0100_0100,
@@ -371,59 +398,77 @@ impl Demo {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Opens a session, following the script.
+    /// Opens a session: the opening script while it runs, then as the controls left the watch.
     pub fn open(&self) -> Result<Box<dyn Mtp>, Error> {
         let mut s = self.state();
         s.connects += 1;
-        if s.always_busy {
+        if s.scripted && s.connects > ABSENT + BUSY {
+            s.scripted = false;
+        }
+        let absent = |why: &str| Err(Error::new(ErrorCode::NoDevice, format!("Demo: {why}")));
+        if s.always_busy || s.held {
             Err(Error::busy(s.busy.clone()))
-        } else if s.unplugged || s.connects <= ABSENT {
-            Err(Error::new(
-                ErrorCode::NoDevice,
-                "Demo: no watch is connected yet.",
-            ))
+        } else if s.scripted && s.connects <= ABSENT {
+            absent("no watch is connected yet.")
+        } else if s.scripted {
+            Err(Error::busy(s.busy.clone()))
+        } else if s.plug != Plug::Mtp {
+            absent("the watch is unplugged.")
         } else if s.restarting > 0 {
             s.restarting -= 1;
-            if s.restarting == 0 {
-                import_staged(s.objects());
-            }
-            Err(Error::new(
-                ErrorCode::NoDevice,
-                "Demo: the watch is restarting.",
-            ))
-        } else if s.connects <= ABSENT + BUSY {
-            Err(Error::busy(s.busy.clone()))
+            absent("the watch is restarting.")
         } else {
             Ok(Box::new(self.clone()))
         }
     }
 
-    /// After a write: the watch is unplugged and restarted, and comes back after [`RESTART`]
-    /// connections with its staged files imported.
-    pub fn restart(&self) {
-        self.state().restarting = RESTART;
+    /// What the "Demo watch" bar does. Any control ends the opening script.
+    pub fn act(&self, action: Action) {
+        let mut s = self.state();
+        s.scripted = false;
+        match action {
+            Action::Unplug => s.plug = Plug::Unplugged,
+            Action::Plug => s.plug = Plug::Mtp,
+            Action::PlugDrive => s.plug = Plug::Drive,
+            // As a real restart: the waiting fonts are imported; plugged in, the watch drops
+            // off USB for a moment and comes back.
+            Action::Restart => {
+                import_staged(s.objects());
+                if s.plug == Plug::Mtp {
+                    s.restarting = RESTART;
+                }
+            }
+            Action::Hold => s.held = true,
+            Action::Release => {
+                s.held = false;
+                s.always_busy = false;
+            }
+        }
     }
 
-    /// The demo watch as `diagnose` lists it on USB: absent while unplugged or restarting, and
+    /// The demo watch as `diagnose` lists it on USB: absent unless plugged in over MTP, and
     /// with its holder while the next connection finds it busy.
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn usb(&self) -> Option<Option<Holder>> {
         let s = self.state();
-        let held = s.always_busy || (ABSENT..ABSENT + BUSY).contains(&s.connects);
-        if held {
+        let scripted_busy = s.scripted && (ABSENT..ABSENT + BUSY).contains(&s.connects);
+        if s.always_busy || s.held || scripted_busy {
             Some(Some(s.busy.holder.clone()))
-        } else if s.unplugged || s.connects < ABSENT || s.restarting > 0 {
+        } else if (s.scripted && s.connects < ABSENT) || s.plug != Plug::Mtp || s.restarting > 0 {
             None
         } else {
             Some(None)
         }
     }
 
-    /// Attaches the watch named `model` next, if there is one; `none` attaches none, ever.
+    /// Attaches the watch named `model` next, if there is one; `none` starts with the watch
+    /// unplugged (the bar's Plug in brings the Venu 2).
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn attach(&self, model: &str) -> bool {
         if model.eq_ignore_ascii_case("none") {
-            self.state().unplugged = true;
+            let mut s = self.state();
+            s.scripted = false;
+            s.plug = Plug::Unplugged;
             return true;
         }
         match WATCHES.iter().position(|w| w.0.eq_ignore_ascii_case(model)) {
@@ -436,11 +481,16 @@ impl Demo {
     }
 
     /// Whether the Forerunner 245 is mounted as a drive: during the script's no-watch
-    /// connections, unless no watch is attached at all.
+    /// connections, and after the bar's "Plug in as a drive".
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn drive_mounted(&self) -> bool {
         let s = self.state();
-        !s.unplugged && !s.always_busy && s.connects <= ABSENT
+        !s.always_busy
+            && if s.scripted {
+                s.connects <= ABSENT
+            } else {
+                s.plug == Plug::Drive
+            }
     }
 
     /// Names holders as on `platform`; with `kind`, every connection finds the watch held by a
@@ -514,10 +564,10 @@ pub fn connect() -> Result<Box<dyn Mtp>, Error> {
     WATCH.open()
 }
 
-/// Called after every install or restore that succeeded: see [`Demo::restart`].
+/// The "Demo watch" bar's controls: see [`Demo::act`].
 #[cfg(feature = "demo")]
-pub fn written() {
-    WATCH.restart();
+pub fn act(action: Action) {
+    WATCH.act(action);
 }
 
 /// What `diagnose` lists in the demo build: the demo watch on USB and the demo drive.
@@ -811,28 +861,89 @@ mod tests {
         assert_eq!(waiting["state"], "waiting");
         assert_eq!(call(&demo, "install").unwrap()["status"], "already_staged");
 
-        // Unplugged and restarted: gone for a while, then back with Georgian imported.
-        demo.restart();
-        for _ in 0..RESTART {
+        // The watch waits for the user: still connected, the fonts still waiting.
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "waiting");
+        assert_eq!(demo.usb(), Some(None));
+
+        // Unplugged: gone until plugged in again, and a restart imports the waiting fonts.
+        demo.act(Action::Unplug);
+        for _ in 0..3 {
             assert!(demo.usb().is_none());
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
+        demo.act(Action::Restart);
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.act(Action::Plug);
         let imported = call(&demo, "inspect").unwrap();
         assert_eq!(imported["device"]["model"], "Venu 2");
         assert_eq!(staged(&imported), vec!["georgian"; sizes]);
         assert_eq!(imported["state"], "installed");
 
-        // Restoring: Garmin's font is back after the next restart.
+        // Restoring, then restarting plugged in: off USB for a moment, back with Garmin's font.
         assert_eq!(
             call(&demo, "restore_stock").unwrap()["status"],
             "staged_verified"
         );
-        demo.restart();
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "stock_waiting");
+        demo.act(Action::Restart);
         for _ in 0..RESTART {
+            assert!(demo.usb().is_none());
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
         let restored = call(&demo, "inspect").unwrap();
         assert_eq!(staged(&restored), vec!["stock"; sizes]);
+    }
+
+    #[test]
+    fn restart_once_more_and_the_other_controls() {
+        let demo = attached("Venu 2");
+        call(&demo, "install").unwrap();
+        // "Restart once more": unplug, plug back without restarting, and the fonts still wait;
+        // a second unplug and a restart import them.
+        demo.act(Action::Unplug);
+        demo.act(Action::Plug);
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "waiting");
+        demo.act(Action::Unplug);
+        demo.act(Action::Restart);
+        demo.act(Action::Plug);
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+
+        // As a drive: no MTP watch, the drive mounted; Garmin Express holding it, then released.
+        demo.act(Action::PlugDrive);
+        assert!(demo.drive_mounted());
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.act(Action::Plug);
+        assert!(!demo.drive_mounted());
+        demo.act(Action::Hold);
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::DeviceBusy));
+        assert!(demo.usb().is_some_and(|holder| holder.is_some()));
+        demo.act(Action::Release);
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+    }
+
+    #[test]
+    fn a_control_ends_the_opening_script() {
+        let demo = Demo::new(Duration::ZERO);
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        demo.act(Action::Plug);
+        assert_eq!(call(&demo, "inspect").unwrap()["device"]["model"], "Venu 2");
+    }
+
+    #[test]
+    fn the_bar_sends_its_actions_by_name() {
+        for (name, action) in [
+            ("unplug", Action::Unplug),
+            ("restart", Action::Restart),
+            ("plug", Action::Plug),
+            ("plug_drive", Action::PlugDrive),
+            ("hold", Action::Hold),
+            ("release", Action::Release),
+        ] {
+            assert_eq!(
+                serde_json::from_value::<Action>(json!(name)).unwrap(),
+                action
+            );
+        }
     }
 
     #[test]
@@ -904,7 +1015,7 @@ mod tests {
         assert_eq!(instinct["support"]["status"], "expected");
         assert_eq!(instinct["support"]["prediction"], "bitmap_korean");
         assert_eq!(instinct["support"]["report_wanted"], true);
-        demo.restart();
+        demo.act(Action::Restart);
         for _ in 0..RESTART {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
         }
@@ -933,7 +1044,7 @@ mod tests {
     }
 
     #[test]
-    fn none_never_finds_a_watch() {
+    fn none_starts_unplugged() {
         let demo = Demo::new(Duration::ZERO);
         assert!(demo.drive_mounted());
         assert!(demo.attach("none"));
@@ -941,6 +1052,8 @@ mod tests {
             assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
             assert!(!demo.drive_mounted());
         }
+        demo.act(Action::Plug);
+        assert!(call(&demo, "inspect").is_ok());
     }
 
     #[test]

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { Backend, Lang, Platform } from "../core/backend";
 import type { ActionId, ActionPayload } from "../model/screens";
+import type { DemoWatchAction } from "../shell/DemoWatchBar";
 import { Shell } from "../shell/Shell";
 import { moreModel, toScreen } from "./screen";
 import { FlowStore, useFlowState } from "./store";
@@ -16,6 +17,8 @@ export function FlowApp(props: {
   overlayTitleBar?: boolean;
   /** The demo build: More's About says so. */
   demo?: boolean;
+  /** The demo build's "Demo watch" bar, acting on the demo watch. */
+  onDemoWatch?: (action: DemoWatchAction) => void;
   version: string;
   /** Divides every delay of the flow (the story tests run it faster). */
   speed?: number;
@@ -42,6 +45,7 @@ export function FlowApp(props: {
       platform={props.platform}
       overlayTitleBar={props.overlayTitleBar}
       demo={props.demo}
+      onDemoWatch={props.onDemoWatch}
       onAction={(id: ActionId, payload?: ActionPayload) => store.dispatch({ type: "action", id, ...(payload && { payload }) })}
       onLanguage={(next: Lang) => store.dispatch({ type: "language", lang: next })}
     />

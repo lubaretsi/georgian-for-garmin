@@ -15,6 +15,7 @@ import { Badge, Spinner } from "../ui/Controls";
 import type { CopyLabels } from "../ui/CopyBlock";
 import { StepIndicator } from "../ui/StepIndicator";
 import { MAC_TOOLBAR_INSET } from "../ui/WindowFrame";
+import { type DemoWatchAction, DemoWatchBar } from "./DemoWatchBar";
 import { MoreSheet } from "./MoreSheet";
 
 export type ShellProps = {
@@ -30,6 +31,8 @@ export type ShellProps = {
   overlayTitleBar?: boolean;
   /** The demo build (`demoMode()`): More's About says so. */
   demo?: boolean;
+  /** The demo build's "Demo watch" controls; the bar shows only with `demo` and this. */
+  onDemoWatch?: (action: DemoWatchAction) => void;
   onAction: (id: ActionId, payload?: ActionPayload) => void;
   onLanguage: (lang: Lang) => void;
 };
@@ -186,6 +189,10 @@ export function Shell(props: ShellProps) {
             <div className="grow-[1.6]" />
           </div>
         </main>
+
+        {props.demo && props.onDemoWatch ? (
+          <DemoWatchBar copy={copy} inert={moreOpen} onAction={props.onDemoWatch} />
+        ) : null}
 
         {view.status || view.primary || view.secondary ? (
           <footer

@@ -123,11 +123,6 @@ impl Watch {
         }
         let result = session.call(operation, input, &Control::new(progress, None));
         drop(session);
-        // The demo watch restarts after every write, as the app asks the owner to.
-        #[cfg(feature = "demo")]
-        if result.is_ok() && matches!(operation, "install" | "restore_stock") {
-            demo::written();
-        }
         Ok(result?)
     }
 
@@ -298,6 +293,14 @@ fn test_marks(watch: State<'_, Arc<Watch>>) -> Vec<share::MarkPicture> {
 #[tauri::command]
 fn demo_mode() -> bool {
     cfg!(feature = "demo")
+}
+
+/// The demo build's "Demo watch" bar: unplugs, restarts or plugs in the demo watch, or lets
+/// Garmin Express hold it. Only the demo build has this command.
+#[cfg(feature = "demo")]
+#[tauri::command]
+fn demo_watch(action: demo::Action) {
+    demo::act(action);
 }
 
 /// The diagnostic files this run saved: the only ones `reveal_file` shows.
@@ -556,7 +559,9 @@ fn main() {
             mark_shared,
             save_diagnostics,
             copy_text,
-            reveal_file
+            reveal_file,
+            #[cfg(feature = "demo")]
+            demo_watch
         ])
         .run(tauri::generate_context!())
         .expect("the window could not be opened");

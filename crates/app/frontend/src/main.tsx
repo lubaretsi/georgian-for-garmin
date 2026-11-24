@@ -5,7 +5,7 @@
 // its message in place of #root, and nothing starts.
 
 import { getVersion } from "@tauri-apps/api/app";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -38,6 +38,9 @@ if (element && isTauri()) {
           overlayTitleBar={overlayTitleBar}
           version={version}
           demo={demo}
+          onDemoWatch={
+            demo ? (action) => void invoke("demo_watch", { action }).catch(() => undefined) : undefined
+          }
         />
       </StrictMode>,
     ),

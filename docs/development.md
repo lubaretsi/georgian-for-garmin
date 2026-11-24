@@ -304,24 +304,29 @@ embeds. Plain `cargo build`, `clippy` and `test` don't need the frontend built.
 
 The demo build starts with three connections that find no watch (meanwhile a Forerunner 245 is
 mounted as a USB drive) and two that find it held by Garmin Express, then attaches a tested Venu
-2. After Install or Restore the watch "restarts": a few connections find nothing, then the same
-watch is back with the staged fonts imported, so the app verifies the result. Its other watches
+2. From then on the watch's physical side is yours, through the **Demo watch** bar above the
+footer (only in the demo build, through its `demo_watch` command): **Unplug**, **Restart watch**
+(imports the waiting fonts, as a real restart does; restarted while plugged in, the watch drops
+off USB for two connections), **Plug in**, **Plug in as a drive**, **Garmin Express holds it**
+and **Release**. Pressing any of them ends the opening script. After Install or Restore the
+watch stays connected with the files waiting until you unplug it, restart it and plug it in
+again, so the app's restart step and **Restart once more** play out as with a real watch. Its
+other watches
 cover every support status (a tested Forerunner 165, an expected Venu 3 listing parts from two
 packs with a conflict, an unsupported fenix 6S Pro with Restore, an expected Venu with its Korean
 font, which the support list only predicts, a Lily 2 Active with Georgian already installed and
 an Instinct 3 AMOLED 50mm with it waiting for a restart, both only predicted, a tested tactix 7
 with Georgian installed, and an unknown Forerunner 265 listing none of this build's fonts):
 `GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names, quoted where it has spaces) attaches
-that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` never finds a watch, so the waiting
-screen stays and shows its help after 10 seconds. `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
+that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` starts with the watch unplugged, so
+the waiting screen stays and shows its help after 10 seconds (**Plug in** brings the Venu 2).
+`GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
-program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
+program on every connection, until **Release**. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
 shows that platform's words; the window keeps this computer's chrome (on a Mac the toolbar still
 leaves room for the traffic lights). The demo build opens nothing and leaves the clipboard and
 the app's settings alone (the language and shares last for the run); its diagnostic info goes to
 `georgian-for-garmin-demo-downloads` in the temp folder, and More › About says it's the demo.
-**Restart once more** waits on the unplug the demo never makes: start the demo again instead
-(the Storybook flows' simulator has Unplug).
 
 The window opens at 480×720 logical pixels (`window.rs`, shortened only on short screens). A
 tiling window manager (yabai, AeroSpace, OmniWM, i3, Sway) resizes it like any other window.

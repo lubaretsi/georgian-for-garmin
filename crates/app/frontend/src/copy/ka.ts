@@ -10,6 +10,16 @@ export const ka: Copy = {
     demo: "დემო: ნამდვილი საათის გარეშე",
   },
 
+  demoWatch: {
+    label: "დემო საათი",
+    unplug: "გამოერთება",
+    restart: "საათის გადატვირთვა",
+    plug: "შეერთება",
+    plug_drive: "დისკად შეერთება",
+    hold: "Garmin Express-მა დაიკავა",
+    release: "გათავისუფლება",
+  },
+
   header: {
     language: "ენა",
     more: "მეტი",

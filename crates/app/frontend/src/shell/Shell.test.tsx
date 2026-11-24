@@ -125,6 +125,23 @@ describe("Shell", () => {
     expect(inset({ platform: "macos", overlayTitleBar: false })).toBe("12px");
   });
 
+  it("shows the demo watch bar only in the demo build, above the footer", () => {
+    const onDemoWatch = vi.fn();
+    const shell = (demo: boolean) => (
+      <Shell model={install} more={more} lang="en" platform="macos" demo={demo} onDemoWatch={onDemoWatch} onAction={vi.fn()} onLanguage={vi.fn()} />
+    );
+    const view = render(shell(false));
+    expect(screen.queryByRole("region", { name: "Demo watch" })).toBeNull();
+    view.rerender(shell(true));
+    const bar = screen.getByRole("region", { name: "Demo watch" });
+    // Above the footer, never over its actions.
+    expect(bar.nextElementSibling?.tagName).toBe("FOOTER");
+    fireEvent.click(screen.getByRole("button", { name: "Unplug" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart watch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plug in" }));
+    expect(onDemoWatch.mock.calls.map(([action]) => action)).toEqual(["unplug", "restart", "plug"]);
+  });
+
   it("emits the whole answer set from the check screen", () => {
     const { onAction } = setup({
       screen: "check",
