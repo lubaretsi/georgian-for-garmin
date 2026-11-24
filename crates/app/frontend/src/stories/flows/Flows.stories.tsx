@@ -40,3 +40,5 @@ export const SecondRestartNeeded: Story = { args: { options: { watch: "venu2" } 
 export const GarminExpressGrabsItAfterTheRestart: Story = { args: { options: { watch: "venu2" } } };
 /** After the restart, plug in as a drive, then over MTP. */
 export const BackAsADriveAfterTheRestart: Story = { args: { options: { watch: "venu2" } } };
+/** Garmin Express holds the watch: plug it in, then More › Diagnostic info. */
+export const DiagnosticInfoWatchNotFound: Story = { args: { options: { watch: "venu2", holder: "garmin_express" } } };

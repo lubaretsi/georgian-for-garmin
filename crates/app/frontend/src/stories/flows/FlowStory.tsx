@@ -47,7 +47,9 @@ export function parts(canvasElement: HTMLElement, globals: Partial<StoryGlobals>
   const panel = canvasElement.querySelector<HTMLElement>('aside[aria-label="Watch simulator"]');
   if (!frame || !panel) throw new Error("flow story: no window or simulator");
   const copy: Copy = copyFor(storyGlobals(globals).lang);
-  const app = within(frame);
+  // The whole document, not just the window: sheets and dialogs render in portals outside it.
+  // The simulator's controls and headings are named so they never match the app's copy.
+  const app = within(frame.ownerDocument.body);
   return {
     app,
     sim: within(panel),

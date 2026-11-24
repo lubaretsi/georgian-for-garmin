@@ -304,3 +304,25 @@ export const BackAsADriveAfterTheRestart: Story = {
     await p.screen(p.copy.result.install.title);
   },
 };
+
+export const DiagnosticInfoWatchNotFound: Story = {
+  args: { options: { watch: "venu2", holder: "garmin_express" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    const busyTitle = p.fmt(p.copy.connect.busy.title.confirmed, { program: p.copy.connect.busy.program.garminExpress });
+    await p.screen(busyTitle);
+    await press(p, p.copy.header.more);
+    await press(p, p.copy.more.diagnostics.title);
+    await p.screen(p.copy.diagnostics.title);
+    // The summary says what the app found: the watch is held, so it isn't read.
+    await p.app.findByText(p.copy.diagnostics.summary.noWatch, undefined, { timeout: STEP_MS });
+    await p.app.findByText("device_busy", undefined, { timeout: STEP_MS });
+    await press(p, p.copy.actions.saveToFile);
+    await press(p, p.copy.actions.showInFolder);
+    await waitFor(() => expect(p.sim.getByTestId("sim-files")).toHaveTextContent("Shown in its folder"), {
+      timeout: STEP_MS,
+    });
+    await press(p, p.copy.actions.back);
+    await p.screen(busyTitle);
+  },
+};

@@ -146,7 +146,7 @@ export function Simulator({ backend }: { backend: MockBackend }) {
       )}
       {(sim.saved.length > 0 || sim.copied) && (
         <div style={group} data-testid="sim-files">
-          <h3 style={{ margin: 0, fontSize: 14 }}>Diagnostic info</h3>
+          <h3 style={{ margin: 0, fontSize: 14 }}>Files the app saved</h3>
           <ul style={{ margin: 0, padding: 0, listStyle: "none", overflowWrap: "anywhere" }}>
             {sim.saved.map((file, i) => (
               <li key={`${i}-${file}`}>Saved {file}</li>
