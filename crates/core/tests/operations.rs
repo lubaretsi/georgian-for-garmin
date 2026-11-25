@@ -3137,6 +3137,66 @@ fn the_bitmap_state_follows_each_import() {
     );
 }
 
+/// A restart that didn't import a waiting `.tmp` can leave it hidden and read-only. Install and
+/// restore then refuse with `restart_first`, writing nothing, rather than writing a second
+/// `.tmp` of the same name; a `.tmp` in the normal listing or a hidden `.fnt` doesn't refuse.
+#[test]
+fn a_hidden_waiting_tmp_blocks_install_and_restore() {
+    for operation in ["install", "restore_stock"] {
+        for name in [format!("{PART}.tmp"), "D903503.tmp".to_string()] {
+            let mut s = venu2(&ALL);
+            s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+            hidden_file(&mut s, 0x0100_0070, &name, &stock(PART));
+            let fake = Fake::new(s);
+            let err = fake.call(operation, json!({}), &fonts()).unwrap_err();
+            assert_eq!(err.code, ErrorCode::RestartFirst, "{operation} {name}");
+            assert!(
+                err.message.starts_with(&format!(
+                    "The watch lists GARMIN/ExtData/{name} as a hidden"
+                )),
+                "{}",
+                err.message
+            );
+            assert!(err.message.ends_with("Nothing was written."));
+            assert!(fake.writes().is_empty(), "{operation}: {:?}", fake.writes());
+        }
+        // A hidden `.tmp` beside a visible one of the same part still refuses, when every
+        // target already has a `.tmp` in the normal listing, for all parts or only that one.
+        for input in [json!({}), json!({"parts": [PART]})] {
+            let mut s = venu2(&ALL);
+            s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+            for (i, part) in ALL.iter().enumerate() {
+                s.file(
+                    0x0100_0060 + i as u32,
+                    EXTDATA,
+                    &format!("{part}.tmp"),
+                    &georgian(part),
+                );
+            }
+            hidden_file(&mut s, 0x0100_0070, &format!("{PART}.tmp"), &stock(PART));
+            let fake = Fake::new(s);
+            let err = fake.call(operation, input.clone(), &fonts()).unwrap_err();
+            assert_eq!(err.code, ErrorCode::RestartFirst, "{operation} {input}");
+            assert!(fake.writes().is_empty(), "{operation}: {:?}", fake.writes());
+        }
+        // A waiting `.tmp` in the normal listing is replaced, and a hidden `.fnt` imported over.
+        let mut s = venu2(&ALL);
+        s.operations.push(op::GARMIN_GET_OBJECT_IDS);
+        s.file(0x0100_0060, EXTDATA, &format!("{PART}.tmp"), &stock(PART));
+        for (i, part) in ALL.iter().enumerate() {
+            hidden_file(
+                &mut s,
+                0x0100_0070 + i as u32,
+                &format!("{part}.fnt"),
+                &georgian(part),
+            );
+        }
+        let fake = Fake::new(s);
+        fake.call(operation, json!({}), &fonts()).unwrap();
+        assert!(!fake.writes().is_empty(), "{operation}");
+    }
+}
+
 /// Each target part's `file` and `imported`.
 fn staged_files(inspect: &Value) -> Vec<(&str, bool)> {
     inspect["fonts"]

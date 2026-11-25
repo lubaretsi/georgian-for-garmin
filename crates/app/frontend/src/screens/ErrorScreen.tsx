@@ -20,6 +20,7 @@ export function errorGroup(code: ErrorCode): ErrorGroup {
   switch (code) {
     case "conflict":
     case "restore_first":
+    case "restart_first":
     case "verification_failed":
     case "device_error":
     case "no_device":
@@ -36,6 +37,7 @@ export function errorGroup(code: ErrorCode): ErrorGroup {
 const SHOWS_ROLLBACK: Record<ErrorGroup, boolean> = {
   conflict: false,
   restore_first: false,
+  restart_first: false,
   verification_failed: true,
   device_error: true,
   no_device: true,
@@ -61,6 +63,7 @@ export function ErrorScreen(model: ErrorModel, ctx: ScreenContext): ScreenView {
     case "restore_first":
       primary = restore;
       break;
+    case "restart_first":
     case "verification_failed":
     case "device_error":
       primary = emitting(ctx, ctx.copy.actions.tryAgain, "try_again");

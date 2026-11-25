@@ -500,11 +500,13 @@ static OPERATIONS: [Operation; 9] = [
                       is written (conflict). A file that can't be read is written over only when \
                       the watch declares Garmin's version for it; below 1.00 (this program's \
                       trailer-less builds) the call fails with restore_first, any other version \
-                      with unsupported_device. If a part fails or the call is cancelled, it tries \
-                      to undo its changes (new files deleted, replaced files written back from \
-                      the bytes read before) and the error's rollback says whether every step \
-                      worked (complete or incomplete, per file). Disconnect USB and restart the \
-                      watch to load them.",
+                      with unsupported_device. A bitmap part's .tmp in the hidden listing (one \
+                      the watch hasn't imported) fails the call with restart_first, since a new \
+                      .tmp would be a second file of that name. If a part fails or the call is \
+                      cancelled, it tries to undo its changes (new files deleted, replaced files \
+                      written back from the bytes read before) and the error's rollback says \
+                      whether every step worked (complete or incomplete, per file). Disconnect \
+                      USB and restart the watch to load them.",
         read_only: false,
         destructive: true,
         idempotent: true,
@@ -1887,6 +1889,9 @@ enum Refusal {
     /// Install: the file can't be read and isn't declared at Garmin's version, so it may be one
     /// of this program's trailer-less builds or something else; restore first.
     RestoreFirst(String),
+    /// A bitmap part's `.tmp` the hidden listing shows (read-only, left by a restart that
+    /// didn't import it): a new `.tmp` would be a second file of that name. Restart first.
+    RestartFirst(String),
 }
 
 /// "GARMIN/ExtData/a and GARMIN/ExtData/b are both waiting files of part p", for several files
@@ -2004,6 +2009,16 @@ fn plan(
 ) -> Result<Result<Plan, Refusal>, Error> {
     let target = variant.bytes(font);
     let own_name = font.file_name(device);
+    // A hidden `<part>.tmp` is never written beside: the watch would hold two files of one name.
+    if font.kind == Kind::Bitmap {
+        let waiting = hidden
+            .into_iter()
+            .flatten()
+            .find(|(_, info)| names::is(&info.filename, &font.part, Role::Waiting));
+        if let Some((_, info)) = waiting {
+            return Ok(Err(Refusal::RestartFirst(extdata_path(&info.filename))));
+        }
+    }
     match staged_in(&ext.files, font).as_slice() {
         [one] => {
             let name = &one.info.filename;
@@ -2220,10 +2235,12 @@ pub fn stage(
     })?;
 
     // Check every target before writing anything. Files are identified by content; the hidden
-    // listing is read only when a target isn't in the normal one, and must be read whole.
+    // listing is read whenever a target is a bitmap part (a waiting `.tmp` it shows refuses the
+    // write even beside one in the normal listing) or isn't in the normal one, and must be read
+    // whole. It costs one ObjectInfo per hidden child: a few on the watches seen.
     let needs_hidden = targets
         .iter()
-        .any(|(_, font)| staged_in(&ext.files, font).is_empty());
+        .any(|(_, font)| font.kind == Kind::Bitmap || staged_in(&ext.files, font).is_empty());
     let hidden = if needs_hidden {
         scan_hidden(dev, layout.storage, ext).for_write()?
     } else {
@@ -2231,6 +2248,7 @@ pub fn stage(
     };
     let mut plans = Vec::with_capacity(targets.len());
     let (mut others, mut versions, mut restore_first) = (Vec::new(), Vec::new(), Vec::new());
+    let mut restart_first = Vec::new();
     let mut several = Vec::new();
     for (_, font) in &targets {
         control.check_nothing_written()?;
@@ -2240,6 +2258,7 @@ pub fn stage(
             Err(Refusal::Several(described)) => several.push(described),
             Err(Refusal::Version(described)) => versions.push(described),
             Err(Refusal::RestoreFirst(path)) => restore_first.push(path),
+            Err(Refusal::RestartFirst(path)) => restart_first.push(path),
         }
     }
     if !versions.is_empty() {
@@ -2249,6 +2268,17 @@ pub fn stage(
             format!(
                 "{watch} lists {}. Nothing was written.",
                 and_list(&versions)
+            ),
+        ));
+    }
+    if !restart_first.is_empty() {
+        return Err(Error::new(
+            ErrorCode::RestartFirst,
+            format!(
+                "The watch lists {} as a hidden file: a font waiting for a restart it hasn't \
+                 imported yet, and a new file would be a second one of that name. Unplug the \
+                 watch and restart it, then try again. Nothing was written.",
+                and_list(&restart_first)
             ),
         ));
     }

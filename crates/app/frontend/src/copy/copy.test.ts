@@ -142,7 +142,8 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     invalid_input: true, no_device: true, garmin_mode: true, multiple_devices: true, device_busy: true,
     permission_denied: true, device_locked: true,
     unsupported_device: true, font_unavailable: true, garmin_folder_not_found: true, extdata_not_found: true,
-    conflict: true, restore_first: true, verification_failed: true, device_error: true, internal: true, cancelled: true,
+    conflict: true, restore_first: true, restart_first: true, verification_failed: true, device_error: true, internal: true,
+    cancelled: true,
   };
   const HOLDERS: (Holder | null)[] = [
     null,
