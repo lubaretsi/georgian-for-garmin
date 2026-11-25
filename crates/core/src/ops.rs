@@ -2211,10 +2211,12 @@ pub fn stage(
     })?;
 
     // Check every target before writing anything. Files are identified by content; the hidden
-    // listing is read only when a target isn't in the normal one, and must be read whole.
+    // listing is read whenever a target is a bitmap part (a waiting `.tmp` it shows refuses the
+    // write even beside one in the normal listing) or isn't in the normal one, and must be read
+    // whole. It costs one ObjectInfo per hidden child: a few on the watches seen.
     let needs_hidden = targets
         .iter()
-        .any(|(_, font)| staged_in(&ext.files, font).is_empty());
+        .any(|(_, font)| font.kind == Kind::Bitmap || staged_in(&ext.files, font).is_empty());
     let hidden = if needs_hidden {
         scan_hidden(dev, layout.storage, ext).for_write()?
     } else {
