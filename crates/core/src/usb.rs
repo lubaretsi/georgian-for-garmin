@@ -387,43 +387,58 @@ impl garmin_usb::Link for NusbGarminLink {
     }
 }
 
-/// Opens a device in Garmin mode and claims its first interface, as Garmin Express does: bulk
-/// IN, bulk OUT and interrupt IN. An unconfigured device (as macOS leaves one of a vendor class)
-/// gets its first configuration first. With `detach`, a kernel driver bound to the interface
-/// (Linux's `garmin_gps`) is detached for the claim.
-fn open_garmin_link(info: &nusb::DeviceInfo, detach: bool) -> Result<NusbGarminLink, Error> {
-    let device = info
-        .open()
+/// The interface Garmin Express (and libusb) claims on a device in Garmin mode: interface 0,
+/// alternate setting 0, of the first configuration.
+const GARMIN_INTERFACE: u8 = 0;
+
+fn open_garmin_device(info: &nusb::DeviceInfo) -> Result<nusb::Device, Error> {
+    info.open()
         .wait()
-        .map_err(|e| device_error("cannot open the watch", e))?;
-    let first = device
+        .map_err(|e| device_error("cannot open the watch", e))
+}
+
+/// The first configuration's `bConfigurationValue`.
+fn first_configuration(device: &nusb::Device) -> Result<u8, Error> {
+    device
         .configurations()
         .next()
-        .map(|c| c.configuration_value());
-    let active = device
-        .active_configuration()
-        .ok()
-        .map(|c| c.configuration_value());
-    if let Some(value) = first
-        && active.is_none()
-    {
-        device
-            .set_configuration(value)
-            .wait()
-            .map_err(|e| device_error("cannot configure the watch's USB connection", e))?;
-    }
-    let endpoints = {
-        let config = device.active_configuration().map_err(|e| {
-            Error::new(
-                ErrorCode::DeviceError,
-                format!("cannot read the watch's USB configuration: {e}"),
-            )
-        })?;
-        find_garmin_endpoints(&config).ok_or_else(|| {
+        .map(|c| c.configuration_value())
+        .ok_or_else(|| {
             Error::new(
                 ErrorCode::UnsupportedDevice,
-                "The Garmin device in Garmin mode exposes no bulk and interrupt endpoints.",
+                "The Garmin device in Garmin mode has no USB configuration.",
             )
+        })
+}
+
+/// Sets the first configuration, as Garmin Express and libusb do before claiming.
+fn configure_garmin_device(device: &nusb::Device) -> Result<(), Error> {
+    let value = first_configuration(device)?;
+    device
+        .set_configuration(value)
+        .wait()
+        .map_err(|e| device_error("cannot configure the watch's USB connection", e))?;
+    trace!("Garmin mode: set configuration {value}");
+    Ok(())
+}
+
+/// Claims [`GARMIN_INTERFACE`] and opens its bulk IN, bulk OUT and interrupt IN endpoints (from
+/// the first configuration's descriptors). With `detach`, a kernel driver bound to the interface
+/// (Linux's `garmin_gps`) is detached for the claim.
+fn claim_garmin_interface(device: &nusb::Device, detach: bool) -> Result<NusbGarminLink, Claim> {
+    let failed = Claim::Failed;
+    let endpoints = {
+        let config = device.configurations().next().ok_or_else(|| {
+            failed(Error::new(
+                ErrorCode::UnsupportedDevice,
+                "The Garmin device in Garmin mode has no USB configuration.",
+            ))
+        })?;
+        find_garmin_endpoints(&config).ok_or_else(|| {
+            failed(Error::new(
+                ErrorCode::UnsupportedDevice,
+                "The Garmin device in Garmin mode exposes no bulk and interrupt endpoints.",
+            ))
         })?
     };
     let claim = if detach {
@@ -433,17 +448,26 @@ fn open_garmin_link(info: &nusb::DeviceInfo, detach: bool) -> Result<NusbGarminL
     } else {
         device.claim_interface(endpoints.interface).wait()
     };
-    let interface = claim.map_err(|e| device_error("cannot claim the watch's interface", e))?;
+    let interface = claim.map_err(|e| {
+        let missing = e.kind() == ErrorKind::NotFound;
+        let error = device_error("cannot claim the watch's interface", e);
+        if missing {
+            Claim::Missing(error)
+        } else {
+            Claim::Failed(error)
+        }
+    })?;
+    let endpoint_error = |what: &str, e| failed(device_error(what, e));
     let link = NusbGarminLink {
         bulk_in: interface
             .endpoint::<Bulk, In>(endpoints.bulk_in)
-            .map_err(|e| device_error("cannot open the bulk IN endpoint", e))?,
+            .map_err(|e| endpoint_error("cannot open the bulk IN endpoint", e))?,
         bulk_out: interface
             .endpoint::<Bulk, Out>(endpoints.bulk_out)
-            .map_err(|e| device_error("cannot open the bulk OUT endpoint", e))?,
+            .map_err(|e| endpoint_error("cannot open the bulk OUT endpoint", e))?,
         interrupt_in: interface
             .endpoint::<Interrupt, In>(endpoints.interrupt_in)
-            .map_err(|e| device_error("cannot open the interrupt endpoint", e))?,
+            .map_err(|e| endpoint_error("cannot open the interrupt endpoint", e))?,
         _interface: interface,
     };
     trace!(
@@ -453,21 +477,32 @@ fn open_garmin_link(info: &nusb::DeviceInfo, detach: bool) -> Result<NusbGarminL
     Ok(link)
 }
 
-/// The first interface's bulk IN, bulk OUT and interrupt IN endpoints.
+/// Interface 0, alternate setting 0: its bulk IN, bulk OUT and interrupt IN endpoints.
 fn find_garmin_endpoints(config: &ConfigurationDescriptor<'_>) -> Option<MtpEndpoints> {
-    let interface = config.interfaces().next()?;
-    let alt = interface.first_alt_setting();
+    let interface = config
+        .interfaces()
+        .find(|i| i.interface_number() == GARMIN_INTERFACE)?;
+    let alt = interface
+        .alt_settings()
+        .find(|a| a.alternate_setting() == 0)?;
     let find = |kind: TransferType, dir: Direction| {
         alt.endpoints()
             .find(|e| e.transfer_type() == kind && e.direction() == dir)
             .map(|e| e.address())
     };
     Some(MtpEndpoints {
-        interface: interface.interface_number(),
+        interface: GARMIN_INTERFACE,
         bulk_in: find(TransferType::Bulk, Direction::In)?,
         bulk_out: find(TransferType::Bulk, Direction::Out)?,
         interrupt_in: find(TransferType::Interrupt, Direction::In)?,
     })
+}
+
+/// Why claiming the interface of a device in Garmin mode failed.
+enum Claim {
+    /// The system has no such interface (yet): the device isn't configured.
+    Missing(Error),
+    Failed(Error),
 }
 
 /// The watch, when `candidates` (the Garmin MTP devices) has exactly one.
@@ -593,6 +628,8 @@ trait Bus {
     type Id: Copy + PartialEq;
     type Info;
     type Device;
+    /// An opened device in Garmin mode.
+    type GarminDevice;
     type Session;
     /// A claimed device in Garmin mode.
     type Garmin: garmin_usb::Link;
@@ -607,9 +644,16 @@ trait Bus {
     fn sleep(&mut self, duration: Duration);
     /// The Garmin devices in Garmin mode.
     fn garmin_mode(&mut self) -> Result<Vec<Self::Info>, Error>;
-    /// Opens a device in Garmin mode and claims it; `detach` detaches a kernel driver bound to
-    /// it first.
-    fn claim_garmin(&mut self, info: &Self::Info, detach: bool) -> Result<Self::Garmin, Error>;
+    /// Opens a device in Garmin mode.
+    fn open_garmin(&mut self, info: &Self::Info) -> Result<Self::GarminDevice, Error>;
+    /// Sets its first configuration.
+    fn configure_garmin(&mut self, device: &Self::GarminDevice) -> Result<(), Error>;
+    /// Claims its interface; `detach` detaches a kernel driver bound to it first.
+    fn claim_garmin(
+        &mut self,
+        device: &Self::GarminDevice,
+        detach: bool,
+    ) -> Result<Self::Garmin, Claim>;
 }
 
 /// This computer's USB devices.
@@ -621,6 +665,7 @@ impl Bus for Nusb {
     type Device = nusb::Device;
     type Session = UsbMtp;
     type Garmin = NusbGarminLink;
+    type GarminDevice = (nusb::Device, nusb::DeviceInfo);
 
     fn watches(&mut self) -> Result<Vec<nusb::DeviceInfo>, Error> {
         garmin_mtp_devices()
@@ -657,12 +702,30 @@ impl Bus for Nusb {
         garmin_mode_devices()
     }
 
-    fn claim_garmin(
+    fn open_garmin(
         &mut self,
         info: &nusb::DeviceInfo,
+    ) -> Result<(nusb::Device, nusb::DeviceInfo), Error> {
+        let device = open_garmin_device(info).map_err(|e| name_holder(e, info))?;
+        Ok((device, info.clone()))
+    }
+
+    fn configure_garmin(
+        &mut self,
+        (device, info): &(nusb::Device, nusb::DeviceInfo),
+    ) -> Result<(), Error> {
+        configure_garmin_device(device).map_err(|e| name_holder(e, info))
+    }
+
+    fn claim_garmin(
+        &mut self,
+        (device, info): &(nusb::Device, nusb::DeviceInfo),
         detach: bool,
-    ) -> Result<NusbGarminLink, Error> {
-        open_garmin_link(info, detach).map_err(|e| name_holder(e, info))
+    ) -> Result<NusbGarminLink, Claim> {
+        claim_garmin_interface(device, detach).map_err(|c| match c {
+            Claim::Failed(e) => Claim::Failed(name_holder(e, info)),
+            missing => missing,
+        })
     }
 }
 
@@ -755,20 +818,38 @@ fn connect_with<B: Bus>(bus: &mut B) -> Result<B::Session, Error> {
 pub(crate) const SWITCH_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often it looks meanwhile.
 const SWITCH_POLL: Duration = Duration::from_millis(250);
-/// Linux's `garmin_gps` driver binds to devices in Garmin mode where it is loaded; the claim
-/// detaches it (and the release attaches it again).
-const DETACH_KERNEL_DRIVER: bool = cfg!(target_os = "linux");
+/// How a device in Garmin mode is claimed on this system.
+#[derive(Debug, Clone, Copy)]
+struct ClaimPolicy {
+    /// Set the first configuration before claiming, as Garmin Express and libusb do. macOS
+    /// leaves a vendor-class device without a driver unconfigured (no interface to claim), while
+    /// nusb may still report a configuration. Linux configures every device as it enumerates,
+    /// and refuses a new configuration while a kernel driver holds an interface.
+    configure: bool,
+    /// Detach a bound kernel driver for the claim (and let the release attach it again): Linux's
+    /// `garmin_gps` binds to devices in Garmin mode where it is loaded.
+    detach: bool,
+}
+
+const CLAIM_POLICY: ClaimPolicy = ClaimPolicy {
+    configure: cfg!(target_os = "macos"),
+    detach: cfg!(target_os = "linux"),
+};
+/// After setting the configuration, the system may publish the interface a moment later: the
+/// claim is tried again this often, this many times.
+const CLAIM_POLL: Duration = Duration::from_millis(100);
+const CLAIM_TRIES: usize = 10;
 
 /// Switches the single Garmin device in Garmin mode to MTP ([`garmin_usb::request_mtp`]), then
 /// waits up to [`SWITCH_TIMEOUT`] for a Garmin MTP device to appear. Never retried here.
 pub fn switch_to_mtp(control: &Control<'_>) -> Result<SwitchOutput, Error> {
-    switch_with(&mut Nusb, control, DETACH_KERNEL_DRIVER)
+    switch_with(&mut Nusb, control, CLAIM_POLICY)
 }
 
 fn switch_with<B: Bus>(
     bus: &mut B,
     control: &Control<'_>,
-    detach: bool,
+    policy: ClaimPolicy,
 ) -> Result<SwitchOutput, Error> {
     let mut devices = bus.garmin_mode()?;
     let info = match devices.len() {
@@ -791,7 +872,8 @@ fn switch_with<B: Bus>(
         .watches()
         .map(|w| w.iter().map(B::id).collect())
         .unwrap_or_default();
-    let link = bus.claim_garmin(&info, detach)?;
+    let device = bus.open_garmin(&info)?;
+    let link = claim(bus, &device, policy)?;
     let identified = garmin_usb::request_mtp(link, &|| control.cancelled())?;
     let timeout = SWITCH_TIMEOUT.as_secs_f64();
     let status = loop {
@@ -827,6 +909,30 @@ fn switch_with<B: Bus>(
         protocols: identified.protocols,
         waited_seconds: (waited.as_secs_f64() * 10.0).round() / 10.0,
     })
+}
+
+/// Opens the device's interface for the exchange, setting its configuration first when the
+/// policy says so.
+fn claim<B: Bus>(
+    bus: &mut B,
+    device: &B::GarminDevice,
+    policy: ClaimPolicy,
+) -> Result<B::Garmin, Error> {
+    if policy.configure {
+        bus.configure_garmin(device)?;
+    }
+    let mut tries = 1;
+    loop {
+        match bus.claim_garmin(device, policy.detach) {
+            Ok(link) => return Ok(link),
+            Err(Claim::Missing(e)) if policy.configure && tries < CLAIM_TRIES => {
+                trace!("Garmin mode: {e} (try {tries}); trying again");
+                tries += 1;
+                bus.sleep(CLAIM_POLL);
+            }
+            Err(Claim::Missing(e) | Claim::Failed(e)) => return Err(e),
+        }
+    }
 }
 
 // Every method is forwarded, the trait's defaults included: a default left here would answer
@@ -934,6 +1040,14 @@ mod tests {
         detach_refused: bool,
         detached: usize,
         claims: usize,
+        /// The device in Garmin mode has an active configuration. Like macOS for a vendor-class
+        /// device without a driver, it has none until one is set, and no interface to claim.
+        configured: bool,
+        /// Configurations set.
+        configurations: Vec<u8>,
+        /// Claims after the configuration is set that still find no interface, while the
+        /// system publishes it.
+        interface_delay: usize,
         /// Everything written to a device in Garmin mode.
         written: Rc<RefCell<Vec<Vec<u8>>>>,
     }
@@ -952,6 +1066,9 @@ mod tests {
                 detach_refused: false,
                 detached: 0,
                 claims: 0,
+                configured: false,
+                configurations: Vec::new(),
+                interface_delay: 0,
                 written: Default::default(),
             }
         }
@@ -971,6 +1088,7 @@ mod tests {
         type Device = u64;
         type Session = u64;
         type Garmin = FakeLink;
+        type GarminDevice = u64;
 
         fn watches(&mut self) -> Result<Vec<u64>, Error> {
             Ok((self.listed)(self.elapsed()))
@@ -1022,11 +1140,38 @@ mod tests {
             Ok((self.garmin)(self.elapsed()))
         }
 
-        fn claim_garmin(&mut self, _: &u64, detach: bool) -> Result<FakeLink, Error> {
+        fn open_garmin(&mut self, info: &u64) -> Result<u64, Error> {
+            Ok(*info)
+        }
+
+        fn configure_garmin(&mut self, _: &u64) -> Result<(), Error> {
+            if self.kernel_driver {
+                // As Linux's usbfs while a kernel driver holds an interface.
+                return Err(Error::busy(Busy::unknown()));
+            }
+            self.configurations.push(1);
+            self.configured = true;
+            Ok(())
+        }
+
+        fn claim_garmin(&mut self, _: &u64, detach: bool) -> Result<FakeLink, Claim> {
             self.claims += 1;
+            let missing = || {
+                Claim::Missing(Error::new(
+                    ErrorCode::DeviceError,
+                    "cannot claim the watch's interface: interface not found",
+                ))
+            };
+            if !self.configured {
+                return Err(missing());
+            }
+            if self.interface_delay > 0 {
+                self.interface_delay -= 1;
+                return Err(missing());
+            }
             if self.kernel_driver {
                 if !detach || self.detach_refused {
-                    return Err(Error::busy(Busy::unknown()));
+                    return Err(Claim::Failed(Error::busy(Busy::unknown())));
                 }
                 self.kernel_driver = false;
                 self.detached += 1;
@@ -1183,8 +1328,19 @@ mod tests {
         assert_eq!(connect_with(&mut bus).unwrap(), 1);
     }
 
-    fn switch(bus: &mut FakeBus, detach: bool) -> Result<SwitchOutput, Error> {
-        switch_with(bus, &Control::NONE, detach)
+    /// macOS: the configuration is set before the claim. Linux: the kernel has configured the
+    /// device, and a bound kernel driver is detached.
+    const MACOS: ClaimPolicy = ClaimPolicy {
+        configure: true,
+        detach: false,
+    };
+    const LINUX: ClaimPolicy = ClaimPolicy {
+        configure: false,
+        detach: true,
+    };
+
+    fn switch(bus: &mut FakeBus, policy: ClaimPolicy) -> Result<SwitchOutput, Error> {
+        switch_with(bus, &Control::NONE, policy)
     }
 
     fn written(bus: &FakeBus) -> Vec<String> {
@@ -1207,7 +1363,7 @@ mod tests {
     #[test]
     fn a_watch_that_comes_back_as_mtp_is_switched() {
         let mut bus = venu2_bus();
-        let out = switch(&mut bus, false).unwrap();
+        let out = switch(&mut bus, MACOS).unwrap();
         assert_eq!(out.status, SwitchStatus::Switched);
         assert_eq!(out.protocols, ["P000", "L001", "A010", "A903", "A1050"]);
         assert_eq!(out.product.as_ref().unwrap().description, "VENU 2 V19.05");
@@ -1222,6 +1378,46 @@ mod tests {
             ]
         );
         assert_eq!(bus.claims, 1);
+        assert_eq!(
+            bus.configurations,
+            [1],
+            "configuration 1, set once before the claim"
+        );
+    }
+
+    /// A device left unconfigured (macOS, a vendor class without a driver) has no interface
+    /// until its configuration is set: claiming it straight away fails.
+    #[test]
+    fn an_unconfigured_device_is_configured_before_the_claim() {
+        let mut bus = venu2_bus();
+        let error = switch(
+            &mut bus,
+            ClaimPolicy {
+                configure: false,
+                detach: false,
+            },
+        )
+        .unwrap_err();
+        assert!(error.message.contains("interface not found"), "{error:?}");
+        assert!(written(&bus).is_empty());
+
+        // The interface may appear a moment after the configuration is set.
+        let mut bus = venu2_bus();
+        bus.interface_delay = 3;
+        assert_eq!(
+            switch(&mut bus, MACOS).unwrap().status,
+            SwitchStatus::Switched
+        );
+        assert_eq!((bus.claims, bus.configurations.len()), (4, 1));
+
+        let mut bus = venu2_bus();
+        bus.interface_delay = CLAIM_TRIES;
+        let error = switch(&mut bus, MACOS).unwrap_err();
+        assert!(error.message.contains("interface not found"), "{error:?}");
+        assert_eq!(bus.claims, CLAIM_TRIES);
+        assert!(written(&bus).is_empty());
+
+        assert_eq!(CLAIM_POLICY.configure, cfg!(target_os = "macos"));
     }
 
     #[test]
@@ -1231,7 +1427,7 @@ mod tests {
             ..FakeBus::new(|_| vec![])
         };
         bus.script.gone_after_switch = false;
-        let out = switch(&mut bus, false).unwrap();
+        let out = switch(&mut bus, MACOS).unwrap();
         assert_eq!(out.status, SwitchStatus::TimedOut);
         assert!(
             (SWITCH_TIMEOUT.as_secs_f64()..=SWITCH_TIMEOUT.as_secs_f64() + 0.3)
@@ -1249,7 +1445,7 @@ mod tests {
             ..FakeBus::new(|_| vec![1])
         };
         assert_eq!(
-            switch(&mut bus, false).unwrap().status,
+            switch(&mut bus, MACOS).unwrap().status,
             SwitchStatus::TimedOut
         );
     }
@@ -1258,7 +1454,7 @@ mod tests {
     fn switching_needs_exactly_one_device_in_garmin_mode() {
         let mut bus = FakeBus::new(|_| vec![1]);
         assert_eq!(
-            switch(&mut bus, false).unwrap_err().code,
+            switch(&mut bus, MACOS).unwrap_err().code,
             ErrorCode::NoDevice
         );
         let mut bus = FakeBus {
@@ -1266,7 +1462,7 @@ mod tests {
             ..FakeBus::new(|_| vec![])
         };
         assert_eq!(
-            switch(&mut bus, false).unwrap_err().code,
+            switch(&mut bus, MACOS).unwrap_err().code,
             ErrorCode::MultipleDevices
         );
         assert_eq!(bus.claims, 0);
@@ -1275,24 +1471,31 @@ mod tests {
     #[test]
     fn a_kernel_driver_is_detached_for_the_claim() {
         let mut bus = venu2_bus();
+        bus.configured = true;
         bus.kernel_driver = true;
         assert_eq!(
-            switch(&mut bus, true).unwrap().status,
+            switch(&mut bus, LINUX).unwrap().status,
             SwitchStatus::Switched
         );
         assert_eq!(bus.detached, 1);
+        assert!(bus.configurations.is_empty());
 
         // Without detaching, or when detaching is refused, the claim fails as device_busy,
         // not no_device, and nothing is sent.
         for refused in [false, true] {
             let mut bus = venu2_bus();
+            bus.configured = true;
             bus.kernel_driver = true;
             bus.detach_refused = refused;
-            let error = switch(&mut bus, refused).unwrap_err();
+            let policy = ClaimPolicy {
+                detach: refused,
+                ..LINUX
+            };
+            let error = switch(&mut bus, policy).unwrap_err();
             assert_eq!(error.code, ErrorCode::DeviceBusy, "{error:?}");
             assert!(written(&bus).is_empty());
         }
-        assert!(cfg!(target_os = "linux") == DETACH_KERNEL_DRIVER);
+        assert_eq!(CLAIM_POLICY.detach, cfg!(target_os = "linux"));
     }
 
     #[test]
@@ -1331,7 +1534,7 @@ mod tests {
                 script,
                 ..venu2_bus()
             };
-            assert_eq!(switch(&mut bus, false).unwrap_err().code, code);
+            assert_eq!(switch(&mut bus, MACOS).unwrap_err().code, code);
             assert!(bus.elapsed() <= secs(10.1), "{:?}", bus.elapsed());
             assert!(!written(&bus).iter().any(|w| w.starts_with("140000002f04")));
         }
@@ -1346,7 +1549,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let progress = |_| cancel.store(true, std::sync::atomic::Ordering::SeqCst);
         let control = Control::new(Some(&progress), Some(&cancel));
-        let error = switch_with(&mut bus, &control, false).unwrap_err();
+        let error = switch_with(&mut bus, &control, MACOS).unwrap_err();
         assert_eq!(error.code, ErrorCode::Cancelled);
         assert!(error.message.contains("already been asked"), "{error:?}");
     }
@@ -1355,7 +1558,7 @@ mod tests {
     fn position_and_time_never_reach_the_output() {
         let mut bus = venu2_bus();
         bus.script.unasked = private_packets();
-        let out = switch(&mut bus, false).unwrap();
+        let out = switch(&mut bus, MACOS).unwrap();
         assert_eq!(out.status, SwitchStatus::Switched);
         let json = serde_json::to_string(&out).unwrap();
         let decimal: Vec<String> = SECRET.iter().map(u8::to_string).collect();

@@ -320,7 +320,9 @@ switch request only if the watch lists the protocol for it, A1050 (otherwise
 mode also sends its position and the time unasked: those, and its unit ID, are dropped as they
 arrive, so no output, trace or diagnostic info holds them.
 
-- macOS and Linux talk to the watch directly. On Linux, the kernel's `garmin_gps` driver binds to
+- macOS and Linux talk to the watch directly, on interface 0. macOS leaves a device in Garmin
+  mode unconfigured, so `switch-to-mtp` sets its first configuration before claiming it, as
+  Garmin Express does. On Linux, the kernel's `garmin_gps` driver binds to
   devices in Garmin mode where it is loaded (Ubuntu blacklists it); `switch-to-mtp` detaches it
   for the switch, and the kernel attaches it again afterwards. If it can't be detached, the
   error is `device_busy`.
