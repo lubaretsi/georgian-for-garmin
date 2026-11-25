@@ -309,6 +309,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 |---|---|---|---|
 | `conflict` | "A font on the watch isn't Garmin's or ours" | "Share the font list" | Nothing was written |
 | `restore_first` | "Put Garmin's font back first" | **Restore original font** | Then restart, then install |
+| `restart_first` | "Restart the watch first" | **Try again** | A waiting font is still on the watch; nothing was written. Unplug, restart, connect, then try again |
 | `verification_failed` | "The copy didn't check out" | **Try again** (the same operation) | Show the rollback (below) |
 | `device_error` | "The watch stopped responding" | **Try again** | Show the rollback |
 | `no_device` | "The watch was disconnected" | none: back to `connect`, and the app retries on reconnect | Show the rollback |

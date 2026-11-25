@@ -44,6 +44,10 @@ pub enum ErrorCode {
     /// than Garmin's (below 1.00, as for this program's builds before 0.3.0), so install can't
     /// identify it; restoring the original font first fixes it. Nothing was written.
     RestoreFirst,
+    /// A bitmap part's waiting `<part>.tmp` is in the hidden listing (as after a restart that
+    /// didn't import it), so a new one would be a second file of that name; restarting the
+    /// watch first fixes it. Nothing was written.
+    RestartFirst,
     /// A written file read back differently and was deleted (a replaced `.bin` was written
     /// back).
     VerificationFailed,
@@ -72,6 +76,7 @@ impl ErrorCode {
             ErrorCode::ExtdataNotFound => "extdata_not_found",
             ErrorCode::Conflict => "conflict",
             ErrorCode::RestoreFirst => "restore_first",
+            ErrorCode::RestartFirst => "restart_first",
             ErrorCode::VerificationFailed => "verification_failed",
             ErrorCode::DeviceError => "device_error",
             ErrorCode::Internal => "internal",

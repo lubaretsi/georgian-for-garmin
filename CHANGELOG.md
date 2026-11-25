@@ -35,6 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screenshots of the connect, watch and restart screens; step 8 names the
   **სატესტო შეტყობინების გაგზავნა** button.
 
+### Fixed
+
+- Install and restore no longer write a font next to one still waiting on the watch that only
+  Garmin's hidden listing shows (seen after a restart that didn't load it): a second file of the
+  same name could be written. They now stop with a new error, `restart_first`, and write
+  nothing; the app asks you to restart the watch first.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added

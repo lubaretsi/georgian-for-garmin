@@ -514,6 +514,10 @@ export const en = {
       title: "A font on the watch isn't Garmin's or ours",
       body: "Nothing was changed. If you put that font on the watch yourself, it may be waiting for a restart: restart the watch and connect it again. Otherwise, share the watch's font list so we can look.",
     },
+    restart_first: {
+      title: "Restart the watch first",
+      body: "A font from an earlier install is still waiting on the watch, so nothing was changed. Unplug the watch, restart it, connect it again and try again.",
+    },
     restore_first: {
       title: "Put Garmin's font back first",
       body: "An earlier test version of this app left a font the watch won't let the app read, so nothing was changed. Restore the original font, restart the watch, then install Georgian again.",

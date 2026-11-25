@@ -812,7 +812,8 @@ fn rollback_file(path: &str, action: RollbackAction, done: bool) -> RollbackFile
     }
 }
 
-/// Install's and restore's errors: `conflict` and `restore_first` real, the rest composed.
+/// Install's and restore's errors: `conflict`, `restore_first` and `restart_first` real, the
+/// rest composed.
 #[test]
 fn errors() {
     let mut s = Scenario::new("errors", FontSet::bundled());
@@ -841,6 +842,24 @@ fn errors() {
         ErrorCode::RestoreFirst,
     );
     s.fonts = FontSet::bundled();
+
+    // A waiting `.tmp` a restart left hidden (the Venu 2 after a crash restart).
+    let mut tmp = fixture("maintainer-venu2-georgian-imported.json");
+    let files = tmp["hidden"]["files"].as_array_mut().unwrap();
+    let mut waiting = files
+        .iter()
+        .find(|f| f["name"] == "006-D9035-03.fnt")
+        .unwrap()
+        .clone();
+    waiting["name"] = json!("006-D9035-03.tmp");
+    files.push(waiting);
+    let (watch, _) = Watch::from_fixture(&tmp);
+    s.fails(
+        "install-restart_first",
+        "install",
+        &watch,
+        ErrorCode::RestartFirst,
+    );
 
     let written = "GARMIN/ExtData/006-D9035-01.tmp";
     s.composed_error(
