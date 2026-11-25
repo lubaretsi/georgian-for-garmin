@@ -113,6 +113,7 @@ const MTP_KEYS = new Set([
   "drive.mtp.how",
   "drive.duringRestart", // on the drive screen, under drive.mtp.body's explanation
   "more.help.mtp",
+  "connect.problem.garmin_mode.body", // the watch's own question and setting, explained (§4.2)
 ]);
 
 describe("plain words in the main flow (§2.3, §7)", () => {

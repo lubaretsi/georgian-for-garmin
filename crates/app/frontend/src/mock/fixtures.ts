@@ -10,6 +10,7 @@ import type {
   IssueLink,
   IssueLinkInput,
   StageOutput,
+  SwitchOutput,
 } from "../core/types.gen";
 
 type Outputs = {
@@ -18,6 +19,7 @@ type Outputs = {
   restore_stock: StageOutput;
   inspect_drive: InspectDriveOutput;
   issue_link: IssueLink;
+  switch_to_mtp: SwitchOutput;
 };
 export type Operation = keyof Outputs;
 

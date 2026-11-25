@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Linux, as Garmin Express does, and waits up to 15 s for it to come back; a watch that reports
   itself locked fails with the new error `device_locked`. On Windows, `garmin_mode` says the
   watch can't be switched there ([command line](docs/command-line.md#garmin-mode)).
+- The app brings a watch stuck in Garmin mode (its "Use MTP?" question unanswered) out of it by
+  itself, as Garmin Express does: "Switching the watch to file transfer…" for a few seconds, on
+  the connect screen or during the restart, then it goes on. Where it can't (on Windows, a watch
+  that reports itself locked, or one that doesn't come back), it says what to do on the watch
+  instead of searching forever: choose MTP when the watch asks, or unplug it and connect it
+  again, and for good Settings › System › USB Mode › MTP. It tries once each time the watch is
+  connected. The demo build gets a Garmin-mode watch: **Plug in (Garmin mode)** on the Demo watch
+  bar, and `GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE` ([development](docs/development.md#desktop-app)).
 
 ### Changed
 

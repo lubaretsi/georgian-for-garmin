@@ -1,0 +1,19 @@
+{
+  "operation": "switch_to_mtp",
+  "output": {
+    "product": {
+      "description": "VENU 2 V19.05",
+      "product_id": 3703,
+      "software_version": "19.05"
+    },
+    "protocols": [
+      "P000",
+      "L001",
+      "A010",
+      "A903",
+      "A1050"
+    ],
+    "status": "switched",
+    "waited_seconds": 4.2
+  }
+}

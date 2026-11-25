@@ -43,3 +43,12 @@ export const GarminExpressGrabsItAfterTheRestart: Story = { args: { options: { w
 export const BackAsADriveAfterTheRestart: Story = { args: { options: { watch: "venu2" } } };
 /** Garmin Express holds the watch: plug it in, then More › Diagnostic info. */
 export const DiagnosticInfoWatchNotFound: Story = { args: { options: { watch: "venu2", holder: "garmin_express" } } };
+/** Plug in (Garmin mode): the app switches it. After the restart, plug in (Garmin mode) again. */
+export const GarminModeSwitched: Story = { args: { options: { watch: "venu2" } } };
+/** Plug in (Garmin mode): no switch on Windows; then Choose MTP on the watch. */
+export const GarminModeOnWindows: Story = {
+  args: { options: { watch: "venu2", platform: "windows" } },
+  globals: { platform: "windows" },
+};
+/** Plug in (Garmin mode): the watch says it is locked; set the switch to Switches, unplug, plug in again. */
+export const GarminModeWatchLocked: Story = { args: { options: { watch: "venu2", switching: "locked" } } };

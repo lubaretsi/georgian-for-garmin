@@ -4,7 +4,14 @@
 import { type CSSProperties, useId, useSyncExternalStore } from "react";
 
 import type { Result } from "../model/screens";
-import type { MockBackend } from "./MockBackend";
+import type { MockBackend, Switching } from "./MockBackend";
+
+const SWITCHING: { value: Switching; label: string }[] = [
+  { value: "switches", label: "Switches" },
+  { value: "timed_out", label: "Times out" },
+  { value: "locked", label: "Watch locked" },
+  { value: "unsupported", label: "Not offered (no A1050)" },
+];
 
 const RESULTS: { value: Result | "auto"; label: string }[] = [
   { value: "auto", label: "What its font shows" },
@@ -26,7 +33,10 @@ const NOTIFICATION: Record<Result, string> = {
 };
 
 const panel: CSSProperties = {
-  width: 260,
+  // Two columns of controls, so the panel stays within the story tests' 900 px viewport (axe
+  // can't judge the contrast of an element cut by its edge).
+  width: 520,
+  gridTemplateColumns: "1fr 1fr",
   padding: 16,
   border: "1px solid var(--border)",
   borderRadius: 8,
@@ -37,7 +47,9 @@ const panel: CSSProperties = {
   gap: 12,
   alignContent: "start",
 };
-const group: CSSProperties = { display: "grid", gap: 6, border: 0, padding: 0, margin: 0 };
+const group: CSSProperties = { display: "grid", gap: 6, border: 0, padding: 0, margin: 0, alignContent: "start" };
+/** A part of the panel across both columns. */
+const wide: CSSProperties = { ...group, gridColumn: "1 / -1" };
 const button: CSSProperties = {
   font: "inherit",
   padding: "6px 10px",
@@ -53,12 +65,17 @@ export function Simulator({ backend }: { backend: MockBackend }) {
   const sim = useSyncExternalStore(backend.subscribe, backend.simulation);
   const def = backend.def;
   const selectId = useId();
-  const connection = sim.restartingTo ? "restarting…" : { mtp: "connected (MTP)", drive: "connected as a USB drive", unplugged: "unplugged" }[sim.connection];
+  const switchingId = useId();
+  const connection = sim.restartingTo
+    ? "restarting…"
+    : { mtp: "connected (MTP)", drive: "connected as a USB drive", garmin: "connected in Garmin mode", unplugged: "unplugged" }[
+        sim.connection
+      ];
   const notification = NOTIFICATION[backend.notification()];
   return (
     <aside aria-label="Watch simulator" style={panel}>
-      <h2 style={{ margin: 0, fontSize: 16 }}>Watch simulator</h2>
-      <p style={{ margin: 0 }}>
+      <h2 style={{ margin: 0, fontSize: 16, gridColumn: "1 / -1" }}>Watch simulator</h2>
+      <p style={{ margin: 0, gridColumn: "1 / -1" }}>
         <strong>{def.label}</strong>
         <br />
         <span data-testid="sim-connection">{connection}</span>
@@ -83,6 +100,28 @@ export function Simulator({ backend }: { backend: MockBackend }) {
         <button type="button" style={button} onClick={() => backend.unplug()}>
           Unplug
         </button>
+      </fieldset>
+      <fieldset style={group}>
+        <legend style={{ fontWeight: 600 }}>Garmin mode</legend>
+        <button type="button" style={button} disabled={!def.mtp} onClick={() => backend.plugIn("garmin")}>
+          Plug in (Garmin mode)
+        </button>
+        <button type="button" style={button} disabled={sim.connection !== "garmin"} onClick={() => backend.chooseMtp()}>
+          Choose MTP on the watch
+        </button>
+        <label htmlFor={switchingId}>The app's switch to MTP</label>
+        <select
+          id={switchingId}
+          style={button}
+          value={sim.switching}
+          onChange={(event) => backend.setSwitching(event.target.value as Switching)}
+        >
+          {SWITCHING.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </fieldset>
       <fieldset style={group}>
         <legend style={{ fontWeight: 600 }}>Watch</legend>
@@ -110,7 +149,7 @@ export function Simulator({ backend }: { backend: MockBackend }) {
           Release
         </button>
       </fieldset>
-      <div style={group}>
+      <div style={wide}>
         <label htmlFor={selectId} style={{ fontWeight: 600 }}>
           Phone: the next test notification shows
         </label>
@@ -131,7 +170,7 @@ export function Simulator({ backend }: { backend: MockBackend }) {
         </p>
       </div>
       {sim.opened.length > 0 && (
-        <div style={group}>
+        <div style={wide}>
           <h3 style={{ margin: 0, fontSize: 14 }}>Opened in the browser</h3>
           {/*
             Shortened: a share link carries the whole report (thousands of characters), and a list
@@ -145,7 +184,7 @@ export function Simulator({ backend }: { backend: MockBackend }) {
         </div>
       )}
       {(sim.saved.length > 0 || sim.copied) && (
-        <div style={group} data-testid="sim-files">
+        <div style={wide} data-testid="sim-files">
           <h3 style={{ margin: 0, fontSize: 14 }}>Files the app saved</h3>
           <ul style={{ margin: 0, padding: 0, listStyle: "none", overflowWrap: "anywhere" }}>
             {sim.saved.map((file, i) => (

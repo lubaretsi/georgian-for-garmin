@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "device_locked",
+    "message": "The watch reports that it is locked, so it wasn't switched to file transfer (MTP). Unlock it, then choose MTP on the watch when it asks, or unplug it and connect it again."
+  },
+  "operation": "switch_to_mtp"
+}

@@ -1,7 +1,7 @@
 import type { ScreenModel } from "../model/screens";
 import { OutcomeScreen, ShareScreen } from "./After";
 import { CheckScreen } from "./Check";
-import { ConnectBusy, ConnectProblem, ConnectSearching } from "./Connect";
+import { ConnectBusy, ConnectProblem, ConnectSearching, ConnectSwitching } from "./Connect";
 import { DiagnosticsScreen } from "./Diagnostics";
 import { ErrorScreen } from "./ErrorScreen";
 import { ConfirmRestoreScreen, RestartScreen, ResultScreen, WorkingScreen } from "./Operation";
@@ -20,6 +20,8 @@ export function renderScreen(model: ScreenModel, ctx: ScreenContext): ScreenView
           return ConnectSearching(model, ctx);
         case "busy":
           return ConnectBusy(model, ctx);
+        case "switching":
+          return ConnectSwitching(model, ctx);
         case "problem":
           return ConnectProblem(model, ctx);
       }

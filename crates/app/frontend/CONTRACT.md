@@ -62,7 +62,7 @@ Mirrors today's Tauri commands (`crates/app/src/main.rs`), with the same names a
 ```ts
 export interface Backend {
   inspect(): Promise<InspectOutput>;                  // rejects with Failure
-  inspectDrive(): Promise<InspectDriveOutput>;
+  switchToMtp(): Promise<SwitchOutput>;               // core `switch_to_mtp`: a watch in Garmin mode back to MTP (§4.2)
   install(onProgress?: (p: Progress) => void): Promise<StageOutput>;
   restoreStock(onProgress?: (p: Progress) => void): Promise<StageOutput>;
   issueLink(input: IssueLinkInput): Promise<IssueLink>;
@@ -98,6 +98,9 @@ stateDiagram-v2
   [*] --> connect
   connect --> watch: watch found (MTP)
   connect --> drive: found as USB drive
+  connect --> switching: Garmin mode (§4.2)
+  switching --> watch: switched
+  switching --> connect: failed (guidance)
   drive --> connect: unplugged
   watch --> working: Install / Restore (confirmed)
   working --> restart: written
@@ -116,9 +119,11 @@ stateDiagram-v2
   watch --> connect: unplugged
 ```
 
-**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`, and on `result` after a restore. When it fails with `no_device`, the app tries `inspectDrive` too. The app doesn't poll during `working`, `check`, `outcome` or `share`; on `error` it polls only after a `no_device` error, to notice the reconnect. The connect help card appears after 10 s without a watch.
+**Polling:** `inspect` every 2 s on `connect`, `watch` and `restart`, and on `result` after a restore. When it fails with `no_device`, the app tries `inspectDrive` too; when it fails with `garmin_mode`, §4.2 applies. The app doesn't poll during `working`, `check`, `outcome` or `share`, nor while the Garmin-mode switch runs (§4.2); on `error` it polls only after a `no_device` error, to notice the reconnect. The connect help card appears after 10 s without a watch.
 
 **The same watch:** after a restart, the reconnected watch is the same one if `device.part_number` matches. Telling two watches of the same model apart is a non-goal.
+
+**Screens opened over another** (`confirm_restore`, `share`, `diagnostics`, each with its `back`): every result and timer that isn't the open screen's own goes on underneath (a write finishing, the help card's or the still-starting timer, the Garmin-mode switch ending), so Back or Cancel returns to where that screen got to. The watch isn't read while one is open; returning reads it.
 
 ### 4.1 The restart step, new
 
@@ -142,7 +147,21 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 - **Skip:** "I'll check on the watch" goes to `check` after an install; after a restore the secondary reads "Skip" and goes to `watch`.
 - **Busy while restarting:** if the reconnected watch is held by another program (Garmin Express often grabs it on reconnect), show the connect/busy screen without leaving the restart. When it's released, verification goes on with the same attempt, and the step indicator stays on Restart.
 - **Drive while restarting:** if the watch comes back as a USB drive, `inspectDrive` is tried as on `connect`. The drive screen's "choose MTP" guidance shows without leaving the restart. When it's reconnected over MTP, verification goes on.
+- **Garmin mode while restarting:** a `garmin_mode` read means the watch is off MTP, as `no_device` does for the phases (`unplug` and `again` move on as on an unplug). Like a drive, it keeps the restart: the restart screen stays, with the switch's status, or the guidance inline under the two steps (§4.2). When the watch reads over MTP, verification goes on with the same attempt. A restart that isn't verifiable doesn't read the watch after the unplug, so it never switches.
 - **The attempt count** is shown from the second attempt on. After two `again` phases, the outcome offers sharing (§5.6).
+
+### 4.2 A watch in Garmin mode, new
+
+A watch whose Settings › System › USB Mode is Garmin asks "Use MTP?" on every connect and after every restart. Unanswered, it stays in Garmin mode (USB `091e:0003`), and `inspect` fails with `garmin_mode`, whose `garmin_mode.switchable` says whether the core can switch it on this computer (Windows: `false`, reason `no_driver`).
+
+- **Automatic, once per appearance, like Garmin Express:** a `garmin_mode` read with `switchable` runs `switchToMtp` once. On connect the screen is `connect / switching`; in the restart step the restart screen stays and its status reads "Switching the watch to file transfer…". The app doesn't poll while the switch runs: the core holds the watch and waits up to 15 s for it to come back. Nothing that writes is offered meanwhile (Restore in More, Install), as during `working`. The switch's end reaches the screen it started on even when another is open over it (§4).
+- **A write that finds the watch in Garmin mode** (unplugged and plugged in again before Install or Restore connected) wrote nothing: it is handled as a `garmin_mode` read.
+- **`switched`**, or the switch failing with `no_device` (the watch left Garmin mode by itself): read now and carry on.
+- **No loop:** after `timed_out` or any other failure, further `garmin_mode` reads show the guidance. The switch runs again only for a new appearance of the watch in Garmin mode: after a read that finds no watch (`no_device`, it was unplugged) or the watch over MTP.
+- **Guidance** when the watch isn't `switchable`, after `timed_out`, after `unsupported_device` (the watch doesn't offer the switch) and after any other failure: "The watch is connected in Garmin mode": choose MTP on the watch when it asks, or unplug it and connect it again; to stop the question for good, Settings › System › USB Mode › MTP. After `device_locked`: "The watch is locked": unlock it, then unplug it and connect it again.
+  - On connect: a connect problem (§6), with no action and no Report; polling goes on, so choosing MTP on the watch moves on by itself.
+  - In the restart step: inline under the two steps, the restart kept (§4.1).
+- **Diagnostics:** the switch's start and end go to the event log as an operation (`switch_to_mtp: switched`, `switch_to_mtp: device_locked`, …).
 
 ## 5. Screens and their models (`src/model/screens.ts`)
 
@@ -173,18 +192,21 @@ export type Verdict =
 export type BusyView = { kind: BusyHolderKind; name: string | null; confirmed: boolean };
 export type ConnectProblem =
   | "permission_denied" | "multiple_devices" | "garmin_folder_not_found"
-  | "extdata_not_found" | "device_error" | "internal";
+  | "extdata_not_found" | "device_error" | "garmin_mode" | "device_locked" | "internal";
+/** The watch in Garmin mode during the restart (§4.2): the switch running, or its guidance. */
+export type GarminModeView = "switching" | "guidance" | "locked";
 export type RollbackView = { status: "complete" | "incomplete"; files: string[] };
 
 export type ScreenModel =
   | { screen: "connect"; mode: "searching"; showHelp: boolean }
+  | { screen: "connect"; mode: "switching" } // the watch in Garmin mode, being switched (§4.2)
   | { screen: "connect"; mode: "busy"; busy: BusyView; duringRestart: boolean } // duringRestart: the step indicator stays on Restart
   | { screen: "connect"; mode: "problem"; problem: ConnectProblem; detail: string }
   | { screen: "drive"; watch: WatchInfo; driveOnly: boolean; issue: number | null; reportWanted: boolean; sharedBefore: boolean; duringRestart: boolean }
   | { screen: "watch"; watch: WatchInfo; verdict: Verdict; issue: number | null; reportWanted: boolean; sharedBefore: boolean }
   | { screen: "confirm_restore"; watch: WatchInfo }
   | { screen: "working"; op: Op; watch: WatchInfo; progress: { done: number; total: number } | null }
-  | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
+  | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean; garminMode: GarminModeView | null }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given
@@ -249,6 +271,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | Screen | Says | Main action | Secondary |
 |---|---|---|---|
 | connect / searching | "Connect your watch with its USB cable." A one-line explanation of what the app does, the 4-step preview, and the help card after 10 s (Garmin Express, reconnect, choose MTP if the watch asks, data cable) | none | More |
+| connect / switching | "Switching the watch to file transfer…": the watch is in Garmin mode and the app switches it, as Garmin Express does (§4.2) | none (it takes a few seconds) | none |
 | connect / busy | "{Program} is using your watch", with this platform's steps to free it (§6) | "Try again now" (it also retries every 2 s) | "Still stuck? Share what the app found" |
 | connect / problem | a per-problem title and body (§6) | the problem's action (`permission_denied`: the Linux commands, copyable) | "Report this problem" |
 | drive | "Your {model} is connected as a USB drive." If it can use MTP: how to switch on the watch. If `driveOnly`: "The app can't add Georgian to this watch yet." | MTP-capable: none (waits); drive-only: "Follow updates" (open the issue) | "Share the font list" if `reportWanted` and not `sharedBefore` |
@@ -261,7 +284,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | watch / unreadable | "The app couldn't read the watch's fonts." | "Try again" | "Report this problem" |
 | confirm_restore | "Put Garmin's original font back? Georgian notifications will show as boxes again." | **Restore original font** | Cancel |
 | working | "Installing Georgian…" / "Restoring Garmin's font…" Keep the watch connected. Progress when known | none | none |
-| restart | §4.1 | per phase | per phase |
+| restart | §4.1; in Garmin mode, the switch's status or the guidance inline (§4.2) | per phase | per phase |
 | result | install: "Georgian is on your watch." restore: "Garmin's font is back." | install, not confirmed: **Check on the watch**; confirmed: "Send a test notification" (optional); restore: none, but the app keeps reading the watch: unplugged → connect, another watch → its screen, the same one stays | none |
 | check / send | "Send yourself a test notification": QR to the phone page, or the test text with a Copy button | "I sent it" | none |
 | check / answer | "What did the watch show?" as a radio group with samples rendered in the app's own type: ქართ / □□□□ / ???? / ქა□□ / Nothing arrived. If letters: where they showed (optional checkboxes). Phone (optional). Beta builds only: the marker pictures | "Continue" (enabled once `result` is set; emits `done`, which on this step means "answers complete") | Back |
@@ -306,7 +329,8 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 - **Connect problems.** A problem with a fix the user can do shows that fix and no Report:
   - `permission_denied` (Linux): the udev rule commands from `docs/command-line.md`, copyable;
   - `multiple_devices`: "Unplug all but one watch";
-  - `device_error`: unplug and reconnect.
+  - `device_error`: unplug and reconnect;
+  - `garmin_mode` and `device_locked` (§4.2): what to do on the watch, with no action: the app keeps reading and goes on once the watch connects over MTP.
 
   A problem with no user fix (`garmin_folder_not_found`, `extdata_not_found`, `internal`) explains and offers **Report this problem**. Its report holds the app, the platform and the error, and no watch: the core's `issue_link` takes an `error` alone, as it takes `busy` alone.
 
@@ -348,11 +372,11 @@ Run it with `nix develop -c pnpm -C crates/app/frontend storybook`.
 Every story renders inside a frame of the chosen window size.
 
 **`Screens/…`:** one story per row of this coverage list, each built from the generated fixtures:
-- connect: searching (with and without help), busy (each holder kind × platform), and each problem;
+- connect: searching (with and without help), switching, busy (each holder kind × platform), and each problem (`garmin_mode` and `device_locked` included);
 - drive: switch to MTP, drive-only;
 - watch: every verdict, every `confidence`, and every `note`;
 - confirm_restore, and working (install and restore, with and without progress);
-- restart: each phase, attempt 2, not verifiable;
+- restart: each phase, attempt 2, not verifiable, and in Garmin mode: switching, guidance, locked;
 - result: install (confirmed and unconfirmed) and restore;
 - check: send, answer (empty, answered, beta marker);
 - outcome: each kind, restarts 0 and 2, shared before;
@@ -363,7 +387,8 @@ Every story renders inside a frame of the chosen window size.
 A test fails if a `ScreenModel` variant in this list has no story.
 
 **`Flows/…`:** the full app (shell + reducer + `MockBackend`) with a **watch simulator** panel beside the window. The panel's buttons act out the physical side:
-- Plug in (MTP), Plug in (drive), Unplug;
+- Plug in (MTP), Plug in (drive), Plug in (Garmin mode), Unplug;
+- Choose MTP on the watch (in Garmin mode), and how the next switch to MTP goes: switches, times out, watch locked, not offered;
 - Restart watch (imports waiting fonts);
 - Garmin Express holds it, Release;
 - Make the next write fail;
@@ -386,6 +411,9 @@ The flows:
 | Linux permission denied | none | the problem screen with commands |
 | Second restart needed | Venu 2 + a restart that doesn't import | again → attempt 2 → verified |
 | Diagnostic info, watch not found | none (Garmin Express holds it) | More › Diagnostic info → save → show in folder → back |
+| Garmin mode, switched | Venu 2 plugged in Garmin mode | switching → watch → install → plugged in Garmin mode after the restart → switching in the restart step → verified |
+| Garmin mode on Windows | Venu 2 plugged in Garmin mode, Windows | guidance (no switch) → MTP chosen on the watch → watch |
+| Garmin mode, watch locked | Venu 2 plugged in Garmin mode, the switch finds it locked | switching → locked → unplug, plug in → switching → watch |
 
 **Tests run in CI:**
 - Every flow has a play function, run headless in Chromium and WebKit through Storybook's Vitest addon.
