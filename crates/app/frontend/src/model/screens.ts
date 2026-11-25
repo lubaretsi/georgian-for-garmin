@@ -30,18 +30,21 @@ export type Verdict =
 export type BusyView = { kind: BusyHolderKind; name: string | null; confirmed: boolean };
 export type ConnectProblem =
   | "permission_denied" | "multiple_devices" | "garmin_folder_not_found"
-  | "extdata_not_found" | "device_error" | "internal";
+  | "extdata_not_found" | "device_error" | "garmin_mode" | "device_locked" | "internal";
+/** The watch in Garmin mode during the restart (§4.2): the switch running, or its guidance. */
+export type GarminModeView = "switching" | "guidance" | "locked";
 export type RollbackView = { status: "complete" | "incomplete"; files: string[] };
 
 export type ScreenModel =
   | { screen: "connect"; mode: "searching"; showHelp: boolean }
+  | { screen: "connect"; mode: "switching" } // the watch in Garmin mode, being switched (§4.2)
   | { screen: "connect"; mode: "busy"; busy: BusyView; duringRestart: boolean } // duringRestart: the step indicator stays on Restart
   | { screen: "connect"; mode: "problem"; problem: ConnectProblem; detail: string }
   | { screen: "drive"; watch: WatchInfo; driveOnly: boolean; issue: number | null; reportWanted: boolean; sharedBefore: boolean; duringRestart: boolean }
   | { screen: "watch"; watch: WatchInfo; verdict: Verdict; issue: number | null; reportWanted: boolean; sharedBefore: boolean }
   | { screen: "confirm_restore"; watch: WatchInfo }
   | { screen: "working"; op: Op; watch: WatchInfo; progress: { done: number; total: number } | null }
-  | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean }
+  | { screen: "restart"; op: Op; watch: WatchInfo; phase: "unplug" | "restart" | "verifying" | "again" | "other_watch"; attempt: number; verifiable: boolean; garminMode: GarminModeView | null }
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given

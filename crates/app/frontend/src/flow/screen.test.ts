@@ -125,9 +125,35 @@ describe("toScreen", () => {
       phase: "unplug",
       attempt: 1,
       verifiable: true,
+      garminMode: null,
     });
     const again = read(read(written(), NO_DEVICE), inspect("venu2", "inspect-staged"));
     expect(toScreen(read(again, NO_DEVICE))).toMatchObject({ phase: "restart", attempt: 2 });
+  });
+
+  test("Garmin mode: switching, then the guidance, on connect and inside the restart (§4.2)", () => {
+    const garmin = failure("garmin-mode", "inspect-garmin_mode");
+    const locked = failure("garmin-mode", "switch_to_mtp-device_locked");
+    const switching = read(started(), garmin);
+    expect(toScreen(switching)).toEqual({ screen: "connect", mode: "switching" });
+    expect(toScreen(reduce(switching, { type: "switch_failed", failure: locked }))).toEqual({
+      screen: "connect",
+      mode: "problem",
+      problem: "device_locked",
+      detail: locked.message,
+    });
+    const windows = failure("garmin-mode", "inspect-garmin_mode-windows");
+    expect(toScreen(read(started(), windows))).toEqual({
+      screen: "connect",
+      mode: "problem",
+      problem: "garmin_mode",
+      detail: windows.message,
+    });
+    const restart = read(read(written(), NO_DEVICE), garmin);
+    expect(toScreen(restart)).toMatchObject({ screen: "restart", phase: "restart", garminMode: "switching" });
+    const timedOut = output("garmin-mode", "switch_to_mtp-timed_out", "switch_to_mtp");
+    expect(toScreen(reduce(restart, { type: "switched", output: timedOut }))).toMatchObject({ garminMode: "guidance" });
+    expect(toScreen(reduce(restart, { type: "switch_failed", failure: locked }))).toMatchObject({ garminMode: "locked" });
   });
 
   test("result: install, with the confidence", () => {

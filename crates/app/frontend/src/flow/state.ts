@@ -20,6 +20,7 @@ import type {
   ShareKey,
   Shared,
   StageOutput,
+  SwitchOutput,
 } from "../core/types.gen";
 import { type ActionId, type ActionPayload, type Answers, type Op, sawLetters, VIEWS } from "../model/screens";
 import { verdictOf, verifiable, verified } from "./verdict";
@@ -42,6 +43,8 @@ export type Phase =
   | { name: "connect"; mode: "searching"; showHelp: boolean }
   | { name: "connect"; mode: "busy"; failure: Failure }
   | { name: "connect"; mode: "problem"; failure: Failure }
+  /** The watch in Garmin mode (§4.2): being switched, or what to do on the watch. */
+  | { name: "connect"; mode: "garmin_mode"; garmin: GarminModeState }
   | { name: "drive"; drive: InspectDriveOutput }
   | { name: "watch" }
   | { name: "confirm_restore"; back: Phase }
@@ -77,7 +80,19 @@ export type Phase =
 
 export type DiagnosticsState = "collecting" | "ready" | "saved" | "copied" | "failed";
 
-export type RestartInterruption = { kind: "busy"; failure: Failure } | { kind: "drive"; drive: InspectDriveOutput };
+export type RestartInterruption =
+  | { kind: "busy"; failure: Failure }
+  | { kind: "drive"; drive: InspectDriveOutput }
+  | { kind: "garmin_mode"; garmin: GarminModeState };
+
+/**
+ * The watch in Garmin mode (§4.2). `switching`: the switch to MTP runs (`running`), or it
+ * switched and the watch is being read. `guidance`: what to do on the watch, after a switch that
+ * didn't work (`locked`: the watch said it is locked) or where none can run; `detail` says why.
+ */
+export type GarminModeState =
+  | { state: "switching"; running: boolean }
+  | { state: "guidance"; locked: boolean; detail: string };
 
 export type ShareState = "ready" | "opened" | "opened_paste" | "failed";
 
@@ -100,7 +115,8 @@ export type Effect =
   | { kind: "diagnose"; events: DiagnoseEvent[] }
   | { kind: "save_diagnostics"; text: string }
   | { kind: "copy_text"; text: string }
-  | { kind: "reveal_file"; path: string };
+  | { kind: "reveal_file"; path: string }
+  | { kind: "switch_to_mtp" };
 
 export type FlowState = {
   phase: Phase;
@@ -129,6 +145,11 @@ export type FlowState = {
   events: DiagnoseEvent[];
   /** The last failure the app met, for the diagnostics summary; `holder` when another program held the watch. */
   lastProblem: { time: string; code: ErrorCode; holder: Holder | null } | null;
+  /**
+   * The switch to MTP ran for the watch's current appearance in Garmin mode (§4.2): it runs
+   * again only after a read finds no watch or the watch over MTP.
+   */
+  switchTried: boolean;
   effects: Effect[];
 };
 
@@ -156,6 +177,8 @@ export type FlowEvent =
   | { type: "diagnostics_saved"; path: string }
   | { type: "diagnostics_copied" }
   | { type: "diagnostics_failed"; failure: Failure }
+  | { type: "switched"; output: SwitchOutput }
+  | { type: "switch_failed"; failure: Failure }
   | { type: "action"; id: ActionId; payload?: ActionPayload };
 
 export function initialState(lang: Lang, version: string): FlowState {
@@ -173,6 +196,7 @@ export function initialState(lang: Lang, version: string): FlowState {
     token: 0,
     helpToken: 0,
     startingToken: 0,
+    switchTried: false,
     events: [],
     lastProblem: null,
     effects: [],
@@ -207,14 +231,21 @@ export function shownDrive(phase: Phase): InspectDriveOutput | null {
   return phase.name === "restart" && phase.interruption?.kind === "drive" ? phase.interruption.drive : null;
 }
 
+function switchRunning(garmin: GarminModeState): boolean {
+  return garmin.state === "switching" && garmin.running;
+}
+
 /** Whether the app reads the watch every 2 s in `phase` (§4, Polling). */
 export function polls(phase: Phase): boolean {
   switch (phase.name) {
     case "connect":
+      // Not while the switch to MTP runs: the core holds the watch (§4.2).
+      return !(phase.mode === "garmin_mode" && switchRunning(phase.garmin));
     case "drive":
     case "watch":
       return true;
     case "restart":
+      if (phase.interruption?.kind === "garmin_mode" && switchRunning(phase.interruption.garmin)) return false;
       return phase.phase === "unplug" || phase.verifiable;
     case "result":
       // After a restore nothing follows on screen: the app looks for the unplug or another watch.
@@ -323,9 +354,64 @@ function readFailed(state: FlowState, failure: Failure): FlowState {
     }
     case "device_busy":
       return pollNext(go(state, { name: "connect", mode: "busy", failure }));
+    case "garmin_mode": {
+      const phase = state.phase;
+      const current = phase.name === "connect" && phase.mode === "garmin_mode" ? phase.garmin : null;
+      const next = garminRead(state, failure, current);
+      return pollNext(go(next.state, { name: "connect", mode: "garmin_mode", garmin: next.garmin }, next.effects));
+    }
     default:
       return pollNext(go(state, { name: "connect", mode: "problem", failure }));
   }
+}
+
+/**
+ * A `garmin_mode` read (§4.2): the switch to MTP, once per appearance of the watch in Garmin
+ * mode, where it can run; otherwise the guidance, keeping what an earlier one said.
+ */
+function garminRead(
+  state: FlowState,
+  failure: Failure,
+  current: GarminModeState | null,
+): { state: FlowState; garmin: GarminModeState; effects: Effect[] } {
+  if (failure.garmin_mode?.switchable && !state.switchTried) {
+    return {
+      state: { ...state, switchTried: true },
+      garmin: { state: "switching", running: true },
+      effects: [{ kind: "switch_to_mtp" }],
+    };
+  }
+  if (current?.state === "guidance") return { state, garmin: current, effects: [] };
+  return { state, garmin: { state: "guidance", locked: false, detail: failure.message }, effects: [] };
+}
+
+type SwitchEvent = Extract<FlowEvent, { type: "switched" | "switch_failed" }>;
+
+/** Where the switch's result leaves the watch (§4.2): read again, or the guidance. */
+function afterSwitch(event: SwitchEvent): GarminModeState {
+  if (event.type === "switched") {
+    const { status, waited_seconds, product, protocols } = event.output;
+    if (status === "switched") return { state: "switching", running: false };
+    const seen = [product?.description, protocols.join(", ")].filter(Boolean).join("; ");
+    const detail = `switch_to_mtp: the watch didn't come back over MTP within ${waited_seconds} s${seen ? ` (${seen})` : ""}.`;
+    return { state: "guidance", locked: false, detail };
+  }
+  const { code, message } = event.failure;
+  // Gone from Garmin mode by itself (MTP chosen on the watch, or unplugged): the read says which.
+  if (code === "no_device") return { state: "switching", running: false };
+  return { state: "guidance", locked: code === "device_locked", detail: message };
+}
+
+/** The switch's result, where it runs: on connect or inside the restart step (§4.2). */
+function switchEnded(state: FlowState, garmin: GarminModeState): FlowState {
+  const phase = state.phase;
+  if (phase.name === "connect" && phase.mode === "garmin_mode" && switchRunning(phase.garmin)) {
+    return go(state, { ...phase, garmin });
+  }
+  if (phase.name === "restart" && phase.interruption?.kind === "garmin_mode" && switchRunning(phase.interruption.garmin)) {
+    return go(state, { ...phase, interruption: { kind: "garmin_mode", garmin } });
+  }
+  return state;
 }
 
 type Restart = Extract<Phase, { name: "restart" }>;
@@ -363,6 +449,17 @@ function restartRead(state: FlowState, interrupted: Restart, inspect: InspectOut
 }
 
 function restartFailed(state: FlowState, phase: Restart, failure: Failure): FlowState {
+  if (failure.code === "garmin_mode") {
+    // Off MTP as on an unplug (from `again`, the next attempt), with the switch or the guidance
+    // inside the restart (§4.1, §4.2). A restart the app doesn't verify needs no switch.
+    const attempt = phase.phase === "again" ? state.attempt + 1 : state.attempt;
+    const off: Restart = { ...phase, phase: "restart", reconnected: false, starting: false, interruption: null };
+    if (!off.verifiable) return pollNext({ ...state, attempt, phase: off });
+    const current = phase.interruption?.kind === "garmin_mode" ? phase.interruption.garmin : null;
+    const next = garminRead({ ...state, attempt }, failure, current);
+    const restart: Restart = { ...off, interruption: { kind: "garmin_mode", garmin: next.garmin } };
+    return pollNext(go(next.state, restart, next.effects));
+  }
   if (failure.code === "no_device") {
     // Unplugged: from `again`, that starts the next attempt (§4.1). A drive is looked for as on
     // connect; a drive already found stays until inspect_drive says otherwise.
@@ -633,7 +730,17 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
       if (event.token === previous.token) {
         poll(event.failure.code, null);
         problem = event.failure;
+        if (next.effects.some((e) => e.kind === "switch_to_mtp")) {
+          entries.push({ time, kind: "operation_start", detail: "switch_to_mtp", model });
+        }
       }
+      break;
+    case "switched":
+      entries.push({ time, kind: "operation_end", detail: `switch_to_mtp: ${event.output.status}`, model });
+      break;
+    case "switch_failed":
+      entries.push({ time, kind: "operation_end", detail: `switch_to_mtp: ${event.failure.code}`, model });
+      problem = event.failure;
       break;
     case "drive_inspected":
       if (event.token === previous.token) poll("usb_drive", event.output.device.model);
@@ -676,7 +783,13 @@ function logged(previous: FlowState, event: FlowEvent, next: FlowState, time: st
 
 function transition(previous: FlowState, event: FlowEvent): FlowState {
   // Each transition's effects are its own; the runner has run the previous ones.
-  const state: FlowState = previous.effects.length ? { ...previous, effects: [] } : previous;
+  const fresh: FlowState = previous.effects.length ? { ...previous, effects: [] } : previous;
+  // A read that finds no watch, or the watch over MTP, ends its appearance in Garmin mode: the
+  // next one may be switched again (§4.2).
+  const gone =
+    (event.type === "inspected" || (event.type === "inspect_failed" && event.failure.code === "no_device")) &&
+    event.token === fresh.token;
+  const state: FlowState = gone && fresh.switchTried ? { ...fresh, switchTried: false } : fresh;
   const phase = state.phase;
   switch (event.type) {
     case "start": {
@@ -720,8 +833,9 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
         case "result":
           return readFailed(state, event.failure);
         case "error":
-          // Disconnected during the write: the error (and its rollback) stays until the watch is back.
-          return pollNext(state);
+          // Disconnected during the write: the error (and its rollback) stays until the watch is
+          // back; back in Garmin mode, it is switched as on connect (§4.2).
+          return event.failure.code === "garmin_mode" ? readFailed(state, event.failure) : pollNext(state);
         case "drive":
           // Still a drive? inspect_drive says; anything else is read as usual.
           return event.failure.code === "no_device"
@@ -805,6 +919,9 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
       return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "copied" } } : state;
     case "diagnostics_failed":
       return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "failed" } } : state;
+    case "switched":
+    case "switch_failed":
+      return switchEnded(state, afterSwitch(event));
     case "action":
       return act(state, event.id, event.payload);
   }

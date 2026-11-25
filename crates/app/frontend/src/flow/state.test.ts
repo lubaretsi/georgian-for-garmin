@@ -556,3 +556,176 @@ describe("the rest", () => {
     expect(act(state, "check").effects).toEqual([]);
   });
 });
+
+describe("a watch in Garmin mode (§4.2)", () => {
+  const GARMIN = failure("garmin-mode", "inspect-garmin_mode");
+  const WINDOWS = failure("garmin-mode", "inspect-garmin_mode-windows");
+  const SWITCHED = output("garmin-mode", "switch_to_mtp-switched", "switch_to_mtp");
+  const TIMED_OUT = output("garmin-mode", "switch_to_mtp-timed_out", "switch_to_mtp");
+  const LOCKED = failure("garmin-mode", "switch_to_mtp-device_locked");
+  const UNSUPPORTED = failure("garmin-mode", "switch_to_mtp-unsupported_device");
+  const switches = (state: FlowState) => state.effects.filter((e) => e.kind === "switch_to_mtp").length;
+  const switched = (state: FlowState): FlowState => reduce(state, { type: "switched", output: SWITCHED });
+  const failed = (state: FlowState, f: Failure): FlowState => reduce(state, { type: "switch_failed", failure: f });
+  /** Every way the switch ends without the watch over MTP, and the guidance it leaves. */
+  const FAILURES: [string, (s: FlowState) => FlowState, { locked: boolean; detail: RegExp }][] = [
+    ["timed_out", (s) => reduce(s, { type: "switched", output: TIMED_OUT }), { locked: false, detail: /within 15 s/ }],
+    ["device_locked", (s) => failed(s, LOCKED), { locked: true, detail: /locked/ }],
+    ["unsupported_device", (s) => failed(s, UNSUPPORTED), { locked: false, detail: /A1050/ }],
+    ["another error", (s) => failed(s, { code: "device_error", message: "claim failed" }), { locked: false, detail: /claim failed/ }],
+  ];
+
+  test("on connect: switched once, no reads meanwhile; switched → read now → the watch", () => {
+    let state = read(started(), GARMIN);
+    expect(state.phase).toEqual({ name: "connect", mode: "garmin_mode", garmin: { state: "switching", running: true } });
+    expect(kinds(state)).toEqual(["switch_to_mtp"]);
+    expect(state.switchTried).toBe(true);
+    // A read still in flight when the switch started is dropped.
+    expect(reduce(state, { type: "inspected", token: state.token - 1, output: VENU2 }).phase).toEqual(state.phase);
+    state = switched(state);
+    expect(state.phase).toMatchObject({ garmin: { state: "switching", running: false } });
+    expect(polls(state)).toMatchObject({ delay: 0, token: state.token });
+    state = read(state, VENU2);
+    expect(state.phase).toEqual({ name: "watch" });
+    expect(state.switchTried).toBe(false);
+  });
+
+  test.each(FAILURES)("on connect, %s → the guidance, still reading; no second switch", (_, end, guidance) => {
+    let state = end(read(started(), GARMIN));
+    expect(state.phase).toMatchObject({ name: "connect", mode: "garmin_mode", garmin: { state: "guidance", locked: guidance.locked } });
+    const garmin = state.phase.name === "connect" && state.phase.mode === "garmin_mode" ? state.phase.garmin : null;
+    expect(garmin?.state === "guidance" && garmin.detail).toMatch(guidance.detail);
+    expect(polls(state)).toMatchObject({ delay: 0 });
+    // No loop: further reads in Garmin mode keep the same guidance.
+    for (let i = 0; i < 3; i++) {
+      const next = read(state, GARMIN);
+      expect(switches(next)).toBe(0);
+      expect(next.phase).toEqual(state.phase);
+      expect(polls(next)).toMatchObject({ delay: POLL_MS });
+      state = next;
+    }
+    // MTP chosen on the watch: it goes on by itself.
+    expect(read(state, VENU2).phase).toEqual({ name: "watch" });
+  });
+
+  test("a replug (a read with no watch) allows another switch; a read in Garmin mode doesn't", () => {
+    let state = failed(read(started(), GARMIN), LOCKED);
+    state = read(state, GARMIN);
+    expect(switches(state)).toBe(0);
+    state = read(state, NO_DEVICE);
+    expect(state.phase).toMatchObject({ name: "connect", mode: "searching" });
+    expect(state.switchTried).toBe(false);
+    state = read(state, GARMIN);
+    expect(switches(state)).toBe(1);
+    expect(state.phase).toMatchObject({ garmin: { state: "switching", running: true } });
+  });
+
+  test("the watch leaving Garmin mode by itself during the switch → read now", () => {
+    const state = failed(read(started(), GARMIN), NO_DEVICE);
+    expect(state.phase).toMatchObject({ garmin: { state: "switching", running: false } });
+    expect(polls(state)).toMatchObject({ delay: 0 });
+    expect(read(state, NO_DEVICE).phase).toMatchObject({ name: "connect", mode: "searching" });
+  });
+
+  test("Windows (no_driver): straight to the guidance, never a switch", () => {
+    let state = read(started(), WINDOWS);
+    expect(state.phase).toEqual({
+      name: "connect",
+      mode: "garmin_mode",
+      garmin: { state: "guidance", locked: false, detail: WINDOWS.message },
+    });
+    expect(kinds(state)).toEqual(["inspect"]);
+    state = read(read(state, NO_DEVICE), WINDOWS);
+    expect(switches(state)).toBe(0);
+  });
+
+  test("from the watch screen, and after a write cut off by an unplug", () => {
+    expect(switches(read(atWatch(), GARMIN))).toBe(1);
+    const failedWrite = reduce(act(atWatch(), "install"), {
+      type: "op_failed",
+      op: "install",
+      failure: failure("errors", "install-no_device"),
+    });
+    expect(read(failedWrite, NO_DEVICE).phase).toMatchObject({ name: "error" });
+    expect(switches(read(failedWrite, GARMIN))).toBe(1);
+  });
+
+  test("during the restart: off MTP as an unplug, switched inside the restart, verified after", () => {
+    let state = read(written(), GARMIN);
+    expect(state.phase).toMatchObject({
+      name: "restart",
+      phase: "restart",
+      reconnected: false,
+      interruption: { kind: "garmin_mode", garmin: { state: "switching", running: true } },
+    });
+    expect(kinds(state)).toEqual(["switch_to_mtp"]);
+    state = switched(state);
+    expect(polls(state)).toMatchObject({ delay: 0, slowAfter: SLOW_MS });
+    state = read(state, inspect("venu2", "inspect-restarted"));
+    expect(state.phase).toEqual({ name: "result", op: "install" });
+  });
+
+  test.each(FAILURES)("during the restart, %s → the guidance inside it, the restart kept", (_, end, guidance) => {
+    let state = end(read(read(written(), NO_DEVICE), GARMIN));
+    expect(state.phase).toMatchObject({
+      name: "restart",
+      op: "install",
+      phase: "restart",
+      interruption: { kind: "garmin_mode", garmin: { state: "guidance", locked: guidance.locked } },
+    });
+    expect(state.attempt).toBe(1);
+    const again = read(state, GARMIN);
+    expect(switches(again)).toBe(0);
+    expect(again.phase).toEqual(state.phase);
+    // Unplugged: the guidance goes; plugged in again in Garmin mode, another switch.
+    state = read(again, NO_DEVICE);
+    expect(state.phase).toMatchObject({ name: "restart", phase: "restart", interruption: null });
+    expect(switches(read(state, GARMIN))).toBe(1);
+    // MTP chosen on the watch instead: verification goes on.
+    expect(read(again, inspect("venu2", "inspect-restarted")).phase).toEqual({ name: "result", op: "install" });
+  });
+
+  test("during the restart: from `again` it is the next attempt; a restart not verified never switches", () => {
+    const again = read(read(written(), NO_DEVICE), inspect("venu2", "inspect-staged"));
+    expect(again.phase).toMatchObject({ phase: "again" });
+    const next = read(again, GARMIN);
+    expect(next.attempt).toBe(again.attempt + 1);
+    expect(switches(next)).toBe(1);
+
+    const trueType = reduce(act(atWatch(), "install"), {
+      type: "op_done",
+      op: "install",
+      output: { ...output("venu2", "install", "install"), packs: [] },
+    });
+    expect(trueType.phase).toMatchObject({ phase: "unplug", verifiable: false });
+    const off = read(trueType, GARMIN);
+    expect(off.phase).toMatchObject({ phase: "restart", interruption: null });
+    expect(off.effects).toEqual([]);
+  });
+
+  test("the switch's start and end go to the event log; a failed one is the last problem", () => {
+    const state = failed(read(started(), GARMIN), LOCKED);
+    expect(state.events.map((e) => [e.kind, e.detail])).toEqual([
+      ["poll", "garmin_mode"],
+      ["operation_start", "switch_to_mtp"],
+      ["operation_end", "switch_to_mtp: device_locked"],
+    ]);
+    expect(state.lastProblem).toMatchObject({ code: "device_locked" });
+    expect(switched(read(started(), GARMIN)).events.at(-1)).toMatchObject({ detail: "switch_to_mtp: switched" });
+  });
+
+  test("a switch ending under the diagnostics screen: going back reads the watch", () => {
+    let state = act(read(started(), GARMIN), "diagnostics");
+    state = switched(state);
+    expect(state.phase).toMatchObject({ name: "diagnostics", back: { garmin: { state: "switching", running: false } } });
+    expect(polls(state)).toBeUndefined();
+    state = act(state, "back");
+    expect(polls(state)).toMatchObject({ delay: 0, token: state.token });
+  });
+
+  test("a result for a switch the flow has left is dropped", () => {
+    const state = read(read(started(), GARMIN), NO_DEVICE);
+    expect(state.phase).toMatchObject({ mode: "searching" });
+    expect(switched(state).phase).toEqual(state.phase);
+  });
+});

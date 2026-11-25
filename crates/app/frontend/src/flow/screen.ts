@@ -24,6 +24,8 @@ const PROBLEMS: readonly ConnectProblem[] = [
   "garmin_folder_not_found",
   "extdata_not_found",
   "device_error",
+  "garmin_mode",
+  "device_locked",
 ];
 
 /** The connect problem a failed read shows; any other code is the app's own fault. */
@@ -211,6 +213,12 @@ export function toScreen(state: FlowState): ScreenModel {
           return busyScreen(phase.failure, false);
         case "problem":
           return { screen: "connect", mode: "problem", problem: problemOf(phase.failure.code), detail: phase.failure.message };
+        case "garmin_mode": {
+          // Switching, or what to do on the watch as a connect problem (§4.2).
+          const g = phase.garmin;
+          if (g.state === "switching") return { screen: "connect", mode: "switching" };
+          return { screen: "connect", mode: "problem", problem: g.locked ? "device_locked" : "garmin_mode", detail: g.detail };
+        }
       }
     case "drive":
       return driveScreen(state, phase.drive, false);
@@ -230,10 +238,12 @@ export function toScreen(state: FlowState): ScreenModel {
       return { screen: "confirm_restore", watch: currentWatch(state) };
     case "working":
       return { screen: "working", op: phase.op, watch: currentWatch(state), progress: phase.progress };
-    case "restart":
+    case "restart": {
       // Held or mounted after the restart: that screen, with the restart kept underneath (§4.1).
       if (phase.interruption?.kind === "busy") return busyScreen(phase.interruption.failure, true);
       if (phase.interruption?.kind === "drive") return driveScreen(state, phase.interruption.drive, true);
+      // In Garmin mode: the restart's own screen, with the switch or the guidance (§4.2).
+      const g = phase.interruption?.kind === "garmin_mode" ? phase.interruption.garmin : null;
       return {
         screen: "restart",
         op: phase.op,
@@ -241,7 +251,9 @@ export function toScreen(state: FlowState): ScreenModel {
         phase: phase.phase,
         attempt: Math.max(state.attempt, 1),
         verifiable: phase.verifiable,
+        garminMode: !g ? null : g.state === "switching" ? "switching" : g.locked ? "locked" : "guidance",
       };
+    }
     case "result": {
       const inspect = state.inspect;
       if (!inspect) throw new Error("flow: no watch in result");

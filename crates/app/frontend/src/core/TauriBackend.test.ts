@@ -32,6 +32,7 @@ describe("TauriBackend", () => {
     const input = { error: { code: "internal" as const, message: "x" } };
     const each: [keyof Backend, () => Promise<unknown>, Call][] = [
       ["inspect", () => tauri.inspect(), { command: "inspect" }],
+      ["switchToMtp", () => tauri.switchToMtp(), { command: "switch_to_mtp" }],
       ["inspectDrive", () => tauri.inspectDrive(), { command: "inspect_drive" }],
       ["issueLink", () => tauri.issueLink(input), { command: "issue_link", args: { input } }],
       ["shareReport", () => tauri.shareReport(input), { command: "share_report", args: { input } }],

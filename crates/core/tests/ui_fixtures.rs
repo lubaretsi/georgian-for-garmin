@@ -21,11 +21,15 @@
 //! - busy holders and connect problems are the errors the connection would return, built with
 //!   the core's own `Error` builders (the holders as the demo build names them); the problems'
 //!   messages are written here after the core's;
-//! - `verification_failed` and `no_device` during a write are built with `Error::with_rollback`.
+//! - `verification_failed` and `no_device` during a write are built with `Error::with_rollback`;
+//! - a watch in Garmin mode is the connection failing with `Error::garmin_mode`, and
+//!   `switch_to_mtp` the session's switch answering as the Venu 2 did (or, for its errors,
+//!   failing with the core's messages, written here).
 
 #[path = "support/report_watch.rs"]
 mod report_watch;
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,8 +37,12 @@ use std::path::{Path, PathBuf};
 use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, System, UsbInterface};
 use georgian_for_garmin_core::error::{RollbackAction, RollbackFile};
 use georgian_for_garmin_core::fonts::FontSet;
+use georgian_for_garmin_core::garmin_mode::{
+    GarminMode, NotSwitchable, Product, SwitchOutput, SwitchStatus,
+};
 use georgian_for_garmin_core::ops;
 use georgian_for_garmin_core::report::{self, IssueLinkInput, WatchReport};
+use georgian_for_garmin_core::session::{Control, Session};
 use georgian_for_garmin_core::{Error, ErrorCode};
 use report_watch::*;
 use serde_json::{Value, json};
@@ -67,6 +75,7 @@ const SCENARIOS: &[&str] = &[
     "busy",
     "connect-problems",
     "errors",
+    "garmin-mode",
 ];
 
 /// A report's machine and app version replaced by the fixed ones, and its text rebuilt.
@@ -882,5 +891,94 @@ fn errors() {
         "install",
         Error::new(ErrorCode::InvalidInput, "parts: unknown field"),
     );
+    s.finish();
+}
+
+/// `switch_to_mtp` as the session runs it, with its switch answering `result`.
+fn switch(
+    s: &mut Scenario,
+    step: &str,
+    result: Result<SwitchOutput, Error>,
+) -> Result<Value, Error> {
+    let fonts = s.fonts.clone();
+    let mut result = Some(result);
+    let mut session = Session::one_shot(Cow::Owned(fonts), Box::new(|| Err(no_device())))
+        .with_switch(Box::new(move |_| result.take().expect("one switch")));
+    let out = session.call("switch_to_mtp", json!({}), &Control::new(None, None));
+    s.record(step, "switch_to_mtp", None, out)
+}
+
+/// The Venu 2's answer to the switch, as the maintainer's answered: its product data and
+/// protocols.
+fn venu2_switch(status: SwitchStatus, waited_seconds: f64) -> SwitchOutput {
+    SwitchOutput {
+        status,
+        product: Some(Product {
+            product_id: 3703,
+            software_version: "19.05".into(),
+            description: "VENU 2 V19.05".into(),
+        }),
+        protocols: ["P000", "L001", "A010", "A903", "A1050"]
+            .map(String::from)
+            .into(),
+        waited_seconds,
+    }
+}
+
+/// A watch connected in Garmin mode: switchable here, or not (Windows); the switch's outcomes.
+#[test]
+fn garmin_mode() {
+    let mut s = Scenario::new("garmin-mode", FontSet::bundled());
+    s.connect_fails(
+        "inspect-garmin_mode",
+        "inspect",
+        Error::garmin_mode(GarminMode {
+            switchable: true,
+            reason: None,
+        }),
+    );
+    s.connect_fails(
+        "inspect-garmin_mode-windows",
+        "inspect",
+        Error::garmin_mode(GarminMode {
+            switchable: false,
+            reason: Some(NotSwitchable::NoDriver),
+        }),
+    );
+    let switched = switch(
+        &mut s,
+        "switch_to_mtp-switched",
+        Ok(venu2_switch(SwitchStatus::Switched, 4.2)),
+    );
+    assert_eq!(switched.unwrap()["status"], "switched");
+    let timed_out = switch(
+        &mut s,
+        "switch_to_mtp-timed_out",
+        Ok(venu2_switch(SwitchStatus::TimedOut, 15.0)),
+    );
+    assert_eq!(timed_out.unwrap()["status"], "timed_out");
+    // garmin_usb.rs's messages.
+    let locked = switch(
+        &mut s,
+        "switch_to_mtp-device_locked",
+        Err(Error::new(
+            ErrorCode::DeviceLocked,
+            "The watch reports that it is locked, so it wasn't switched to file transfer (MTP). \
+             Unlock it, then choose MTP on the watch when it asks, or unplug it and connect it \
+             again.",
+        )),
+    );
+    assert_eq!(locked.unwrap_err().code, ErrorCode::DeviceLocked);
+    let unsupported = switch(
+        &mut s,
+        "switch_to_mtp-unsupported_device",
+        Err(Error::new(
+            ErrorCode::UnsupportedDevice,
+            "The watch can't be switched to file transfer (MTP) over USB: it doesn't list A1050 \
+             (it lists P000, L001, A010). On the watch, choose MTP when it asks, or set \
+             Settings › System › USB Mode › MTP.",
+        )),
+    );
+    assert_eq!(unsupported.unwrap_err().code, ErrorCode::UnsupportedDevice);
     s.finish();
 }

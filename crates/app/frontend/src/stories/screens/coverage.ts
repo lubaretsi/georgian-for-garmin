@@ -15,15 +15,19 @@ const PROBLEMS: ConnectProblem[] = [
   "garmin_folder_not_found",
   "extdata_not_found",
   "device_error",
+  "garmin_mode",
+  "device_locked",
   "internal",
 ];
 const CONFIDENCES = ["confirmed", "confirmed_other_software", "confirmed_some_fonts", "unconfirmed"] as const;
 
 /** Every item of §8's Screens list. */
 export const REQUIRED: string[] = [
-  // connect: searching (with and without help), busy (each holder kind × platform), each problem
+  // connect: searching (with and without help), switching, busy (each holder kind × platform),
+  // each problem
   "connect/searching",
   "connect/searching/help",
+  "connect/switching",
   ...HOLDERS.flatMap((kind) => PLATFORMS.map((p) => `connect/busy/${kind}/${p}`)),
   "connect/busy/during_restart",
   ...PROBLEMS.map((p) => `connect/problem/${p}`),
@@ -57,6 +61,10 @@ export const REQUIRED: string[] = [
   ...["unplug", "restart", "verifying", "again", "other_watch"].map((p) => `restart/${p}`),
   "restart/attempt_2",
   "restart/not_verifiable",
+  // restart in Garmin mode: switching, guidance, locked
+  "restart/garmin_mode/switching",
+  "restart/garmin_mode/guidance",
+  "restart/garmin_mode/locked",
   // result: install (confirmed and unconfirmed) and restore
   "result/install/confirmed",
   "result/install/unconfirmed",
@@ -98,6 +106,8 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
       switch (model.mode) {
         case "searching":
           return [model.showHelp ? "connect/searching/help" : "connect/searching"];
+        case "switching":
+          return ["connect/switching"];
         case "busy":
           return [
             `connect/busy/${model.busy.kind}/${platform}`,
@@ -137,6 +147,7 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
         `restart/${model.phase}`,
         ...(model.attempt >= 2 ? ["restart/attempt_2"] : []),
         ...(model.verifiable ? [] : ["restart/not_verifiable"]),
+        ...(model.garminMode ? [`restart/garmin_mode/${model.garminMode}`] : []),
       ];
     case "result":
       return [model.op === "restore" ? "result/restore" : `result/install/${model.confidence === "confirmed" ? "confirmed" : "unconfirmed"}`];

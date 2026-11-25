@@ -21,6 +21,7 @@ import type {
   ShareKey,
   Shared,
   StageOutput,
+  SwitchOutput,
 } from "../core/types.gen";
 import { localTime, shareKeyId } from "../flow/state";
 import type { Result } from "../model/screens";
@@ -28,7 +29,10 @@ import { failure, fixtureFile, output } from "./fixtures";
 import { PHONE_PAGE_QR } from "./phone-page";
 import { busyStep, type Step, WATCH_DEFS, type WatchDef, type WatchId } from "./watches";
 
-export type Connection = "mtp" | "drive" | "unplugged";
+/** `garmin`: connected in Garmin mode, neither a watch nor a drive until switched (§4.2). */
+export type Connection = "mtp" | "drive" | "garmin" | "unplugged";
+/** How the app's next switch to MTP goes. */
+export type Switching = "switches" | "timed_out" | "locked" | "unsupported";
 
 /** What the simulator panel shows and changes. */
 export type Simulation = {
@@ -43,6 +47,8 @@ export type Simulation = {
   /** A connect problem every read fails with (e.g. Linux permission denied). */
   problem: Step | null;
   failNextWrite: boolean;
+  /** How the next switch from Garmin mode to MTP goes. */
+  switching: Switching;
   /** The next restart doesn't import what waits. */
   skipNextImport: boolean;
   /** A failed write left files: restore uses the failure scenario's fixtures. */
@@ -69,6 +75,8 @@ export type MockOptions = {
   marks?: MarkPicture[];
   /** Divides every delay: faster in the story tests. */
   speed?: number;
+  /** How the switch from Garmin mode to MTP goes; it switches by default. */
+  switching?: Switching;
 };
 
 const INSPECT_MS = 120;
@@ -79,6 +87,19 @@ const NEW_ISSUE = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
 const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#supported-watches";
 const NO_DEVICE: Step = "connect-problems/inspect-no_device";
 const DIAGNOSE_MS = 400;
+/** The switch to MTP: a few seconds on a real watch. */
+const SWITCH_MS = 1500;
+/** The fixtures of a watch in Garmin mode and of the switch's outcomes. */
+const GARMIN_MODE: Step = "garmin-mode/inspect-garmin_mode";
+const GARMIN_MODE_WINDOWS: Step = "garmin-mode/inspect-garmin_mode-windows";
+const SWITCHED: Record<Switching, Step> = {
+  switches: "garmin-mode/switch_to_mtp-switched",
+  timed_out: "garmin-mode/switch_to_mtp-timed_out",
+  locked: "garmin-mode/switch_to_mtp-device_locked",
+  unsupported: "garmin-mode/switch_to_mtp-unsupported_device",
+};
+/** The USB product ID of a Garmin device in Garmin mode. */
+const GARMIN_MODE_PRODUCT_ID = 0x0003;
 /** The Venu 2's USB product ID (0x4E77), the one product ID the reports show. */
 const VENU2_PRODUCT_ID = 0x4e77;
 const SYSTEMS: Record<Platform, DiagnoseOutput["system"]> = {
@@ -105,7 +126,7 @@ function diagnosticsText(d: Omit<DiagnoseOutput, "text">): string {
     d.usb.devices.length ? "usb" : "usb no Garmin device",
     ...d.usb.devices.map(
       (u) =>
-        `  ${hex(u.product_id)} ${u.mtp ? "mtp" : "mass storage"}` +
+        `  ${hex(u.product_id)} ${u.mtp ? "mtp" : u.product_id === GARMIN_MODE_PRODUCT_ID ? "garmin mode" : "mass storage"}` +
         (u.holder ? ` held by ${u.holder.kind}${u.holder.name ? ` "${u.holder.name}"` : ""}` : ""),
     ),
     ...(d.usb.note ? [`  note: ${d.usb.note}`] : []),
@@ -144,6 +165,7 @@ export class MockBackend implements Backend {
       holder: options.holder ?? null,
       problem: options.problem ?? null,
       failNextWrite: false,
+      switching: options.switching ?? "switches",
       skipNextImport: false,
       afterFailedWrite: false,
       phoneResult: "auto",
@@ -176,12 +198,21 @@ export class MockBackend implements Backend {
     for (const listener of this.listeners) listener();
   }
 
-  plugIn(connection: "mtp" | "drive"): void {
+  plugIn(connection: "mtp" | "drive" | "garmin"): void {
     this.change({ connection, restartingTo: null });
   }
 
   unplug(): void {
     this.change({ connection: "unplugged", restartingTo: null });
+  }
+
+  /** The watch in Garmin mode asks "Use MTP?", and MTP is chosen on it. */
+  chooseMtp(): void {
+    if (this.sim.connection === "garmin") this.change({ connection: "mtp" });
+  }
+
+  setSwitching(switching: Switching): void {
+    this.change({ switching });
   }
 
   /** Restarts the watch: it imports what waits, and a connected watch drops off USB meanwhile. */
@@ -244,6 +275,9 @@ export class MockBackend implements Backend {
   /** What a read finds now: the watch's state step, or the failure. */
   private read(): { ok: Step } | { failed: Failure } {
     const { connection, problem, holder, current } = this.sim;
+    if (connection === "garmin" && this.def.mtp) {
+      return { failed: this.failureAt(this.platformName === "windows" ? GARMIN_MODE_WINDOWS : GARMIN_MODE) };
+    }
     if (connection !== "mtp" || !this.def.mtp || !current) return { failed: this.failureAt(NO_DEVICE) };
     if (problem) return { failed: this.failureAt(problem) };
     if (holder) return { failed: this.failureAt(busyStep(holder, this.platformName)) };
@@ -255,6 +289,20 @@ export class MockBackend implements Backend {
     const read = this.read();
     if ("failed" in read) throw read.failed;
     return this.inspectAt(read.ok);
+  }
+
+  /** The core's `switch_to_mtp` on this simulated watch: Windows can't, as there (§4.2). */
+  async switchToMtp(): Promise<SwitchOutput> {
+    await this.wait(SWITCH_MS);
+    if (this.sim.connection !== "garmin") {
+      throw { code: "no_device", message: "No Garmin watch in Garmin mode was found." } satisfies Failure;
+    }
+    if (this.platformName === "windows") throw this.failureAt(GARMIN_MODE_WINDOWS);
+    const [scenario, step] = split(SWITCHED[this.sim.switching]);
+    if (fixtureFile(scenario, step).error) throw failure(scenario, step);
+    const result = output(scenario, step, "switch_to_mtp");
+    if (result.status === "switched") this.change({ connection: "mtp" });
+    return result;
   }
 
   /** The core's `diagnose` (§11), as it would answer on this simulated computer. */
@@ -277,7 +325,7 @@ export class MockBackend implements Backend {
             ? []
             : [
                 {
-                  product_id: busy?.product_id ?? VENU2_PRODUCT_ID,
+                  product_id: busy?.product_id ?? (connection === "garmin" ? GARMIN_MODE_PRODUCT_ID : VENU2_PRODUCT_ID),
                   product_name: busy?.product_name ?? null,
                   mtp: connection === "mtp",
                   interfaces:
@@ -286,7 +334,9 @@ export class MockBackend implements Backend {
                       : [
                           connection === "mtp"
                             ? { class: 255, subclass: 255, protocol: 0 }
-                            : { class: 8, subclass: 6, protocol: 80 },
+                            : connection === "garmin"
+                              ? { class: 255, subclass: 0, protocol: 0 }
+                              : { class: 8, subclass: 6, protocol: 80 },
                         ],
                   holder: busy?.holder ?? null,
                 },

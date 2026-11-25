@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unsupported_device",
+    "message": "The watch can't be switched to file transfer (MTP) over USB: it doesn't list A1050 (it lists P000, L001, A010). On the watch, choose MTP when it asks, or set Settings › System › USB Mode › MTP."
+  },
+  "operation": "switch_to_mtp"
+}

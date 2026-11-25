@@ -6,7 +6,8 @@
 //! overlaps an install. Commands return core output unchanged, and errors as [`Failure`]: the
 //! core's code and message, who holds a busy watch, and how a failed write was undone; the
 //! frontend turns codes into words. `install` and `restore_stock` report their progress over a
-//! channel.
+//! channel. `switch_to_mtp` switches a watch connected in Garmin mode to MTP, as Garmin Express
+//! does; the frontend shows a status for its few seconds, not its progress.
 //! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, `open_issue`
 //! a watch's issue from the support list and `open_watch_list` the README's list of watches;
 //! `share` draws the check screen's QR code and test-mark pictures. Diagnostic info is saved to
@@ -122,10 +123,13 @@ impl Watch {
         let _busy = self.busy.lock().unwrap_or_else(PoisonError::into_inner);
         let mut connect = self.connect;
         let mut session = Session::one_shot(Cow::Borrowed(&self.fonts), Box::new(&mut connect));
-        // The demo's `diagnose` lists its own watch and drive, not this computer's.
+        // The demo's `diagnose` lists its own watch and drive, not this computer's, and its
+        // `switch_to_mtp` switches its own watch.
         #[cfg(feature = "demo")]
         {
-            session = session.with_probe(demo::probe());
+            session = session
+                .with_probe(demo::probe())
+                .with_switch(demo::switch());
         }
         let result = session.call(operation, input, &Control::new(progress, None));
         drop(session);
@@ -160,6 +164,15 @@ impl Watch {
 #[tauri::command]
 async fn inspect(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
     Arc::clone(&watch).run("inspect", json!({}), None).await
+}
+
+/// Switches a watch connected in Garmin mode (`inspect` failed with `garmin_mode`) to MTP, as
+/// Garmin Express does, and waits up to 15 s for it to come back; never retried here.
+#[tauri::command]
+async fn switch_to_mtp(watch: State<'_, Arc<Watch>>) -> Result<Value, Failure> {
+    Arc::clone(&watch)
+        .run("switch_to_mtp", json!({}), None)
+        .await
 }
 
 /// Stages the Georgian font in every part of the bundled packs that the watch lists.
@@ -555,6 +568,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             inspect,
+            switch_to_mtp,
             install,
             restore_stock,
             inspect_drive,

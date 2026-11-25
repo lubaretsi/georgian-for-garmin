@@ -15,6 +15,7 @@ export const en = {
     restart: "Restart watch",
     plug: "Plug in",
     plug_drive: "Plug in as a drive",
+    plug_garmin: "Plug in (Garmin mode)",
     hold: "Garmin Express holds it",
     release: "Release",
   },
@@ -99,6 +100,11 @@ export const en = {
         restart: "The watch loads the new font.",
         check: "Send a test notification and see what shows.",
       },
+    },
+    /** The watch is in Garmin mode and the app switches it to MTP (§4.2); also the restart step's status then. */
+    switching: {
+      title: "Switching the watch to file transfer…",
+      lead: "The watch is connected in Garmin mode, in which it doesn't share its files. The app switches it, as Garmin Express does. This takes a few seconds.",
     },
     help: {
       title: "Can't find your watch?",
@@ -230,6 +236,15 @@ export const en = {
         title: "The watch stopped responding",
         body: "Unplug the watch, check the cable and connect it again.",
       },
+      /** The watch stays in Garmin mode (§4.2): the switch can't run here, or didn't work. */
+      garmin_mode: {
+        title: "The watch is connected in Garmin mode",
+        body: "In this mode it doesn't share its files with the computer. On the watch, choose MTP when it asks: that's how it shares its files. Or unplug the watch and connect it again. To stop the question for good, choose Settings › System › USB Mode › MTP on the watch.",
+      },
+      device_locked: {
+        title: "The watch is locked",
+        body: "Unlock the watch, then unplug it and connect it again.",
+      },
       internal: {
         title: "Something went wrong in the app",
         body: "Reporting what happened helps us fix it.",
@@ -357,6 +372,10 @@ export const en = {
     otherWatch: {
       title: "This is a different watch",
       body: "Connect the {model} again.",
+    },
+    /** In Garmin mode during the restart (§4.2), under the guidance. */
+    garminMode: {
+      duringRestart: "Once the watch shares its files, the app goes on checking the restart.",
     },
   },
 

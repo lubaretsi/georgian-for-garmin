@@ -13,6 +13,7 @@ import { copyLabels, emitting, reportProblem } from "./common";
 import type { ScreenContext, ScreenView } from "./types";
 
 type Searching = Extract<ScreenModel, { screen: "connect"; mode: "searching" }>;
+type Switching = Extract<ScreenModel, { screen: "connect"; mode: "switching" }>;
 type Busy = Extract<ScreenModel, { screen: "connect"; mode: "busy" }>;
 type Problem = Extract<ScreenModel, { screen: "connect"; mode: "problem" }>;
 
@@ -74,6 +75,18 @@ export function ConnectSearching(model: Searching, ctx: ScreenContext): ScreenVi
         </Disclosure>
       </>
     ),
+  };
+}
+
+/** connect / switching: the watch is in Garmin mode and the app switches it to MTP (§4.2). */
+export function ConnectSwitching(_model: Switching, ctx: ScreenContext): ScreenView {
+  const s = ctx.copy.connect.switching;
+  return {
+    step: "connect",
+    hero: <WatchScene face="verifying" cable="plugged" />,
+    title: s.title,
+    lead: s.lead,
+    status: { text: s.title, busy: true },
   };
 }
 
@@ -184,5 +197,14 @@ export function ConnectProblem(model: Problem, ctx: ScreenContext): ScreenView {
     case "extdata_not_found":
     case "internal":
       return { ...base, content: details, primary: reportProblem(ctx), secondary: retry };
+    // In Garmin mode (§4.2): what to do on the watch; the app keeps reading and goes on by itself.
+    case "garmin_mode":
+    case "device_locked":
+      return {
+        ...base,
+        hero: <WatchScene face={model.problem === "device_locked" ? "busy" : "alert"} cable="plugged" />,
+        status: { text: ctx.copy.restart.waiting, busy: true },
+        content: details,
+      };
   }
 }

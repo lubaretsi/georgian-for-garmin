@@ -1,7 +1,7 @@
 import type { Meta } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import type { BusyView } from "../../model/screens";
+import type { BusyView, ConnectProblem } from "../../model/screens";
 import { busyFrom, messageOf } from "./data";
 import { renderScreen, type ScreenStoryObj } from "./render";
 import type { ScreenStoryArgs } from "./ScreenStory";
@@ -18,6 +18,11 @@ export const Searching: ScreenStoryObj = {
 
 export const SearchingWithHelp: ScreenStoryObj = {
   args: { model: { screen: "connect", mode: "searching", showHelp: true } },
+};
+
+/** The watch came up in Garmin mode, and the app switches it to MTP (§4.2). */
+export const Switching: ScreenStoryObj = {
+  args: { model: { screen: "connect", mode: "switching" } },
 };
 
 // Busy: each holder kind × platform. Holders come from the core's busy fixtures; the
@@ -62,8 +67,7 @@ export const BusyThisAppLinux: ScreenStoryObj = { args: { platform: "linux", mod
 /** Garmin Express takes the watch while the app waits for it after a restart. */
 export const BusyDuringRestart: ScreenStoryObj = { args: { platform: "macos", model: busy(express, true) } };
 
-const problem = (p: "permission_denied" | "multiple_devices" | "garmin_folder_not_found" | "extdata_not_found" | "device_error" | "internal", detail: string) =>
-  ({ screen: "connect", mode: "problem", problem: p, detail }) as const;
+const problem = (p: ConnectProblem, detail: string) => ({ screen: "connect", mode: "problem", problem: p, detail }) as const;
 
 export const ProblemPermissionDenied: ScreenStoryObj = {
   args: { platform: "linux", model: problem("permission_denied", messageOf("connect-problems", "inspect-permission_denied")) },
@@ -82,4 +86,15 @@ export const ProblemDeviceError: ScreenStoryObj = {
 };
 export const ProblemInternal: ScreenStoryObj = {
   args: { model: problem("internal", messageOf("connect-problems", "inspect-internal")) },
+};
+/** Windows can't switch a watch in Garmin mode: what to do on the watch, straight away. */
+export const ProblemGarminModeWindows: ScreenStoryObj = {
+  args: { platform: "windows", model: problem("garmin_mode", messageOf("garmin-mode", "inspect-garmin_mode-windows")) },
+};
+/** The switch didn't bring the watch back: the same guidance. */
+export const ProblemGarminModeSwitchFailed: ScreenStoryObj = {
+  args: { model: problem("garmin_mode", messageOf("garmin-mode", "switch_to_mtp-unsupported_device")) },
+};
+export const ProblemDeviceLocked: ScreenStoryObj = {
+  args: { model: problem("device_locked", messageOf("garmin-mode", "switch_to_mtp-device_locked")) },
 };
