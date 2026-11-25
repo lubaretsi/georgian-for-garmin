@@ -15,7 +15,7 @@ import type {
 import type { ConnectProblem, MoreModel, RollbackView, ScreenModel, WatchInfo } from "../model/screens";
 import { programName } from "../screens/Connect";
 import { errorGroup } from "../screens/ErrorScreen";
-import { answersFor, type FlowState, type Phase, shareKeyId, shownDrive } from "./state";
+import { answersFor, type FlowState, type Phase, shareKeyId, shownDrive, switching } from "./state";
 import { confidenceOf, verdictOf, watchInfo } from "./verdict";
 
 const PROBLEMS: readonly ConnectProblem[] = [
@@ -323,7 +323,9 @@ export function moreModel(state: FlowState): MoreModel {
   const phase = state.phase;
   const drive = shownDrive(phase);
   const source = drive ?? state.inspect;
-  const busy = phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics";
+  // Not while writing, confirming or in diagnostics, nor while the switch to MTP holds the watch (§4.2).
+  const busy =
+    phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics" || switching(phase);
   const labels = copyFor(state.lang).more.seen.labels;
   const seen = source && [
     { label: labels.model, value: source.device.model },

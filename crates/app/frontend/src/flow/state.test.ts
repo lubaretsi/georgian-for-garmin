@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import type { Failure, InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
 import type { ActionId, ActionPayload, Answers } from "../model/screens";
+import { moreModel } from "./screen";
 import {
   answersFor,
   type Effect,
@@ -727,5 +728,66 @@ describe("a watch in Garmin mode (§4.2)", () => {
     const state = read(read(started(), GARMIN), NO_DEVICE);
     expect(state.phase).toMatchObject({ mode: "searching" });
     expect(switched(state).phase).toEqual(state.phase);
+  });
+
+  test("Restore isn't offered while the switch runs, on connect or in the restart; it is after", () => {
+    // The Venu 2 is restorable: read once, then back in Garmin mode.
+    const onConnect = read(read(atWatch(), NO_DEVICE), GARMIN);
+    expect(onConnect.inspect?.restorable).toBe(true);
+    expect(act(onConnect, "restore").phase).toEqual(onConnect.phase);
+    expect(moreModel(onConnect).restorable).toBe(false);
+    const inRestart = read(written(), GARMIN);
+    expect(act(inRestart, "restore").phase).toEqual(inRestart.phase);
+    expect(moreModel(inRestart).restorable).toBe(false);
+    // Settled (guidance): Restore is offered again.
+    const guided = failed(onConnect, LOCKED);
+    expect(moreModel(guided).restorable).toBe(true);
+    expect(act(guided, "restore").phase).toMatchObject({ name: "confirm_restore" });
+  });
+
+  test.each([
+    ["switched", switched, { state: "switching", running: false }],
+    ["device_locked", (s: FlowState) => failed(s, LOCKED), { state: "guidance", locked: true }],
+    ["no_device", (s: FlowState) => failed(s, NO_DEVICE), { state: "switching", running: false }],
+  ] as const)("a switch ending (%s) under a screen opened over it settles the screen underneath", (_, end, garmin) => {
+    const running = read(started(), GARMIN);
+    const overlays: [string, FlowState, ActionId][] = [
+      ["share", act(running, "share", { action: "share", what: "problem" }), "back"],
+      ["diagnostics", act(running, "diagnostics"), "back"],
+      // Not reachable through the screens (Restore isn't offered then), but any screen with a
+      // `back` takes the switch's result the same way.
+      ["confirm_restore", { ...running, effects: [], phase: { name: "confirm_restore", back: running.phase } }, "cancel"],
+    ];
+    for (const [name, open, close] of overlays) {
+      expect(open.phase.name, name).toBe(name);
+      const ended = end(open);
+      expect(ended.phase, name).toMatchObject({ name, back: { name: "connect", mode: "garmin_mode", garmin } });
+      expect(polls(ended), name).toBeUndefined();
+      const back = act(ended, close);
+      expect(back.phase, name).toMatchObject({ name: "connect", mode: "garmin_mode", garmin });
+      expect(polls(back), name).toMatchObject({ delay: 0, token: back.token });
+    }
+  });
+
+  test("timers and the switch reach the restart under any screen opened over it", () => {
+    const reconnected = read(read(written(), NO_DEVICE), inspect("venu2", "inspect-staged"));
+    expect(reconnected.phase).toMatchObject({ phase: "again", starting: true });
+    let state: FlowState = act(reconnected, "restore");
+    expect(state.phase).toMatchObject({ name: "confirm_restore" });
+    state = reduce(state, { type: "started_up", token: state.startingToken });
+    expect(state.phase).toMatchObject({ name: "confirm_restore", back: { name: "restart", starting: false } });
+    state = act(state, "cancel");
+    expect(state.phase).toMatchObject({ name: "restart", phase: "again", starting: false });
+  });
+
+  test("a write that finds the watch back in Garmin mode wrote nothing: it is switched as on connect", () => {
+    const working = act(atWatch(), "install");
+    const state = reduce(working, { type: "op_failed", op: "install", failure: GARMIN });
+    expect(state.phase).toEqual({ name: "connect", mode: "garmin_mode", garmin: { state: "switching", running: true } });
+    expect(kinds(state)).toEqual(["switch_to_mtp"]);
+    // Not switchable (Windows): the guidance, read once now, not twice.
+    const windows = reduce(working, { type: "op_failed", op: "install", failure: WINDOWS });
+    expect(windows.phase).toMatchObject({ mode: "garmin_mode", garmin: { state: "guidance" } });
+    expect(kinds(windows)).toEqual(["inspect"]);
   });
 });

@@ -123,6 +123,8 @@ stateDiagram-v2
 
 **The same watch:** after a restart, the reconnected watch is the same one if `device.part_number` matches. Telling two watches of the same model apart is a non-goal.
 
+**Screens opened over another** (`confirm_restore`, `share`, `diagnostics`, each with its `back`): every result and timer that isn't the open screen's own goes on underneath (a write finishing, the help card's or the still-starting timer, the Garmin-mode switch ending), so Back or Cancel returns to where that screen got to. The watch isn't read while one is open; returning reads it.
+
 ### 4.1 The restart step, new
 
 Install and restore end in **restart**, never in "Done". The phases are driven by polling:
@@ -152,7 +154,8 @@ Install and restore end in **restart**, never in "Done". The phases are driven b
 
 A watch whose Settings › System › USB Mode is Garmin asks "Use MTP?" on every connect and after every restart. Unanswered, it stays in Garmin mode (USB `091e:0003`), and `inspect` fails with `garmin_mode`, whose `garmin_mode.switchable` says whether the core can switch it on this computer (Windows: `false`, reason `no_driver`).
 
-- **Automatic, once per appearance, like Garmin Express:** a `garmin_mode` read with `switchable` runs `switchToMtp` once. On connect the screen is `connect / switching`; in the restart step the restart screen stays and its status reads "Switching the watch to file transfer…". The app doesn't poll while the switch runs: the core holds the watch and waits up to 15 s for it to come back.
+- **Automatic, once per appearance, like Garmin Express:** a `garmin_mode` read with `switchable` runs `switchToMtp` once. On connect the screen is `connect / switching`; in the restart step the restart screen stays and its status reads "Switching the watch to file transfer…". The app doesn't poll while the switch runs: the core holds the watch and waits up to 15 s for it to come back. Nothing that writes is offered meanwhile (Restore in More, Install), as during `working`. The switch's end reaches the screen it started on even when another is open over it (§4).
+- **A write that finds the watch in Garmin mode** (unplugged and plugged in again before Install or Restore connected) wrote nothing: it is handled as a `garmin_mode` read.
 - **`switched`**, or the switch failing with `no_device` (the watch left Garmin mode by itself): read now and carry on.
 - **No loop:** after `timed_out` or any other failure, further `garmin_mode` reads show the guidance. The switch runs again only for a new appearance of the watch in Garmin mode: after a read that finds no watch (`no_device`, it was unplugged) or the watch over MTP.
 - **Guidance** when the watch isn't `switchable`, after `timed_out`, after `unsupported_device` (the watch doesn't offer the switch) and after any other failure: "The watch is connected in Garmin mode": choose MTP on the watch when it asks, or unplug it and connect it again; to stop the question for good, Settings › System › USB Mode › MTP. After `device_locked`: "The watch is locked": unlock it, then unplug it and connect it again.

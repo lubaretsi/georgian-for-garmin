@@ -235,17 +235,27 @@ function switchRunning(garmin: GarminModeState): boolean {
   return garmin.state === "switching" && garmin.running;
 }
 
+/**
+ * Whether the switch to MTP runs in `phase` or in a screen under it (§4.2): the core holds the
+ * watch, so the app neither reads it nor starts a write meanwhile.
+ */
+export function switching(phase: Phase): boolean {
+  if (phase.name === "connect" && phase.mode === "garmin_mode") return switchRunning(phase.garmin);
+  if (phase.name === "restart" && phase.interruption?.kind === "garmin_mode") return switchRunning(phase.interruption.garmin);
+  return "back" in phase ? switching(phase.back) : false;
+}
+
 /** Whether the app reads the watch every 2 s in `phase` (§4, Polling). */
 export function polls(phase: Phase): boolean {
   switch (phase.name) {
     case "connect":
       // Not while the switch to MTP runs: the core holds the watch (§4.2).
-      return !(phase.mode === "garmin_mode" && switchRunning(phase.garmin));
+      return !switching(phase);
     case "drive":
     case "watch":
       return true;
     case "restart":
-      if (phase.interruption?.kind === "garmin_mode" && switchRunning(phase.interruption.garmin)) return false;
+      if (switching(phase)) return false;
       return phase.phase === "unplug" || phase.verifiable;
     case "result":
       // After a restore nothing follows on screen: the app looks for the unplug or another watch.
@@ -358,7 +368,9 @@ function readFailed(state: FlowState, failure: Failure): FlowState {
       const phase = state.phase;
       const current = phase.name === "connect" && phase.mode === "garmin_mode" ? phase.garmin : null;
       const next = garminRead(state, failure, current);
-      return pollNext(go(next.state, { name: "connect", mode: "garmin_mode", garmin: next.garmin }, next.effects));
+      const moved = go(next.state, { name: "connect", mode: "garmin_mode", garmin: next.garmin }, next.effects);
+      // From a phase that didn't read (a write that found the watch in Garmin mode), `go` reads now.
+      return polls(phase) ? pollNext(moved) : moved;
     }
     default:
       return pollNext(go(state, { name: "connect", mode: "problem", failure }));
@@ -534,6 +546,8 @@ function startCheck(state: FlowState): FlowState {
 }
 
 function startOp(state: FlowState, op: Op): FlowState {
+  // Never beside a switch to MTP (§4.2): Install and Restore aren't offered then.
+  if (switching(state.phase)) return state;
   return go(state, { name: "working", op, progress: null }, [{ kind: "run", op }]);
 }
 
@@ -570,7 +584,7 @@ function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined)
   // Available from More on every screen but these.
   if (id === "restore") {
     const busy = phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics";
-    if (!state.inspect?.restorable || busy) return state;
+    if (!state.inspect?.restorable || busy || switching(phase)) return state;
     return go(state, { name: "confirm_restore", back: phase });
   }
   if (id === "share" && payload?.action === "share") {
@@ -677,37 +691,41 @@ export function localTime(date: Date): string {
   );
 }
 
-/** Events the diagnostics screen handles itself; every other one goes on in the background. */
-const DIAGNOSTICS_EVENTS = new Set<FlowEvent["type"]>([
-  "action",
-  "diagnosed",
-  "diagnostics_saved",
-  "diagnostics_copied",
-  "diagnostics_failed",
-]);
+/**
+ * The events a screen opened over another (its `back`) handles itself; every other one goes on
+ * underneath: an install finishes, a timer fires, the switch to MTP ends (§4.2, §11).
+ */
+type Own = Partial<Record<FlowEvent["type"], true>>;
+const OWN_EVENTS: Record<"diagnostics" | "share" | "confirm_restore", Own> = {
+  diagnostics: { action: true, diagnosed: true, diagnostics_saved: true, diagnostics_copied: true, diagnostics_failed: true },
+  share: { action: true, link_ready: true, link_failed: true, shared: true, share_failed: true },
+  confirm_restore: { action: true },
+};
 
 /**
  * The flow's one transition function. `now` stamps the event log; it is the only input that
  * isn't the state or the event.
  */
 export function reduce(previous: FlowState, event: FlowEvent, now: Date = new Date(0)): FlowState {
-  const phase = previous.phase;
-  const next =
-    phase.name === "diagnostics" && !DIAGNOSTICS_EVENTS.has(event.type)
-      ? inBackground(previous, phase, event)
-      : transition(previous, event);
-  return logged(previous, event, next, localTime(now));
+  return logged(previous, event, step(previous, event), localTime(now));
+}
+
+/** `event` applied to the screen it belongs to: the one on top, or the one under it. */
+function step(state: FlowState, event: FlowEvent): FlowState {
+  const phase = state.phase;
+  if ("back" in phase && !OWN_EVENTS[phase.name][event.type]) return inBackground(state, phase, event);
+  return transition(state, event);
 }
 
 /**
- * `event` applied to the phase under the open diagnostics: an install finishes, a timer fires.
- * The watch isn't read meanwhile (polling pauses, §11); going back reads it again.
+ * `event` applied to the phase under the open screen, so returning shows where it got to. The
+ * watch isn't read meanwhile (polling pauses, §11); going back reads it again.
  */
-function inBackground(state: FlowState, diagnostics: Extract<Phase, { name: "diagnostics" }>, event: FlowEvent) {
-  const inner = transition({ ...state, phase: diagnostics.back }, event);
+function inBackground(state: FlowState, overlay: Extract<Phase, { back: Phase }>, event: FlowEvent): FlowState {
+  const inner = step({ ...state, phase: overlay.back }, event);
   return {
     ...inner,
-    phase: { ...diagnostics, back: inner.phase },
+    phase: { ...overlay, back: inner.phase },
     effects: inner.effects.filter((e) => e.kind !== "inspect" && e.kind !== "inspect_drive"),
   };
 }
@@ -878,6 +896,10 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
     case "op_failed": {
       if (phase.name !== "working" || phase.op !== event.op) return state;
       const next = { ...state, lastOp: { op: event.op, failure: event.failure } };
+      if (event.failure.code === "garmin_mode") {
+        // Replugged in Garmin mode before the write: nothing was written; switch it as on connect.
+        return readFailed(next, event.failure);
+      }
       if (event.failure.code === "device_busy") {
         return go(next, { name: "connect", mode: "busy", failure: event.failure });
       }
