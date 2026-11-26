@@ -30,6 +30,7 @@ Examples:
     | georgian-for-garmin issue-link --input -   # a prefilled GitHub issue link
   georgian-for-garmin extdata-list --hash 006-D9035-03.fnt   # every ExtData file, hidden ones too
   georgian-for-garmin wait-for-watch --timeout-seconds 120   # after a restart
+  georgian-for-garmin switch-to-mtp        # a watch connected in Garmin mode (garmin_mode)
   georgian-for-garmin diagnose --save diagnostics.txt   # diagnostic info to send us; no serial
                                                         # number or watch ID
   echo '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"inspect\"}' | georgian-for-garmin rpc
@@ -72,6 +73,9 @@ enum Command {
     /// Print diagnostic info to send us: app, system, Garmin USB devices, the connection, watch
     /// drives, the watch report; no serial number or watch ID (read-only)
     Diagnose(DiagnoseArgs),
+    /// Switch a watch connected in Garmin mode to file-transfer (MTP) mode, as Garmin Express
+    /// does, and wait up to 15 s for it (macOS and Linux)
+    SwitchToMtp(InputArgs),
     /// Copy one ExtData file to a new local file (development builds; reads the watch only)
     #[cfg(feature = "dev")]
     ReadFile(ReadFileArgs),
@@ -130,6 +134,7 @@ impl Command {
             Command::ExtdataList(_) => "extdata_list",
             Command::WaitForWatch(_) => "wait_for_watch",
             Command::Diagnose(_) => "diagnose",
+            Command::SwitchToMtp(_) => "switch_to_mtp",
             #[cfg(feature = "dev")]
             Command::ReadFile(_) => "read_file",
             #[cfg(feature = "dev")]
@@ -547,7 +552,7 @@ fn request(command: &Command) -> Result<Value, Error> {
     let mut flags = Map::new();
     let input = match command {
         Command::Inspect(args) => &args.input,
-        Command::IssueLink(input) => input,
+        Command::IssueLink(input) | Command::SwitchToMtp(input) => input,
         Command::Diagnose(args) => &args.input,
         Command::InspectDrive(args) => {
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
@@ -735,6 +740,19 @@ fn print_human(operation: &str, out: &Value) {
                 text(&out["model"]),
                 out["waited_seconds"].as_f64().unwrap_or_default()
             );
+            return;
+        }
+        "switch_to_mtp" => {
+            let waited = out["waited_seconds"].as_f64().unwrap_or_default();
+            if out["status"] == "switched" {
+                println!("The watch is back in file-transfer (MTP) mode (after {waited:.1} s).");
+            } else {
+                println!(
+                    "The watch was asked to switch to file-transfer (MTP) mode, but no MTP watch \
+                     appeared within {waited:.0} s. Unplug it and connect it again, or choose \
+                     MTP on the watch when it asks."
+                );
+            }
             return;
         }
         "read_file" => {

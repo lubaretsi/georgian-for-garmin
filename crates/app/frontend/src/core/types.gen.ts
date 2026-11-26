@@ -122,9 +122,11 @@ export type HolderKind = "garmin_express" | "macos_camera_service" | "desktop_mt
 export type ErrorCode =
   | "invalid_input"
   | "no_device"
+  | "garmin_mode"
   | "multiple_devices"
   | "device_busy"
   | "permission_denied"
+  | "device_locked"
   | "unsupported_device"
   | "font_unavailable"
   | "garmin_folder_not_found"
@@ -157,6 +159,20 @@ export type HiddenListingStatus = "listed" | "unsupported" | "error";
  * via the `definition` "EventKind".
  */
 export type EventKind = ("operation_start" | "operation_end") | "poll" | "answer" | "share";
+/**
+ * How the switch ended.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "SwitchStatus".
+ */
+export type SwitchStatus = "switched" | "timed_out";
+/**
+ * Why `switch_to_mtp` can't switch a watch in Garmin mode on this computer.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "NotSwitchable".
+ */
+export type NotSwitchable = "no_driver";
 /**
  * This interface was referenced by `Operations`'s JSON-Schema
  * via the `definition` "RollbackAction".
@@ -217,6 +233,10 @@ export interface Operations {
   diagnose: {
     input: DiagnoseInput;
     output: DiagnoseOutput;
+  };
+  switch_to_mtp: {
+    input: SwitchInput;
+    output: SwitchOutput;
   };
 }
 /**
@@ -1255,7 +1275,58 @@ export interface UsbDevice {
   product_name?: string | null;
 }
 /**
- * An operation failure as the frontend receives it; `busy` only for `device_busy`.
+ * `switch_to_mtp`'s input: none.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "SwitchInput".
+ */
+export interface SwitchInput {}
+/**
+ * `switch_to_mtp`'s output.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "SwitchOutput".
+ */
+export interface SwitchOutput {
+  /**
+   * The watch's product data, when it sent it before its protocol list.
+   */
+  product?: Product | null;
+  /**
+   * The protocols the watch lists, e.g. ["P000", "L001", "A010", "A903", "A1050"]; A1050 is
+   * the switch to MTP.
+   */
+  protocols: string[];
+  status: SwitchStatus;
+  /**
+   * Seconds from the request until a Garmin MTP device appeared, or until the wait ended.
+   */
+  waited_seconds: number;
+}
+/**
+ * The product data the watch sends in Garmin mode.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "Product".
+ */
+export interface Product {
+  /**
+   * The watch's own description, e.g. "VENU 2 V19.05".
+   */
+  description: string;
+  /**
+   * Garmin's product number (3703 for the Venu 2, as in its part number 006-B3703-00), not
+   * the USB product ID.
+   */
+  product_id: number;
+  /**
+   * The software version, e.g. "19.05".
+   */
+  software_version: string;
+}
+/**
+ * An operation failure as the frontend receives it; `busy` only for `device_busy`,
+ * `garmin_mode` only for `garmin_mode`.
  *
  * This interface was referenced by `Operations`'s JSON-Schema
  * via the `definition` "Failure".
@@ -1266,11 +1337,31 @@ export interface Failure {
    */
   busy?: Busy | null;
   code: ErrorCode;
+  /**
+   * `garmin_mode`: whether the watch can be switched to MTP here.
+   */
+  garmin_mode?: GarminMode | null;
   message: string;
   /**
    * A failed install or restore: how undoing it went.
    */
   rollback?: Rollback | null;
+}
+/**
+ * What a `garmin_mode` error says about switching the watch here.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "GarminMode".
+ */
+export interface GarminMode {
+  /**
+   * Why it can't, when it can't.
+   */
+  reason?: NotSwitchable | null;
+  /**
+   * Whether `switch_to_mtp` can try to switch the watch on this computer.
+   */
+  switchable: boolean;
 }
 /**
  * What a failed write did to undo this call's changes: every file it tried to delete or put

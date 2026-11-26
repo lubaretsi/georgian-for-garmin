@@ -100,6 +100,7 @@ def exercise(tmp_path):
         ),
         "remove_staged": lambda w: w.remove_staged("staged-1"),
         "wait_for_watch": lambda w: (w.wait_for_watch(), w.wait_for_watch(0, progress=print)),
+        "switch_to_mtp": lambda w: (w.switch_to_mtp(), w.switch_to_mtp(progress=print)),
         "ptp": lambda w: (
             w.ptp(0x1001),
             w.ptp(0x1008, [0x01000032], max_bytes=4096, reveal_identifiers=True),

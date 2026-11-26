@@ -208,7 +208,8 @@ mod tests {
     use std::borrow::Cow;
     use std::time::Duration;
 
-    use georgian_for_garmin_core::session::Session;
+    use georgian_for_garmin_core::garmin_mode::{SwitchOutput, SwitchStatus};
+    use georgian_for_garmin_core::session::{Control, Session};
     use serde_json::json;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, Lines};
 
@@ -264,12 +265,23 @@ mod tests {
         }
     }
 
+    /// `switch_to_mtp` here never reaches USB: the watch comes back at once.
+    fn switched(_: &Control<'_>) -> Result<SwitchOutput, georgian_for_garmin_core::Error> {
+        Ok(SwitchOutput {
+            status: SwitchStatus::Switched,
+            product: None,
+            protocols: vec!["A1050".into()],
+            waited_seconds: 4.1,
+        })
+    }
+
     async fn start(watch: &Watch) -> Client {
         let (client, server) = tokio::io::duplex(1 << 20);
         let watch = watch.clone();
         let worker = Worker::spawn(move || {
             Session::new(Cow::Owned(fake::fonts()), Box::new(move || watch.connect()))
                 .with_poll_interval(Duration::from_millis(10))
+                .with_switch(Box::new(switched))
         });
         tokio::spawn(async move { serve(worker, server).await.unwrap() });
         let (reader, writer) = tokio::io::split(client);
@@ -332,6 +344,25 @@ mod tests {
             let out = client.call(5, "stage_file", json!({})).await;
             assert_eq!(out["error"]["code"], -32602);
         }
+    }
+
+    #[tokio::test]
+    async fn switch_to_mtp_is_a_tool_that_changes_the_watch() {
+        let watch = Watch::venu2();
+        let mut client = start(&watch).await;
+        let out = client.call(1, "switch_to_mtp", json!({})).await;
+        assert_eq!(out["result"]["isError"], false, "{out}");
+        assert_eq!(out["result"]["structuredContent"]["status"], "switched");
+        let out = client
+            .call(2, "switch_to_mtp", json!({"retry": true}))
+            .await;
+        assert_eq!(
+            out["result"]["structuredContent"]["error"]["code"],
+            "invalid_input"
+        );
+        let tool = ops::operation("switch_to_mtp").unwrap().tool();
+        assert_eq!(tool["annotations"]["readOnlyHint"], false);
+        assert_eq!(tool["annotations"]["destructiveHint"], false);
     }
 
     /// The worker's last updates and its result ready at once: every update still arrives,

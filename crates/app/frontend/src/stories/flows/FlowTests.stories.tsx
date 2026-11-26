@@ -348,3 +348,50 @@ export const DiagnosticInfoWatchNotFound: Story = {
     await p.screen(busyTitle);
   },
 };
+
+export const GarminModeSwitched: Story = {
+  args: { options: { watch: "venu2", connection: "garmin" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    // Plugged in Garmin mode: the app switches it by itself, then reads it.
+    await p.screen(p.copy.connect.switching.title);
+    await p.screen(p.copy.watch.install.titleConfirmed);
+    await press(p, p.copy.actions.install);
+    await p.screen(p.copy.restart.unplug.title);
+    await simulate(p, "Unplug");
+    await p.screen(p.copy.restart.restart.title);
+    await simulate(p, "Restart watch");
+    // Back after the restart in Garmin mode again: switched inside the restart step.
+    await simulate(p, "Plug in (Garmin mode)");
+    await p.app.findAllByText(p.copy.connect.switching.title, undefined, { timeout: STEP_MS });
+    await currentStep(p, p.copy.steps.restart);
+    await p.screen(p.copy.result.install.title);
+  },
+};
+
+export const GarminModeOnWindows: Story = {
+  args: { options: { watch: "venu2", connection: "garmin", platform: "windows" } },
+  globals: { platform: "windows" },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    // No switch on Windows: what to do on the watch, and the app goes on once MTP is chosen.
+    await p.screen(p.copy.connect.problem.garmin_mode.title);
+    await expect(p.app.queryByRole("heading", { name: p.copy.connect.switching.title })).toBeNull();
+    await simulate(p, "Choose MTP on the watch");
+    await p.screen(p.copy.watch.install.titleConfirmed);
+  },
+};
+
+export const GarminModeWatchLocked: Story = {
+  args: { options: { watch: "venu2", connection: "garmin", switching: "locked" } },
+  play: async ({ canvasElement, globals }) => {
+    const p = parts(canvasElement, globals);
+    await p.screen(p.copy.connect.problem.device_locked.title);
+    // Unlocked, unplugged and plugged in again: a new try, which switches it.
+    await userEvent.selectOptions(p.sim.getByRole("combobox", { name: "The app's switch to MTP" }), "switches");
+    await simulate(p, "Unplug");
+    await p.screen(p.copy.connect.searching.title);
+    await simulate(p, "Plug in (Garmin mode)");
+    await p.screen(p.copy.watch.install.titleConfirmed);
+  },
+};

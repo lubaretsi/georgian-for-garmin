@@ -86,6 +86,13 @@ export class EffectRunner {
         );
         return;
       }
+      case "switch_to_mtp":
+        this.settle(
+          () => b.switchToMtp(),
+          (output) => ({ type: "switched", output }),
+          (failure) => ({ type: "switch_failed", failure }),
+        );
+        return;
       case "help_timer": {
         const { token } = effect;
         this.later(effect.delay, () => this.send({ type: "help_due", token }));

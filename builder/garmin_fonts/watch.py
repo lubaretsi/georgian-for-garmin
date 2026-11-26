@@ -333,6 +333,11 @@ class Watch:
         """`wait_for_watch`: wait until a watch is connected; {model, waited_seconds}."""
         return self.call("wait_for_watch", {"timeout_seconds": timeout_seconds}, progress)
 
+    def switch_to_mtp(self, progress=None):
+        """`switch_to_mtp`: ask a watch connected in Garmin mode to come back as MTP, as Garmin
+        Express does, and wait up to 15 s; {status, product, protocols, waited_seconds}."""
+        return self.call("switch_to_mtp", {}, progress)
+
     @property
     def mtp(self):
         """The raw MTP operations (dev): `watch.mtp.handles(…)`, `watch.mtp.read(…)`, …"""

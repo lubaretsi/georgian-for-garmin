@@ -21,6 +21,7 @@ import type {
   ShareKey,
   Shared,
   StageOutput,
+  SwitchOutput,
 } from "./types.gen";
 
 export type Invoke = <T>(command: string, args?: InvokeArgs) => Promise<T>;
@@ -68,6 +69,10 @@ export class TauriBackend implements Backend {
 
   inspect(): Promise<InspectOutput> {
     return this.call("inspect");
+  }
+
+  switchToMtp(): Promise<SwitchOutput> {
+    return this.call("switch_to_mtp");
   }
 
   inspectDrive(): Promise<InspectDriveOutput> {

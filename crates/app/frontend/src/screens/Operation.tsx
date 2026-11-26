@@ -73,21 +73,38 @@ export function RestartScreen(model: Restart, ctx: ScreenContext): ScreenView {
       const last = model.verifiable
         ? { title: r.restart.reconnect.title, detail: r.restart.reconnect.body }
         : { title: model.op === "install" ? r.restart.notVerifiable : r.restart.notVerifiableRestore, detail: undefined };
+      // In Garmin mode (§4.2): the switch's status, or what to do on the watch, under the steps.
+      const garmin = model.garminMode;
+      const guidance =
+        garmin === "locked" ? ctx.copy.connect.problem.device_locked : garmin === "guidance" ? ctx.copy.connect.problem.garmin_mode : null;
       return {
         ...base,
         hero: <WatchScene face="restart" power />,
         title: r.restart.title,
         lead: r.unplug[model.op],
-        status: model.verifiable ? waiting : undefined,
+        status:
+          garmin === "switching"
+            ? { text: ctx.copy.connect.switching.title, busy: true }
+            : model.verifiable
+              ? waiting
+              : undefined,
         content: (
-          <Group as="ol" className={TILE_INSET}>
-            <li>
-              <Row lead={<StepNumber n={1} />} title={r.restart.hold.title} detail={r.restart.hold.body} strong />
-            </li>
-            <li>
-              <Row lead={<StepNumber n={2} />} title={last.title} detail={last.detail} strong={last.detail !== undefined} />
-            </li>
-          </Group>
+          <>
+            <Group as="ol" className={TILE_INSET}>
+              <li>
+                <Row lead={<StepNumber n={1} />} title={r.restart.hold.title} detail={r.restart.hold.body} strong />
+              </li>
+              <li>
+                <Row lead={<StepNumber n={2} />} title={last.title} detail={last.detail} strong={last.detail !== undefined} />
+              </li>
+            </Group>
+            {guidance ? (
+              <Alert tone="caution" title={guidance.title} live>
+                <p>{guidance.body}</p>
+                <p>{r.garminMode.duringRestart}</p>
+              </Alert>
+            ) : null}
+          </>
         ),
         // Skipping (or a watch the app can't verify) goes to the check after an install and
         // back to the watch after a restore (§4.1); the flow decides by `op`.

@@ -27,8 +27,9 @@
 //!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
 //! After the opening script, the physical side is the user's, through the demo build's "Demo
-//! watch" bar ([`act`]): Unplug, Restart watch, Plug in (over MTP or as a drive), and Garmin
-//! Express holding the watch or releasing it. After an install or restore the watch stays
+//! watch" bar ([`act`]): Unplug, Restart watch, Plug in (over MTP, as a drive or in Garmin
+//! mode), and Garmin Express holding the watch or releasing it. After an install or restore the
+//! watch stays
 //! connected with its files waiting, as a real one does. A restart imports every staged `.tmp`
 //! file as a hidden read-only `<part>.fnt` (replacing the earlier one), which only Garmin's
 //! `GetObjectIds` lists, as the Venu 2 does; restarted while plugged in, the watch is gone for
@@ -39,6 +40,9 @@
 //! `macos_camera_service`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held
 //! by such a program on every connection. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM` (`macos`,
 //! `windows`, `linux`) shows another platform's words, and its holders' names.
+//! `GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE` ([`Switching`]) sets the watch's USB Mode to Garmin:
+//! it comes up in Garmin mode whenever it is plugged in or restarts plugged in, and says how the
+//! app's switch to MTP ([`switch`]) goes; on Windows the watch can't be switched, as there.
 //! `GEORGIAN_FOR_GARMIN_DEMO_RECORDING` ([`Recording`]) plays the physical side on a timer for a
 //! filmed install, without the bar: plugged in a moment after the start, unplugged a moment
 //! after the app staged fonts, and back, restarted, a moment later.
@@ -47,7 +51,8 @@
 //! the user's: diagnostic info is saved to a folder in the temp directory ([`downloads`]), the
 //! clipboard is left alone, "shared before" is kept in memory, and nothing is opened. [`probe`]
 //! lists the demo watch and drive for `diagnose` instead of this computer's USB devices and
-//! volumes.
+//! volumes, and [`switch`] switches the demo watch out of Garmin mode instead of this computer's
+//! USB.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -58,6 +63,9 @@ use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
 #[cfg(feature = "demo")]
 use georgian_for_garmin_core::diagnose::{Probe, UsbDevice, UsbReport, drives_at};
 use georgian_for_garmin_core::fonts::{FontSet, Kind};
+use georgian_for_garmin_core::garmin_mode::{
+    GarminMode, NotSwitchable, Product, SwitchOutput, SwitchStatus,
+};
 use georgian_for_garmin_core::mtp::{CreateError, Mtp, MtpError, NewObject};
 use georgian_for_garmin_core::ptp::{ALL_OBJECTS, DeviceInfo, ObjectInfo, ROOT, format, op};
 use georgian_for_garmin_core::{Error, ErrorCode};
@@ -82,6 +90,8 @@ pub const RESTART: usize = 2;
 pub enum Plug {
     Mtp,
     Drive,
+    /// In Garmin mode: neither a watch nor a drive until switched to MTP.
+    Garmin,
     Unplugged,
 }
 
@@ -93,9 +103,45 @@ pub enum Action {
     Restart,
     Plug,
     PlugDrive,
+    /// Plugged in in Garmin mode, as when the watch's "Use MTP?" question goes unanswered.
+    PlugGarmin,
     Hold,
     Release,
 }
+
+/// `GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE`: the watch's USB Mode is Garmin, and how the app's
+/// switch to MTP goes. The bar's "Plug in (Garmin mode)" alone leaves USB Mode as it is, with
+/// a switch that works.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Switching {
+    /// The watch comes back over MTP a moment after the request.
+    #[default]
+    Switches,
+    /// The request goes out, but the watch stays in Garmin mode.
+    TimedOut,
+    /// The watch reports that it is locked.
+    Locked,
+    /// The watch doesn't offer the switch (no A1050).
+    Unsupported,
+}
+
+impl Switching {
+    /// `1` (or `on`, `true`, `yes`) for a switch that works, or a variant's name.
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim();
+        if ["1", "on", "true", "yes"]
+            .iter()
+            .any(|v| v.eq_ignore_ascii_case(value))
+        {
+            return Some(Self::Switches);
+        }
+        serde_json::from_value(serde_json::Value::String(value.to_ascii_lowercase())).ok()
+    }
+}
+
+/// The protocols the Venu 2 lists in Garmin mode; A1050 is the switch to MTP.
+const PROTOCOLS: [&str; 5] = ["P000", "L001", "A010", "A903", "A1050"];
 
 /// What a demo watch lists under `Garmin/ExtData`.
 #[derive(Clone, Copy)]
@@ -259,6 +305,13 @@ struct State {
     plug: Plug,
     /// Garmin Express holds the watch (the bar's "Garmin Express holds it").
     held: bool,
+    /// The watch's USB Mode is Garmin (`GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE`): it comes up in
+    /// Garmin mode whenever it is plugged in or restarts plugged in.
+    usb_mode_garmin: bool,
+    /// How the app's switch to MTP goes.
+    switching: Switching,
+    /// What a `garmin_mode` error says on the platform shown: Windows can't switch.
+    garmin_mode: GarminMode,
     /// Each watch's objects.
     watches: Vec<Objects>,
     current: usize,
@@ -446,6 +499,9 @@ impl Demo {
             scripted: true,
             plug: Plug::Mtp,
             held: false,
+            usb_mode_garmin: false,
+            switching: Switching::Switches,
+            garmin_mode: GarminMode::here(),
             watches,
             current: 0,
             next_handle: 0x0100_0100,
@@ -473,7 +529,7 @@ impl Demo {
             absent("no watch is connected yet.")
         } else if s.scripted {
             Err(Error::busy(s.busy.clone()))
-        } else if s.plug != Plug::Mtp {
+        } else if matches!(s.plug, Plug::Drive | Plug::Unplugged) {
             if let Some((_, Take::Away { seen, .. })) = &mut s.recording {
                 *seen = true;
             }
@@ -481,6 +537,8 @@ impl Demo {
         } else if s.restarting > 0 {
             s.restarting -= 1;
             absent("the watch is restarting.")
+        } else if s.plug == Plug::Garmin {
+            Err(Error::garmin_mode(s.garmin_mode.clone()))
         } else {
             Ok(Box::new(self.clone()))
         }
@@ -492,14 +550,19 @@ impl Demo {
         s.scripted = false;
         match action {
             Action::Unplug => s.plug = Plug::Unplugged,
+            Action::Plug if s.usb_mode_garmin => s.plug = Plug::Garmin,
             Action::Plug => s.plug = Plug::Mtp,
             Action::PlugDrive => s.plug = Plug::Drive,
+            Action::PlugGarmin => s.plug = Plug::Garmin,
             // As a real restart: the waiting fonts are imported; plugged in, the watch drops
-            // off USB for a moment and comes back.
+            // off USB for a moment and comes back, in Garmin mode if that is its USB Mode.
             Action::Restart => {
                 import_staged(s.objects());
-                if s.plug == Plug::Mtp {
+                if matches!(s.plug, Plug::Mtp | Plug::Garmin) {
                     s.restarting = RESTART;
+                    if s.usb_mode_garmin {
+                        s.plug = Plug::Garmin;
+                    }
                 }
             }
             Action::Hold => s.held = true,
@@ -523,6 +586,85 @@ impl Demo {
         } else {
             Some(None)
         }
+    }
+
+    /// Whether the watch is on USB in Garmin mode, as `diagnose` lists it (`mtp` false).
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn in_garmin_mode(&self) -> bool {
+        let s = self.state();
+        let script = s.scripted && s.connects < ABSENT + BUSY;
+        !script && s.plug == Plug::Garmin && s.restarting == 0
+    }
+
+    /// Sets the watch's USB Mode to Garmin, with how the switch goes (`setting`), and what a
+    /// `garmin_mode` error says on `platform`: on Windows the watch can't be switched.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    fn usb_mode(&self, setting: Option<Switching>, platform: &str) {
+        let mut s = self.state();
+        s.garmin_mode = if platform == "windows" {
+            GarminMode {
+                switchable: false,
+                reason: Some(NotSwitchable::NoDriver),
+            }
+        } else {
+            GarminMode {
+                switchable: true,
+                reason: None,
+            }
+        };
+        if let Some(switching) = setting {
+            s.usb_mode_garmin = true;
+            s.switching = switching;
+            if s.plug == Plug::Mtp {
+                s.plug = Plug::Garmin;
+            }
+        }
+    }
+
+    /// The app's switch to MTP for a watch in Garmin mode, as the core's `switch_to_mtp` answers:
+    /// after `wait` (the real one takes a few seconds), the watch back over MTP, or the way it
+    /// failed. Never retried here.
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
+    pub fn switch_to_mtp(&self, wait: Duration) -> Result<SwitchOutput, Error> {
+        if !self.in_garmin_mode() {
+            return Err(Error::new(
+                ErrorCode::NoDevice,
+                "Demo: no watch in Garmin mode is connected.",
+            ));
+        }
+        let (switching, product) = {
+            let s = self.state();
+            (s.switching, product(&WATCHES[s.current]))
+        };
+        thread::sleep(wait);
+        let status = match switching {
+            Switching::Locked => {
+                return Err(Error::new(
+                    ErrorCode::DeviceLocked,
+                    "Demo: the watch reports that it is locked, so it wasn't switched.",
+                ));
+            }
+            Switching::Unsupported => {
+                return Err(Error::new(
+                    ErrorCode::UnsupportedDevice,
+                    "Demo: the watch doesn't list A1050, so it can't be switched over USB.",
+                ));
+            }
+            Switching::TimedOut => SwitchStatus::TimedOut,
+            Switching::Switches => {
+                let mut s = self.state();
+                if s.plug == Plug::Garmin {
+                    s.plug = Plug::Mtp;
+                }
+                SwitchStatus::Switched
+            }
+        };
+        Ok(SwitchOutput {
+            status,
+            product: Some(product),
+            protocols: PROTOCOLS.map(String::from).into(),
+            waited_seconds: wait.as_secs_f64(),
+        })
     }
 
     /// Attaches the watch named `model` next, if there is one; `none` starts with the watch
@@ -648,6 +790,19 @@ fn busy_sample(kind: HolderKind, platform: &str) -> Busy {
     }
 }
 
+/// The product data a demo watch sends in Garmin mode, written as the Venu 2's
+/// ("VENU 2 V19.05", product 3703 from its part number 006-B3703-00).
+#[cfg_attr(not(feature = "demo"), allow(dead_code))]
+fn product(&(description, part, software, ..): &(&str, &str, &str, Lists, Extra)) -> Product {
+    let (major, minor) = software.split_at(software.len() - 2);
+    let software = format!("{major}.{minor}");
+    Product {
+        product_id: part[5..9].parse().unwrap_or(0),
+        description: format!("{} V{software}", description.to_uppercase()),
+        software_version: software,
+    }
+}
+
 #[cfg(feature = "demo")]
 static WATCH: std::sync::LazyLock<Demo> = std::sync::LazyLock::new(|| {
     let demo = Demo::new(Duration::from_millis(300));
@@ -667,6 +822,19 @@ static WATCH: std::sync::LazyLock<Demo> = std::sync::LazyLock::new(|| {
             kind
         });
     demo.hold(busy, platform);
+    let garmin_mode = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE")
+        .ok()
+        .and_then(|value| {
+            let setting = Switching::parse(&value);
+            if setting.is_none() {
+                eprintln!(
+                    "GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE: {value:?} is neither 1 nor switches, \
+                     timed_out, locked or unsupported"
+                );
+            }
+            setting
+        });
+    demo.usb_mode(garmin_mode, platform);
     if let Ok(value) = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_RECORDING") {
         match Recording::parse(&value) {
             Some(recording) => {
@@ -705,7 +873,15 @@ pub fn bar() -> bool {
     !WATCH.recording()
 }
 
-/// What `diagnose` lists in the demo build: the demo watch on USB and the demo drive.
+/// How the app's session switches a watch in Garmin mode in the demo build: the demo watch, a
+/// few seconds as with a real one, instead of this computer's USB.
+#[cfg(feature = "demo")]
+pub fn switch() -> Box<georgian_for_garmin_core::session::Switch<'static>> {
+    Box::new(|_| WATCH.switch_to_mtp(Duration::from_secs(3)))
+}
+
+/// What `diagnose` lists in the demo build: the demo watch on USB (over MTP or in Garmin mode)
+/// and the demo drive.
 #[cfg(feature = "demo")]
 pub fn probe() -> Probe<'static> {
     Probe {
@@ -726,6 +902,17 @@ pub fn probe() -> Probe<'static> {
                     holder,
                 })
                 .into_iter()
+                .chain(WATCH.in_garmin_mode().then(|| UsbDevice {
+                    product_id: georgian_for_garmin_core::garmin_mode::GARMIN_MODE_PRODUCT_ID,
+                    product_name: None,
+                    mtp: false,
+                    interfaces: vec![UsbInterface {
+                        class: 255,
+                        subclass: 0,
+                        protocol: 0,
+                    }],
+                    holder: None,
+                }))
                 .collect(),
         }),
         drives: Box::new(|| drives_at(&drive().into_iter().collect::<Vec<_>>())),
@@ -1073,12 +1260,115 @@ mod tests {
             ("restart", Action::Restart),
             ("plug", Action::Plug),
             ("plug_drive", Action::PlugDrive),
+            ("plug_garmin", Action::PlugGarmin),
             ("hold", Action::Hold),
             ("release", Action::Release),
         ] {
             assert_eq!(
                 serde_json::from_value::<Action>(json!(name)).unwrap(),
                 action
+            );
+        }
+    }
+
+    #[test]
+    fn plugged_in_garmin_mode_the_watch_is_switched_to_mtp() {
+        let demo = attached("Venu 2");
+        assert!(
+            demo.switch_to_mtp(Duration::ZERO)
+                .is_err_and(|e| e.code == ErrorCode::NoDevice)
+        );
+        demo.act(Action::PlugGarmin);
+        let error = demo.open().err().expect("garmin mode");
+        assert_eq!(error.code, ErrorCode::GarminMode);
+        assert_eq!(error.garmin_mode.as_deref(), Some(&GarminMode::here()));
+        assert!(demo.in_garmin_mode());
+        assert_eq!(demo.usb(), None, "no MTP watch on USB");
+        let out = demo.switch_to_mtp(Duration::ZERO).unwrap();
+        assert_eq!(out.status, SwitchStatus::Switched);
+        assert_eq!(
+            out.product,
+            Some(Product {
+                product_id: 3703,
+                software_version: "19.05".into(),
+                description: "VENU 2 V19.05".into(),
+            })
+        );
+        assert!(out.protocols.iter().any(|p| p == "A1050"));
+        assert!(!demo.in_garmin_mode());
+        assert_eq!(call(&demo, "inspect").unwrap()["device"]["model"], "Venu 2");
+    }
+
+    #[test]
+    fn a_garmin_usb_mode_comes_back_after_every_plug_in_and_restart() {
+        let demo = attached("Venu 2");
+        demo.usb_mode(Some(Switching::Switches), "macos");
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::GarminMode));
+        demo.switch_to_mtp(Duration::ZERO).unwrap();
+        call(&demo, "install").unwrap();
+        // Restarted plugged in: gone for a moment, then back in Garmin mode, fonts imported.
+        demo.act(Action::Restart);
+        for _ in 0..RESTART {
+            assert_eq!(call(&demo, "inspect"), Err(ErrorCode::NoDevice));
+        }
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::GarminMode));
+        demo.switch_to_mtp(Duration::ZERO).unwrap();
+        assert_eq!(call(&demo, "inspect").unwrap()["state"], "installed");
+        // Unplugged and plugged in: Garmin mode again.
+        demo.act(Action::Unplug);
+        assert!(!demo.in_garmin_mode());
+        demo.act(Action::Plug);
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::GarminMode));
+    }
+
+    #[test]
+    fn the_switch_fails_as_the_setting_says_and_windows_cant_switch() {
+        for (setting, code) in [
+            (Switching::Locked, ErrorCode::DeviceLocked),
+            (Switching::Unsupported, ErrorCode::UnsupportedDevice),
+        ] {
+            let demo = attached("Venu 2");
+            demo.usb_mode(Some(setting), "linux");
+            let error = demo.switch_to_mtp(Duration::ZERO).unwrap_err();
+            assert_eq!(error.code, code);
+            assert!(demo.in_garmin_mode(), "{setting:?}: still in Garmin mode");
+        }
+        let demo = attached("Venu 2");
+        demo.usb_mode(Some(Switching::TimedOut), "macos");
+        let out = demo.switch_to_mtp(Duration::ZERO).unwrap();
+        assert_eq!(out.status, SwitchStatus::TimedOut);
+        assert_eq!(call(&demo, "inspect"), Err(ErrorCode::GarminMode));
+
+        let demo = attached("Venu 2");
+        demo.usb_mode(Some(Switching::Switches), "windows");
+        let mode = demo.open().err().expect("garmin mode").garmin_mode;
+        assert_eq!(
+            mode.as_deref(),
+            Some(&GarminMode {
+                switchable: false,
+                reason: Some(NotSwitchable::NoDriver),
+            })
+        );
+    }
+
+    #[test]
+    fn garmin_mode_settings_parse_and_every_watch_has_product_data() {
+        for on in ["1", "on", "TRUE", " yes "] {
+            assert_eq!(Switching::parse(on), Some(Switching::Switches));
+        }
+        assert_eq!(Switching::parse("timed_out"), Some(Switching::TimedOut));
+        assert_eq!(Switching::parse("Locked"), Some(Switching::Locked));
+        assert_eq!(
+            Switching::parse("unsupported"),
+            Some(Switching::Unsupported)
+        );
+        assert_eq!(Switching::parse("sometimes"), None);
+        for watch in &WATCHES {
+            let product = product(watch);
+            assert_ne!(product.product_id, 0, "{}", watch.0);
+            assert!(
+                product.description.ends_with(&product.software_version),
+                "{product:?}"
             );
         }
     }

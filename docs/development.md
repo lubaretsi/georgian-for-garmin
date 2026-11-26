@@ -307,10 +307,12 @@ mounted as a USB drive) and two that find it held by Garmin Express, then attach
 2. From then on the watch's physical side is yours, through the **Demo watch** bar above the
 footer (only in the demo build, through its `demo_watch` command): **Unplug**, **Restart watch**
 (imports the waiting fonts, as a real restart does; restarted while plugged in, the watch drops
-off USB for two connections), **Plug in**, **Plug in as a drive**, **Garmin Express holds it**
-and **Release**. Pressing any of them ends the opening script. After Install or Restore the
-watch stays connected with the files waiting until you unplug it, restart it and plug it in
-again, so the app's restart step and **Restart once more** play out as with a real watch. Its
+off USB for two connections), **Plug in**, **Plug in as a drive**, **Plug in (Garmin mode)** (as
+when the watch's "Use MTP?" question goes unanswered; the app switches it in about 3 seconds),
+**Garmin Express holds it** and **Release**. Pressing any of them ends the opening script.
+After Install or Restore the watch stays connected with the files waiting until you unplug it,
+restart it and plug it in again, so the app's restart step and **Restart once more** play out as
+with a real watch. Its
 other watches
 cover every support status (a tested Forerunner 165, an expected Venu 3 listing parts from two
 packs with a conflict, an unsupported fenix 6S Pro with Restore, an expected Venu with its Korean
@@ -323,8 +325,13 @@ that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` starts with the watch 
 the waiting screen stays and shows its help after 10 seconds (**Plug in** brings the Venu 2).
 `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
-program on every connection, until **Release**. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
-shows that platform's words; the window keeps this computer's chrome (on a Mac the toolbar still
+program on every connection, until **Release**. `GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE=1` sets
+the watch's USB Mode to Garmin: it comes up in Garmin mode whenever it is plugged in or restarts
+plugged in, and the app's switch brings it back over MTP; `timed_out`, `locked` or `unsupported`
+instead makes that switch time out, find the watch locked, or find no switch offered, so the
+app's guidance shows. `GEORGIAN_FOR_GARMIN_DEMO_PLATFORM=windows` (or `macos`, `linux`)
+shows that platform's words (on Windows, a watch in Garmin mode gets the guidance, no switch);
+the window keeps this computer's chrome (on a Mac the toolbar still
 leaves room for the traffic lights). The demo build opens nothing and leaves the clipboard and
 the app's settings alone (the language and shares last for the run); its diagnostic info goes to
 `georgian-for-garmin-demo-downloads` in the temp folder, and More › About says it's the demo.
@@ -368,9 +375,10 @@ pnpm gen:types        # src/core/types.gen.ts from the CLI's --help --json
 pnpm gen:glyphs       # src/ui/art/glyphs.ts: the drawings' words outlined from Noto Sans Georgian
 ```
 
-Each `Flows/…` story is the whole app beside a watch simulator (plug in over MTP or as a drive,
-unplug, restart, Garmin Express holding the watch, a failing write, what the next test
-notification shows); its play function walks the flow end to end. Nothing opens a device.
+Each `Flows/…` story is the whole app beside a watch simulator (plug in over MTP, as a drive or
+in Garmin mode, choose MTP on the watch, how the app's switch to MTP goes, unplug, restart,
+Garmin Express holding the watch, a failing write, what the next test notification shows); its
+play function walks the flow end to end. Nothing opens a device.
 
 The core's types are generated: after changing an operation's input or output, run
 `pnpm gen:types` and commit `src/core/types.gen.ts` (CI fails on a diff). The stories and tests

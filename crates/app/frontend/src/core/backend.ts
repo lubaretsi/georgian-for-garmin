@@ -17,11 +17,14 @@ import type {
   ShareKey,
   Shared,
   StageOutput,
+  SwitchOutput,
 } from "./types.gen";
 
 export interface Backend {
   /** Rejects with `Failure`. */
   inspect(): Promise<InspectOutput>;
+  /** The core's `switch_to_mtp`: a watch in Garmin mode back to MTP, as Garmin Express does (§4.2). */
+  switchToMtp(): Promise<SwitchOutput>;
   inspectDrive(): Promise<InspectDriveOutput>;
   install(onProgress?: (p: Progress) => void): Promise<StageOutput>;
   restoreStock(onProgress?: (p: Progress) => void): Promise<StageOutput>;

@@ -113,6 +113,7 @@ const MTP_KEYS = new Set([
   "drive.mtp.how",
   "drive.duringRestart", // on the drive screen, under drive.mtp.body's explanation
   "more.help.mtp",
+  "connect.problem.garmin_mode.body", // the watch's own question and setting, explained (§4.2)
 ]);
 
 describe("plain words in the main flow (§2.3, §7)", () => {
@@ -139,7 +140,8 @@ describe("plain words in the main flow (§2.3, §7)", () => {
 
   /** Every error code, checked by the compiler: a new code must be added here. */
   const CODES: Record<ErrorCode, true> = {
-    invalid_input: true, no_device: true, multiple_devices: true, device_busy: true, permission_denied: true,
+    invalid_input: true, no_device: true, garmin_mode: true, multiple_devices: true, device_busy: true,
+    permission_denied: true, device_locked: true,
     unsupported_device: true, font_unavailable: true, garmin_folder_not_found: true, extdata_not_found: true,
     conflict: true, restore_first: true, restart_first: true, verification_failed: true, device_error: true, internal: true,
     cancelled: true,

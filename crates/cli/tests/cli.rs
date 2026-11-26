@@ -33,7 +33,7 @@ fn json_error(out: &Output) -> Value {
     serde_json::from_slice(&out.stderr).expect("stderr is one JSON value")
 }
 
-const OPERATIONS: [&str; 8] = [
+const OPERATIONS: [&str; 9] = [
     "inspect",
     "install",
     "restore_stock",
@@ -42,6 +42,7 @@ const OPERATIONS: [&str; 8] = [
     "extdata_list",
     "wait_for_watch",
     "diagnose",
+    "switch_to_mtp",
 ];
 const DEV_OPERATIONS: [&str; 13] = [
     "read_file",
@@ -413,6 +414,38 @@ fn diagnose_is_read_only_in_help_json() {
     }
     let out = run(&["diagnose", "-h"], "");
     assert!(String::from_utf8_lossy(&out.stdout).contains("--save <FILE>"));
+}
+
+/// `switch-to-mtp` changes how the watch connects (not read-only, no file written); its input
+/// is refused before any USB access.
+#[test]
+fn switch_to_mtp_is_declared_and_checks_its_input_first() {
+    let out = run(&["switch-to-mtp", "--help", "--json"], "");
+    assert_eq!(out.status.code(), Some(0));
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let tool = &tools["tools"][0];
+    assert_eq!(tool["name"], "switch_to_mtp");
+    assert_eq!(
+        tool["annotations"],
+        json!({"title": "Switch the watch to MTP", "readOnlyHint": false,
+               "destructiveHint": false, "idempotentHint": true, "openWorldHint": false})
+    );
+    assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+    let output = &tool["outputSchema"]["properties"];
+    for key in ["status", "product", "protocols", "waited_seconds"] {
+        assert!(output[key].is_object(), "{key}");
+    }
+
+    let error = json_error(&run(
+        &["switch-to-mtp", "--input", "-", "--json"],
+        r#"{"retries": 3}"#,
+    ));
+    assert_eq!(error["error"]["code"], "invalid_input");
+
+    let out = run(&["switch-to-mtp", "-h"], "");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Garmin mode"));
+    let out = run(&["-h"], "");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("switch-to-mtp"));
 }
 
 fn temp_path(name: &str) -> std::path::PathBuf {

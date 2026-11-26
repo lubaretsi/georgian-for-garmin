@@ -2,7 +2,7 @@ import type { Meta } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { output } from "../../mock/fixtures";
-import type { WatchInfo } from "../../model/screens";
+import type { GarminModeView, WatchInfo } from "../../model/screens";
 import { WATCHES } from "./data";
 import { renderScreen, type ScreenStoryObj } from "./render";
 import type { ScreenStoryArgs } from "./ScreenStory";
@@ -41,7 +41,7 @@ export const WorkingRestoreProgress: ScreenStoryObj = {
 const restart = (
   phase: "unplug" | "restart" | "verifying" | "again" | "other_watch",
   w: WatchInfo = WATCHES.venu2,
-  extra: { attempt?: number; verifiable?: boolean; op?: "install" | "restore" } = {},
+  extra: { attempt?: number; verifiable?: boolean; op?: "install" | "restore"; garminMode?: GarminModeView } = {},
 ) =>
   ({
     screen: "restart",
@@ -50,6 +50,7 @@ const restart = (
     phase,
     attempt: extra.attempt ?? 1,
     verifiable: extra.verifiable ?? true,
+    garminMode: extra.garminMode ?? null,
   }) as const;
 
 export const RestartUnplug: ScreenStoryObj = { args: { model: restart("unplug") } };
@@ -65,6 +66,17 @@ export const RestartNotVerifiable: ScreenStoryObj = {
 };
 export const RestartNotVerifiableRestore: ScreenStoryObj = {
   args: { model: restart("restart", WATCHES.venu3, { verifiable: false, op: "restore" }) },
+};
+/** Back after the restart in Garmin mode (§4.2): the app switches it, the restart kept. */
+export const RestartGarminModeSwitching: ScreenStoryObj = {
+  args: { model: restart("restart", WATCHES.venu2, { garminMode: "switching" }) },
+};
+/** The switch didn't work, or can't run here (Windows): what to do on the watch, inline. */
+export const RestartGarminModeGuidance: ScreenStoryObj = {
+  args: { platform: "windows", model: restart("restart", WATCHES.venu2, { garminMode: "guidance" }) },
+};
+export const RestartGarminModeLocked: ScreenStoryObj = {
+  args: { model: restart("restart", WATCHES.venu2, { garminMode: "locked", attempt: 2 }) },
 };
 
 export const ResultInstallConfirmed: ScreenStoryObj = {

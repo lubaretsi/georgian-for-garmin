@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "garmin_mode",
+    "garmin_mode": {
+      "reason": "no_driver",
+      "switchable": false
+    },
+    "message": "The watch is connected in Garmin mode, not in file-transfer (MTP) mode. On the watch, choose MTP when it asks, or unplug it and connect it again. To stop the question for good: Settings › System › USB Mode › MTP."
+  },
+  "operation": "inspect"
+}

@@ -2060,6 +2060,7 @@ fn tool_definitions_follow_the_schemas() {
         "extdata_list",
         "wait_for_watch",
         "diagnose",
+        "switch_to_mtp",
     ];
     if cfg!(feature = "dev") {
         expected.extend(["read_file", "stage_file", "remove_staged"]);
@@ -2081,6 +2082,10 @@ fn tool_definitions_follow_the_schemas() {
         assert_eq!(pure["annotations"]["readOnlyHint"], true);
         assert_eq!(pure["annotations"]["destructiveHint"], false);
     }
+    // switch_to_mtp changes how the watch connects, and no file.
+    let switch = &tools["tools"][8];
+    assert_eq!(switch["annotations"]["readOnlyHint"], false);
+    assert_eq!(switch["annotations"]["destructiveHint"], false);
     for tool in tools["tools"].as_array().unwrap() {
         assert_eq!(
             tool["inputSchema"]["additionalProperties"], false,
@@ -2091,17 +2096,17 @@ fn tool_definitions_follow_the_schemas() {
         assert_eq!(tool["annotations"]["openWorldHint"], false);
     }
     if cfg!(feature = "dev") {
-        let stage = &tools["tools"][9];
+        let stage = &tools["tools"][10];
         assert_eq!(stage["annotations"]["destructiveHint"], true);
         let input = &stage["inputSchema"]["properties"];
         assert!(input["name"]["pattern"].is_string(), "{input}");
         assert_eq!(input["garmin_sha256"]["items"]["pattern"], "^[0-9a-f]{64}$");
-        assert_eq!(tools["tools"][8]["annotations"]["readOnlyHint"], true);
-        assert_eq!(tools["tools"][10]["annotations"]["destructiveHint"], true);
+        assert_eq!(tools["tools"][9]["annotations"]["readOnlyHint"], true);
+        assert_eq!(tools["tools"][11]["annotations"]["destructiveHint"], true);
         // The raw operations: the reads, ptp_transaction and mtp_trace only read; of the two
         // writes, only mtp_delete is destructive.
         let all = tools["tools"].as_array().unwrap();
-        for tool in &all[11..] {
+        for tool in &all[12..] {
             let writes = ["mtp_create", "mtp_delete"].contains(&tool["name"].as_str().unwrap());
             assert_eq!(
                 tool["annotations"]["readOnlyHint"], !writes,

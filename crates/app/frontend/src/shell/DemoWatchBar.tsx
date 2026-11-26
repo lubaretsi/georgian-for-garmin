@@ -2,9 +2,9 @@ import type { Copy } from "../copy";
 import { Button } from "../ui/Button";
 
 /** What the demo build's watch does when a control is pressed (the app's `demo_watch` command). */
-export type DemoWatchAction = "unplug" | "restart" | "plug" | "plug_drive" | "hold" | "release";
+export type DemoWatchAction = "unplug" | "restart" | "plug" | "plug_drive" | "plug_garmin" | "hold" | "release";
 
-const ACTIONS: readonly DemoWatchAction[] = ["unplug", "restart", "plug", "plug_drive", "hold", "release"];
+const ACTIONS: readonly DemoWatchAction[] = ["unplug", "restart", "plug", "plug_drive", "plug_garmin", "hold", "release"];
 
 /**
  * The demo build's physical side, in a slim bar above the footer: the user unplugs, restarts and
