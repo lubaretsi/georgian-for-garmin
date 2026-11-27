@@ -400,7 +400,7 @@ the binaries don't depend on Nix. Nix only builds the fonts.
 
 ```sh
 scripts/build-macos-release.sh     # needs Xcode command-line tools, rustup and Nix
-scripts/build-linux-release.sh     # needs rustup, Nix, libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils file
+scripts/build-linux-release.sh     # needs rustup, Nix, libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils file musl-tools
 ```
 
 The macOS build writes a universal app and CLI (Apple silicon and Intel, macOS 11 or later) to

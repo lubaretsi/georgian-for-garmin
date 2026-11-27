@@ -12,8 +12,9 @@
 # The .deb installs the udev rule from packaging/linux/; the AppImage can't.
 #
 # Needs: GCC, binutils, Python 3, file, rustup, Nix with flakes, and the app's build libraries
-# (Debian and Ubuntu: libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils). Writes to
-# target/linux-release/; the files to publish end up in target/linux-release/dist/. If
+# (Debian and Ubuntu: libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils), and musl-gcc for the static
+# command-line tool's C code (ring, behind its HTTPS request; Debian and Ubuntu: musl-tools).
+# Writes to target/linux-release/; the files to publish end up in target/linux-release/dist/. If
 # RELEASE_TAG is set (CI on a tag), it must be v<workspace version>.
 set -euo pipefail
 
@@ -31,6 +32,7 @@ step() { printf '\n==> %s\n' "$*"; }
 nix=$(command -v nix) || die "Nix is needed to build the fonts"
 rustup=$(command -v rustup) || die "rustup is needed (https://rustup.rs)"
 pkg-config --exists webkit2gtk-4.1 || die "WebKitGTK 4.1's development files are needed (libwebkit2gtk-4.1-dev)"
+command -v musl-gcc >/dev/null || die "musl-gcc is needed for the static command-line tool (musl-tools)"
 
 arch=$(uname -m)
 case $arch in
@@ -67,6 +69,9 @@ rust_bin=$(dirname "$("$rustup" which --toolchain "$toolchain" cargo)")
 export PATH="$rust_bin:$node_bin:$pnpm_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS RUSTC RUSTC_WRAPPER RUSTFLAGS PKG_CONFIG_PATH \
   CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_BUILD_TARGET NIX_CFLAGS_COMPILE NIX_LDFLAGS
+# C code for the musl target (ring) goes through musl's GCC wrapper: cc-rs would look for a
+# cross compiler named $arch-linux-musl-gcc, which distributions don't ship.
+export "CC_${musl_target//-/_}=musl-gcc" "AR_${musl_target//-/_}=ar"
 export CARGO_TARGET_DIR=$work/cargo
 export GEORGIAN_FOR_GARMIN_FONTS=$fonts
 # linuxdeploy, which makes the AppImage, is itself an AppImage: run it without FUSE.
