@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Venu 3 (`006-B4260-00`) is tested on software 17.51
+  ([#69](https://github.com/lubaretsi/georgian-for-garmin/issues/69)): with its Noto Sans
+  Armenian and Noto Sans Hebrew TrueType fonts (`006-D9971-09`, `006-D1053-98`), Georgian showed
+  in pop-ups and opened notifications, from an Android phone, with 0.4.1. The Lily 2 Active
+  (`006-B4477-00`) is tested on software 5.10, from a report its owner emailed the maintainer:
+  Georgian showed with 0.4.1, in its "Compressed" Korean fonts (`006-D8945-67/-68`). It is the
+  first watch besides the maintainer's Venu 2 where Georgian added to a Korean font showed, and
+  it leaves the predicted list; restore is untested on it. 0.4.1's builds of these parts are byte
+  for byte today's. The app shows both watches as confirmed on those versions and no longer asks
+  them for a report there.
+
 ### Changed
 
 - The demo build, the Storybook stories and the UI fixtures take watch statuses from a support

@@ -398,6 +398,11 @@
           "model_part": "006-B4432-00",
           "software": "29.52",
           "parts": ["006-D9971-09", "006-D9971-08"]
+        },
+        {
+          "model_part": "006-B4260-00",
+          "software": "17.51",
+          "parts": ["006-D9971-09"]
         }
       ]
     },
@@ -435,6 +440,11 @@
           "model_part": "006-B4432-00",
           "software": "29.52",
           "parts": ["006-D1053-98", "006-D1053-99"]
+        },
+        {
+          "model_part": "006-B4260-00",
+          "software": "17.51",
+          "parts": ["006-D1053-98"]
         }
       ]
     },
@@ -492,7 +502,13 @@
           "sha256": "930ecd63027b002c0b36ea1a917e3826b4abae89e3ee625813d1daf72e163933"
         }
       ],
-      "tested": []
+      "tested": [
+        {
+          "model_part": "006-B4477-00",
+          "software": "5.10",
+          "parts": ["006-D8945-67", "006-D8945-68"]
+        }
+      ]
     },
     {
       "id": "korean-nanum-gothic-medium",
@@ -596,10 +612,11 @@
     {"model": "fenix 7 Pro Solar, Pro Sapphire Solar", "model_part": "006-B4375-00", "issues": [11, 15]},
     {"model": "Forerunner 165", "model_part": "006-B4432-00", "issues": [5, 18, 19, 22]},
     {"model": "Forerunner 165 Music", "model_part": "006-B4433-00", "issues": [5, 7]},
-    {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2]},
+    {"model": "Venu 3", "model_part": "006-B4260-00", "issues": [5, 2, 69]},
     {"model": "Venu 3S", "model_part": "006-B4261-00", "issues": [5, 9]},
     {"model": "Forerunner 255", "model_part": "006-B3992-00", "issues": [13, 35, 37]},
     {"model": "epix Pro (Gen 2) 51mm", "model_part": "006-B4314-00", "issues": [46]},
+    {"model": "Lily 2 Active", "model_part": "006-B4477-00", "issues": []},
     {
       "model": "fenix 6S Pro",
       "model_part": "006-B3288-00",
@@ -1180,17 +1197,6 @@
         "confidence": "high",
         "basis": "Connect IQ lists Noto Sans Armenian 006-D9971-08/-09, the fonts Georgian works through on the tested Forerunner 165.",
         "source": "https://developer.garmin.com/connect-iq/articles/device-reference/fr970.html"
-      }
-    },
-    {
-      "model": "Lily 2 Active",
-      "model_part": "006-B4477-00",
-      "issues": [],
-      "prediction": {
-        "family": "bitmap_korean",
-        "confidence": "high",
-        "basis": "Its report (5.10) declares Garmin's Korean bitmap fonts 006-D8945-67 and -68 (17 and 22 px, Compressed) under short names and no Armenian font; on the maintainer's Venu 2 (19.05), Georgian added to Garmin's Korean 27 px font (006-D8945-22), plain and re-encoded as Compressed, rendered natively in notifications. Garmin's catalog serves both at the declared 2.00, with the sizes of the watch's imports.",
-        "source": "a watch report emailed to the maintainer"
       }
     },
     {
