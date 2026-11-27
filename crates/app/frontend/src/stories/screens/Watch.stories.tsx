@@ -27,15 +27,15 @@ export const InstallConfirmed: ScreenStoryObj = {
   args: { model: watch(WATCHES.venu2, { kind: "install", confidence: "confirmed" }), restorable: true },
 };
 export const InstallConfirmedOtherSoftware: ScreenStoryObj = {
-  args: { model: watch(WATCHES.forerunner255Newer, { kind: "install", confidence: "confirmed_other_software" }) },
+  args: { model: watch(WATCHES.otherSoftware, { kind: "install", confidence: "confirmed_other_software" }) },
 };
 export const InstallConfirmedSomeFonts: ScreenStoryObj = {
   args: {
-    model: watch(WATCHES.venu, { kind: "install", confidence: "confirmed_some_fonts" }, { issue: issueOf("venu-boxes"), reportWanted: true }),
+    model: watch(WATCHES.korean, { kind: "install", confidence: "confirmed_some_fonts" }, { issue: issueOf("korean-boxes"), reportWanted: true }),
   },
 };
 export const InstallUnconfirmed: ScreenStoryObj = {
-  args: { model: watch(WATCHES.lily2Active, { kind: "install", confidence: "unconfirmed" }, { reportWanted: true }) },
+  args: { model: watch(WATCHES.unconfirmed, { kind: "install", confidence: "unconfirmed" }, { reportWanted: true }) },
 };
 
 // install: every note
@@ -44,7 +44,7 @@ export const InstallNotePartly: ScreenStoryObj = {
 };
 export const InstallNoteBeta: ScreenStoryObj = {
   args: {
-    model: watch(WATCHES.venu, { kind: "install", confidence: "unconfirmed", note: "beta" }, { reportWanted: true }),
+    model: watch(WATCHES.korean, { kind: "install", confidence: "unconfirmed", note: "beta" }, { reportWanted: true }),
     restorable: true,
   },
 };
@@ -61,15 +61,15 @@ export const InstalledConfirmed: ScreenStoryObj = {
 };
 export const InstalledConfirmedOtherSoftware: ScreenStoryObj = {
   args: {
-    model: watch(WATCHES.forerunner255Newer, { kind: "installed", confidence: "confirmed_other_software" }),
+    model: watch(WATCHES.otherSoftware, { kind: "installed", confidence: "confirmed_other_software" }),
     restorable: true,
   },
 };
 export const InstalledConfirmedSomeFonts: ScreenStoryObj = {
-  args: { model: watch(WATCHES.venu, { kind: "installed", confidence: "confirmed_some_fonts" }), restorable: true },
+  args: { model: watch(WATCHES.korean, { kind: "installed", confidence: "confirmed_some_fonts" }), restorable: true },
 };
 export const InstalledUnconfirmed: ScreenStoryObj = {
-  args: { model: watch(WATCHES.lily2Active, { kind: "installed", confidence: "unconfirmed" }), restorable: true },
+  args: { model: watch(WATCHES.unconfirmed, { kind: "installed", confidence: "unconfirmed" }), restorable: true },
 };
 
 export const RestartPendingGeorgian: ScreenStoryObj = {
@@ -80,19 +80,19 @@ export const RestartPendingStock: ScreenStoryObj = {
 };
 
 export const BlockedWaitingOtherFont: ScreenStoryObj = {
-  args: { model: watch(WATCHES.venu3, { kind: "blocked", reason: "waiting_other_font" }, { issue: 5, reportWanted: true }) },
+  args: { model: watch(WATCHES.expected, { kind: "blocked", reason: "waiting_other_font" }, { issue: 5, reportWanted: true }) },
 };
 export const BlockedUnknownFont: ScreenStoryObj = {
   args: { model: watch(WATCHES.venu2, { kind: "blocked", reason: "unknown_font" }, { reportWanted: true }) },
 };
 
-/** fenix 6S Pro (issue 6): no earlier build seen, so Restore stays in More only (§5.1 rule 1). */
+/** Example Font Unused (issue 6): no earlier build seen, so Restore stays in More only (§5.1 rule 1). */
 export const UnsupportedFollowUpdates: ScreenStoryObj = {
   args: {
     model: watch(
-      WATCHES.fenix6sPro,
+      WATCHES.fontUnused,
       { kind: "unsupported", reason: unsupportedReason(), restorable: false },
-      { issue: issueOf("fenix6"), reportWanted: true },
+      { issue: issueOf("font-unused"), reportWanted: true },
     ),
     restorable: true,
   },
@@ -100,30 +100,30 @@ export const UnsupportedFollowUpdates: ScreenStoryObj = {
 export const UnsupportedRestorable: ScreenStoryObj = {
   args: {
     model: watch(
-      WATCHES.fenix6sPro,
+      WATCHES.fontUnused,
       { kind: "unsupported", reason: unsupportedReason(), restorable: true },
-      { issue: issueOf("fenix6-beta-left") },
+      { issue: issueOf("font-unused-beta-left") },
     ),
     restorable: true,
   },
 };
-/** Instinct 3 AMOLED 45mm (issue 57) with 0.3.4's Korean font: Restore is the main action. */
-export const UnsupportedRestorableInstinct3: ScreenStoryObj = {
+/** Example Korean Unused (issue 57) with 0.3.4's Korean font: Restore is the main action. */
+export const UnsupportedRestorableKoreanUnused: ScreenStoryObj = {
   args: {
     model: watch(
-      WATCHES.instinct3,
-      { kind: "unsupported", reason: unsupportedReason("instinct3"), restorable: true },
-      { issue: issueOf("instinct3") },
+      WATCHES.koreanUnused,
+      { kind: "unsupported", reason: unsupportedReason("korean-unused"), restorable: true },
+      { issue: issueOf("korean-unused") },
     ),
     restorable: true,
   },
 };
 
 export const NoFont: ScreenStoryObj = {
-  args: { model: watch(WATCHES.forerunner265, { kind: "no_font" }, { reportWanted: true }) },
+  args: { model: watch(WATCHES.predicted, { kind: "no_font" }, { reportWanted: true }) },
 };
 export const NoFontSharedBefore: ScreenStoryObj = {
-  args: { model: watch(WATCHES.forerunner265, { kind: "no_font" }, { reportWanted: true, sharedBefore: true }) },
+  args: { model: watch(WATCHES.predicted, { kind: "no_font" }, { reportWanted: true, sharedBefore: true }) },
 };
 
 export const Unreadable: ScreenStoryObj = {

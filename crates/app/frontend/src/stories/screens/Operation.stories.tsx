@@ -55,17 +55,18 @@ const restart = (
 
 export const RestartUnplug: ScreenStoryObj = { args: { model: restart("unplug") } };
 export const RestartUnplugRestore: ScreenStoryObj = { args: { model: restart("unplug", WATCHES.venu2, { op: "restore" }) } };
-export const RestartRestart: ScreenStoryObj = { args: { model: restart("restart", WATCHES.lily2Active) } };
+export const RestartRestart: ScreenStoryObj = { args: { model: restart("restart", WATCHES.unconfirmed) } };
 export const RestartVerifying: ScreenStoryObj = { args: { model: restart("verifying") } };
 export const RestartAgain: ScreenStoryObj = { args: { model: restart("again") } };
 export const RestartAttempt2: ScreenStoryObj = { args: { model: restart("restart", WATCHES.venu2, { attempt: 2 }) } };
-export const RestartOtherWatch: ScreenStoryObj = { args: { model: restart("other_watch", WATCHES.lily2Active) } };
-/** Venu 3 doesn't show its font files, so the app can't see the change. */
+export const RestartOtherWatch: ScreenStoryObj = { args: { model: restart("other_watch", WATCHES.unconfirmed) } };
+/** A watch with TrueType fonts (the Venu 3's listing) doesn't show its font files, so the app
+ * can't see the change. */
 export const RestartNotVerifiable: ScreenStoryObj = {
-  args: { model: restart("restart", WATCHES.venu3, { verifiable: false }) },
+  args: { model: restart("restart", WATCHES.expected, { verifiable: false }) },
 };
 export const RestartNotVerifiableRestore: ScreenStoryObj = {
-  args: { model: restart("restart", WATCHES.venu3, { verifiable: false, op: "restore" }) },
+  args: { model: restart("restart", WATCHES.expected, { verifiable: false, op: "restore" }) },
 };
 /** Back after the restart in Garmin mode (§4.2): the app switches it, the restart kept. */
 export const RestartGarminModeSwitching: ScreenStoryObj = {
@@ -83,7 +84,7 @@ export const ResultInstallConfirmed: ScreenStoryObj = {
   args: { model: { screen: "result", op: "install", watch: WATCHES.venu2, confidence: "confirmed" }, restorable: true },
 };
 export const ResultInstallUnconfirmed: ScreenStoryObj = {
-  args: { model: { screen: "result", op: "install", watch: WATCHES.lily2Active, confidence: "unconfirmed" }, restorable: true },
+  args: { model: { screen: "result", op: "install", watch: WATCHES.unconfirmed, confidence: "unconfirmed" }, restorable: true },
 };
 export const ResultRestore: ScreenStoryObj = {
   args: { model: { screen: "result", op: "restore", watch: WATCHES.venu2, confidence: "confirmed" } },

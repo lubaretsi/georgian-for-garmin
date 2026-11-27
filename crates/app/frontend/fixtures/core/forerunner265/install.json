@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "unsupported_device",
-    "message": "Forerunner 265 (006-B4257-00) lists none of this build's font packs under Garmin/ExtData; nothing was written."
-  },
-  "operation": "install"
-}

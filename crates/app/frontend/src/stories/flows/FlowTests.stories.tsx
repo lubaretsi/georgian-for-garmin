@@ -89,8 +89,8 @@ export const Venu2Confirmed: Story = {
   },
 };
 
-export const Lily2ActiveFirstConfirmation: Story = {
-  args: { options: { watch: "lily2active", connection: "unplugged" } },
+export const UnconfirmedFirstConfirmation: Story = {
+  args: { options: { watch: "unconfirmed", connection: "unplugged" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
     await simulate(p, "Plug in (MTP)");
@@ -105,8 +105,8 @@ export const Lily2ActiveFirstConfirmation: Story = {
   },
 };
 
-export const VenuBoxes: Story = {
-  args: { options: { watch: "venuBoxes" } },
+export const KoreanBoxes: Story = {
+  args: { options: { watch: "koreanBoxes" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
     await p.screen(p.copy.watch.install.title);
@@ -131,12 +131,12 @@ export const VenuBoxes: Story = {
   },
 };
 
-export const Instinct3UnsupportedRestore: Story = {
-  args: { options: { watch: "instinct3" } },
+export const KoreanUnusedRestore: Story = {
+  args: { options: { watch: "koreanUnused" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
     // 0.3.4's Georgian is in its Korean font: no install, and Restore puts Garmin's font back.
-    await p.screen(p.fmt(p.copy.watch.unsupported.title, { model: "Instinct 3 - 45mm, AMOLED" }));
+    await p.screen(p.fmt(p.copy.watch.unsupported.title, { model: "Example Korean Unused" }));
     await expect(p.app.queryByRole("button", { name: p.copy.actions.install })).toBeNull();
     await press(p, p.copy.actions.restore);
     await p.screen(p.copy.confirmRestore.title);
@@ -150,8 +150,8 @@ export const Instinct3UnsupportedRestore: Story = {
   },
 };
 
-export const Venu3AnotherFontWaiting: Story = {
-  args: { options: { watch: "venu3" } },
+export const ExpectedAnotherFontWaiting: Story = {
+  args: { options: { watch: "expectedWaiting" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
     await p.screen(p.copy.watch.blocked.waiting_other_font.title);
@@ -169,21 +169,21 @@ export const Venu3AnotherFontWaiting: Story = {
   },
 };
 
-export const Fenix6Unsupported: Story = {
-  args: { options: { watch: "fenix6" } },
+export const FontUnusedUnsupported: Story = {
+  args: { options: { watch: "fontUnused" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
-    await p.screen(p.fmt(p.copy.watch.unsupported.title, { model: "fenix 6S Pro" }));
+    await p.screen(p.fmt(p.copy.watch.unsupported.title, { model: "Example Font Unused" }));
     await press(p, p.copy.actions.followUpdates);
     await waitFor(() => expect(p.sim.getByTestId("sim-opened")).toHaveTextContent("/issues/6"), { timeout: STEP_MS });
   },
 };
 
-export const Fenix6EarlierTestVersionLeft: Story = {
-  args: { options: { watch: "fenix6BetaLeft" } },
+export const FontUnusedEarlierTestVersionLeft: Story = {
+  args: { options: { watch: "fontUnusedBetaLeft" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
-    const title = p.fmt(p.copy.watch.unsupported.title, { model: "fenix 6S Pro" });
+    const title = p.fmt(p.copy.watch.unsupported.title, { model: "Example Font Unused" });
     await p.screen(title);
     await press(p, p.copy.actions.restore);
     await p.screen(p.copy.confirmRestore.title);
@@ -199,11 +199,11 @@ export const Fenix6EarlierTestVersionLeft: Story = {
   },
 };
 
-export const Forerunner245DriveOnly: Story = {
-  args: { options: { watch: "forerunner245", connection: "drive" } },
+export const DriveOnly: Story = {
+  args: { options: { watch: "driveOnly", connection: "drive" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
-    await p.screen(p.fmt(p.copy.drive.title, { model: "Forerunner 245" }));
+    await p.screen(p.fmt(p.copy.drive.title, { model: "Example Drive Only" }));
     await press(p, p.copy.actions.followUpdates);
     await waitFor(() => expect(p.sim.getByTestId("sim-opened")).toHaveTextContent("/issues/16"), { timeout: STEP_MS });
     // The support list knows this watch (report_wanted false): no font list is asked for.
@@ -211,11 +211,11 @@ export const Forerunner245DriveOnly: Story = {
   },
 };
 
-export const Forerunner265NoFont: Story = {
-  args: { options: { watch: "forerunner265" } },
+export const PredictedNoFont: Story = {
+  args: { options: { watch: "predicted" } },
   play: async ({ canvasElement, globals }) => {
     const p = parts(canvasElement, globals);
-    await p.screen(p.fmt(p.copy.watch.noFont.title, { model: "Forerunner 265" }));
+    await p.screen(p.fmt(p.copy.watch.noFont.title, { model: "Example Predicted" }));
     await press(p, p.copy.actions.shareFontList);
     await p.screen(p.copy.share.title.font_list);
     await shareOnGitHub(p);

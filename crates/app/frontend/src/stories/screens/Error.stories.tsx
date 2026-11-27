@@ -41,7 +41,7 @@ export const UnsupportedDevice: ScreenStoryObj = {
     model: error(
       "unsupported_device",
       "install",
-      WATCHES.forerunner265,
+      WATCHES.predicted,
       null,
       "The watch lists none of the bundled font packs.",
     ),

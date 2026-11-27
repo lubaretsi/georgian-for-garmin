@@ -302,7 +302,7 @@ frontend's packages (`pnpm install --frozen-lockfile`) and start Vite (`pnpm dev
 tauri dev` loads from `http://localhost:5173`) or build it into `frontend/dist`, which the app
 embeds. Plain `cargo build`, `clippy` and `test` don't need the frontend built.
 
-The demo build starts with three connections that find no watch (meanwhile a Forerunner 245 is
+The demo build starts with three connections that find no watch (meanwhile Example Drive Only is
 mounted as a USB drive) and two that find it held by Garmin Express, then attaches a tested Venu
 2. From then on the watch's physical side is yours, through the **Demo watch** bar above the
 footer (only in the demo build, through its `demo_watch` command): **Unplug**, **Restart watch**
@@ -312,17 +312,18 @@ when the watch's "Use MTP?" question goes unanswered; the app switches it in abo
 **Garmin Express holds it** and **Release**. Pressing any of them ends the opening script.
 After Install or Restore the watch stays connected with the files waiting until you unplug it,
 restart it and plug it in again, so the app's restart step and **Restart once more** play out as
-with a real watch. Its
-other watches
-cover every support status (a tested Forerunner 165, an expected Venu 3 listing parts from two
-packs with a conflict, an unsupported fenix 6S Pro with Restore, an expected Venu with its Korean
-font, which the support list only predicts, a Lily 2 Active with Georgian already installed,
-also only predicted, an unsupported Instinct 3 AMOLED 45mm with 0.3.4's Korean font to restore,
-a tested tactix 7 with Georgian installed, and an unknown Forerunner 265 listing none of this
-build's fonts):
-`GEORGIAN_FOR_GARMIN_DEMO_WATCH=Venu` (any of those names, quoted where it has spaces) attaches
-that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` starts with the watch unplugged, so
-the waiting screen stays and shows its help after 10 seconds (**Plug in** brings the Venu 2).
+with a real watch. Its other watches cover every support status, from the examples' support
+list (core's `example_watches`) rather than the registry's, so confirming a watch changes none
+of them: real models only where tested (a tested Forerunner 165 and a tactix 7 with Georgian
+installed), and made-up role watches for the rest (Example Expected, listing parts from two packs
+with a conflict; Example Font Unused, unsupported, with Restore; Example Korean, with a Korean
+font the support list only predicts to work; Example Unconfirmed, also only predicted, with
+Georgian already installed; Example Korean Unused, unsupported, with 0.3.4's Korean font to
+restore; and Example Predicted, unknown, listing none of this build's fonts):
+`GEORGIAN_FOR_GARMIN_DEMO_WATCH="Example Korean"` (any of those names, quoted where it has
+spaces) attaches that watch instead; `GEORGIAN_FOR_GARMIN_DEMO_WATCH=none` starts with the watch
+unplugged, so the waiting screen stays and shows its help after 10 seconds (**Plug in** brings
+the Venu 2).
 `GEORGIAN_FOR_GARMIN_DEMO_BUSY=macos_camera_service` (or
 `garmin_express`, `desktop_mtp`, `this_app`, `other`, `unknown`) finds the watch held by such a
 program on every connection, until **Release**. `GEORGIAN_FOR_GARMIN_DEMO_GARMIN_MODE=1` sets
@@ -383,8 +384,12 @@ play function walks the flow end to end. Nothing opens a device.
 The core's types are generated: after changing an operation's input or output, run
 `pnpm gen:types` and commit `src/core/types.gen.ts` (CI fails on a diff). The stories and tests
 read the core's real results from `fixtures/core/<scenario>/<step>.json`, written by
-`crates/core/tests/ui_fixtures.rs` on fake watches built from the replay reports. That test fails
-when the core's output drifts; regenerate with
+`crates/core/tests/ui_fixtures.rs` on fake watches built from the replay reports. Their statuses
+come from the examples' support list (`crates/core/src/example_watches.rs`), not
+`fonts/registry.json`, so a confirmation in the registry changes no fixture: a tested real model
+keeps its real data, and every status that can change is shown on a role watch (a report's
+listing under a made-up model and part number, `006-B99xx-00`). That test fails when the core's
+output drifts; regenerate with
 `GFG_WRITE_UI_FIXTURES=1 cargo test -p georgian-for-garmin-core --test ui_fixtures`.
 
 ## Release

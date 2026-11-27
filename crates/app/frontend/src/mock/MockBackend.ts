@@ -396,7 +396,7 @@ export class MockBackend implements Backend {
     await this.wait(INSPECT_MS);
     if (this.sim.connection !== "mtp") throw this.failureAt(NO_DEVICE);
     if (this.sim.holder) throw this.failureAt(busyStep(this.sim.holder, this.platformName));
-    if (!plan) throw this.failureAt("forerunner265/install");
+    if (!plan) throw this.failureAt("predicted/install");
     if ("failure" in plan) throw this.failureAt(plan.failure);
     const [scenario, name] = split(plan.output);
     const stage = output(scenario, name, fixtureFile(scenario, name).operation === "install" ? "install" : "restore_stock");
