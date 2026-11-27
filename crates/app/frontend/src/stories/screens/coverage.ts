@@ -83,6 +83,7 @@ export const REQUIRED: string[] = [
   ...["result", "font_list", "problem"].flatMap((w) =>
     ["ready", "opened", "opened_paste", "failed"].map((s) => `share/${w}/${s}`),
   ),
+  "share/reading",
   // error: each code group, rollback complete and incomplete
   ...["conflict", "restore_first", "restart_first", "verification_failed", "device_error", "no_device", "unsupported_device", "internal"].map(
     (g) => `error/${g}`,
@@ -162,7 +163,7 @@ export function covers(model: ScreenModel, platform: Platform): string[] {
         ...(model.sharedBefore ? ["outcome/shared_before"] : []),
       ];
     case "share":
-      return [`share/${model.what}/${model.state}`];
+      return [`share/${model.what}/${model.state}`, ...(model.reading ? ["share/reading"] : [])];
     case "error":
       return [
         `error/${errorGroup(model.code)}`,

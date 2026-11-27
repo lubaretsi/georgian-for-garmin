@@ -125,6 +125,8 @@ stateDiagram-v2
 
 **Screens opened over another** (`confirm_restore`, `share`, `diagnostics`, each with its `back`): every result and timer that isn't the open screen's own goes on underneath (a write finishing, the help card's or the still-starting timer, the Garmin-mode switch ending), so Back or Cancel returns to where that screen got to. The watch isn't read while one is open; returning reads it.
 
+**A report after an unverified write:** after an install or restore the app hasn't read the watch since (a TrueType restart, which isn't verified, or "I'll check on the watch"), the last read is from before the write. Opening `share` then reads the watch once more, same watch only (`device.part_number`), within 15 s, and the report carries that read. While it reads, the share screen says "Checking the watch…" and **Open GitHub** waits. When it can't read (no watch, busy, Garmin mode, another watch, an error, no answer in time), the report keeps the earlier read and its `state` line says so: `state not_installed (read before the install)` (`outcome.read_before`). More › What the app sees marks the font state the same way until the watch is read again.
+
 ### 4.1 The restart step, new
 
 Install and restore end in **restart**, never in "Done". The phases are driven by polling:
@@ -210,7 +212,7 @@ export type ScreenModel =
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given
-  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
+  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; reading: boolean; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem); reading: the watch is read for the report first (§4)
   | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string }
   | { screen: "diagnostics"; summary: { label: string; value: string }[]; text: string; state: "collecting" | "ready" | "saved" | "copied" | "failed"; savedPath: string | null }; // from More; Back returns to the screen before
 
@@ -292,14 +294,14 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | outcome / works_first | "You're the first to confirm Georgian on {model}." Sharing tells every {model} owner | **Share the result** | "Not now" (keeps the answers for this session) |
 | outcome / didnt_show | "Georgian didn't show." Also for "Some letters, some boxes": a partial result counts as not working. | `restarts < 2`: **Restart once more**; else **Share the result** | the other of those two; More › Restore |
 | outcome / no_notification | Phone setup: Android (Garmin Connect notifications for the browser), iPhone (Home Screen page, iOS 16.4+) | "Try again" (back to send) | none |
-| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." | **Open GitHub** | none |
+| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." While `reading`: "Checking the watch…" in the status (§4) | **Open GitHub** (disabled while `reading`) | none |
 | share (after) | `opened`: "GitHub opened in your browser. Sign in if asked, check the form, then press Submit." `opened_paste`: plus "The report is copied: paste it into the empty Watch report box." Then the thanks line | Done | none |
 | error | §6 | §6 | Back |
 
 **More** is a sheet, reachable from the header on every screen. It holds:
 - **Language:** the full words "ქართული" and "English".
 - **Restore original font:** shown when `restorable`, and leads to `confirm_restore`.
-- **What the app sees:** model, part number, software, what install writes (pack names and parts live here) and the report text, all copyable.
+- **What the app sees:** model, part number, software, what install writes (pack names and parts live here), the font state (marked "read before the install" or "read before the restore" while the last read predates the last write, §4) and the report text, all copyable.
 - **Help:** connecting, MTP, Garmin Express, phone setup.
 - **Which watches work:** `openWatchList()` opens the README list.
 - **About:** version, "Unofficial; not affiliated with Garmin", GitHub.
@@ -380,7 +382,7 @@ Every story renders inside a frame of the chosen window size.
 - result: install (confirmed and unconfirmed) and restore;
 - check: send, answer (empty, answered, beta marker);
 - outcome: each kind, restarts 0 and 2, shared before;
-- share: each `what` × `state`;
+- share: each `what` × `state`, and reading the watch for the report;
 - error: each code group, rollback complete and incomplete;
 - diagnostics: collecting, ready (no watch, watch found, busy), saved, copied, failed.
 

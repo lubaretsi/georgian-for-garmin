@@ -335,6 +335,7 @@ describe("toScreen", () => {
       ],
       reportText: link.report_text,
       state: "ready",
+      reading: false,
       thanks: null,
     });
     const opened = reduce(state, { type: "shared", shared: { complete: false, url: link.url } });
