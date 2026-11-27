@@ -11,6 +11,8 @@ export type ScreenStoryArgs = {
   platform?: Platform;
   /** Shows Restore original font in More. */
   restorable?: boolean;
+  /** A newer published version: the update note shows (§12). */
+  update?: string;
   onAction: (id: ActionId, payload?: ActionPayload) => void;
 };
 
@@ -30,7 +32,7 @@ export function ScreenStory(
   return (
     <Shell
       model={model}
-      more={moreFor(props.lang, watch, props.restorable ?? false)}
+      more={moreFor(props.lang, watch, props.restorable ?? false, props.update ?? null)}
       lang={props.lang}
       platform={props.platform}
       onAction={(id, payload) => {

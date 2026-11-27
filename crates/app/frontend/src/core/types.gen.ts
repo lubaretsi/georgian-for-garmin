@@ -137,7 +137,8 @@ export type ErrorCode =
   | "verification_failed"
   | "device_error"
   | "internal"
-  | "cancelled";
+  | "cancelled"
+  | "network_error";
 /**
  * Which operation an outcome is of.
  *
@@ -237,6 +238,10 @@ export interface Operations {
   switch_to_mtp: {
     input: SwitchInput;
     output: SwitchOutput;
+  };
+  check_update: {
+    input: CheckUpdateInput;
+    output: CheckUpdateOutput;
   };
 }
 /**
@@ -1323,6 +1328,39 @@ export interface Product {
    * The software version, e.g. "19.05".
    */
   software_version: string;
+}
+/**
+ * `check_update` takes no parameters.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "CheckUpdateInput".
+ */
+export interface CheckUpdateInput {}
+/**
+ * The latest published release, and whether it is newer than this build.
+ *
+ * This interface was referenced by `Operations`'s JSON-Schema
+ * via the `definition` "CheckUpdateOutput".
+ */
+export interface CheckUpdateOutput {
+  /**
+   * This build's version, e.g. "0.4.1".
+   */
+  current: string;
+  /**
+   * The latest published release's version, from its tag `v<version>`, e.g. "0.5.0".
+   */
+  latest: string;
+  /**
+   * `latest` is newer than `current` by semver precedence: a prerelease build (0.5.0-beta.1)
+   * sees its stable release (0.5.0) as newer.
+   */
+  newer: boolean;
+  /**
+   * The latest release's page, where its downloads are:
+   * "https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v0.5.0".
+   */
+  url: string;
 }
 /**
  * An operation failure as the frontend receives it; `busy` only for `device_busy`,

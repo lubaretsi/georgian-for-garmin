@@ -58,7 +58,8 @@ export type ActionId =
   | "send_test_done" | "answer" | "share" | "open_issue"
   | "restart_again" | "try_again" | "back" | "retry_now" | "done"
   | "copy_test_text" | "show_more" | "which_watches" | "help"
-  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file";
+  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file"
+  | "open_update";
 
 /** Extra data some actions carry; every other action carries none. */
 export type ActionPayload =
@@ -72,6 +73,7 @@ export type MoreModel = {
   seen: { label: string; value: string }[] | null;   // "What the app sees"; null with no watch
   reportText: string | null;                         // the exact report, copyable
   version: string;                                   // the app's version
+  update: string | null;                             // a newer published version (§12), else null
 };
 
 /**
@@ -79,5 +81,6 @@ export type MoreModel = {
  *   <Shell model={ScreenModel} more={MoreModel} lang={Lang} platform={Platform}
  *          onAction={(id: ActionId, payload?: ActionPayload) => void}
  *          onLanguage={(lang: Lang) => void} />
- * Restoring from More emits `restore`; the flow answers with `confirm_restore`.
+ * Restoring from More emits `restore`; the flow answers with `confirm_restore`. With `more.update`,
+ * the shell shows the update note (§12); pressing it emits `open_update`.
  */

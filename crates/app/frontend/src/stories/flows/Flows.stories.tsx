@@ -4,7 +4,7 @@
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import type { MockOptions } from "../../mock/MockBackend";
+import { type MockOptions, newerRelease } from "../../mock/MockBackend";
 import { FlowStory } from "./FlowStory";
 
 type Args = { options: MockOptions };
@@ -52,3 +52,5 @@ export const GarminModeOnWindows: Story = {
 };
 /** Plug in (Garmin mode): the watch says it is locked; set the switch to Switches, unplug, plug in again. */
 export const GarminModeWatchLocked: Story = { args: { options: { watch: "venu2", switching: "locked" } } };
+/** A newer version is published: the note under the screen and in More › About opens its page. */
+export const UpdateAvailable: Story = { args: { options: { watch: "venu2", update: newerRelease("0.5.0") } } };

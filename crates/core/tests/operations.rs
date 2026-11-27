@@ -2061,6 +2061,7 @@ fn tool_definitions_follow_the_schemas() {
         "wait_for_watch",
         "diagnose",
         "switch_to_mtp",
+        "check_update",
     ];
     if cfg!(feature = "dev") {
         expected.extend(["read_file", "stage_file", "remove_staged"]);
@@ -2086,6 +2087,11 @@ fn tool_definitions_follow_the_schemas() {
     let switch = &tools["tools"][8];
     assert_eq!(switch["annotations"]["readOnlyHint"], false);
     assert_eq!(switch["annotations"]["destructiveHint"], false);
+    // check_update only reads, and asks GitHub: the one open-world operation.
+    let check = &tools["tools"][9];
+    assert_eq!(check["annotations"]["readOnlyHint"], true);
+    assert_eq!(check["annotations"]["destructiveHint"], false);
+    assert_eq!(check["annotations"]["openWorldHint"], true);
     for tool in tools["tools"].as_array().unwrap() {
         assert_eq!(
             tool["inputSchema"]["additionalProperties"], false,
@@ -2093,20 +2099,25 @@ fn tool_definitions_follow_the_schemas() {
             tool["name"]
         );
         assert_eq!(tool["outputSchema"]["type"], "object", "{}", tool["name"]);
-        assert_eq!(tool["annotations"]["openWorldHint"], false);
+        let open = tool["name"] == "check_update";
+        assert_eq!(
+            tool["annotations"]["openWorldHint"], open,
+            "{}",
+            tool["name"]
+        );
     }
     if cfg!(feature = "dev") {
-        let stage = &tools["tools"][10];
+        let stage = &tools["tools"][11];
         assert_eq!(stage["annotations"]["destructiveHint"], true);
         let input = &stage["inputSchema"]["properties"];
         assert!(input["name"]["pattern"].is_string(), "{input}");
         assert_eq!(input["garmin_sha256"]["items"]["pattern"], "^[0-9a-f]{64}$");
-        assert_eq!(tools["tools"][9]["annotations"]["readOnlyHint"], true);
-        assert_eq!(tools["tools"][11]["annotations"]["destructiveHint"], true);
+        assert_eq!(tools["tools"][10]["annotations"]["readOnlyHint"], true);
+        assert_eq!(tools["tools"][12]["annotations"]["destructiveHint"], true);
         // The raw operations: the reads, ptp_transaction and mtp_trace only read; of the two
         // writes, only mtp_delete is destructive.
         let all = tools["tools"].as_array().unwrap();
-        for tool in &all[12..] {
+        for tool in &all[13..] {
             let writes = ["mtp_create", "mtp_delete"].contains(&tool["name"].as_str().unwrap());
             assert_eq!(
                 tool["annotations"]["readOnlyHint"], !writes,

@@ -5,6 +5,7 @@
 
 import type { Lang } from "../core/backend";
 import type {
+  CheckUpdateOutput,
   Event as DiagnoseEvent,
   DiagnoseOutput,
   ErrorCode,
@@ -116,7 +117,10 @@ export type Effect =
   | { kind: "save_diagnostics"; text: string }
   | { kind: "copy_text"; text: string }
   | { kind: "reveal_file"; path: string }
-  | { kind: "switch_to_mtp" };
+  | { kind: "switch_to_mtp" }
+  /** The latest release (§12): asked once per run, in the background. */
+  | { kind: "check_update" }
+  | { kind: "open_update" };
 
 export type FlowState = {
   phase: Phase;
@@ -150,6 +154,10 @@ export type FlowState = {
    * again only after a read finds no watch or the watch over MTP.
    */
   switchTried: boolean;
+  /** The update check (§12) was asked for this run: it is never asked again. */
+  updateAsked: boolean;
+  /** A newer published version, once the check found one; null otherwise, failures included. */
+  update: string | null;
   effects: Effect[];
 };
 
@@ -179,6 +187,7 @@ export type FlowEvent =
   | { type: "diagnostics_failed"; failure: Failure }
   | { type: "switched"; output: SwitchOutput }
   | { type: "switch_failed"; failure: Failure }
+  | { type: "update_checked"; output: CheckUpdateOutput }
   | { type: "action"; id: ActionId; payload?: ActionPayload };
 
 export function initialState(lang: Lang, version: string): FlowState {
@@ -197,6 +206,8 @@ export function initialState(lang: Lang, version: string): FlowState {
     helpToken: 0,
     startingToken: 0,
     switchTried: false,
+    updateAsked: false,
+    update: null,
     events: [],
     lastProblem: null,
     effects: [],
@@ -575,6 +586,7 @@ function outcomeKind(state: FlowState): OutcomeKind {
 function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined): FlowState {
   const phase = state.phase;
   if (id === "which_watches") return withEffects(state, { kind: "open_watch_list" });
+  if (id === "open_update") return state.update ? withEffects(state, { kind: "open_update" }) : state;
   if (id === "diagnostics") {
     // From More on every screen but share (§11).
     if (phase.name === "share" || phase.name === "diagnostics") return state;
@@ -812,7 +824,10 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
   switch (event.type) {
     case "start": {
       const next = { ...state, helpToken: state.helpToken + 1 };
-      return pollNow(withEffects(next, { kind: "help_timer", token: next.helpToken, delay: HELP_MS }));
+      const started = withEffects(next, { kind: "help_timer", token: next.helpToken, delay: HELP_MS });
+      // The update check runs once per run, behind the first screen (§12).
+      const update = state.updateAsked ? started : withEffects({ ...started, updateAsked: true }, { kind: "check_update" });
+      return pollNow(update);
     }
     case "help_due":
       if (event.token !== state.helpToken || phase.name !== "connect" || phase.mode !== "searching") return state;
@@ -944,6 +959,8 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
     case "switched":
     case "switch_failed":
       return switchEnded(state, afterSwitch(event));
+    case "update_checked":
+      return { ...state, update: event.output.newer ? event.output.latest : null };
     case "action":
       return act(state, event.id, event.payload);
   }

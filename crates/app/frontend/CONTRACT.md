@@ -23,7 +23,7 @@ The new UI is a guided journey: **Connect → Install → Restart → Check**. E
 4. **One vocabulary** (§7), the same on every screen and in both languages.
 5. **Georgian first.** Georgian is the default language. Both languages have the same keys, and the Georgian is written natively, not translated word for word.
 6. **Honest and specific.** Name the model, as in "No one has confirmed Georgian on Lily 2 Active yet". Never promise what the project doesn't do.
-7. **Nothing is sent without a click.** No telemetry. Reports go through GitHub only, and every share screen says that needs a free GitHub account.
+7. **Nothing is sent without a click, but one check for a newer version.** Once per run the app asks GitHub for the latest release's version number (§12); nothing about the user or the watch goes with it. No telemetry. Reports go through GitHub only, and every share screen says that needs a free GitHub account.
 8. **Native rendering only.** Never suggest other apps, widgets, images or transliteration.
 9. **Accessible:**
    - text contrast ≥ 4.5:1, control boundaries ≥ 3:1;
@@ -69,6 +69,8 @@ export interface Backend {
   shareReport(input: IssueLinkInput): Promise<Shared>; // opens the browser (not in demo/mock)
   openIssue(issue: number): Promise<string>;
   openWatchList(): Promise<string>;                    // new (phase 2): the README's watch list; no arbitrary URLs
+  checkUpdate(): Promise<CheckUpdateOutput>;          // core `check_update` (§12): the latest release; the app asks GitHub once per run
+  openUpdate(): Promise<string>;                      // the release page of the newer version `checkUpdate` found; no arbitrary URLs
   phonePage(language: Lang): Promise<PhonePage>;
   testMarks(): Promise<MarkPicture[]>;                 // empty in stable builds
   platform(): Promise<Platform>;
@@ -220,7 +222,8 @@ export type ActionId =
   | "send_test_done" | "answer" | "share" | "open_issue"
   | "restart_again" | "try_again" | "back" | "retry_now" | "done"
   | "copy_test_text" | "show_more" | "which_watches" | "help"
-  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file";
+  | "diagnostics" | "save_diagnostics" | "copy_diagnostics" | "show_file"
+  | "open_update";
 
 /** Extra data some actions carry; every other action carries none. */
 export type ActionPayload =
@@ -234,6 +237,7 @@ export type MoreModel = {
   seen: { label: string; value: string }[] | null;   // "What the app sees"; null with no watch
   reportText: string | null;                         // the exact report, copyable
   version: string;                                   // the app's version
+  update: string | null;                             // a newer published version (§12), else null
 };
 
 /**
@@ -244,7 +248,8 @@ export type MoreModel = {
  *          onLanguage={(lang: Lang) => void} />
  * `overlayTitleBar`: the OS draws its window buttons over the toolbar (macOS, from the WebView's
  * user agent; defaults to `platform === "macos"`). `demo`: the demo build, named in More › About.
- * Restoring from More emits `restore`; the flow answers with `confirm_restore`.
+ * Restoring from More emits `restore`; the flow answers with `confirm_restore`. With `more.update`,
+ * the shell shows the update note (§12); pressing it emits `open_update`.
  */
 ```
 
@@ -302,7 +307,7 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 - **What the app sees:** model, part number, software, what install writes (pack names and parts live here) and the report text, all copyable.
 - **Help:** connecting, MTP, Garmin Express, phone setup.
 - **Which watches work:** `openWatchList()` opens the README list.
-- **About:** version, "Unofficial; not affiliated with Garmin", GitHub.
+- **About:** version, "Unofficial; not affiliated with Garmin", GitHub, and the update note when a newer version is published (§12).
 
 **Answers survive** leaving `check`, `outcome` or `share` for the rest of the session. "Done" never discards answers that haven't been shared without asking first.
 
@@ -414,6 +419,7 @@ The flows:
 | Garmin mode, switched | Venu 2 plugged in Garmin mode | switching → watch → install → plugged in Garmin mode after the restart → switching in the restart step → verified |
 | Garmin mode on Windows | Venu 2 plugged in Garmin mode, Windows | guidance (no switch) → MTP chosen on the watch → watch |
 | Garmin mode, watch locked | Venu 2 plugged in Garmin mode, the switch finds it locked | switching → locked → unplug, plug in → switching → watch |
+| Update available | Venu 2, with a newer release published | the update note under every screen and in More › About → the release page opens |
 
 **Tests run in CI:**
 - Every flow has a play function, run headless in Chromium and WebKit through Storybook's Vitest addon.
@@ -445,7 +451,7 @@ The flows:
 **Non-goals:**
 - no change to existing core operations;
 - no email reporting in the app. Diagnostic info is saved or copied by the user, never sent;
-- no telemetry;
+- no telemetry: the one automatic request is the check for the latest version number (§12);
 - the GitHub issue form's language and the website ("does it work on my watch") are separate decisions;
 - no telling apart two watches of the same model.
 
@@ -502,3 +508,40 @@ For when we reach out to someone who can't do something and can't use GitHub. No
     - Only the standalone CLI opens fresh.
     - If the busy detection names this very process as the holder, it is reported as "this app", never as another program.
   - **Tests:** an identifier test like `fixtures_hold_no_identifiers` runs over the output.
+
+## 12. Update notice
+
+Most people never update the app, so it says when a newer version is published, and links to
+its download page. The app never downloads or installs anything itself.
+
+- **Core operation `check_update`:** read-only, idempotent, not destructive, open world (it asks
+  GitHub). Declared in `ops.rs`, so it reaches the CLI (`georgian-for-garmin check-update`),
+  `rpc` and `mcp`.
+  - **Input:** `{}`. **Output:** `current` (this build's version), `latest` (the latest
+    release's), `newer` (`latest` is newer than `current` by semver precedence, so a beta build
+    sees its stable release as newer) and `url` (that release's page, built by the core from
+    `latest`, never taken from the answer).
+  - **The one request:** GitHub's `GET /repos/lubaretsi/georgian-for-garmin/releases/latest`
+    (published releases only: no drafts, no prereleases), with a `User-Agent` that names the
+    program and nothing else, and a 10 s timeout. Only `tag_name` (`v<semver>`) is read.
+  - **Errors:** `network_error` for no answer, a timeout, a refusal (GitHub's rate limit
+    included) or an answer that isn't a release with a version tag.
+- **When:** once per run, in the background after the first screen shows; it never delays
+  startup. The flow asks once; the app's Rust side runs at most one check per run and gives
+  every caller its result, so a remounted frontend can't send a second request.
+- **The note:** only when `newer`. "Version {version} is available" / „გამოვიდა პროგრამის ახალი
+  ვერსია {version}", a small borderless link on every screen, pinned between the scrolling
+  content and the footer (so it shows on long screens too), and in More › About. Pressing it
+  emits `open_update`, and `openUpdate()` opens the release page in the browser. Never modal,
+  never among the footer's actions, nothing to dismiss.
+- **Failure:** offline or any error shows nothing, and the app doesn't ask again that run.
+- **Demo build:** no network. `GEORGIAN_FOR_GARMIN_DEMO_UPDATE=<version>` answers as if that
+  version were the latest release; without it, and always while
+  `GEORGIAN_FOR_GARMIN_DEMO_RECORDING` films, the check fails and no note shows. Opening the
+  release page opens nothing, like every link in the demo.
+- **Non-goals:** downloading or installing, signing, a setting to turn the check off, and the
+  CLI checking on its own (only `check-update` asks).
+- **Tests:** the core's version logic (newer, same, older, a prerelease build, malformed
+  answers, refusals) over a fake transport; the reducer (newer, same, older, prerelease current,
+  failure shows nothing, one request per run); copy parity; a flow story whose play function
+  presses the note and checks the release page opened.

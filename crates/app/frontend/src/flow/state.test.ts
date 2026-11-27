@@ -1,9 +1,10 @@
 // Every transition of the journey (contract §4), with the core's real results as events.
 
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
-import type { Failure, InspectOutput } from "../core/types.gen";
+import type { CheckUpdateOutput, Failure, InspectOutput } from "../core/types.gen";
 import { failure, output } from "../mock/fixtures";
+import { MockBackend, newerRelease } from "../mock/MockBackend";
 import type { ActionId, ActionPayload, Answers } from "../model/screens";
 import { moreModel } from "./screen";
 import {
@@ -18,6 +19,7 @@ import {
   SLOW_MS,
   STARTING_MS,
 } from "./state";
+import { FlowStore } from "./store";
 
 const inspect = (scenario: string, step: string) => output(scenario, step, "inspect");
 const NO_DEVICE = failure("connect-problems", "inspect-no_device");
@@ -59,11 +61,12 @@ function reconnected(result: InspectOutput): FlowState {
 }
 
 describe("looking for the watch", () => {
-  test("starts with a read and the help timer", () => {
+  test("starts with a read, the help timer and the update check", () => {
     const state = started();
     expect(state.phase).toEqual({ name: "connect", mode: "searching", showHelp: false });
     expect(state.effects).toEqual([
       { kind: "help_timer", token: 1, delay: HELP_MS },
+      { kind: "check_update" },
       { kind: "inspect", token: 1, delay: 0, slowAfter: null },
     ]);
   });
@@ -789,5 +792,76 @@ describe("a watch in Garmin mode (§4.2)", () => {
     const windows = reduce(working, { type: "op_failed", op: "install", failure: WINDOWS });
     expect(windows.phase).toMatchObject({ mode: "garmin_mode", garmin: { state: "guidance" } });
     expect(kinds(windows)).toEqual(["inspect"]);
+  });
+});
+
+describe("the update check (§12)", () => {
+  const release = (current: string, latest: string, newer: boolean): CheckUpdateOutput => ({
+    current,
+    latest,
+    newer,
+    url: `https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v${latest}`,
+  });
+  const checked = (output: CheckUpdateOutput) => reduce(started(), { type: "update_checked", output });
+
+  test("a newer release: the note in More, and pressing it opens that release's page", () => {
+    const state = checked(release("0.4.1", "0.5.0", true));
+    expect(state.update).toBe("0.5.0");
+    expect(moreModel(state).update).toBe("0.5.0");
+    expect(act(state, "open_update").effects).toEqual([{ kind: "open_update" }]);
+  });
+
+  test("the same or an older release: no note, and nothing to open", () => {
+    for (const output of [release("0.4.1", "0.4.1", false), release("0.5.0", "0.4.1", false)]) {
+      const state = checked(output);
+      expect(state.update).toBeNull();
+      expect(moreModel(state).update).toBeNull();
+      expect(act(state, "open_update").effects).toEqual([]);
+    }
+  });
+
+  test("a prerelease build sees its stable release as newer", () => {
+    expect(checked(release("0.5.0-beta.1", "0.5.0", true)).update).toBe("0.5.0");
+  });
+
+  test("asked once per run: starting again asks nothing", () => {
+    const again = reduce(started(), { type: "start" });
+    expect(kinds(again)).toContain("inspect");
+    expect(kinds(again)).not.toContain("check_update");
+  });
+
+  test("the answer counts under a screen opened over another", () => {
+    const diagnostics = act(atWatch(), "diagnostics");
+    const state = reduce(diagnostics, { type: "update_checked", output: release("0.4.1", "0.5.0", true) });
+    expect(state.phase.name).toBe("diagnostics");
+    expect(moreModel(state).update).toBe("0.5.0");
+  });
+
+  test("offline: no note, no retry, and one request however often the app starts", async () => {
+    const backend = new MockBackend({ watch: "venu2", connection: "unplugged", speed: 1000 });
+    const store = new FlowStore(backend, "en", "0.3.4", 1000);
+    // React's StrictMode mounts the app twice in development.
+    store.start();
+    store.stop();
+    store.start();
+    await vi.waitFor(() => expect(backend.simulation().updateChecks).toBe(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    store.stop();
+    expect(backend.simulation().updateChecks).toBe(1);
+    expect(store.getState().update).toBeNull();
+    expect(moreModel(store.getState()).update).toBeNull();
+  });
+
+  test("a newer release reaches the note through the app, which opens exactly its page", async () => {
+    const backend = new MockBackend({ watch: "venu2", connection: "unplugged", speed: 1000, update: newerRelease("0.5.0") });
+    const store = new FlowStore(backend, "en", "0.3.4", 1000);
+    store.start();
+    await vi.waitFor(() => expect(moreModel(store.getState()).update).toBe("0.5.0"));
+    store.dispatch({ type: "action", id: "open_update" });
+    await vi.waitFor(() =>
+      expect(backend.simulation().opened).toEqual(["https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v0.5.0"]),
+    );
+    store.stop();
+    expect(backend.simulation().updateChecks).toBe(1);
   });
 });

@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { storyGlobals } from "../../../.storybook/globals";
 import type { Lang } from "../../core/backend";
-import { copyFor } from "../../copy";
+import { copyFor, fmt } from "../../copy";
 import { REPO_URL } from "../../copy/shared";
 import { WATCHES } from "../screens/data";
 import { renderScreen } from "../screens/render";
@@ -81,4 +81,37 @@ export const OpenInAShortWindow: StoryObj<ScreenStoryArgs> = {
       expect(section.scrollHeight - section.clientHeight).toBeLessThanOrEqual(1);
     }
   },
+};
+
+/**
+ * A newer version is published (§12): the quiet note under the screen and in More › About, each
+ * emitting `open_update`, which opens the release page.
+ */
+async function pressUpdateNotes(canvasElement: HTMLElement, lang: Lang, onAction: ScreenStoryArgs["onAction"]) {
+  const copy = copyFor(lang);
+  const canvas = within(canvasElement);
+  const name = fmt(copy.update.available, { version: "0.5.0" });
+  const note = await canvas.findByRole("button", { name });
+  expect(note).toHaveAccessibleDescription(copy.update.download);
+  // Never one of the footer's actions.
+  expect(note.closest("footer")).toBeNull();
+  await userEvent.click(note);
+  expect(onAction).toHaveBeenLastCalledWith("open_update", undefined);
+  const dialog = await openMore(canvasElement, lang);
+  await userEvent.click(within(dialog).getByRole("button", { name }));
+  expect(onAction).toHaveBeenLastCalledWith("open_update", undefined);
+  // Pressing it closes More, as every command in the sheet does.
+  await waitFor(() => expect(canvas.queryByRole("dialog")).toBeNull());
+}
+
+export const UpdateAvailableEn: StoryObj<ScreenStoryArgs> = {
+  args: { update: "0.5.0", onAction: fn() },
+  globals: { lang: "en" },
+  play: ({ canvasElement, args }) => pressUpdateNotes(canvasElement, "en", args.onAction),
+};
+
+export const UpdateAvailableKa: StoryObj<ScreenStoryArgs> = {
+  args: { update: "0.5.0", onAction: fn() },
+  globals: { lang: "ka" },
+  play: ({ canvasElement, args }) => pressUpdateNotes(canvasElement, "ka", args.onAction),
 };

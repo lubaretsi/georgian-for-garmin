@@ -342,5 +342,6 @@ export function moreModel(state: FlowState): MoreModel {
     seen,
     reportText: source?.report.text ?? null,
     version: state.version,
+    update: state.update,
   };
 }

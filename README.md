@@ -222,6 +222,11 @@ To undo, connect the watch and choose **More › Restore original font** (the **
 top corner); the app then guides the restart the same way. If we ask you for diagnostic info,
 **More › Diagnostic info** saves it to a file or copies it; it has no serial number or watch ID.
 
+Each time it starts, the app asks GitHub once for the latest version number, and when there is a
+newer version it shows a link to the download page. Nothing about you or your watch is sent;
+GitHub sees the request and your IP address, as with any download. The app never downloads or
+installs anything itself.
+
 The app is in Georgian, with an English switch in the top corner. On a Mac without the Safari
 16.4 update (macOS Big Sur or Monterey that hasn't installed it) the app shows how to update
 instead of its window. The macOS app is tested with a watch, and so are the Windows app and the

@@ -6,7 +6,7 @@ import { within } from "storybook/test";
 
 import { type Copy, copyFor, fmt } from "../../copy";
 import { FlowApp } from "../../flow/FlowApp";
-import { MockBackend, type MockOptions } from "../../mock/MockBackend";
+import { MOCK_VERSION, MockBackend, type MockOptions } from "../../mock/MockBackend";
 import { Simulator } from "../../mock/Simulator";
 import { WindowFrame } from "../../ui/WindowFrame";
 import { type StoryGlobals, storyGlobals } from "../../../.storybook/globals";
@@ -15,7 +15,6 @@ import { type StoryGlobals, storyGlobals } from "../../../.storybook/globals";
 export const SPEED = Number(import.meta.env.VITE_FLOW_SPEED ?? 1);
 /** How long a play function waits for the next screen. */
 export const STEP_MS = 8000;
-const VERSION = "0.3.4";
 
 export function FlowStory(props: { options: MockOptions; globals: Partial<StoryGlobals> }) {
   const g = storyGlobals(props.globals);
@@ -23,7 +22,7 @@ export function FlowStory(props: { options: MockOptions; globals: Partial<StoryG
   return (
     <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
       <WindowFrame width={g.width} height={g.height} theme={g.theme} lang={g.lang} platform={g.platform}>
-        <FlowApp backend={backend} lang={g.lang} platform={g.platform} version={VERSION} speed={SPEED} />
+        <FlowApp backend={backend} lang={g.lang} platform={g.platform} version={MOCK_VERSION} speed={SPEED} />
       </WindowFrame>
       <Simulator backend={backend} />
     </div>

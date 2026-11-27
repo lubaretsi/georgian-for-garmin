@@ -595,6 +595,13 @@ export const en = {
     },
   },
 
+  /** The update note (§12): under every screen and in More › About, when a newer version is out. */
+  update: {
+    available: "Version {version} is available",
+    /** Describes the note: what pressing it does. */
+    download: "Download it from GitHub.",
+  },
+
   /** More › Diagnostic info (§11): saved or copied by the user, never sent. */
   diagnostics: {
     title: "Diagnostic info",

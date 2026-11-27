@@ -52,7 +52,8 @@
 //! clipboard is left alone, "shared before" is kept in memory, and nothing is opened. [`probe`]
 //! lists the demo watch and drive for `diagnose` instead of this computer's USB devices and
 //! volumes, and [`switch`] switches the demo watch out of Garmin mode instead of this computer's
-//! USB.
+//! USB. The update check never goes online: [`http`] answers it, with
+//! `GEORGIAN_FOR_GARMIN_DEMO_UPDATE=<version>` as the latest release, else with no answer.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -1116,6 +1117,33 @@ impl Mtp for Demo {
             .map(|(&h, _)| h)
             .collect())
     }
+}
+
+/// The demo's answer to the update check: GitHub's, as if `latest` (e.g. "0.9.0") were the
+/// latest release, or with none, no answer, so no note shows.
+pub fn release_answer(
+    latest: Option<&str>,
+) -> Result<georgian_for_garmin_core::update::Answer, String> {
+    let version = latest.ok_or("Demo: the update check never goes online")?;
+    let tag = format!("v{}", version.trim().trim_start_matches('v'));
+    Ok(georgian_for_garmin_core::update::Answer {
+        status: 200,
+        body: serde_json::json!({ "tag_name": tag })
+            .to_string()
+            .into_bytes(),
+    })
+}
+
+/// How the app's update check gets GitHub's answer in the demo build: never from the network.
+/// `GEORGIAN_FOR_GARMIN_DEMO_UPDATE=<version>` answers as if that version were the latest
+/// release; without it, and always while `GEORGIAN_FOR_GARMIN_DEMO_RECORDING` films, there is
+/// no answer.
+#[cfg(feature = "demo")]
+pub fn http() -> Box<georgian_for_garmin_core::update::Get<'static>> {
+    let latest = std::env::var("GEORGIAN_FOR_GARMIN_DEMO_UPDATE")
+        .ok()
+        .filter(|_| !WATCH.recording());
+    Box::new(move |_, _| release_answer(latest.as_deref()))
 }
 
 #[cfg(test)]

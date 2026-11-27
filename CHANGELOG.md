@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The app tells you when a newer version is out: a small "Version 0.5.0 is available" link
+  (with that version's number) under every screen and in More › About opens its release page in
+  the browser. To know, it asks GitHub for the latest version number once each time it starts,
+  sending nothing about you or the watch; offline, it shows nothing. It never downloads or
+  installs anything itself ([README](README.md#install)).
+- The command line, `rpc` and `mcp` have `check-update` (`check_update`): the latest release,
+  whether it is newer than this build, and its page; a failure is the new error `network_error`.
+  It is the only command that goes online
+  ([command line](docs/command-line.md#checking-for-a-newer-version)).
+- The demo build's `GEORGIAN_FOR_GARMIN_DEMO_UPDATE=<version>` answers the update check as if
+  that version were the latest release; the demo never goes online
+  ([development](docs/development.md#desktop-app)).
+
 ## [0.4.1] - 2026-11-26
 
 ### Added

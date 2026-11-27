@@ -400,7 +400,7 @@ describe("moreModel", () => {
   });
 
   test("no watch: nothing seen, no restore", () => {
-    expect(moreModel(started())).toEqual({ restorable: false, seen: null, reportText: null, version: "0.3.4" });
+    expect(moreModel(started())).toEqual({ restorable: false, seen: null, reportText: null, version: "0.3.4", update: null });
   });
 
   test("a watch: what the app sees, its report, restore", () => {
@@ -415,6 +415,7 @@ describe("moreModel", () => {
       ],
       reportText: VENU2.report.text,
       version: "0.3.4",
+      update: null,
     });
   });
 

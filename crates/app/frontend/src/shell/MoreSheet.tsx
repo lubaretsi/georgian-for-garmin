@@ -13,13 +13,14 @@ import { Segmented } from "../ui/Controls";
 import { CopyBlock } from "../ui/CopyBlock";
 import { Disclosure } from "../ui/Disclosure";
 import { Group, GroupHeader, Hairline, Tile, TILE_INSET, ValueRow } from "../ui/Group";
+import { UpdateNote } from "./UpdateNote";
 
 /**
  * More (§5.2, §11), a sheet that drops from the toolbar over the dimmed window: language,
  * Restore original font when the watch allows it, Diagnostic info, what the app sees, help,
- * which watches work, and about. It traps focus, closes on Esc and returns focus to the
- * button that opened it. The only place the app's internal words may appear (under "What the
- * app sees", from the flow's data).
+ * which watches work, and about, with the update note when a newer version is out (§12). It
+ * traps focus, closes on Esc and returns focus to the button that opened it. The only place the
+ * app's internal words may appear (under "What the app sees", from the flow's data).
  */
 export function MoreSheet(props: {
   open: boolean;
@@ -124,6 +125,9 @@ export function MoreSheet(props: {
                 </Tile>
                 <div className="min-w-0 text-row text-fg-2">
                   <p className="text-fg">{fmt(m.about.version, { version: more.version })}</p>
+                  {more.update ? (
+                    <UpdateNote version={more.update} copy={copy} onPress={() => run("open_update")} className="-ml-2.5" />
+                  ) : null}
                   {props.demo ? <p className="text-fg">{copy.app.demo}</p> : null}
                   <p>{m.about.unofficial}</p>
                   <p>
