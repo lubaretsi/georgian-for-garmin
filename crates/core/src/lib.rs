@@ -16,12 +16,21 @@ compile_error!(
      without --release"
 );
 
+// The examples' support list is for the UI fixtures, the demo build and tests; it never ships.
+#[cfg(all(feature = "example-watches", not(debug_assertions)))]
+compile_error!(
+    "the `example-watches` feature replaces the support list with the examples' and is for \
+     debug builds only; build without --release"
+);
+
 pub mod busy;
 #[cfg(feature = "dev")]
 pub mod dev;
 pub mod diagnose;
 pub mod drive;
 pub mod error;
+#[cfg(feature = "example-watches")]
+pub mod example_watches;
 pub mod extdata;
 pub mod fonts;
 pub mod garmin_device;

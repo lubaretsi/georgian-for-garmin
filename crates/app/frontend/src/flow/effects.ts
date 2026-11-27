@@ -2,7 +2,7 @@
 
 import { type Backend, isFailure } from "../core/backend";
 import type { Failure, Progress } from "../core/types.gen";
-import type { Effect, FlowEvent } from "./state";
+import { type Effect, type FlowEvent, REPORT_READ_MS } from "./state";
 
 /** A rejection as the flow takes it: the backend's `Failure`, or the app's own fault. */
 export function toFailure(error: unknown): Failure {
@@ -75,6 +75,26 @@ export class EffectRunner {
             (failure) => ({ type: "inspect_failed", token, failure }),
           );
         });
+        return;
+      }
+      case "report_read": {
+        // A read that doesn't answer in time leaves the report with the earlier one (§4).
+        let settled = false;
+        const once = (event: FlowEvent) => {
+          if (settled) return;
+          settled = true;
+          this.send(event);
+        };
+        this.later(REPORT_READ_MS, () =>
+          once({
+            type: "report_read_failed",
+            failure: { code: "internal", message: `inspect: no answer within ${REPORT_READ_MS / 1000} s` },
+          }),
+        );
+        b.inspect().then(
+          (output) => once({ type: "report_read", output }),
+          (error: unknown) => once({ type: "report_read_failed", failure: toFailure(error) }),
+        );
         return;
       }
       case "inspect_drive": {

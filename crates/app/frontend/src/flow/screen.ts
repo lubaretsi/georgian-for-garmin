@@ -290,6 +290,7 @@ export function toScreen(state: FlowState): ScreenModel {
         summary: summary(state, copyFor(state.lang), phase),
         reportText: phase.link?.report_text ?? "",
         state: phase.state,
+        reading: phase.reading,
         thanks:
           phase.state === "opened" || phase.state === "opened_paste"
             ? phase.what === "result" && result === "georgian"
@@ -326,7 +327,11 @@ export function moreModel(state: FlowState): MoreModel {
   // Not while writing, confirming or in diagnostics, nor while the switch to MTP holds the watch (§4.2).
   const busy =
     phase.name === "working" || phase.name === "confirm_restore" || phase.name === "diagnostics" || switching(phase);
-  const labels = copyFor(state.lang).more.seen.labels;
+  const seenCopy = copyFor(state.lang).more.seen;
+  const labels = seenCopy.labels;
+  // A read from before the last write says so (§4, A report after an unverified write).
+  const fontState = (value: string) =>
+    !drive && state.readBeforeOp && state.lastOp ? `${value} ${seenCopy.readBefore[state.lastOp.op]}` : value;
   const seen = source && [
     { label: labels.model, value: source.device.model },
     { label: labels.modelPart, value: source.device.part_number },
@@ -335,7 +340,7 @@ export function moreModel(state: FlowState): MoreModel {
       label: labels.writes,
       value: "packs" in source && source.packs.length ? source.packs.map((pack) => pack.name).join(", ") : "-",
     },
-    ...("state" in source ? [{ label: labels.state, value: source.state }] : []),
+    ...("state" in source ? [{ label: labels.state, value: fontState(source.state) }] : []),
   ];
   return {
     restorable: !busy && !drive && (state.inspect?.restorable ?? false),

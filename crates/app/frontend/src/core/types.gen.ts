@@ -824,7 +824,7 @@ export interface IssueLinkInput {
   outcome?: Outcome | null;
   /**
    * The `report` from `inspect` or `inspect_drive`: the watch as last read, before or after
-   * `outcome`'s operation (after its restart, once verified). Its `title` and `text` are
+   * `outcome`'s operation (`outcome.read_before` says which). Its `title` and `text` are
    * ignored and rebuilt from the other fields. Absent for a watch that couldn't be read: then
    * exactly one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
    */
@@ -937,6 +937,11 @@ export interface Outcome {
    * The parts it wrote (or found already there), when it succeeded.
    */
   parts?: string[];
+  /**
+   * The report's watch was read before this operation, and couldn't be read again since:
+   * its `state` line then says so, as in `state not_installed (read before the install)`.
+   */
+  read_before?: boolean;
   /**
    * Set when it succeeded.
    */

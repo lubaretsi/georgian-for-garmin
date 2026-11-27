@@ -417,7 +417,7 @@ export class MockBackend implements Backend {
     await this.wait(INSPECT_MS);
     if (this.sim.connection !== "mtp") throw this.failureAt(NO_DEVICE);
     if (this.sim.holder) throw this.failureAt(busyStep(this.sim.holder, this.platformName));
-    if (!plan) throw this.failureAt("forerunner265/install");
+    if (!plan) throw this.failureAt("predicted/install");
     if ("failure" in plan) throw this.failureAt(plan.failure);
     const [scenario, name] = split(plan.output);
     const stage = output(scenario, name, fixtureFile(scenario, name).operation === "install" ? "install" : "restore_stock");
@@ -453,7 +453,8 @@ export class MockBackend implements Backend {
     // A connect problem's report: the error alone, one fixture per problem without a user fix.
     if (input.error) return output("connect-problems", `issue_link-${input.error.code}`, "issue_link");
     if (!input.report) return output("busy", "issue_link-problem", "issue_link");
-    const step = this.def.links[input.answers?.result ?? "font_list"] ?? Object.values(this.def.links)[0];
+    const key = input.outcome?.read_before && this.def.links.read_before ? "read_before" : input.answers?.result;
+    const step = this.def.links[key ?? "font_list"] ?? Object.values(this.def.links)[0];
     if (step) return output(...split(step), "issue_link");
     // No fixture for this watch: the report as inspect gave it.
     return { title: input.report.title, url: NEW_ISSUE, report_in_url: false, report_text: input.report.text, fields: [] };

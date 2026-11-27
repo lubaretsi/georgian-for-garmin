@@ -18,15 +18,15 @@ export default {
 type Story = StoryObj<Args>;
 
 export const Venu2Confirmed: Story = { args: { options: { watch: "venu2" } } };
-export const Lily2ActiveFirstConfirmation: Story = { args: { options: { watch: "lily2active" } } };
-export const VenuBoxes: Story = { args: { options: { watch: "venuBoxes" } } };
-export const Instinct3UnsupportedRestore: Story = { args: { options: { watch: "instinct3" } } };
-export const Venu3AnotherFontWaiting: Story = { args: { options: { watch: "venu3" } } };
-export const Fenix6Unsupported: Story = { args: { options: { watch: "fenix6" } } };
-export const Fenix6EarlierTestVersionLeft: Story = { args: { options: { watch: "fenix6BetaLeft" } } };
+export const UnconfirmedFirstConfirmation: Story = { args: { options: { watch: "unconfirmed" } } };
+export const KoreanBoxes: Story = { args: { options: { watch: "koreanBoxes" } } };
+export const KoreanUnusedRestore: Story = { args: { options: { watch: "koreanUnused" } } };
+export const ExpectedAnotherFontWaiting: Story = { args: { options: { watch: "expectedWaiting" } } };
+export const FontUnusedUnsupported: Story = { args: { options: { watch: "fontUnused" } } };
+export const FontUnusedEarlierTestVersionLeft: Story = { args: { options: { watch: "fontUnusedBetaLeft" } } };
 /** Plug it in as a drive: it has no MTP. */
-export const Forerunner245DriveOnly: Story = { args: { options: { watch: "forerunner245" } } };
-export const Forerunner265NoFont: Story = { args: { options: { watch: "forerunner265" } } };
+export const DriveOnly: Story = { args: { options: { watch: "driveOnly" } } };
+export const PredictedNoFont: Story = { args: { options: { watch: "predicted" } } };
 /** Garmin Express holds the watch from the start: plug it in, then Release. */
 export const GarminExpressBusy: Story = { args: { options: { watch: "venu2", holder: "garmin_express" } } };
 /** Press Make the next write fail before Install. */

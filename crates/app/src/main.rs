@@ -109,6 +109,10 @@ impl Watch {
     fn new(connect: fn() -> Result<Box<dyn Mtp>, Error>) -> Self {
         Watch {
             busy: Mutex::new(()),
+            // The demo build's watches show the examples' support list (`demo.rs`).
+            #[cfg(feature = "demo")]
+            fonts: georgian_for_garmin_core::example_watches::fonts(),
+            #[cfg(not(feature = "demo"))]
             fonts: FontSet::bundled(),
             connect,
         }

@@ -8,9 +8,10 @@ repository.workspace = true
 publish = false
 
 [features]
-# Swaps the USB watch for an in-memory one so the UI can be tried without hardware.
+# Swaps the USB watch for an in-memory one so the UI can be tried without hardware, and the
+# support list for the examples' (core's `example-watches`).
 # Debug builds only: a release build with it fails to compile.
-demo = []
+demo = ["georgian-for-garmin-core/example-watches"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -26,3 +27,7 @@ serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-opener = "2"
+
+[dev-dependencies]
+# The demo's tests run without the `demo` feature and need the examples' support list too.
+georgian-for-garmin-core = { workspace = true, features = ["example-watches"] }

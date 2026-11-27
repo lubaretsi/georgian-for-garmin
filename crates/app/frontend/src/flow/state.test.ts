@@ -99,7 +99,7 @@ describe("looking for the watch", () => {
   });
 
   test("found as a USB drive → drive; unplugged → connect", () => {
-    const drive = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+    const drive = output("drive-only", "inspect_drive", "inspect_drive");
     let state = read(started(), NO_DEVICE);
     state = reduce(state, { type: "drive_inspected", token: state.token, output: drive });
     expect(state.phase).toEqual({ name: "drive", drive });
@@ -180,8 +180,8 @@ describe("install and restore", () => {
   });
 
   test("restore isn't offered on a watch with nothing to restore", () => {
-    const fr265 = read(started(), inspect("forerunner265", "inspect"));
-    expect(act(fr265, "restore").phase).toEqual({ name: "watch" });
+    const predicted = read(started(), inspect("predicted", "inspect"));
+    expect(act(predicted, "restore").phase).toEqual({ name: "watch" });
   });
 
   test("written → restart, unplug, polling", () => {
@@ -271,7 +271,7 @@ describe("the restart step", () => {
   });
 
   test("another watch → other_watch, then the right one is checked", () => {
-    let state = reconnected(inspect("lily2active", "inspect"));
+    let state = reconnected(inspect("unconfirmed", "inspect"));
     expect(state.phase).toMatchObject({ phase: "other_watch" });
     state = read(state, NO_DEVICE);
     expect(read(state, inspect("venu2", "inspect-restarted")).phase).toMatchObject({ name: "result" });
@@ -362,9 +362,9 @@ describe("the restart step", () => {
     expect(unplugged.phase).toMatchObject({ name: "connect", mode: "searching" });
     expect(kinds(unplugged)).toEqual(expect.arrayContaining(["inspect", "inspect_drive"]));
     // Another watch: its own screen.
-    const other = read(state, inspect("lily2active", "inspect"));
+    const other = read(state, inspect("unconfirmed", "inspect"));
     expect(other.phase).toEqual({ name: "watch" });
-    expect(other.inspect?.device.model).toBe("Lily 2 Active");
+    expect(other.inspect?.device.model).toBe("Example Unconfirmed");
   });
 
   test("an install's result doesn't read the watch: the check follows", () => {
@@ -374,11 +374,11 @@ describe("the restart step", () => {
   });
 
   test("not verifiable (TrueType): no polling once unplugged; check by hand", () => {
-    const venu3 = read(started(), inspect("venu3-waiting", "inspect-restarted"));
-    let state = reduce(act(venu3, "install"), {
+    const expected = read(started(), inspect("expected-waiting", "inspect-restarted"));
+    let state = reduce(act(expected, "install"), {
       type: "op_done",
       op: "install",
-      output: output("venu3-waiting", "install", "install"),
+      output: output("expected-waiting", "install", "install"),
     });
     expect(state.phase).toMatchObject({ verifiable: false, phase: "unplug" });
     expect(polls(state)).toBeDefined();
@@ -421,8 +421,8 @@ describe("check, outcome and share", () => {
   });
 
   test("Georgian on an unconfirmed watch → works_first", () => {
-    const lily = read(started(), inspect("lily2active", "inspect-restarted"));
-    expect(answered("georgian", lily).phase).toEqual({ name: "outcome", kind: "works_first" });
+    const unconfirmed = read(started(), inspect("unconfirmed", "inspect-restarted"));
+    expect(answered("georgian", unconfirmed).phase).toEqual({ name: "outcome", kind: "works_first" });
   });
 
   test("boxes → didnt_show; restart once more → restart, attempt 2", () => {
@@ -494,7 +494,7 @@ describe("check, outcome and share", () => {
   });
 
   test("share from the drive: its report, no outcome", () => {
-    const drive = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+    const drive = output("drive-only", "inspect_drive", "inspect_drive");
     let state = read(started(), NO_DEVICE);
     state = reduce(state, { type: "drive_inspected", token: state.token, output: drive });
     state = act(state, "share", { action: "share", what: "font_list" });
@@ -512,13 +512,108 @@ describe("check, outcome and share", () => {
     ]);
   });
 
-  test("share a failed write: the outcome's error", () => {
+  test("share a failed write: the watch read again, else the outcome's error on the earlier read", () => {
     const fail = failure("errors", "install-internal");
     const error = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: fail });
     const state = act(error, "share", { action: "share", what: "problem" });
-    expect(state.effects).toEqual([
-      { kind: "issue_link", input: { report: VENU2.report, outcome: { operation: "install", error: "internal" } } },
+    expect(state.effects).toEqual([{ kind: "report_read" }]);
+    const after = inspect("venu2-write-fails", "inspect-after-incomplete");
+    expect(reduce(state, { type: "report_read", output: after }).effects).toEqual([
+      { kind: "issue_link", input: { report: after.report, outcome: { operation: "install", error: "internal" } } },
     ]);
+    expect(reduce(state, { type: "report_read_failed", failure: NO_DEVICE }).effects).toEqual([
+      {
+        kind: "issue_link",
+        input: { report: VENU2.report, outcome: { operation: "install", error: "internal", read_before: true } },
+      },
+    ]);
+  });
+});
+
+describe("a report after a restart the app didn't verify (§4)", () => {
+  const TRUETYPE_BEFORE = inspect("expected-waiting", "inspect-restarted");
+  /** The new font as the watch lists it after the write. */
+  const TRUETYPE_NOW = inspect("expected-waiting", "inspect-staged");
+  const TRUETYPE_PARTS = output("expected-waiting", "install", "install").packs.flatMap((pack) =>
+    pack.parts.map((part) => part.part),
+  );
+
+  /** A TrueType watch installed, restarted by hand, checked: Georgian, at the share screen. */
+  function sharing(): FlowState {
+    let state = reduce(act(read(started(), TRUETYPE_BEFORE), "install"), {
+      type: "op_done",
+      op: "install",
+      output: output("expected-waiting", "install", "install"),
+    });
+    state = act(read(state, NO_DEVICE), "skip_verify");
+    state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "georgian", views: [] } });
+    state = act(state, "done");
+    expect(state.phase).toMatchObject({ name: "outcome" });
+    expect(state.inspect).toBe(TRUETYPE_BEFORE);
+    return act(state, "share", { action: "share", what: "result" });
+  }
+
+  const linkInput = (state: FlowState) => {
+    const [effect] = state.effects;
+    if (effect?.kind !== "issue_link") throw new Error(`no issue_link: ${kinds(state).join()}`);
+    return effect.input;
+  };
+
+  test("the share reads the watch first; Open GitHub waits for it", () => {
+    const state = sharing();
+    expect(state.phase).toMatchObject({ name: "share", reading: true, link: null });
+    expect(state.effects).toEqual([{ kind: "report_read" }]);
+    expect(kinds(act(state, "share", { action: "share", what: "result" }))).toEqual([]);
+  });
+
+  test("a fresh read: the report shows the watch now, with the install", () => {
+    const state = reduce(sharing(), { type: "report_read", output: TRUETYPE_NOW });
+    expect(state.phase).toMatchObject({ name: "share", reading: false });
+    expect(state.inspect).toBe(TRUETYPE_NOW);
+    expect(state.readBeforeOp).toBe(false);
+    const input = linkInput(state);
+    expect(input.report?.state).toBe("installed");
+    expect(input.outcome).toEqual({ operation: "install", status: "staged_verified", parts: TRUETYPE_PARTS });
+    expect(moreModel(state).seen).toContainEqual({ label: "Font state", value: "installed" });
+    expect(kinds(act(state, "share", { action: "share", what: "result" }))).toEqual(["share_report"]);
+  });
+
+  test.each<[string, FlowEvent]>([
+    ["unplugged", { type: "report_read_failed", failure: NO_DEVICE }],
+    ["busy", { type: "report_read_failed", failure: failure("busy", "inspect-garmin_express-macos") }],
+    ["no answer in time", { type: "report_read_failed", failure: { code: "internal", message: "inspect: no answer" } }],
+    ["another watch", { type: "report_read", output: VENU2 }],
+  ])("no read (%s): the earlier read, marked as before the install", (_, event) => {
+    const state = reduce(sharing(), event);
+    expect(state.inspect).toBe(TRUETYPE_BEFORE);
+    const input = linkInput(state);
+    expect(input.report).toBe(TRUETYPE_BEFORE.report);
+    expect(input.outcome).toEqual({
+      operation: "install",
+      status: "staged_verified",
+      parts: TRUETYPE_PARTS,
+      read_before: true,
+    });
+    expect(moreModel(state).seen).toContainEqual({
+      label: "Font state",
+      value: `${TRUETYPE_BEFORE.state} (read before the install)`,
+    });
+  });
+
+  test("a late answer after the read gave up changes nothing", () => {
+    const gaveUp = reduce(sharing(), { type: "report_read_failed", failure: NO_DEVICE });
+    expect(reduce(gaveUp, { type: "report_read", output: TRUETYPE_NOW })).toEqual({ ...gaveUp, effects: [] });
+  });
+
+  test("a verified restart (bitmap) shares the read that verified it, without another", () => {
+    const verified = inspect("venu2", "inspect-restarted");
+    let state = act(reconnected(verified), "check");
+    expect(state.readBeforeOp).toBe(false);
+    state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "boxes", views: [] } });
+    const share = act(act(state, "done"), "share", { action: "share", what: "result" });
+    expect(share.phase).toMatchObject({ name: "share", reading: false });
+    expect(linkInput(share).report).toBe(verified.report);
+    expect(linkInput(share).outcome).not.toHaveProperty("read_before");
   });
 });
 
@@ -526,7 +621,7 @@ describe("the rest", () => {
   test("a different watch drops the last operation", () => {
     const fail = failure("errors", "install-conflict");
     let state = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: fail });
-    state = read(act(state, "back"), inspect("lily2active", "inspect"));
+    state = read(act(state, "back"), inspect("unconfirmed", "inspect"));
     expect(state.lastOp).toBeNull();
   });
 
@@ -540,9 +635,9 @@ describe("the rest", () => {
   });
 
   test("follow updates and which watches open their pages", () => {
-    const fenix = read(started(), inspect("fenix6", "inspect"));
-    expect(act(fenix, "open_issue").effects).toEqual([{ kind: "open_issue", issue: 6 }]);
-    expect(act(fenix, "which_watches").effects).toEqual([{ kind: "open_watch_list" }]);
+    const unsupported = read(started(), inspect("font-unused", "inspect"));
+    expect(act(unsupported, "open_issue").effects).toEqual([{ kind: "open_issue", issue: 6 }]);
+    expect(act(unsupported, "which_watches").effects).toEqual([{ kind: "open_watch_list" }]);
   });
 
   test("shared before is remembered", () => {

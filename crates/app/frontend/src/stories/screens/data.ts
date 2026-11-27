@@ -1,5 +1,7 @@
 // Story data from the core's fixtures (fixtures/core, written by crates/core/tests/ui_fixtures.rs):
-// real models, part numbers, software, busy holders, rollbacks and shared text.
+// models, part numbers, software, busy holders, rollbacks and shared text. Real models are the
+// tested ones; every other status is on a made-up role watch ("Example …", core's
+// `example_watches`), so a confirmation in the registry changes no story.
 
 import type { Lang } from "../../core/backend";
 import type { DiagnoseOutput, InspectOutput } from "../../core/types.gen";
@@ -23,21 +25,23 @@ const venu2 = watchOf(output("venu2", "inspect", "inspect"));
 /** The watches the stories use, each from its scenario's first inspect. */
 export const WATCHES = {
   venu2,
-  lily2Active: watchOf(output("lily2active", "inspect", "inspect")),
-  venu: watchOf(output("venu-boxes", "inspect", "inspect")),
-  instinct3: watchOf(output("instinct3", "inspect", "inspect")),
-  fenix6sPro: watchOf(output("fenix6", "inspect", "inspect")),
-  forerunner245: watchOf(output("forerunner245-drive", "inspect_drive", "inspect_drive")),
-  forerunner265: watchOf(output("forerunner265", "inspect", "inspect")),
-  venu3: watchOf(output("venu3-waiting", "inspect", "inspect")),
+  /** Expected, predicted through Korean fonts (short names): the first confirmation. */
+  unconfirmed: watchOf(output("unconfirmed", "inspect", "inspect")),
+  /** Expected, predicted through Korean fonts, with an issue. */
+  korean: watchOf(output("korean-boxes", "inspect", "inspect")),
+  koreanUnused: watchOf(output("korean-unused", "inspect", "inspect")),
+  fontUnused: watchOf(output("font-unused", "inspect", "inspect")),
+  driveOnly: watchOf(output("drive-only", "inspect_drive", "inspect_drive")),
+  predicted: watchOf(output("predicted", "inspect", "inspect")),
+  expected: watchOf(output("expected-waiting", "inspect", "inspect")),
   forerunner165: watchOf(output("errors", "inspect-restore_first", "inspect")),
-  /** Forerunner 255 on software 30.00, confirmed on 29.52 only. */
-  forerunner255Newer: watchOf(output("forerunner255-newer", "inspect", "inspect")),
+  /** On software 30.00, confirmed on 29.52 only. */
+  otherSoftware: watchOf(output("other-software", "inspect", "inspect")),
 } satisfies Record<string, WatchInfo>;
 
-/** The support list's reason for an unsupported scenario's watch: the fenix 6S Pro (issue 6)
+/** The support list's reason for an unsupported scenario's watch: Example Font Unused (issue 6)
  * unless another is named. */
-export function unsupportedReason(scenario = "fenix6"): { ka: string; en: string } | null {
+export function unsupportedReason(scenario = "font-unused"): { ka: string; en: string } | null {
   return output(scenario, "inspect", "inspect").support.reason ?? null;
 }
 

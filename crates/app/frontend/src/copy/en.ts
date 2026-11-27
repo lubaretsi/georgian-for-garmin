@@ -494,6 +494,8 @@ export const en = {
     account: "Sharing needs a free GitHub account.",
     nothingSent: "Nothing is sent until you press Submit on GitHub.",
     exactText: "Show the exact text",
+    /** While the watch is read again for the report, after a write the app didn't verify. */
+    reading: "Checking the watch…",
     opened: {
       title: "GitHub opened in your browser",
       body: "Sign in if asked, check the form, then press Submit.",
@@ -575,6 +577,8 @@ export const en = {
         writes: "What install writes",
         state: "Font state",
       },
+      /** After the font state as last read, when that read is from before the last write. */
+      readBefore: { install: "(read before the install)", restore: "(read before the restore)" },
     },
     help: {
       title: "Help",

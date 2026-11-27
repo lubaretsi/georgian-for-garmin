@@ -216,6 +216,7 @@ describe("Shell", () => {
       summary: [{ label: "What happened", value: "device busy" }],
       reportText: "app 0.4.0",
       state: "opened",
+      reading: false,
       thanks: "we_look",
     });
     expect(document.body.textContent).not.toContain("Garmin owner");

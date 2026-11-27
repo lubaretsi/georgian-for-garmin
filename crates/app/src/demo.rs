@@ -1,30 +1,36 @@
 //! An in-memory watch for trying the app without hardware (`--features demo`).
 //!
 //! It follows a short script so the connect screens show up: the first three connections find
-//! no watch (meanwhile a Forerunner 245 is mounted as a USB drive, [`drive`]: `unsupported`, at
-//! a software version the support list has), the next two find it held by Garmin Express, and
-//! from then on one of nine watches is attached, covering every support status:
+//! no watch (meanwhile a watch that connects only as a USB drive is mounted, [`drive`]:
+//! `unsupported`, at a software version the support list has), the next two find it held by
+//! Garmin Express, and from then on one of nine watches is attached, covering every support
+//! status. Statuses come from the examples' support list (`example_watches`), not the
+//! registry's: the tested watches are real models, every other one is a made-up role watch
+//! ("Example …"), so confirming a watch in the registry changes nothing here.
 //!
 //! 1. a Venu 2 on software 19.05, listing the parts the registry verified on it, with nothing
 //!    staged: `tested`, so installing ends in Georgian confirmed after the restart;
 //! 2. a Forerunner 165 on software 29.52 with Garmin's TrueType fonts, which it shows over MTP
 //!    (the real one doesn't): `tested`; its fonts change without a restart, so the app can't
 //!    verify one and asks for the check on the watch;
-//! 3. a Venu 3, made to list every part of the first two bundled packs (the real one lists
-//!    TrueType fonts), with a different file already staged for the last one, so installing on
-//!    it ends in a `conflict`: `expected`;
-//! 4. a fenix 6S Pro listing Swiss 721 Hebrew, which no build installs (the watch had our font
-//!    and still drew question marks, #6): `unsupported`, with Restore;
-//! 5. a Venu listing the Korean font `006-D8945-22`, which the support list only predicts to
-//!    work: `expected`, with the note that no one has confirmed Georgian on the model yet;
-//! 6. a Lily 2 Active whose Korean fonts already have Georgian, imported at an earlier restart:
-//!    `expected` and `installed`, so the main screen's action is to check it on the watch;
-//! 7. an Instinct 3 AMOLED 45mm whose Korean font has 0.3.4's Georgian, imported at an earlier
-//!    restart; Georgian in it didn't show on that model (#57): `unsupported`, with Restore;
+//! 3. Example Expected, listing every part of the first two bundled packs, with a different
+//!    file already staged for the last one, so installing on it ends in a `conflict`:
+//!    `expected`;
+//! 4. Example Font Unused, listing Swiss 721 Hebrew, which no build installs (the fenix 6S Pro
+//!    had our font and still drew question marks, #6): `unsupported`, with Restore;
+//! 5. Example Korean, listing the Korean font `006-D8945-22`, which the support list only
+//!    predicts to work: `expected`, with the note that no one has confirmed Georgian on the
+//!    model yet;
+//! 6. Example Unconfirmed, whose Korean fonts (the "Compressed" `006-D8945-67/-68`) already have
+//!    Georgian, imported at an earlier restart: `expected` and `installed`, so the main screen's
+//!    action is to check it on the watch;
+//! 7. Example Korean Unused, whose Korean font `006-D8945-07` has 0.3.4's Georgian, imported at
+//!    an earlier restart; Georgian in it didn't show on the Instinct 3 AMOLED (#57):
+//!    `unsupported`, with Restore;
 //! 8. a tactix 7 on software 27.18 with Georgian imported in the parts verified on it:
 //!    `tested` and `installed`, with only a quiet link to check if it didn't work;
-//! 9. a Forerunner 265, made to list none of this build's fonts (the support list predicts it
-//!    to work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
+//! 9. Example Predicted, listing none of this build's fonts (the support list predicts it to
+//!    work through Noto Sans Armenian): `unknown`, with the prediction and a report asked.
 //!
 //! After the opening script, the physical side is the user's, through the demo build's "Demo
 //! watch" bar ([`act`]): Unplug, Restart watch, Plug in (over MTP, as a drive or in Garmin
@@ -63,6 +69,11 @@ use std::time::{Duration, Instant};
 use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, UsbInterface};
 #[cfg(feature = "demo")]
 use georgian_for_garmin_core::diagnose::{Probe, UsbDevice, UsbReport, drives_at};
+#[cfg(feature = "demo")]
+use georgian_for_garmin_core::example_watches::DRIVE_ONLY;
+use georgian_for_garmin_core::example_watches::{
+    self, EXPECTED, FONT_UNUSED, KOREAN, KOREAN_UNUSED, PREDICTED, UNCONFIRMED,
+};
 use georgian_for_garmin_core::fonts::{FontSet, Kind};
 use georgian_for_garmin_core::garmin_mode::{
     GarminMode, NotSwitchable, Product, SwitchOutput, SwitchStatus,
@@ -147,7 +158,7 @@ const PROTOCOLS: [&str; 5] = ["P000", "L001", "A010", "A903", "A1050"];
 /// What a demo watch lists under `Garmin/ExtData`.
 #[derive(Clone, Copy)]
 enum Lists {
-    /// The parts the registry verified on this model.
+    /// The parts the examples' support list verified on this model.
     Verified,
     /// Every part of the first two bundled packs.
     FirstTwoPacks,
@@ -185,36 +196,36 @@ const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
         Extra::Nothing,
     ),
     (
-        "Venu 3",
-        "006-B4260-00",
+        EXPECTED.model,
+        EXPECTED.model_part,
         "1705",
         Lists::FirstTwoPacks,
         Extra::Leftover,
     ),
     (
-        "fenix 6S Pro",
-        "006-B3288-00",
+        FONT_UNUSED.model,
+        FONT_UNUSED.model_part,
         "2802",
         Lists::Pack("hebrew-swiss-721-truetype"),
         Extra::Nothing,
     ),
     (
-        "Venu",
-        "006-B3226-00",
+        KOREAN.model,
+        KOREAN.model_part,
         "780",
         Lists::Pack("korean-nanum-gothic-medium"),
         Extra::Nothing,
     ),
     (
-        "Lily 2 Active",
-        "006-B4477-00",
+        UNCONFIRMED.model,
+        UNCONFIRMED.model_part,
         "510",
         Lists::Pack("korean-nanum-gothic-medium-compressed"),
         Extra::Installed,
     ),
     (
-        "Instinct 3 AMOLED 45mm",
-        "006-B4586-00",
+        KOREAN_UNUSED.model,
+        KOREAN_UNUSED.model_part,
         "1612",
         Lists::Pack("korean-nanum-gothic-bold"),
         Extra::Installed,
@@ -227,8 +238,8 @@ const WATCHES: [(&str, &str, &str, Lists, Extra); 9] = [
         Extra::Installed,
     ),
     (
-        "Forerunner 265",
-        "006-B4257-00",
+        PREDICTED.model,
+        PREDICTED.model_part,
         "2952",
         Lists::Nothing,
         Extra::Nothing,
@@ -434,7 +445,7 @@ fn import_staged(objects: &mut Objects) {
 
 impl Demo {
     pub fn new(transfer: Duration) -> Self {
-        let fonts = FontSet::bundled();
+        let fonts = example_watches::fonts();
         let watches = WATCHES
             .iter()
             .map(|&(description, part, software, lists, extra)| {
@@ -687,7 +698,7 @@ impl Demo {
         }
     }
 
-    /// Whether the Forerunner 245 is mounted as a drive: during the script's no-watch
+    /// Whether the drive-only watch is mounted as a drive: during the script's no-watch
     /// connections, and after the bar's "Plug in as a drive".
     #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     fn drive_mounted(&self) -> bool {
@@ -981,8 +992,9 @@ pub fn platform() -> Option<&'static str> {
     found
 }
 
-/// While no demo watch is attached over MTP: a Forerunner 245 "mounted as a USB drive" (issue
-/// #16), a folder in the temp directory with its `GARMIN/GarminDevice.xml`.
+/// While no demo watch is attached over MTP: the role watch that connects only as a USB drive
+/// (`example_watches::DRIVE_ONLY`), a folder in the temp directory with its
+/// `GARMIN/GarminDevice.xml`.
 #[cfg(feature = "demo")]
 pub fn drive() -> Option<std::path::PathBuf> {
     if !WATCH.drive_mounted() {
@@ -1001,9 +1013,10 @@ pub fn drive() -> Option<std::path::PathBuf> {
     let xml = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
          <Device xmlns=\"http://www.garmin.com/xmlschemas/GarminDevice/v2\">\
-         <Model><PartNumber>006-B3076-00</PartNumber><SoftwareVersion>1370</SoftwareVersion>\
-         <Description>Forerunner 245</Description></Model><Id>3300000001</Id>\
-         <MassStorageMode>{text_files}</MassStorageMode></Device>"
+         <Model><PartNumber>{}</PartNumber><SoftwareVersion>1370</SoftwareVersion>\
+         <Description>{}</Description></Model><Id>3300000001</Id>\
+         <MassStorageMode>{text_files}</MassStorageMode></Device>",
+        DRIVE_ONLY.model_part, DRIVE_ONLY.model
     );
     std::fs::create_dir_all(root.join("GARMIN")).ok()?;
     std::fs::write(root.join("GARMIN/GarminDevice.xml"), xml).ok()?;
@@ -1154,7 +1167,10 @@ mod tests {
     use super::*;
 
     fn call(demo: &Demo, name: &str) -> Result<Value, ErrorCode> {
-        ops::call(name, json!({}), &FontSet::bundled(), &mut || demo.open()).map_err(|e| e.code)
+        ops::call(name, json!({}), &example_watches::fonts(), &mut || {
+            demo.open()
+        })
+        .map_err(|e| e.code)
     }
 
     fn staged(inspect: &Value) -> Vec<&str> {
@@ -1416,8 +1432,8 @@ mod tests {
         assert_eq!(after["state"], "installed");
         assert_eq!(staged(&after), vec!["georgian"; 4]);
 
-        // The Venu 3 lists two packs; a leftover file makes installing a conflict.
-        let demo = attached("Venu 3");
+        // Example Expected lists two packs; a leftover file makes installing a conflict.
+        let demo = attached(EXPECTED.model);
         let other = call(&demo, "inspect").unwrap();
         assert_eq!(other["tested"]["status"], "untested");
         assert_eq!(other["support"]["status"], "expected");
@@ -1432,26 +1448,26 @@ mod tests {
         );
         assert_eq!(call(&demo, "install"), Err(ErrorCode::Conflict));
 
-        // The fenix 6S Pro: Swiss 721 Hebrew is restore-only in every build.
-        let fenix = call(&attached("fenix 6S Pro"), "inspect").unwrap();
-        assert_eq!(fenix["device"]["model"], "fenix 6S Pro");
+        // Example Font Unused: Swiss 721 Hebrew is restore-only in every build.
+        let fenix = call(&attached(FONT_UNUSED.model), "inspect").unwrap();
+        assert_eq!(fenix["device"]["model"], FONT_UNUSED.model);
         assert_eq!(fenix["supported"], false);
         assert_eq!(fenix["restorable"], true);
         assert_eq!(fenix["support"]["status"], "unsupported");
         assert_eq!(fenix["support"]["issue"], 6);
 
-        // The Venu: its Korean font gets Georgian, but the model is only predicted to work.
-        let venu = call(&attached("Venu"), "inspect").unwrap();
+        // Example Korean: its Korean font gets Georgian, but the model is only predicted to work.
+        let venu = call(&attached(KOREAN.model), "inspect").unwrap();
         assert_eq!(venu["supported"], true);
         assert_eq!(venu["support"]["status"], "expected");
         assert_eq!(venu["support"]["prediction"], "bitmap_korean");
         assert_eq!(venu["support"]["issue"], 12);
         assert_eq!(venu["support"]["report_wanted"], true);
 
-        // The Lily 2 Active already has Georgian, on a model no one has confirmed it on: the
+        // Example Unconfirmed already has Georgian, on a model no one has confirmed it on: the
         // main screen's action is to check it.
-        let lily = call(&attached("Lily 2 Active"), "inspect").unwrap();
-        assert_eq!(lily["device"]["model"], "Lily 2 Active");
+        let lily = call(&attached(UNCONFIRMED.model), "inspect").unwrap();
+        assert_eq!(lily["device"]["model"], UNCONFIRMED.model);
         assert_eq!(lily["state"], "installed");
         assert_eq!(lily["hosts"]["kind"], "bitmap");
         assert_eq!(staged(&lily), vec!["georgian"; 2]);
@@ -1461,11 +1477,11 @@ mod tests {
         assert_eq!(lily["tested"]["status"], "untested");
         assert_eq!(lily["tested"]["verified_software"], json!([]));
 
-        // The Instinct 3 AMOLED has 0.3.4's Georgian in its Korean font, which didn't show on
-        // that model: unsupported, and Restore puts Garmin's font back.
-        let demo = attached("Instinct 3 AMOLED 45mm");
+        // Example Korean Unused has 0.3.4's Georgian in its Korean font, which didn't show on
+        // the Instinct 3 AMOLED: unsupported, and Restore puts Garmin's font back.
+        let demo = attached(KOREAN_UNUSED.model);
         let instinct = call(&demo, "inspect").unwrap();
-        assert_eq!(instinct["device"]["model"], "Instinct 3 AMOLED 45mm");
+        assert_eq!(instinct["device"]["model"], KOREAN_UNUSED.model);
         let k07 = |inspect: &Value| {
             inspect["fonts"]
                 .as_array()
@@ -1500,11 +1516,11 @@ mod tests {
         assert_eq!(tactix["support"]["status"], "tested");
         assert_eq!(tactix["support"]["report_wanted"], false);
 
-        // The Forerunner 265 lists none of this build's fonts: `unknown`, nothing to install,
+        // Example Predicted lists none of this build's fonts: `unknown`, nothing to install,
         // and a report asked; its prediction is shown for triage.
-        let demo = attached("Forerunner 265");
+        let demo = attached(PREDICTED.model);
         let fr265 = call(&demo, "inspect").unwrap();
-        assert_eq!(fr265["device"]["model"], "Forerunner 265");
+        assert_eq!(fr265["device"]["model"], PREDICTED.model);
         assert_eq!(fr265["supported"], false);
         assert_eq!(fr265["restorable"], false);
         assert_eq!(fr265["support"]["status"], "unknown");

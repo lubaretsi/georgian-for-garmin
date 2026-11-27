@@ -22,7 +22,7 @@ The new UI is a guided journey: **Connect → Install → Restart → Check**. E
 3. **Plain words in the main flow.** Never shown there: pack, part, part number, ExtData, staged, `.tmp`, TrueType, bitmap, px, handle, or the names of the host fonts (Armenian, Hebrew, Korean, Nanum, Noto). They appear only under **More › What the app sees**. "MTP" appears only as the label the watch itself shows, with an explanation.
 4. **One vocabulary** (§7), the same on every screen and in both languages.
 5. **Georgian first.** Georgian is the default language. Both languages have the same keys, and the Georgian is written natively, not translated word for word.
-6. **Honest and specific.** Name the model, as in "No one has confirmed Georgian on Lily 2 Active yet". Never promise what the project doesn't do.
+6. **Honest and specific.** Name the watch's own model, as in "No one has confirmed Georgian on Example Unconfirmed yet" (a role watch of the stories, §8). Never promise what the project doesn't do.
 7. **Nothing is sent without a click, but one check for a newer version.** Once per run the app asks GitHub for the latest release's version number (§12); nothing about the user or the watch goes with it. No telemetry. Reports go through GitHub only, and every share screen says that needs a free GitHub account.
 8. **Native rendering only.** Never suggest other apps, widgets, images or transliteration.
 9. **Accessible:**
@@ -127,6 +127,8 @@ stateDiagram-v2
 
 **Screens opened over another** (`confirm_restore`, `share`, `diagnostics`, each with its `back`): every result and timer that isn't the open screen's own goes on underneath (a write finishing, the help card's or the still-starting timer, the Garmin-mode switch ending), so Back or Cancel returns to where that screen got to. The watch isn't read while one is open; returning reads it.
 
+**A report after an unverified write:** after an install or restore the app hasn't read the watch since (a TrueType restart, which isn't verified, or "I'll check on the watch"), the last read is from before the write. Opening `share` then reads the watch once more, same watch only (`device.part_number`), within 15 s, and the report carries that read. While it reads, the share screen says "Checking the watch…" and **Open GitHub** waits. When it can't read (no watch, busy, Garmin mode, another watch, an error, no answer in time), the report keeps the earlier read and its `state` line says so: `state not_installed (read before the install)` (`outcome.read_before`). More › What the app sees marks the font state the same way until the watch is read again.
+
 ### 4.1 The restart step, new
 
 Install and restore end in **restart**, never in "Done". The phases are driven by polling:
@@ -212,7 +214,7 @@ export type ScreenModel =
   | { screen: "result"; op: Op; watch: WatchInfo; confidence: Confidence }
   | { screen: "check"; watch: WatchInfo; step: "send" | "answer"; answers: Answers; phone: { url: string; qr: string } | null; markPictures: { variant: string; picture: string }[] } // qr, picture: the core's data URLs
   | { screen: "outcome"; watch: WatchInfo; kind: "works_confirmed" | "works_first" | "didnt_show" | "no_notification"; restarts: number; sharedBefore: boolean; result: Result | null } // result: the answer given
-  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem)
+  | { screen: "share"; watch: WatchInfo | null; what: "result" | "font_list" | "problem"; summary: { label: string; value: string }[]; reportText: string; state: "ready" | "opened" | "opened_paste" | "failed"; reading: boolean; thanks: "tested_next" | "we_look" | null } // watch null: shared from connect (busy, problem); reading: the watch is read for the report first (§4)
   | { screen: "error"; op: Op; watch: WatchInfo; code: ErrorCode; rollback: RollbackView | null; detail: string }
   | { screen: "diagnostics"; summary: { label: string; value: string }[]; text: string; state: "collecting" | "ready" | "saved" | "copied" | "failed"; savedPath: string | null }; // from More; Back returns to the screen before
 
@@ -297,14 +299,14 @@ The wording here is guidance. The copy catalogs (§7) hold the final text in bot
 | outcome / works_first | "You're the first to confirm Georgian on {model}." Sharing tells every {model} owner | **Share the result** | "Not now" (keeps the answers for this session) |
 | outcome / didnt_show | "Georgian didn't show." Also for "Some letters, some boxes": a partial result counts as not working. | `restarts < 2`: **Restart once more**; else **Share the result** | the other of those two; More › Restore |
 | outcome / no_notification | Phone setup: Android (Garmin Connect notifications for the browser), iPhone (Home Screen page, iOS 16.4+) | "Try again" (back to send) | none |
-| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." | **Open GitHub** | none |
+| share | What's shared, as a short labelled list (model, software, what the app installed, your answers, the font list; no serial number or watch ID). "Show the exact text" is a collapsed disclosure in the content. "Needs a free GitHub account." While `reading`: "Checking the watch…" in the status (§4) | **Open GitHub** (disabled while `reading`) | none |
 | share (after) | `opened`: "GitHub opened in your browser. Sign in if asked, check the form, then press Submit." `opened_paste`: plus "The report is copied: paste it into the empty Watch report box." Then the thanks line | Done | none |
 | error | §6 | §6 | Back |
 
 **More** is a sheet, reachable from the header on every screen. It holds:
 - **Language:** the full words "ქართული" and "English".
 - **Restore original font:** shown when `restorable`, and leads to `confirm_restore`.
-- **What the app sees:** model, part number, software, what install writes (pack names and parts live here) and the report text, all copyable.
+- **What the app sees:** model, part number, software, what install writes (pack names and parts live here), the font state (marked "read before the install" or "read before the restore" while the last read predates the last write, §4) and the report text, all copyable.
 - **Help:** connecting, MTP, Garmin Express, phone setup.
 - **Which watches work:** `openWatchList()` opens the README list.
 - **About:** version, "Unofficial; not affiliated with Garmin", GitHub, and the update note when a newer version is published (§12).
@@ -376,7 +378,7 @@ Run it with `nix develop -c pnpm -C crates/app/frontend storybook`.
 
 Every story renders inside a frame of the chosen window size.
 
-**`Screens/…`:** one story per row of this coverage list, each built from the generated fixtures:
+**`Screens/…`:** one story per row of this coverage list, each built from the generated fixtures. Their statuses come from the examples' support list (core's `example_watches`), not the registry's, so confirming a watch changes no story: real models appear only where tested on a software version, and every other status is shown on a role watch, a real report's listing under a made-up model and part number (`Example …`, `006-B99xx-00`):
 - connect: searching (with and without help), switching, busy (each holder kind × platform), and each problem (`garmin_mode` and `device_locked` included);
 - drive: switch to MTP, drive-only;
 - watch: every verdict, every `confidence`, and every `note`;
@@ -385,7 +387,7 @@ Every story renders inside a frame of the chosen window size.
 - result: install (confirmed and unconfirmed) and restore;
 - check: send, answer (empty, answered, beta marker);
 - outcome: each kind, restarts 0 and 2, shared before;
-- share: each `what` × `state`;
+- share: each `what` × `state`, and reading the watch for the report;
 - error: each code group, rollback complete and incomplete;
 - diagnostics: collecting, ready (no watch, watch found, busy), saved, copied, failed.
 
@@ -399,18 +401,18 @@ A test fails if a `ScreenModel` variant in this list has no story.
 - Make the next write fail;
 - the phone's result for the next check.
 
-The flows:
+The flows (role watches named by what they show; the listing is the report's):
 
 | Flow | Fixture source | Shows |
 |---|---|---|
 | Venu 2, confirmed | maintainer Venu 2 | install → restart → verified → works (no share asked) |
-| Lily 2 Active, first confirmation | the composed Lily fixture | short names, install → restart → check → works_first → share |
-| Venu, boxes | issue-12 with a hidden listing (composed) | install → restart → check boxes → restart once more → share |
-| Instinct 3, unsupported | issue-57 with 0.3.4's Korean font imported (composed) | unsupported, no install → restore → restart → restored |
-| Venu 3, another font waiting | issue-2 + its waiting state | blocked → restart → install |
-| fenix 6, unsupported | issue-6 | unsupported → follow updates; the beta-left variant → restore |
-| Forerunner 245, drive only | issue-16 | drive-only → follow / share font list |
-| Forerunner 265, no font | the demo watch | no_font → share font list |
+| Unconfirmed, first confirmation | the Lily 2 Active's listing (composed imports), as Example Unconfirmed | short names, install → restart → check → works_first → share |
+| Korean, boxes | issue-12 with a hidden listing (composed), as Example Korean | install → restart → check boxes → restart once more → share |
+| Korean unused, unsupported | issue-57 with 0.3.4's Korean font imported (composed), as Example Korean Unused | unsupported, no install → restore → restart → restored |
+| Expected, another font waiting | issue-2 + its waiting state, as Example Expected | blocked → restart → install |
+| Font unused, unsupported | issue-6, as Example Font Unused | unsupported → follow updates; the beta-left variant → restore |
+| Drive only | issue-16, as Example Drive Only | drive-only → follow / share font list |
+| Predicted, no font | the demo watch, Example Predicted | no_font → share font list |
 | Garmin Express busy | any watch | busy → release → watch |
 | Install fails, rollback incomplete | Venu 2 + write failure | error → restore |
 | Linux permission denied | none | the problem screen with commands |
