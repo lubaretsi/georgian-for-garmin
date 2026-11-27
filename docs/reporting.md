@@ -139,8 +139,11 @@ restart does, so imported Georgian reads `installed`, imported Garmin fonts `not
 an imported font this build doesn't recognise `other`: install and restore refuse it, since a
 new `.tmp` would replace it at the next restart, and the app asks for the font list
 (`inspect --json` marks such a part `imported`). A shared result with a last install or restore
-carries the watch as the app read it last: after the restart once the app has verified it, so the
-state shows whether the watch loaded the font.
+carries the watch as the app read it after that operation: the read that verified the restart,
+or, where the app didn't verify it (TrueType fonts, or "I'll check on the watch"), a read made
+when sharing. When that read fails (the watch unplugged, held by another program, or not
+answering), the report keeps the read from before the operation and says so on the `state`
+line: `state not_installed (read before the install)` (or `the restore`).
 
 ### Hidden files
 

@@ -101,7 +101,8 @@ export const WATCH_DEFS = {
       staged: "expected-waiting/inspect-staged",
       imported: "expected-waiting/inspect-installed",
     },
-    links: {},
+    // `read_before`: a report whose state is from before the install (§4).
+    links: { georgian: "expected-waiting/issue_link-georgian", read_before: "expected-waiting/issue_link-read_before" },
   },
   fontUnused: {
     id: "fontUnused",

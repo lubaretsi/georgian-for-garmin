@@ -314,6 +314,10 @@ pub struct Outcome {
     #[serde(default)]
     #[schemars(inner(pattern(r"^[0-9]{3}-[A-Z][0-9]{4}-[0-9]{2}$")))]
     pub parts: Vec<String>,
+    /// The report's watch was read before this operation, and couldn't be read again since:
+    /// its `state` line then says so, as in `state not_installed (read before the install)`.
+    #[serde(default)]
+    pub read_before: bool,
 }
 
 /// What the notification looked like on the watch.
@@ -448,7 +452,7 @@ pub struct ReportedError {
 #[serde(deny_unknown_fields)]
 pub struct IssueLinkInput {
     /// The `report` from `inspect` or `inspect_drive`: the watch as last read, before or after
-    /// `outcome`'s operation (after its restart, once verified). Its `title` and `text` are
+    /// `outcome`'s operation (`outcome.read_before` says which). Its `title` and `text` are
     /// ignored and rebuilt from the other fields. Absent for a watch that couldn't be read: then
     /// exactly one of `busy` and `error` is needed, and `outcome` and `answers` aren't taken.
     #[serde(default)]
@@ -796,7 +800,15 @@ pub fn text(report: &WatchReport, outcome: Option<&Outcome>, answers: Option<&An
         )
         .unwrap();
     }
-    writeln!(out, "state {}", snake(&report.state)).unwrap();
+    write!(out, "state {}", snake(&report.state)).unwrap();
+    if let Some(o) = outcome.filter(|o| o.read_before) {
+        let op = match o.operation {
+            StageOperation::Install => "install",
+            StageOperation::RestoreStock => "restore",
+        };
+        write!(out, " (read before the {op})").unwrap();
+    }
+    out.push('\n');
     if let Some(o) = outcome {
         let result = match (o.status, o.error) {
             (Some(status), _) => snake(&status),
@@ -1018,6 +1030,7 @@ mod tests {
                 status: Some(StageStatus::StagedVerified),
                 error: None,
                 parts: vec!["006-D9035-01".into()],
+                read_before: false,
             }),
             answers,
         }
@@ -1253,6 +1266,45 @@ mod tests {
         o.parts.clear();
         let link = issue_link(&i).unwrap();
         assert!(link.report_text.contains("\nlast install error conflict\n"));
+    }
+
+    #[test]
+    fn a_state_read_before_the_operation_says_so() {
+        let mut i = input(report(), None);
+        let lines = |i: &IssueLinkInput| -> Vec<String> {
+            let text = issue_link(i).unwrap().report_text;
+            text.lines()
+                .filter(|l| l.starts_with("state ") || l.starts_with("last "))
+                .map(str::to_owned)
+                .collect()
+        };
+        assert_eq!(
+            lines(&i),
+            [
+                "state not_installed",
+                "last install staged_verified 006-D9035-01"
+            ]
+        );
+        i.outcome.as_mut().unwrap().read_before = true;
+        assert_eq!(
+            lines(&i),
+            [
+                "state not_installed (read before the install)",
+                "last install staged_verified 006-D9035-01"
+            ]
+        );
+        let o = i.outcome.as_mut().unwrap();
+        o.operation = StageOperation::RestoreStock;
+        o.status = None;
+        o.error = Some(ErrorCode::Conflict);
+        o.parts.clear();
+        assert_eq!(
+            lines(&i),
+            [
+                "state not_installed (read before the restore)",
+                "last restore_stock error conflict"
+            ]
+        );
     }
 
     /// The link's field ids and option labels are the issue form's.

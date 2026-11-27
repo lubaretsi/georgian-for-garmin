@@ -478,6 +478,7 @@ export const ka: Copy = {
     account: "გაზიარებას უფასო GitHub ანგარიში სჭირდება.",
     nothingSent: "სანამ GitHub-ზე „Submit“-ს არ დააჭერთ, არაფერი გაიგზავნება.",
     exactText: "ზუსტი ტექსტის ჩვენება",
+    reading: "საათს ვამოწმებთ…",
     opened: {
       title: "GitHub ბრაუზერში გაიხსნა",
       body: "თუ საჭიროა, შედით ანგარიშზე, გადახედეთ ფორმას და დააჭირეთ „Submit“-ს.",
@@ -556,6 +557,7 @@ export const ka: Copy = {
         writes: "რას წერს დაყენება",
         state: "შრიფტის მდგომარეობა",
       },
+      readBefore: { install: "(დაყენებამდე წაკითხული)", restore: "(დაბრუნებამდე წაკითხული)" },
     },
     help: {
       title: "დახმარება",

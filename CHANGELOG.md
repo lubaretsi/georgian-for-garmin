@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Unused, Example Predicted and Example Drive Only (`GEORGIAN_FOR_GARMIN_DEMO_WATCH` takes these
   names) ([development](docs/development.md#desktop-app)).
 
+### Fixed
+
+- A report shared after an install or restore the app couldn't verify (TrueType fonts, or
+  "I'll check on the watch") showed the watch as it was before the write, such as
+  `state not_installed` next to Georgian letters (#69). The app now reads the watch again when
+  sharing; when it can't, the report's `state` line says the state was read before the install
+  or restore, as does More › What the app sees.
+
 ## [0.4.1] - 2026-11-26
 
 ### Added
