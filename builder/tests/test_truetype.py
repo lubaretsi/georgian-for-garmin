@@ -29,9 +29,9 @@ from garmin_fonts.truetype import (
 
 # Georgian added to Garmin's TrueType fonts (fonts/README.md, TrueType), with Garmin's version
 # trailer. The Forerunner 165 (29.52) rendered the Noto Sans Armenian and Hebrew builds without
-# the trailer, 0.3.0-beta.1's (see test_truetype_builds_keep_garmins_trailer); Swiss 721 Hebrew
-# didn't render on the fenix 6S Pro without it. A change to these bytes needs a watch test
-# (AGENTS.md).
+# the trailer, 0.3.0-beta.1's (see test_truetype_builds_keep_garmins_trailer); the Venu 3 (17.51,
+# #69) rendered these -09 and -98 builds (0.4.1's, byte for byte). Swiss 721 Hebrew didn't render
+# on the fenix 6S Pro without it. A change to these bytes needs a watch test (AGENTS.md).
 TRUETYPE_SHA256 = {
     "006-D9971-09": "372a605beb46cebcd95b43e7a1cffeb478e8737ae2f277491fe48417eabb327a",
     "006-D9971-08": "7235705adc12f0da0c91ed76cd487a662fe2d939cfad8c199d40a9e50ee63c11",

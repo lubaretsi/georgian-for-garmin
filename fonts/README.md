@@ -74,8 +74,9 @@ Venu 1st gen gets that same 27 px part, the Lily 2 Active both its sizes; the la
 fonts ("DB … Size 30–69") are left out. Garmin's catalog serves each part at one version: where
 a watch declares another, the part is left out, since install would find an import it doesn't
 recognise and refuse. The Venu 1st gen declares its Korean fonts at 0.01, below any release, so
-`-22` is packed at the catalog's 2.10, what Garmin Express would install. Neither of the
-installable packs has been installed on a watch.
+`-22` is packed at the catalog's 2.10, what Garmin Express would install. Georgian in the
+Compressed pack showed on the Lily 2 Active (5.10), its owner reported by email; the 27 px pack
+hasn't been installed on a watch yet, and restore is untested on both.
 
 `korean-nanum-gothic-bold` is `install: false`. 0.3.4 installed it on the Instinct 3 AMOLED: its
 19 px text font, which both sizes declare at 2.20, the version the catalog serves, with the size
