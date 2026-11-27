@@ -1580,6 +1580,7 @@ name = "georgian-for-garmin-core"
 version = "0.4.1"
 dependencies = [
  "base64 0.23.1",
+ "georgian-for-garmin-core",
  "jsonschema",
  "nusb",
  "os_info",

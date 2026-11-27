@@ -22,7 +22,7 @@ The new UI is a guided journey: **Connect → Install → Restart → Check**. E
 3. **Plain words in the main flow.** Never shown there: pack, part, part number, ExtData, staged, `.tmp`, TrueType, bitmap, px, handle, or the names of the host fonts (Armenian, Hebrew, Korean, Nanum, Noto). They appear only under **More › What the app sees**. "MTP" appears only as the label the watch itself shows, with an explanation.
 4. **One vocabulary** (§7), the same on every screen and in both languages.
 5. **Georgian first.** Georgian is the default language. Both languages have the same keys, and the Georgian is written natively, not translated word for word.
-6. **Honest and specific.** Name the model, as in "No one has confirmed Georgian on Lily 2 Active yet". Never promise what the project doesn't do.
+6. **Honest and specific.** Name the watch's own model, as in "No one has confirmed Georgian on Example Unconfirmed yet" (a role watch of the stories, §8). Never promise what the project doesn't do.
 7. **Nothing is sent without a click.** No telemetry. Reports go through GitHub only, and every share screen says that needs a free GitHub account.
 8. **Native rendering only.** Never suggest other apps, widgets, images or transliteration.
 9. **Accessible:**
@@ -371,7 +371,7 @@ Run it with `nix develop -c pnpm -C crates/app/frontend storybook`.
 
 Every story renders inside a frame of the chosen window size.
 
-**`Screens/…`:** one story per row of this coverage list, each built from the generated fixtures:
+**`Screens/…`:** one story per row of this coverage list, each built from the generated fixtures. Their statuses come from the examples' support list (core's `example_watches`), not the registry's, so confirming a watch changes no story: real models appear only where tested on a software version, and every other status is shown on a role watch, a real report's listing under a made-up model and part number (`Example …`, `006-B99xx-00`):
 - connect: searching (with and without help), switching, busy (each holder kind × platform), and each problem (`garmin_mode` and `device_locked` included);
 - drive: switch to MTP, drive-only;
 - watch: every verdict, every `confidence`, and every `note`;
@@ -394,18 +394,18 @@ A test fails if a `ScreenModel` variant in this list has no story.
 - Make the next write fail;
 - the phone's result for the next check.
 
-The flows:
+The flows (role watches named by what they show; the listing is the report's):
 
 | Flow | Fixture source | Shows |
 |---|---|---|
 | Venu 2, confirmed | maintainer Venu 2 | install → restart → verified → works (no share asked) |
-| Lily 2 Active, first confirmation | the composed Lily fixture | short names, install → restart → check → works_first → share |
-| Venu, boxes | issue-12 with a hidden listing (composed) | install → restart → check boxes → restart once more → share |
-| Instinct 3, unsupported | issue-57 with 0.3.4's Korean font imported (composed) | unsupported, no install → restore → restart → restored |
-| Venu 3, another font waiting | issue-2 + its waiting state | blocked → restart → install |
-| fenix 6, unsupported | issue-6 | unsupported → follow updates; the beta-left variant → restore |
-| Forerunner 245, drive only | issue-16 | drive-only → follow / share font list |
-| Forerunner 265, no font | the demo watch | no_font → share font list |
+| Unconfirmed, first confirmation | the Lily 2 Active's listing (composed imports), as Example Unconfirmed | short names, install → restart → check → works_first → share |
+| Korean, boxes | issue-12 with a hidden listing (composed), as Example Korean | install → restart → check boxes → restart once more → share |
+| Korean unused, unsupported | issue-57 with 0.3.4's Korean font imported (composed), as Example Korean Unused | unsupported, no install → restore → restart → restored |
+| Expected, another font waiting | issue-2 + its waiting state, as Example Expected | blocked → restart → install |
+| Font unused, unsupported | issue-6, as Example Font Unused | unsupported → follow updates; the beta-left variant → restore |
+| Drive only | issue-16, as Example Drive Only | drive-only → follow / share font list |
+| Predicted, no font | the demo watch, Example Predicted | no_font → share font list |
 | Garmin Express busy | any watch | busy → release → watch |
 | Install fails, rollback incomplete | Venu 2 + write failure | error → restore |
 | Linux permission denied | none | the problem screen with commands |

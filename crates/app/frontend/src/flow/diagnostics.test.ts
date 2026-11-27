@@ -69,7 +69,7 @@ describe("the diagnostics phase", () => {
   });
 
   test("not from the share screens", () => {
-    const share = act(read(started(), inspect("forerunner265", "inspect")), "share", { action: "share", what: "font_list" });
+    const share = act(read(started(), inspect("predicted", "inspect")), "share", { action: "share", what: "font_list" });
     expect(act(share, "diagnostics").phase.name).toBe("share");
   });
 
@@ -164,9 +164,9 @@ describe("the session's event log", () => {
 
   test("a drive is logged as one", () => {
     let state = read(started(), NO_DEVICE);
-    const drive = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+    const drive = output("drive-only", "inspect_drive", "inspect_drive");
     state = at(state, { type: "drive_inspected", token: state.token, output: drive });
-    expect(state.events.at(-1)).toEqual({ time: TIME, kind: "poll", detail: "usb_drive", model: "Forerunner 245" });
+    expect(state.events.at(-1)).toEqual({ time: TIME, kind: "poll", detail: "usb_drive", model: "Example Drive Only" });
   });
 
   test(`keeps the last ${MAX_EVENTS}`, () => {

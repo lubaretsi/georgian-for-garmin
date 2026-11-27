@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unsupported_device",
+    "message": "Example Predicted (006-B9907-00) lists none of this build's font packs under Garmin/ExtData; nothing was written."
+  },
+  "operation": "install"
+}
