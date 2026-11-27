@@ -18,7 +18,11 @@ const SOURCES: Record<What, { watch: WatchInfo | null; report: [string, string];
 };
 
 const share =
-  (what: What, state: State, override: Partial<{ watch: WatchInfo; thanks: "tested_next" | "we_look"; report: [string, string] }> = {}) =>
+  (
+    what: What,
+    state: State,
+    override: Partial<{ watch: WatchInfo; thanks: "tested_next" | "we_look"; report: [string, string]; reading: boolean }> = {},
+  ) =>
   (lang: Lang): ScreenModel => {
     const source = { ...SOURCES[what], ...override };
     return {
@@ -28,6 +32,7 @@ const share =
       summary: shareSummary(lang, what, source.watch),
       reportText: reportText(...source.report),
       state,
+      reading: source.reading ?? false,
       thanks: state === "opened" || state === "opened_paste" ? source.thanks : null,
     };
   };
@@ -49,6 +54,16 @@ export const ResultOpenedFirstConfirmation: ScreenStoryObj = {
       watch: WATCHES.lily2Active,
       thanks: "tested_next",
       report: ["lily2active", "issue_link-georgian"],
+    }),
+  },
+};
+/** Venu 3 after a restart the app didn't verify: the watch is read again before the report (§4). */
+export const ResultReading: ScreenStoryObj = {
+  args: {
+    model: share("result", "ready", {
+      watch: WATCHES.venu3,
+      reading: true,
+      report: ["venu3-waiting", "issue_link-georgian"],
     }),
   },
 };

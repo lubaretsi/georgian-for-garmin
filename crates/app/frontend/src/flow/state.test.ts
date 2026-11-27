@@ -509,13 +509,108 @@ describe("check, outcome and share", () => {
     ]);
   });
 
-  test("share a failed write: the outcome's error", () => {
+  test("share a failed write: the watch read again, else the outcome's error on the earlier read", () => {
     const fail = failure("errors", "install-internal");
     const error = reduce(act(atWatch(), "install"), { type: "op_failed", op: "install", failure: fail });
     const state = act(error, "share", { action: "share", what: "problem" });
-    expect(state.effects).toEqual([
-      { kind: "issue_link", input: { report: VENU2.report, outcome: { operation: "install", error: "internal" } } },
+    expect(state.effects).toEqual([{ kind: "report_read" }]);
+    const after = inspect("venu2-write-fails", "inspect-after-incomplete");
+    expect(reduce(state, { type: "report_read", output: after }).effects).toEqual([
+      { kind: "issue_link", input: { report: after.report, outcome: { operation: "install", error: "internal" } } },
     ]);
+    expect(reduce(state, { type: "report_read_failed", failure: NO_DEVICE }).effects).toEqual([
+      {
+        kind: "issue_link",
+        input: { report: VENU2.report, outcome: { operation: "install", error: "internal", read_before: true } },
+      },
+    ]);
+  });
+});
+
+describe("a report after a restart the app didn't verify (§4)", () => {
+  const VENU3_BEFORE = inspect("venu3-waiting", "inspect-restarted");
+  /** The new font as the watch lists it after the write. */
+  const VENU3_NOW = inspect("venu3-waiting", "inspect-staged");
+  const TRUETYPE_PARTS = output("venu3-waiting", "install", "install").packs.flatMap((pack) =>
+    pack.parts.map((part) => part.part),
+  );
+
+  /** Venu 3 (TrueType) installed, restarted by hand, checked: Georgian, at the share screen. */
+  function sharing(): FlowState {
+    let state = reduce(act(read(started(), VENU3_BEFORE), "install"), {
+      type: "op_done",
+      op: "install",
+      output: output("venu3-waiting", "install", "install"),
+    });
+    state = act(read(state, NO_DEVICE), "skip_verify");
+    state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "georgian", views: [] } });
+    state = act(state, "done");
+    expect(state.phase).toMatchObject({ name: "outcome" });
+    expect(state.inspect).toBe(VENU3_BEFORE);
+    return act(state, "share", { action: "share", what: "result" });
+  }
+
+  const linkInput = (state: FlowState) => {
+    const [effect] = state.effects;
+    if (effect?.kind !== "issue_link") throw new Error(`no issue_link: ${kinds(state).join()}`);
+    return effect.input;
+  };
+
+  test("the share reads the watch first; Open GitHub waits for it", () => {
+    const state = sharing();
+    expect(state.phase).toMatchObject({ name: "share", reading: true, link: null });
+    expect(state.effects).toEqual([{ kind: "report_read" }]);
+    expect(kinds(act(state, "share", { action: "share", what: "result" }))).toEqual([]);
+  });
+
+  test("a fresh read: the report shows the watch now, with the install", () => {
+    const state = reduce(sharing(), { type: "report_read", output: VENU3_NOW });
+    expect(state.phase).toMatchObject({ name: "share", reading: false });
+    expect(state.inspect).toBe(VENU3_NOW);
+    expect(state.readBeforeOp).toBe(false);
+    const input = linkInput(state);
+    expect(input.report?.state).toBe("installed");
+    expect(input.outcome).toEqual({ operation: "install", status: "staged_verified", parts: TRUETYPE_PARTS });
+    expect(moreModel(state).seen).toContainEqual({ label: "Font state", value: "installed" });
+    expect(kinds(act(state, "share", { action: "share", what: "result" }))).toEqual(["share_report"]);
+  });
+
+  test.each<[string, FlowEvent]>([
+    ["unplugged", { type: "report_read_failed", failure: NO_DEVICE }],
+    ["busy", { type: "report_read_failed", failure: failure("busy", "inspect-garmin_express-macos") }],
+    ["no answer in time", { type: "report_read_failed", failure: { code: "internal", message: "inspect: no answer" } }],
+    ["another watch", { type: "report_read", output: VENU2 }],
+  ])("no read (%s): the earlier read, marked as before the install", (_, event) => {
+    const state = reduce(sharing(), event);
+    expect(state.inspect).toBe(VENU3_BEFORE);
+    const input = linkInput(state);
+    expect(input.report).toBe(VENU3_BEFORE.report);
+    expect(input.outcome).toEqual({
+      operation: "install",
+      status: "staged_verified",
+      parts: TRUETYPE_PARTS,
+      read_before: true,
+    });
+    expect(moreModel(state).seen).toContainEqual({
+      label: "Font state",
+      value: `${VENU3_BEFORE.state} (read before the install)`,
+    });
+  });
+
+  test("a late answer after the read gave up changes nothing", () => {
+    const gaveUp = reduce(sharing(), { type: "report_read_failed", failure: NO_DEVICE });
+    expect(reduce(gaveUp, { type: "report_read", output: VENU3_NOW })).toEqual({ ...gaveUp, effects: [] });
+  });
+
+  test("a verified restart (bitmap) shares the read that verified it, without another", () => {
+    const verified = inspect("venu2", "inspect-restarted");
+    let state = act(reconnected(verified), "check");
+    expect(state.readBeforeOp).toBe(false);
+    state = act(act(state, "send_test_done"), "answer", { action: "answer", answers: { result: "boxes", views: [] } });
+    const share = act(act(state, "done"), "share", { action: "share", what: "result" });
+    expect(share.phase).toMatchObject({ name: "share", reading: false });
+    expect(linkInput(share).report).toBe(verified.report);
+    expect(linkInput(share).outcome).not.toHaveProperty("read_before");
   });
 });
 

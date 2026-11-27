@@ -161,7 +161,8 @@ export function ShareScreen(model: Share, ctx: ScreenContext): ScreenView {
             {exactText}
           </>
         ),
-        primary: open,
+        primary: model.reading ? { ...open, disabled: true } : open,
+        ...(model.reading && { status: { text: s.reading, busy: true } }),
       };
     case "opened":
     case "opened_paste":

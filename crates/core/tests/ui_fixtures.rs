@@ -504,14 +504,24 @@ fn venu3_waiting() {
     let mut s = Scenario::new("venu3-waiting", fonts);
     assert_eq!(state(&s.ok("inspect", "inspect", &watch)), "other");
     watch.restart(&s.fonts);
-    assert_eq!(
-        state(&s.ok("inspect-restarted", "inspect", &watch)),
-        "not_visible"
-    );
-    s.ok("install", "install", &watch);
+    let before = s.ok("inspect-restarted", "inspect", &watch);
+    assert_eq!(state(&before), "not_visible");
+    let installed = s.ok("install", "install", &watch);
     s.ok("inspect-staged", "inspect", &watch);
     watch.restart(&s.fonts);
-    s.ok("inspect-installed", "inspect", &watch);
+    let after = s.ok("inspect-installed", "inspect", &watch);
+    // The restart isn't verified: the report reads the watch again, or says the state it has
+    // is from before the install.
+    s.issue_link(
+        "issue_link-georgian",
+        json!({"report": after["report"], "outcome": outcome("install", &installed), "answers": answers("georgian")}),
+    );
+    let mut stale = outcome("install", &installed);
+    stale["read_before"] = json!(true);
+    s.issue_link(
+        "issue_link-read_before",
+        json!({"report": before["report"], "outcome": stale, "answers": answers("georgian")}),
+    );
     s.finish();
 }
 

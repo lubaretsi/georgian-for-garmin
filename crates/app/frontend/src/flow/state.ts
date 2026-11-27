@@ -34,6 +34,8 @@ export const SLOW_MS = 400;
 export const STARTING_MS = 10_000;
 /** The session's event log keeps this many, for diagnostics (§11). */
 export const MAX_EVENTS = 50;
+/** How long the read a report takes after an unverified write may take (§4). */
+export const REPORT_READ_MS = 15_000;
 
 export type RestartPhase = "unplug" | "restart" | "verifying" | "again" | "other_watch";
 export type ShareWhat = "result" | "font_list" | "problem";
@@ -67,7 +69,16 @@ export type Phase =
   | { name: "result"; op: Op }
   | { name: "check"; step: "send" | "answer" }
   | { name: "outcome"; kind: OutcomeKind }
-  | { name: "share"; what: ShareWhat; input: IssueLinkInput; link: IssueLink | null; state: ShareState; back: Phase }
+  /** `reading`: the watch is read again for the report first (§4, A report after an unverified write). */
+  | {
+      name: "share";
+      what: ShareWhat;
+      input: IssueLinkInput;
+      link: IssueLink | null;
+      state: ShareState;
+      reading: boolean;
+      back: Phase;
+    }
   | { name: "error"; op: Op; failure: Failure }
   /** From More; `back` is the phase it returns to, kept moving while this is open (§11). */
   | {
@@ -99,6 +110,8 @@ export type ShareState = "ready" | "opened" | "opened_paste" | "failed";
 export type Effect =
   /** A read of the watch after `delay`; `slowAfter`: when to say it is slow (`inspect_slow`). */
   | { kind: "inspect"; token: number; delay: number; slowAfter: number | null }
+  /** One read for a report, given up after `REPORT_READ_MS` (§4). */
+  | { kind: "report_read" }
   | { kind: "inspect_drive"; token: number }
   | { kind: "help_timer"; token: number; delay: number }
   | { kind: "starting_timer"; token: number; delay: number }
@@ -126,6 +139,11 @@ export type FlowState = {
   inspect: InspectOutput | null;
   /** The last install or restore on that watch, for the report's outcome. */
   lastOp: { op: Op; output: StageOutput } | { op: Op; failure: Failure } | null;
+  /**
+   * `inspect` was read before `lastOp` and not since (a restart the app doesn't verify, or one
+   * skipped): a report reads the watch again first, or says so (§4).
+   */
+  readBeforeOp: boolean;
   /** Restarts asked for since the last write: the attempt the restart step shows. */
   attempt: number;
   /** The check's answers for the session, by the watch's part number (§5.2, Answers survive). */
@@ -164,6 +182,8 @@ export type FlowEvent =
   | { type: "started_up"; token: number }
   | { type: "progress"; progress: Progress }
   | { type: "op_done"; op: Op; output: StageOutput }
+  | { type: "report_read"; output: InspectOutput }
+  | { type: "report_read_failed"; failure: Failure }
   | { type: "op_failed"; op: Op; failure: Failure }
   | { type: "phone_loaded"; lang: Lang; page: PhonePage }
   | { type: "marks_loaded"; marks: MarkPicture[] }
@@ -188,6 +208,7 @@ export function initialState(lang: Lang, version: string): FlowState {
     version,
     inspect: null,
     lastOp: null,
+    readBeforeOp: false,
     attempt: 0,
     answers: {},
     shared: {},
@@ -523,6 +544,7 @@ function shareInput(state: FlowState, what: ShareWhat): IssueLinkInput {
             parts: last.output.packs.flatMap((pack) => pack.parts.map((part) => part.part)),
           }
         : { operation, error: last.failure.code };
+    if (state.readBeforeOp) input.outcome.read_before = true;
   }
   if (what === "result") {
     const { result, views, phone, marker } = answersFor(state);
@@ -534,7 +556,19 @@ function shareInput(state: FlowState, what: ShareWhat): IssueLinkInput {
 function startShare(state: FlowState, what: ShareWhat): FlowState {
   const input = shareInput(state, what);
   const back = state.phase.name === "share" ? state.phase.back : state.phase;
-  return go(state, { name: "share", what, input, link: null, state: "ready", back }, [{ kind: "issue_link", input }]);
+  // The last read is from before the write: read the watch once more first (§4), unless the
+  // report isn't the MTP read's or the switch to MTP holds the watch.
+  const reading = state.readBeforeOp && !!input.report && !shownDrive(back) && !switching(back);
+  const share: Phase = { name: "share", what, input, link: null, state: "ready", reading, back };
+  return go(state, share, [reading ? { kind: "report_read" } : { kind: "issue_link", input }]);
+}
+
+/** The read for a report (§4): this watch's state now, or the earlier read, marked as such. */
+function reportRead(state: FlowState, phase: Extract<Phase, { name: "share" }>, output: InspectOutput | null): FlowState {
+  const same = output && output.device.part_number === state.inspect?.device.part_number;
+  const read: FlowState = same ? { ...state, inspect: output, readBeforeOp: false } : state;
+  const input = shareInput({ ...read, phase: phase.back }, phase.what);
+  return withEffects({ ...read, phase: { ...phase, input, reading: false } }, { kind: "issue_link", input });
 }
 
 /** The check's first step, loading the phone page and the test marks unless loaded. */
@@ -588,7 +622,10 @@ function act(state: FlowState, id: ActionId, payload: ActionPayload | undefined)
     return go(state, { name: "confirm_restore", back: phase });
   }
   if (id === "share" && payload?.action === "share") {
-    if (phase.name === "share") return withEffects(state, { kind: "share_report", input: phase.input });
+    if (phase.name === "share") {
+      // Not before the read for the report is done (§4).
+      return phase.reading ? state : withEffects(state, { kind: "share_report", input: phase.input });
+    }
     return startShare(state, payload.what);
   }
   switch (phase.name) {
@@ -698,7 +735,15 @@ export function localTime(date: Date): string {
 type Own = Partial<Record<FlowEvent["type"], true>>;
 const OWN_EVENTS: Record<"diagnostics" | "share" | "confirm_restore", Own> = {
   diagnostics: { action: true, diagnosed: true, diagnostics_saved: true, diagnostics_copied: true, diagnostics_failed: true },
-  share: { action: true, link_ready: true, link_failed: true, shared: true, share_failed: true },
+  share: {
+    action: true,
+    link_ready: true,
+    link_failed: true,
+    shared: true,
+    share_failed: true,
+    report_read: true,
+    report_read_failed: true,
+  },
   confirm_restore: { action: true },
 };
 
@@ -707,7 +752,10 @@ const OWN_EVENTS: Record<"diagnostics" | "share" | "confirm_restore", Own> = {
  * isn't the state or the event.
  */
 export function reduce(previous: FlowState, event: FlowEvent, now: Date = new Date(0)): FlowState {
-  return logged(previous, event, step(previous, event), localTime(now));
+  const next = step(previous, event);
+  // A new read of the watch is from after the last write.
+  const fresh = next.readBeforeOp && next.inspect !== previous.inspect ? { ...next, readBeforeOp: false } : next;
+  return logged(previous, event, fresh, localTime(now));
 }
 
 /** `event` applied to the screen it belongs to: the one on top, or the one under it. */
@@ -888,14 +936,14 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
     case "op_done":
       if (phase.name !== "working" || phase.op !== event.op) return state;
       return startRestart(
-        { ...state, lastOp: { op: event.op, output: event.output } },
+        { ...state, lastOp: { op: event.op, output: event.output }, readBeforeOp: true },
         event.op,
         1,
         verifiable(event.output.packs),
       );
     case "op_failed": {
       if (phase.name !== "working" || phase.op !== event.op) return state;
-      const next = { ...state, lastOp: { op: event.op, failure: event.failure } };
+      const next = { ...state, lastOp: { op: event.op, failure: event.failure }, readBeforeOp: true };
       if (event.failure.code === "garmin_mode") {
         // Replugged in Garmin mode before the write: nothing was written; switch it as on connect.
         return readFailed(next, event.failure);
@@ -941,6 +989,10 @@ function transition(previous: FlowState, event: FlowEvent): FlowState {
       return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "copied" } } : state;
     case "diagnostics_failed":
       return phase.name === "diagnostics" ? { ...state, phase: { ...phase, state: "failed" } } : state;
+    case "report_read":
+      return phase.name === "share" && phase.reading ? reportRead(state, phase, event.output) : state;
+    case "report_read_failed":
+      return phase.name === "share" && phase.reading ? reportRead(state, phase, null) : state;
     case "switched":
     case "switch_failed":
       return switchEnded(state, afterSwitch(event));
