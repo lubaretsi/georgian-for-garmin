@@ -102,7 +102,8 @@ to 0.3.0-beta.2, the watch lists the part below 1.00: 0.01 on the Forerunner 165
 the fenix 6S Pro (#6).
 
 Builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Forerunner 165
-(29.52) showed it in every notification view (#5, #19). The Swiss 721 Hebrew fonts of the fenix 6
+(29.52) showed it in every notification view (#5, #19), the Venu 3 (17.51) in pop-ups and
+opened notifications (#69). The Swiss 721 Hebrew fonts of the fenix 6
 and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reached the watch (its
 hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
 range bit was set, and the watch still drew question marks (#6). The fenix 6 models are
@@ -113,8 +114,9 @@ wrote and verified the font, and after the restart notifications still showed bo
 marks (#55, #57). Whether the watch imported it is unknown. Both Instinct 3 AMOLED sizes are now
 unsupported, and that Korean pack (`korean-nanum-gothic-bold`) is restore-only, so Restore
 original font puts Garmin's font back. The Venu 1st gen (27 px, `006-D8945-22`) and the Lily 2
-Active (`006-D8945-67/-68`) still get Georgian in their Korean fonts, untested
-([Korean packs](../fonts/README.md#korean-packs)).
+Active (`006-D8945-67/-68`) still get Georgian in their Korean fonts: on the Lily 2 Active (5.10)
+it showed, its owner reported by email; the Venu 1st gen is untested, and restore is untested on
+both ([Korean packs](../fonts/README.md#korean-packs)).
 [The font registry](../fonts/README.md#truetype-packs) says why and how each is sized.
 
 These watches show no `.bin` files in the normal MTP listing (the `ExtData` listing in #6's and

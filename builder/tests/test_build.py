@@ -23,9 +23,9 @@ from garmin_fonts.registry import RegistryError, weight
 # Mkhedruli x-height matched to the host's letters, descenders shortened to fit (fonts/README.md,
 # Size). The tactix 7 (software 27.18) rendered these builds of -00, -05, -06, -07 and -09; the
 # others aren't tested on a watch yet. The Venu 2 (firmware 19.05) rendered the earlier builds of
-# -01 to -04, drawn at the nominal size. The Korean builds (006-D8945) are untested on any watch:
-# the Venu 2 drew Georgian from a lab build of -22 with markers, and the Lily 2 Active's
-# Compressed -67 and -68 builds are the lab's, byte for byte (test_hosts).
+# -01 to -04, drawn at the nominal size. The Lily 2 Active (5.10) rendered these Compressed -67 and
+# -68 builds (0.4.1's, byte for byte; the same bytes as the lab's, test_hosts). The other Korean
+# builds are untested on a watch: the Venu 2 drew Georgian from a lab build of -22 with markers.
 GEORGIAN_SHA256 = {
     "006-D9035-00": "87f3fca5f37b93dca75d6b78f593b16aa35949b67efe77a326d12545065b35f9",
     "006-D9035-01": "c90dc5c0d3d6eb39185a8fafaa99e81cf2e573e0ce8ed9e8e36c282d008c21cc",
