@@ -11,7 +11,7 @@ const check =
   (step: "send" | "answer", answers: Answers = { views: [] }, extra: { phone?: boolean; marks?: boolean } = {}) =>
   (lang: Lang): ScreenModel => ({
     screen: "check",
-    watch: WATCHES.lily2Active,
+    watch: WATCHES.unconfirmed,
     step,
     answers,
     phone: extra.phone === false ? null : phone(lang),

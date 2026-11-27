@@ -11,6 +11,11 @@
 //! by fixed ones (macOS 15.6.1 on aarch64, app 0.3.4), and the report text rebuilt with them, so
 //! the files are the same on every machine and release.
 //!
+//! Statuses come from the examples' support list (`example_watches`), not the registry's, so a
+//! watch confirmed in the registry changes none of these files. Real models appear only with a
+//! status that can't change (tested on a software version); every other status is shown on a
+//! role watch: a report's listing under a made-up model and part number ([`as_role`]).
+//!
 //! What a fake can't produce is composed, and says so where it is:
 //! - a restart that doesn't import is the watch left as it was;
 //! - the Venu 3's other font waiting (#2's report listed nothing) is a `.tmp` added to its
@@ -36,6 +41,7 @@ use std::path::{Path, PathBuf};
 
 use georgian_for_garmin_core::busy::{Busy, Holder, HolderKind, System, UsbInterface};
 use georgian_for_garmin_core::error::{RollbackAction, RollbackFile};
+use georgian_for_garmin_core::example_watches::{self, Role};
 use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::garmin_mode::{
     GarminMode, NotSwitchable, Product, SwitchOutput, SwitchStatus,
@@ -62,21 +68,33 @@ const SCENARIOS: &[&str] = &[
     "venu2",
     "venu2-second-restart",
     "venu2-write-fails",
-    "lily2active",
-    "venu-boxes",
-    "instinct3",
-    "venu3-waiting",
-    "fenix6",
-    "fenix6-beta-left",
-    "forerunner245-drive",
+    "unconfirmed",
+    "korean-boxes",
+    "korean-unused",
+    "expected-waiting",
+    "font-unused",
+    "font-unused-beta-left",
+    "drive-only",
     "venu2-drive",
-    "forerunner265",
-    "forerunner255-newer",
+    "predicted",
+    "other-software",
     "busy",
     "connect-problems",
     "errors",
     "garmin-mode",
 ];
+
+/// The watch a report fixture describes, with the examples' fonts and support list.
+fn watch_of(fixture: &Value) -> (Watch, FontSet) {
+    Watch::from_fixture_with(fixture, example_watches::fonts())
+}
+
+/// `fixture`'s listing on the role watch `role`: its model and part number made up.
+fn as_role(mut fixture: Value, role: Role) -> Value {
+    fixture["model"] = json!(role.model);
+    fixture["model_part"] = json!(role.model_part);
+    fixture
+}
 
 /// A report's machine and app version replaced by the fixed ones, and its text rebuilt.
 fn normalize_report(report: &mut Value) {
@@ -289,7 +307,7 @@ fn scenarios_are_all_listed() {
 /// Venu 2, confirmed: install → restart → verified; then restore → restart → Garmin's font.
 #[test]
 fn venu2() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
+    let (watch, fonts) = watch_of(&fixture("maintainer-venu2-stock-imported.json"));
     let mut s = Scenario::new("venu2", fonts);
     let before = s.ok("inspect", "inspect", &watch);
     assert_eq!(state(&before), "not_installed");
@@ -323,7 +341,7 @@ fn venu2() {
 /// and the next restart imports.
 #[test]
 fn venu2_second_restart() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
+    let (watch, fonts) = watch_of(&fixture("maintainer-venu2-stock-imported.json"));
     let mut s = Scenario::new("venu2-second-restart", fonts);
     s.ok("inspect", "inspect", &watch);
     s.ok("install", "install", &watch);
@@ -345,7 +363,7 @@ fn venu2_second_restart() {
 /// with deletes failing too (incomplete); then restore once the watch answers again.
 #[test]
 fn venu2_write_fails() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
+    let (watch, fonts) = watch_of(&fixture("maintainer-venu2-stock-imported.json"));
     let mut s = Scenario::new("venu2-write-fails", fonts);
     s.ok("inspect", "inspect", &watch);
     watch.fail_writes(1, false);
@@ -383,21 +401,23 @@ fn venu2_write_fails() {
     s.finish();
 }
 
-/// Lily 2 Active, the first confirmation: its Korean imports read as Garmin's (composed as
-/// `the_lily_2_active_round_trips_its_short_names` does), install under the short names,
-/// restart, check, share.
+/// The first confirmation, on a role watch with the Lily 2 Active's listing (short names): its
+/// Korean imports read as Garmin's (composed as `the_lily_2_active_round_trips_its_short_names`
+/// does), install under the short names, restart, check, share.
 #[test]
-fn lily2active() {
+fn unconfirmed() {
     let parts = ["006-D8945-67", "006-D8945-68"];
     let lily = imports_as_garmins(
         fixture("email-lily2active.json"),
         &FontSet::bundled(),
         &parts,
     );
-    let (watch, fonts) = Watch::from_fixture(&lily);
-    let mut s = Scenario::new("lily2active", fonts);
+    let (watch, fonts) = watch_of(&as_role(lily, example_watches::UNCONFIRMED));
+    let mut s = Scenario::new("unconfirmed", fonts);
     let before = s.ok("inspect", "inspect", &watch);
     assert_eq!(state(&before), "not_installed");
+    assert_eq!(before["support"]["status"], "expected");
+    assert_eq!(before["support"]["prediction"], "bitmap_korean");
     let installed = s.ok("install", "install", &watch);
     assert_eq!(state(&s.ok("inspect-staged", "inspect", &watch)), "waiting");
     watch.restart(&s.fonts);
@@ -411,11 +431,11 @@ fn lily2active() {
     s.finish();
 }
 
-/// Venu (1st gen, #12): install, restart, boxes; another restart; boxes again, shared. Composed:
-/// its report (0.2.2) has no hidden listing, so the watch is given one with its Korean `-22`
-/// imported as Garmin's original, as the Lily 2 Active's are.
+/// A role watch with the Venu 1st gen's listing (#12): install, restart, boxes; another restart;
+/// boxes again, shared. Composed: its report (0.2.2) has no hidden listing, so the watch is
+/// given one with its Korean `-22` imported as Garmin's original, as the Lily 2 Active's are.
 #[test]
-fn venu_boxes() {
+fn korean_boxes() {
     let mut venu = fixture("issue-12.json");
     let k22 = font_for(&FontSet::bundled(), "006-D8945-22")
         .unwrap()
@@ -423,8 +443,8 @@ fn venu_boxes() {
     venu["hidden"] = json!({"status": "listed", "files": [
         {"name": "006-D8945-22.fnt", "bytes": k22.stock.len(), "read_only": true, "file": "stock"}
     ]});
-    let (watch, fonts) = Watch::from_fixture(&venu);
-    let mut s = Scenario::new("venu-boxes", fonts);
+    let (watch, fonts) = watch_of(&as_role(venu, example_watches::KOREAN));
+    let mut s = Scenario::new("korean-boxes", fonts);
     let before = s.ok("inspect", "inspect", &watch);
     assert_eq!(before["support"]["status"], "expected");
     let installed = s.ok("install", "install", &watch);
@@ -443,19 +463,19 @@ fn venu_boxes() {
     s.finish();
 }
 
-/// Instinct 3 AMOLED 45mm (#57) after 0.3.4 installed its Korean `-07` and the watch restarted
-/// (composed: the report is from before installing, so its `-07` import is set to our build):
-/// unsupported, restorable; restore → restart → Garmin's font.
+/// A role watch with the Instinct 3 AMOLED 45mm's listing (#57) after 0.3.4 installed its Korean
+/// `-07` and the watch restarted (composed: the report is from before installing, so its `-07`
+/// import is set to our build): unsupported, restorable; restore → restart → Garmin's font.
 #[test]
-fn instinct3() {
+fn korean_unused() {
     let mut i3 = fixture("issue-57.json");
     for file in i3["hidden"]["files"].as_array_mut().unwrap() {
         if file["name"] == "006-D8945-07.fnt" {
             file["file"] = json!("georgian");
         }
     }
-    let (watch, fonts) = Watch::from_fixture(&i3);
-    let mut s = Scenario::new("instinct3", fonts);
+    let (watch, fonts) = watch_of(&as_role(i3, example_watches::KOREAN_UNUSED));
+    let mut s = Scenario::new("korean-unused", fonts);
     let out = s.ok("inspect", "inspect", &watch);
     assert_eq!(out["support"]["status"], "unsupported");
     assert_eq!(out["support"]["issue"], 57);
@@ -478,16 +498,18 @@ fn instinct3() {
     s.finish();
 }
 
-/// Venu 3 (#2) with another font waiting (composed: #2's report listed nothing, and its fonts
-/// are TrueType): a `.bin` for its first target part in the normal listing, neither Garmin's
-/// nor ours, on a watch that keeps imported `.bin` fonts out of that listing, as the
-/// Forerunner 165 does. Blocked until a restart takes it up out of sight, then install.
+/// A role watch with the Venu 3's listing (#2) and another font waiting (composed: #2's report
+/// listed nothing, and its fonts are TrueType): a `.bin` for its first target part in the normal
+/// listing, neither Garmin's nor ours, on a watch that keeps imported `.bin` fonts out of that
+/// listing, as the Forerunner 165 does. Expected; blocked until a restart takes it up out of
+/// sight, then install.
 #[test]
-fn venu3_waiting() {
-    let mut venu3 = fixture("issue-2.json");
-    let (probe, fonts) = Watch::from_fixture(&venu3);
+fn expected_waiting() {
+    let mut venu3 = as_role(fixture("issue-2.json"), example_watches::EXPECTED);
+    let (probe, fonts) = watch_of(&venu3);
     let inspect = probe.call("inspect", &fonts).unwrap();
     assert_eq!(state(&inspect), "not_visible");
+    assert_eq!(inspect["support"]["status"], "expected");
     let target = inspect["fonts"]
         .as_array()
         .unwrap()
@@ -499,9 +521,9 @@ fn venu3_waiting() {
         .to_owned();
     venu3["extdata"] =
         json!([{"name": format!("{target}.bin"), "bytes": 41234, "sha256": null, "file": "other"}]);
-    let (watch, fonts) = Watch::from_fixture(&venu3);
+    let (watch, fonts) = watch_of(&venu3);
     watch.0.borrow_mut().hides_bins = true;
-    let mut s = Scenario::new("venu3-waiting", fonts);
+    let mut s = Scenario::new("expected-waiting", fonts);
     assert_eq!(state(&s.ok("inspect", "inspect", &watch)), "other");
     watch.restart(&s.fonts);
     assert_eq!(
@@ -515,23 +537,29 @@ fn venu3_waiting() {
     s.finish();
 }
 
-/// fenix 6S Pro (#6): unsupported; its font list shared.
+/// A role watch with the fenix 6S Pro's listing (#6): unsupported; its font list shared.
 #[test]
-fn fenix6() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("issue-6.json"));
-    let mut s = Scenario::new("fenix6", fonts);
+fn font_unused() {
+    let (watch, fonts) = watch_of(&as_role(
+        fixture("issue-6.json"),
+        example_watches::FONT_UNUSED,
+    ));
+    let mut s = Scenario::new("font-unused", fonts);
     let out = s.ok("inspect", "inspect", &watch);
     assert_eq!(out["support"]["status"], "unsupported");
     s.issue_link("issue_link-font_list", json!({"report": out["report"]}));
     s.finish();
 }
 
-/// fenix 6S Pro with an earlier test version's fonts left on it (#6's comment): unsupported,
-/// restorable; restore → restart → Garmin's fonts.
+/// A role watch with the fenix 6S Pro's listing and an earlier test version's fonts left on it
+/// (#6's comment): unsupported, restorable; restore → restart → Garmin's fonts.
 #[test]
-fn fenix6_beta_left() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("issue-6-comment-7080207810.json"));
-    let mut s = Scenario::new("fenix6-beta-left", fonts);
+fn font_unused_beta_left() {
+    let (watch, fonts) = watch_of(&as_role(
+        fixture("issue-6-comment-7080207810.json"),
+        example_watches::FONT_UNUSED,
+    ));
+    let mut s = Scenario::new("font-unused-beta-left", fonts);
     let out = s.ok("inspect", "inspect", &watch);
     assert_eq!(out["support"]["status"], "unsupported");
     assert_eq!(out["restorable"], true);
@@ -545,7 +573,7 @@ fn fenix6_beta_left() {
 
 /// A watch volume in a temporary folder: its `GarminDevice.xml` and an `ExtData` listing.
 fn drive_from(fixture: &Value, name: &str) -> PathBuf {
-    let (watch, _) = Watch::from_fixture(fixture);
+    let (watch, _) = watch_of(fixture);
     let dir = std::env::temp_dir().join(format!("gfg-ui-fixtures-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("GARMIN/ExtData")).unwrap();
@@ -567,7 +595,7 @@ fn drive_from(fixture: &Value, name: &str) -> PathBuf {
 
 /// No watch over MTP; `inspect_drive` reads the volume at `path`.
 fn drive_scenario(name: &'static str, fixture: &Value) -> (Scenario, Value) {
-    let mut s = Scenario::new(name, FontSet::bundled());
+    let mut s = Scenario::new(name, example_watches::fonts());
     s.connect_fails("inspect", "inspect", no_device());
     let dir = drive_from(fixture, name);
     let input = json!({"path": dir.display().to_string()});
@@ -579,10 +607,13 @@ fn drive_scenario(name: &'static str, fixture: &Value) -> (Scenario, Value) {
     (s, out)
 }
 
-/// Forerunner 245 (#16), only a USB drive: follow the issue, share the font list.
+/// A role watch with the Forerunner 245's listing (#16), only a USB drive: follow the issue,
+/// share the font list.
 #[test]
-fn forerunner245_drive() {
-    let (mut s, out) = drive_scenario("forerunner245-drive", &fixture("issue-16.json"));
+fn drive_only() {
+    let fixture = as_role(fixture("issue-16.json"), example_watches::DRIVE_ONLY);
+    let (mut s, out) = drive_scenario("drive-only", &fixture);
+    assert_eq!(out["support"]["status"], "unsupported");
     s.issue_link("issue_link-font_list", json!({"report": out["report"]}));
     s.finish();
 }
@@ -597,37 +628,40 @@ fn venu2_drive() {
     s.finish();
 }
 
-/// The Forerunner 255 (#35) on a newer software than the one Georgian was confirmed on
-/// (composed: 30.00, as replay.rs's the_forerunner_255_on_29_52_is_tested does): confirmed on
-/// other software.
+/// A role watch with the Forerunner 255's listing (#35), confirmed on 29.52, on newer software
+/// (composed: 30.00): confirmed on other software.
 #[test]
-fn forerunner255_newer() {
-    let mut fr255 = fixture("issue-35.json");
+fn other_software() {
+    let mut fr255 = as_role(fixture("issue-35.json"), example_watches::OTHER_SOFTWARE);
     fr255["software"] = json!("30.00");
-    let (watch, fonts) = Watch::from_fixture(&fr255);
-    let mut s = Scenario::new("forerunner255-newer", fonts);
+    let (watch, fonts) = watch_of(&fr255);
+    let mut s = Scenario::new("other-software", fonts);
     let out = s.ok("inspect", "inspect", &watch);
     assert_eq!(out["tested"]["status"], "tested_other_software");
+    assert_eq!(out["support"]["status"], "expected");
     s.finish();
 }
 
-/// The demo build's Forerunner 265 (`crates/app/src/demo.rs`): lists none of this build's
+/// The demo build's predicted watch (`crates/app/src/demo.rs`): lists none of this build's
 /// fonts, so there is nothing to install; its font list shared.
 #[test]
-fn forerunner265() {
-    let fr265 = json!({
-        "source": "the demo build's Forerunner 265",
-        "model": "Forerunner 265",
-        "model_part": "006-B4257-00",
+fn predicted() {
+    let role = example_watches::PREDICTED;
+    let watch = json!({
+        "source": "the demo build's predicted watch",
+        "model": role.model,
+        "model_part": role.model_part,
         "software": "29.52",
         "declared": [],
         "extdata": [],
         "hidden": {"status": "listed", "files": []},
     });
-    let (watch, fonts) = Watch::from_fixture(&fr265);
-    let mut s = Scenario::new("forerunner265", fonts);
+    let (watch, fonts) = watch_of(&watch);
+    let mut s = Scenario::new("predicted", fonts);
     let out = s.ok("inspect", "inspect", &watch);
     assert_eq!(state(&out), "unsupported");
+    assert_eq!(out["support"]["status"], "unknown");
+    assert_eq!(out["support"]["prediction"], "noto_truetype");
     s.fails("install", "install", &watch, ErrorCode::UnsupportedDevice);
     s.issue_link("issue_link-font_list", json!({"report": out["report"]}));
     s.finish();
@@ -695,7 +729,7 @@ fn system(platform: &str) -> System {
 /// (the Venu 2); and the "still stuck" share with only the holder.
 #[test]
 fn busy() {
-    let (watch, fonts) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
+    let (watch, fonts) = watch_of(&fixture("maintainer-venu2-stock-imported.json"));
     let mut s = Scenario::new("busy", fonts);
     let cases = [
         (HolderKind::GarminExpress, "macos"),
@@ -735,7 +769,7 @@ fn busy() {
 /// The problems the user can't fix are shared with their error alone.
 #[test]
 fn connect_problems() {
-    let mut s = Scenario::new("connect-problems", FontSet::bundled());
+    let mut s = Scenario::new("connect-problems", example_watches::fonts());
     s.connect_fails("inspect-no_device", "inspect", no_device());
     s.connect_fails(
         "inspect-permission_denied",
@@ -773,7 +807,7 @@ fn connect_problems() {
             "inspect stopped unexpectedly: the task panicked",
         ),
     );
-    let (watch, _) = Watch::from_fixture(&fixture("maintainer-venu2-stock-imported.json"));
+    let (watch, _) = watch_of(&fixture("maintainer-venu2-stock-imported.json"));
     watch.0.borrow_mut().objects.remove(&XML);
     let no_folder = s.fails(
         "inspect-garmin_folder_not_found",
@@ -783,7 +817,7 @@ fn connect_problems() {
     );
     let mut no_extdata = fixture("maintainer-venu2-stock-imported.json");
     no_extdata["extdata"] = json!("not_found");
-    let (watch, _) = Watch::from_fixture(&no_extdata);
+    let (watch, _) = watch_of(&no_extdata);
     s.ok("inspect-extdata_not_found", "inspect", &watch);
     let no_extdata = s.fails(
         "install-extdata_not_found",
@@ -816,7 +850,7 @@ fn rollback_file(path: &str, action: RollbackAction, done: bool) -> RollbackFile
 /// rest composed.
 #[test]
 fn errors() {
-    let mut s = Scenario::new("errors", FontSet::bundled());
+    let mut s = Scenario::new("errors", example_watches::fonts());
 
     // An imported font this build doesn't recognise (replay.rs's
     // an_unrecognised_imported_font_is_never_written_over).
@@ -827,12 +861,12 @@ fn errors() {
             file["file"] = Value::Null;
         }
     }
-    let (watch, _) = Watch::from_fixture(&other);
+    let (watch, _) = watch_of(&other);
     assert_eq!(state(&s.ok("inspect-other", "inspect", &watch)), "other");
     s.fails("install-conflict", "install", &watch, ErrorCode::Conflict);
 
     // The Forerunner 165 declaring 0.01 after a trailer-less earlier build.
-    let (watch, fonts) = Watch::from_fixture(&fixture("issue-5-comment-7078836039.json"));
+    let (watch, fonts) = watch_of(&fixture("issue-5-comment-7078836039.json"));
     s.fonts = fonts;
     s.ok("inspect-restore_first", "inspect", &watch);
     s.fails(
@@ -841,7 +875,7 @@ fn errors() {
         &watch,
         ErrorCode::RestoreFirst,
     );
-    s.fonts = FontSet::bundled();
+    s.fonts = example_watches::fonts();
 
     // A waiting `.tmp` a restart left hidden (the Venu 2 after a crash restart).
     let mut tmp = fixture("maintainer-venu2-georgian-imported.json");
@@ -853,7 +887,7 @@ fn errors() {
         .clone();
     waiting["name"] = json!("006-D9035-03.tmp");
     files.push(waiting);
-    let (watch, _) = Watch::from_fixture(&tmp);
+    let (watch, _) = watch_of(&tmp);
     s.fails(
         "install-restart_first",
         "install",
@@ -947,7 +981,7 @@ fn venu2_switch(status: SwitchStatus, waited_seconds: f64) -> SwitchOutput {
 /// A watch connected in Garmin mode: switchable here, or not (Windows); the switch's outcomes.
 #[test]
 fn garmin_mode() {
-    let mut s = Scenario::new("garmin-mode", FontSet::bundled());
+    let mut s = Scenario::new("garmin-mode", example_watches::fonts());
     s.connect_fails(
         "inspect-garmin_mode",
         "inspect",

@@ -70,9 +70,9 @@ describe("toScreen", () => {
       const out = output(scenario, "inspect_drive", "inspect_drive");
       return toScreen(reduce(state, { type: "drive_inspected", token: state.token, output: out }));
     };
-    expect(drive("forerunner245-drive")).toEqual({
+    expect(drive("drive-only")).toEqual({
       screen: "drive",
-      watch: { model: "Forerunner 245", modelPart: "006-B3076-00", software: "13.70", confirmedSoftware: [] },
+      watch: { model: "Example Drive Only", modelPart: "006-B9906-00", software: "13.70", confirmedSoftware: [] },
       driveOnly: true,
       issue: 16,
       reportWanted: false,
@@ -91,18 +91,18 @@ describe("toScreen", () => {
       reportWanted: false,
       sharedBefore: false,
     });
-    const fr265 = read(started(), inspect("forerunner265", "inspect"));
-    const shared = reduce(fr265, {
+    const predicted = read(started(), inspect("predicted", "inspect"));
+    const shared = reduce(predicted, {
       type: "shared_before",
-      key: { modelPart: "006-B4257-00", software: "29.52", result: "font_list" },
+      key: { modelPart: "006-B9907-00", software: "29.52", result: "font_list" },
       value: true,
     });
     expect(toScreen(shared)).toMatchObject({ verdict: { kind: "no_font" }, reportWanted: true, sharedBefore: true });
   });
 
   test("watch: confirmed on other software carries the confirmed versions", () => {
-    const fr255 = read(started(), inspect("forerunner255-newer", "inspect"));
-    expect(toScreen(fr255)).toMatchObject({
+    const otherSoftware = read(started(), inspect("other-software", "inspect"));
+    expect(toScreen(otherSoftware)).toMatchObject({
       watch: { software: "30.00", confirmedSoftware: ["29.52"] },
       verdict: { kind: "install", confidence: "confirmed_other_software" },
     });
@@ -419,7 +419,7 @@ describe("moreModel", () => {
   });
 
   test("Restore stays in More where the screen leads with Follow updates (issue 6)", () => {
-    expect(moreModel(read(started(), inspect("fenix6", "inspect"))).restorable).toBe(true);
+    expect(moreModel(read(started(), inspect("font-unused", "inspect"))).restorable).toBe(true);
   });
 
   test("no restore while writing", () => {
@@ -429,7 +429,7 @@ describe("moreModel", () => {
 
 describe("a drive back during a restart", () => {
   // Another watch than the one installed on, as a USB drive: everything is about the drive.
-  const drive = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+  const drive = output("drive-only", "inspect_drive", "inspect_drive");
   const atDrive = () => {
     const state = read(read(written(), NO_DEVICE), NO_DEVICE);
     return reduce(state, { type: "drive_inspected", token: state.token, output: drive });

@@ -201,8 +201,8 @@ MALFORMED |= {
         f"watches/{PREDICTED}/prediction/source: ",
     ),
     "firmware family of an untested model": (
-        lambda e: prediction(e).__setitem__("source", "firmware family of Venu 3"),
-        "prediction source names Venu 3, not a tested model",
+        lambda e: prediction(e).__setitem__("source", "firmware family of Example Untested"),
+        "prediction source names Example Untested, not a tested model",
     ),
 }
 
@@ -213,14 +213,23 @@ def host(entries, host_id):
 
 SWISS = next(i for i, p in enumerate(ENTRIES["packs"]) if p["host"] == "swiss-721-hebrew-truetype")
 
+
+def unconfirm_korean(entries):
+    """The Korean family with neither its lab confirmation nor any tested pack."""
+    host(entries, "korean").pop("confirmed_by")
+    for pack in entries["packs"]:
+        if pack["host"] == "korean":
+            pack["tested"].clear()
+
+
 MALFORMED |= {
     "installable pack of an unconfirmed family": (
         lambda e: e["packs"][SWISS].__setitem__("install", True),
         "pack hebrew-swiss-721-truetype: host swiss-721-hebrew-truetype has no tested pack and "
         "no confirmed_by",
     ),
-    "installable Korean pack without its lab confirmation": (
-        lambda e: host(e, "korean").pop("confirmed_by"),
+    "installable Korean pack without its lab confirmation or a tested pack": (
+        unconfirm_korean,
         "pack korean-nanum-gothic-medium-compressed: host korean has no tested pack",
     ),
 }

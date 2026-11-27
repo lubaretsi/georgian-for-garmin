@@ -8,13 +8,13 @@ import { renderScreen, type ScreenStoryObj } from "./render";
 import type { ScreenStoryArgs } from "./ScreenStory";
 
 const venu2Drive = output("venu2-drive", "inspect_drive", "inspect_drive");
-const fr245 = output("forerunner245-drive", "inspect_drive", "inspect_drive");
+const driveOnly = output("drive-only", "inspect_drive", "inspect_drive");
 
 /**
  * A drive-only watch the support list doesn't have, so the app wants its font list. No fixture
- * has one: the model is real, the part number and software are made up for the story.
+ * has one: the model, part number and software are made up for the story.
  */
-const unlisted: WatchInfo = { model: "Forerunner 45", modelPart: "006-B0000-00", software: "4.20", confirmedSoftware: [] };
+const unlisted: WatchInfo = { model: "Example Unlisted", modelPart: "006-B9999-00", software: "4.20", confirmedSoftware: [] };
 
 /** Venu 2 connected in drive mode: it can switch to MTP. */
 const venu2AsDrive = {
@@ -38,15 +38,15 @@ export const SwitchToMtp: ScreenStoryObj = { args: { model: venu2AsDrive } };
 /** The Venu 2 came back as a USB drive after the restart: the journey stays on Restart. */
 export const SwitchToMtpDuringRestart: ScreenStoryObj = { args: { model: { ...venu2AsDrive, duringRestart: true } } };
 
-/** Forerunner 245 (issue 16): drive only and already reported, so only Follow updates. */
+/** Example Drive Only (issue 16): drive only and already reported, so only Follow updates. */
 export const DriveOnlyFollow: ScreenStoryObj = {
   args: {
     model: {
       screen: "drive",
-      watch: WATCHES.forerunner245,
+      watch: WATCHES.driveOnly,
       driveOnly: true,
-      issue: fr245.support.issue ?? null,
-      reportWanted: fr245.support.report_wanted,
+      issue: driveOnly.support.issue ?? null,
+      reportWanted: driveOnly.support.report_wanted,
       sharedBefore: false,
       duringRestart: false,
     },

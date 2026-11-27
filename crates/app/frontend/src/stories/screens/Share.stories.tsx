@@ -10,10 +10,10 @@ import type { ScreenStoryArgs } from "./ScreenStory";
 type What = "result" | "font_list" | "problem";
 type State = "ready" | "opened" | "opened_paste" | "failed";
 
-/** Who shares what: the Venu's boxes, Forerunner 265's font list, a problem with no watch. */
+/** Who shares what: Example Korean's boxes, Example Predicted's font list, a problem with no watch. */
 const SOURCES: Record<What, { watch: WatchInfo | null; report: [string, string]; thanks: "tested_next" | "we_look" }> = {
-  result: { watch: WATCHES.venu, report: ["venu-boxes", "issue_link-boxes"], thanks: "we_look" },
-  font_list: { watch: WATCHES.forerunner265, report: ["forerunner265", "issue_link-font_list"], thanks: "we_look" },
+  result: { watch: WATCHES.korean, report: ["korean-boxes", "issue_link-boxes"], thanks: "we_look" },
+  font_list: { watch: WATCHES.predicted, report: ["predicted", "issue_link-font_list"], thanks: "we_look" },
   problem: { watch: null, report: ["busy", "issue_link-problem"], thanks: "we_look" },
 };
 
@@ -42,13 +42,13 @@ export const ResultReady: ScreenStoryObj = { args: { model: share("result", "rea
 export const ResultOpened: ScreenStoryObj = { args: { model: share("result", "opened") } };
 export const ResultOpenedPaste: ScreenStoryObj = { args: { model: share("result", "opened_paste") } };
 export const ResultFailed: ScreenStoryObj = { args: { model: share("result", "failed") } };
-/** Lily 2 Active's first confirmation: the next release lists it as confirmed. */
+/** A model's first confirmation: the next release lists it as confirmed. */
 export const ResultOpenedFirstConfirmation: ScreenStoryObj = {
   args: {
     model: share("result", "opened", {
-      watch: WATCHES.lily2Active,
+      watch: WATCHES.unconfirmed,
       thanks: "tested_next",
-      report: ["lily2active", "issue_link-georgian"],
+      report: ["unconfirmed", "issue_link-georgian"],
     }),
   },
 };

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The demo build, the Storybook stories and the UI fixtures take watch statuses from a support
+  list of their own instead of `fonts/registry.json`, so confirming a watch changes none of
+  them. Tested models stay real (Venu 2, Forerunner 165, tactix 7); every other status is shown
+  on a made-up role watch with a real report's listing, so the demo's watches are now named
+  Example Expected, Example Font Unused, Example Korean, Example Unconfirmed, Example Korean
+  Unused, Example Predicted and Example Drive Only (`GEORGIAN_FOR_GARMIN_DEMO_WATCH` takes these
+  names) ([development](docs/development.md#desktop-app)).
+
 ## [0.4.1] - 2026-11-26
 
 ### Added
