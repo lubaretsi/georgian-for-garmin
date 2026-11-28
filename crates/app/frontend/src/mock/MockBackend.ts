@@ -7,6 +7,7 @@
 
 import type { Backend, Lang, Platform } from "../core/backend";
 import type {
+  CheckUpdateOutput,
   DiagnoseInput,
   DiagnoseOutput,
   Failure,
@@ -62,6 +63,8 @@ export type Simulation = {
   shownFile: string | null;
   /** The last text copied to the clipboard (the mock keeps it; nothing is copied). */
   copied: string | null;
+  /** How many times the app asked for the latest release. */
+  updateChecks: number;
 };
 
 export type MockOptions = {
@@ -77,6 +80,8 @@ export type MockOptions = {
   speed?: number;
   /** How the switch from Garmin mode to MTP goes; it switches by default. */
   switching?: Switching;
+  /** What `check_update` answers: the latest release; without it the check fails, as offline. */
+  update?: CheckUpdateOutput;
 };
 
 const INSPECT_MS = 120;
@@ -85,6 +90,19 @@ const RESTART_MS = 3000;
 const NEW_ISSUE = "https://github.com/lubaretsi/georgian-for-garmin/issues/new";
 /** The README's watch list, as the app's `open_watch_list` opens it. */
 const WATCH_LIST = "https://github.com/lubaretsi/georgian-for-garmin#supported-watches";
+/** The mock app's version (the flow stories show it in More › About). */
+export const MOCK_VERSION = "0.3.4";
+
+/** `check_update`'s answer when `version` is published, newer than `MOCK_VERSION`. */
+export function newerRelease(version: string): CheckUpdateOutput {
+  return {
+    current: MOCK_VERSION,
+    latest: version,
+    newer: true,
+    url: `https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v${version}`,
+  };
+}
+
 const NO_DEVICE: Step = "connect-problems/inspect-no_device";
 const DIAGNOSE_MS = 400;
 /** The switch to MTP: a few seconds on a real watch. */
@@ -152,6 +170,7 @@ export class MockBackend implements Backend {
   private readonly platformName: Platform;
   private readonly marks: MarkPicture[];
   private readonly speed: number;
+  private readonly update: CheckUpdateOutput | null;
   private language: Lang | null = null;
 
   constructor(options: MockOptions) {
@@ -173,11 +192,13 @@ export class MockBackend implements Backend {
       saved: [],
       shownFile: null,
       copied: null,
+      updateChecks: 0,
     };
     this.shared = new Set((options.sharedBefore ?? []).map(shareKeyId));
     this.platformName = options.platform ?? "macos";
     this.marks = options.marks ?? [];
     this.speed = options.speed ?? 1;
+    this.update = options.update ?? null;
   }
 
   get def(): WatchDef {
@@ -449,6 +470,20 @@ export class MockBackend implements Backend {
     const url = `https://github.com/lubaretsi/georgian-for-garmin/issues/${issue}`;
     this.change({ opened: [...this.sim.opened, url] });
     return url;
+  }
+
+  async checkUpdate(): Promise<CheckUpdateOutput> {
+    this.change({ updateChecks: this.sim.updateChecks + 1 });
+    await this.wait(INSPECT_MS);
+    if (!this.update) throw { code: "network_error", message: "Mock: offline." } satisfies Failure;
+    return this.update;
+  }
+
+  /** Opens the newer release's page, as the app does: only after a check found one. */
+  async openUpdate(): Promise<string> {
+    if (!this.update?.newer) throw { code: "invalid_input", message: "no newer version was found" } satisfies Failure;
+    this.change({ opened: [...this.sim.opened, this.update.url] });
+    return this.update.url;
   }
 
   async openWatchList(): Promise<string> {

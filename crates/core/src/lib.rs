@@ -6,7 +6,8 @@
 //! [`report`] builds the shareable watch report, [`drive`] reads watches that mount as a drive,
 //! [`support`] derives a watch's status in the support list, [`busy`] names what holds a busy
 //! watch, [`diagnose`] gathers the diagnostic info people send us, [`garmin_mode`] covers a
-//! watch connected in Garmin mode and [`switch_to_mtp`] switches it.
+//! watch connected in Garmin mode and [`switch_to_mtp`] switches it. [`update`] asks GitHub for
+//! the latest release, the one operation that goes online.
 
 // The development operations write files of any content to a watch; they never ship.
 #[cfg(all(feature = "dev", not(debug_assertions)))]
@@ -48,6 +49,7 @@ pub mod rpc;
 pub mod session;
 pub mod support;
 pub mod trace;
+pub mod update;
 #[cfg(not(windows))]
 pub mod usb;
 pub mod wpd;

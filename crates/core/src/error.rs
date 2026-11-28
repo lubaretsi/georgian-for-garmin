@@ -58,6 +58,10 @@ pub enum ErrorCode {
     /// The caller cancelled the call (`notifications/cancelled` in `rpc` and `mcp`). Changes a
     /// write had already made were undone where possible; `rollback` says whether all were.
     Cancelled,
+    /// `check_update`: GitHub didn't answer in time, couldn't be reached, refused the request
+    /// (its limit on requests per hour from one address included), or answered with something
+    /// that isn't a release with a version tag.
+    NetworkError,
 }
 
 impl ErrorCode {
@@ -81,6 +85,7 @@ impl ErrorCode {
             ErrorCode::DeviceError => "device_error",
             ErrorCode::Internal => "internal",
             ErrorCode::Cancelled => "cancelled",
+            ErrorCode::NetworkError => "network_error",
         }
     }
 }

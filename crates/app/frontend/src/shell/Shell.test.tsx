@@ -1,11 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { MoreModel, ScreenModel, WatchInfo } from "../model/screens";
 import { Shell } from "./Shell";
 
 const venu2: WatchInfo = { model: "Venu 2", modelPart: "006-B3703-00", software: "19.05", confirmedSoftware: ["19.05"] };
-const more: MoreModel = { restorable: true, seen: null, reportText: null, version: "0.4.0" };
+const more: MoreModel = { restorable: true, seen: null, reportText: null, version: "0.4.0", update: null };
 const install: ScreenModel = {
   screen: "watch",
   watch: venu2,
@@ -107,6 +107,28 @@ describe("Shell", () => {
     const { onLanguage } = setup(install, "ka");
     fireEvent.click(screen.getByRole("button", { name: "English" }));
     expect(onLanguage).toHaveBeenCalledWith("en");
+  });
+
+  it("shows the update note only for a newer version, outside the footer, in both places (§12)", () => {
+    const onAction = vi.fn();
+    const shell = (update: string | null, lang: "en" | "ka" = "en") => (
+      <Shell model={install} more={{ ...more, update }} lang={lang} platform="macos" onAction={onAction} onLanguage={vi.fn()} />
+    );
+    const view = render(shell(null));
+    expect(screen.queryByRole("button", { name: /is available/ })).toBeNull();
+    view.rerender(shell("0.5.0"));
+    const note = screen.getByRole("button", { name: "Version 0.5.0 is available" });
+    expect(note.closest("footer")).toBeNull();
+    expect(note.getAttribute("data-main-action")).toBeNull();
+    fireEvent.click(note);
+    expect(onAction).toHaveBeenLastCalledWith("open_update");
+    fireEvent.click(screen.getByRole("button", { name: /More/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Version 0.5.0 is available" }));
+    expect(onAction).toHaveBeenLastCalledWith("open_update");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    view.rerender(shell("0.5.0", "ka"));
+    expect(screen.getByRole("button", { name: "გამოვიდა პროგრამის ახალი ვერსია 0.5.0" })).toBeTruthy();
   });
 
   it("leaves room for the traffic lights by the window's chrome, not the platform's words", () => {

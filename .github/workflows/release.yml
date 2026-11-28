@@ -175,7 +175,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libwebkit2gtk-4.1-dev librsvg2-dev \
-            xdg-utils file
+            xdg-utils file musl-tools
 
       # Manual runs only: tag builds stay cold, so published binaries never depend on cache contents.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3

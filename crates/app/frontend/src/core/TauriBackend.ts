@@ -8,6 +8,7 @@ import { Channel, type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api
 
 import { type Backend, isFailure, type Lang, type Platform } from "./backend";
 import type {
+  CheckUpdateOutput,
   DiagnoseInput,
   DiagnoseOutput,
   Failure,
@@ -97,6 +98,14 @@ export class TauriBackend implements Backend {
 
   openIssue(issue: number): Promise<string> {
     return this.call("open_issue", { issue });
+  }
+
+  checkUpdate(): Promise<CheckUpdateOutput> {
+    return this.call("check_update");
+  }
+
+  openUpdate(): Promise<string> {
+    return this.call("open_update");
   }
 
   openWatchList(): Promise<string> {
