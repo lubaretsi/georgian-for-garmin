@@ -106,8 +106,10 @@ Builds add Georgian to the Noto Sans Armenian and Noto Sans Hebrew fonts: the Fo
 opened notifications (#69). The Swiss 721 Hebrew fonts of the fenix 6
 and Instinct 3 are restore-only in every build: on a fenix 6S Pro our font reached the watch (its
 hidden listing showed `006-D0952-07/-08.bin ro georgian_beta`), the font's Georgian Unicode
-range bit was set, and the watch still drew question marks (#6). The fenix 6 models are
-unsupported; the app shows why, links the issue and restores Garmin's originals. The Instinct 3
+range bit was set, and the watch still drew question marks (#6). On an Instinct 3 AMOLED 50mm
+(16.12), 0.3.0-beta.2 installed it, and its owner wrote that Georgian still wasn't displayed
+correctly (#74). The fenix 6 models are unsupported; the app shows why, links the issue and
+restores Garmin's originals. The Instinct 3
 AMOLED's reports (#8, #23, #33) also declare Garmin's Korean bitmap fonts, so 0.3.4 added
 Georgian to its Korean 19 px font (`006-D8945-07`). On two 45mm watches (16.12) that install
 wrote and verified the font, and after the restart notifications still showed boxes and question
