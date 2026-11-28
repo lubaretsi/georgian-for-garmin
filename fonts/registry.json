@@ -662,7 +662,7 @@
     {
       "model": "Instinct 3 AMOLED 50mm",
       "model_part": "006-B4587-00",
-      "issues": [57, 8, 33],
+      "issues": [57, 8, 33, 74],
       "unsupported": {"software": ["15.19", "16.12"], "reason": "korean_font_unused"}
     },
     {

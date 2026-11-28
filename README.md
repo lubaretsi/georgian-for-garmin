@@ -72,7 +72,7 @@ a watch's issue for updates.
 | Forerunner 245 Music | 13.70 | Doesn't work ([#10](https://github.com/lubaretsi/georgian-for-garmin/issues/10)). Its only optional fonts are emoji fonts, which have no letters to add Georgian to. |
 | fenix 5 | 25.00 | Doesn't work ([#30](https://github.com/lubaretsi/georgian-for-garmin/issues/30), [#29](https://github.com/lubaretsi/georgian-for-garmin/issues/29)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
 | Instinct 2 Solar Tactical | 17.22 | Doesn't work ([#38](https://github.com/lubaretsi/georgian-for-garmin/issues/38)). The app found no font on this watch it can add Georgian to: it connects only as a USB drive. |
-| Instinct 3 AMOLED 50mm | 15.19, 16.12 | Doesn't work ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), [#8](https://github.com/lubaretsi/georgian-for-garmin/issues/8), [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33)). Georgian added to its Korean 19 px font didn't show in notifications. |
+| Instinct 3 AMOLED 50mm | 15.19, 16.12 | Doesn't work ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), [#8](https://github.com/lubaretsi/georgian-for-garmin/issues/8), [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33), [#74](https://github.com/lubaretsi/georgian-for-garmin/issues/74)). Georgian added to its Korean 19 px font didn't show in notifications. |
 | Instinct 3 AMOLED 45mm | 16.12 | Doesn't work ([#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57), [#55](https://github.com/lubaretsi/georgian-for-garmin/issues/55), [#23](https://github.com/lubaretsi/georgian-for-garmin/issues/23)). Georgian added to its Korean 19 px font didn't show in notifications. |
 <!-- /watches -->
 

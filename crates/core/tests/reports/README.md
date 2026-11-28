@@ -28,7 +28,7 @@ the body, so one pasted into Notes (#35, #46) works too. A fixture may carry a `
 says beyond the allowlisted fields: `issue-29.json`'s form answer was "Georgian letters",
 although nothing was installed (`packs none`, connected as a USB drive); that is unexplained.
 
-Two fixtures are composed by hand and name their sources in `composed_from`:
+Three fixtures are composed by hand and name their sources in `composed_from`:
 
 - `issue-5-comment-7078836039.json` is the Forerunner 165's restore failure in
   [#5](https://github.com/lubaretsi/georgian-for-garmin/issues/5#issuecomment-7078836039) (app
@@ -42,6 +42,14 @@ Two fixtures are composed by hand and name their sources in `composed_from`:
   restart: the report `maintainer-venu2-georgian-imported.json` (taken after install and a
   restart) with its four hidden `006-D9035-01..04.fnt` at the stock sizes the watch showed
   (13181, 16676, 20720 and 27831 bytes) and classified `stock`.
+- `issue-74-beta-imported.json` is the Instinct 3 AMOLED 50mm of
+  [#74](https://github.com/lubaretsi/georgian-for-garmin/issues/74) after 0.3.0-beta.2's install
+  and a restart: #74's report (its declared list is #33's) with the hidden listing of
+  [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33) (the same model on 16.12),
+  where `006-D0952-07/-08.bin` hold beta.2's builds (50956 and 50708 bytes, `georgian_beta`) as
+  on the fenix 6S Pro ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810)),
+  and those two parts declared 0.00, as beta.2's builds were after the restart there
+  ([#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720)).
 
 The two `maintainer-venu2-*` fixtures come from the maintainer's own watch, not an issue, and
 say so in `source`. `the_venu_2_reads_its_imported_fonts` checks that imported Georgian reads
@@ -59,13 +67,16 @@ Korean parts and checks that only the short names are written and imported;
 `the_lily_2_active_never_writes_over_unknown_imports` checks that, with the imports' contents
 unknown as reported, nothing is written.
 
-The Instinct 3 AMOLED's reports (`issue-8`, `-23`, `-33`, `-55`, `-57`) are restore-only: 0.3.4
-installed Georgian in its Korean `006-D8945-07` on two 45mm watches (#55, #57), and after the
-restart notifications still didn't show it. `the_instinct_3_is_restore_only` checks each as
-reported, with 0.3.4's `-07` waiting as a `.tmp`, and, where the report lists the imports, with
-it imported (both composed: the 0.3.4 reports are from before installing): install refuses with
-`unsupported_device` and writes nothing, and restore writes only pinned originals, putting
-`-07`'s back wherever the watch holds our build.
+The Instinct 3 AMOLED's reports (`issue-8`, `-23`, `-33`, `-55`, `-57`, `-74`) are restore-only:
+0.3.4 installed Georgian in its Korean `006-D8945-07` on two 45mm watches (#55, #57), and after
+the restart notifications still didn't show it. On a 50mm, 0.3.0-beta.2 had installed it in the
+Swiss 721 Hebrew TrueType `006-D0952-07/-08` (#74), and its owner wrote that Georgian still
+wasn't displayed correctly. `the_instinct_3_is_restore_only` checks each, and
+`issue-74-beta-imported`, as reported, with 0.3.4's `-07` waiting as a `.tmp`, and, where the
+report lists the imports, with it imported (both composed: the 0.3.4 reports are from before
+installing): install refuses with `unsupported_device` and writes nothing, and restore writes
+only pinned originals: the Korean `-07` (staged again whatever its import holds), the Hebrew
+`-07/-08` wherever the watch holds our build or doesn't list them, and nothing else.
 
 | Fixture | Watch, software | App | Source |
 |---|---|---|---|
@@ -105,6 +116,8 @@ it imported (both composed: the 0.3.4 reports are from before installing): insta
 | `issue-55.json` | Instinct 3 AMOLED 45mm (006-B4586-00, "Instinct 3 - 45mm, AMOLED"), 16.12, from before installing, with the hidden listing; install then `staged_verified` `006-D8945-07`, and after the restart the answer was question marks | 0.3.4 | [#55](https://github.com/lubaretsi/georgian-for-garmin/issues/55), closed as a duplicate of #57 |
 | `issue-57.json` | Instinct 3 AMOLED 45mm (006-B4586-00), 16.12, as #55, the answer boxes ("squares with question marks" in its comment) | 0.3.4 | [#57](https://github.com/lubaretsi/georgian-for-garmin/issues/57) |
 | `issue-69.json` | Venu 3 (006-B4260-00), 17.51, its fonts as read before installing: TrueType `006-D9971-09` and `006-D1053-98` `stock`, an empty normal listing, with the hidden listing; install then `staged_verified` both, and the answer was Georgian letters in pop-ups and opened notifications (Android) | 0.4.1 | [#69](https://github.com/lubaretsi/georgian-for-garmin/issues/69) |
+| `issue-74.json` | Instinct 3 AMOLED 50mm (006-B4587-00, "Instinct 3 - 50mm, AMOLED"), 16.12: 0.3.0-beta.2 `staged_verified` its beta-marked Georgian (E, F) in the Swiss 721 Hebrew TrueType `006-D0952-08` and `-07`, declared 2.10, an empty normal listing, no hidden listing; the answers empty, and the note says Georgian still isn't displayed correctly after updating to 16.12 | 0.3.0-beta.2 | [#74](https://github.com/lubaretsi/georgian-for-garmin/issues/74) |
+| `issue-74-beta-imported.json` | Instinct 3 AMOLED 50mm, 16.12, after beta.2's install and a restart; composed from #74, #33's hidden listing and the fenix 6S Pro's (see above) | 0.3.0-beta.2 | [#74](https://github.com/lubaretsi/georgian-for-garmin/issues/74), [#33](https://github.com/lubaretsi/georgian-for-garmin/issues/33), [#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7080207810), [#6 comment](https://github.com/lubaretsi/georgian-for-garmin/issues/6#issuecomment-7078829720) |
 | `maintainer-venu2-georgian-imported.json` | Venu 2 (006-B3703-00), 19.05, after install and a restart: Georgian imported | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `maintainer-venu2-stock-imported.json` | Venu 2, 19.05, after restore-stock and a restart: Garmin's fonts imported; composed | 0.3.1 | the maintainer's watch, 2026-11-22 |
 | `email-lily2active.json` | Lily 2 Active (006-B4477-00), 5.10, before installing: CJK bitmap fonts and an emoji font under short names, with the hidden listing | 0.3.2 | maintainer email report, owner anonymized |

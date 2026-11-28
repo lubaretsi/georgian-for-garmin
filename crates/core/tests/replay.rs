@@ -712,37 +712,57 @@ fn the_fenix_6_stays_restore_only() {
     }
 }
 
-/// The Instinct 3 AMOLED, 50mm (#8, #33) and 45mm (#23, #55, #57): Georgian added to its Korean
-/// 19 px font `006-D8945-07` didn't show in notifications after 0.3.4 installed it (#55, #57), so
-/// the model is unsupported and that pack restore-only.
-const INSTINCT_3: [&str; 5] = [
+/// The Instinct 3 AMOLED, 50mm (#8, #33, #74) and 45mm (#23, #55, #57): Georgian added to its
+/// Korean 19 px font `006-D8945-07` didn't show in notifications after 0.3.4 installed it (#55,
+/// #57), so the model is unsupported and that pack restore-only. #74 is 0.3.0-beta.2's install
+/// in the Swiss 721 Hebrew TrueType `006-D0952-07/-08`, which didn't show Georgian either;
+/// `issue-74-beta-imported.json` is that watch with beta.2's builds imported.
+const INSTINCT_3: [&str; 7] = [
     "issue-8.json",
     "issue-23.json",
     "issue-33.json",
     "issue-55.json",
     "issue-57.json",
+    "issue-74.json",
+    "issue-74-beta-imported.json",
 ];
 
 /// Each Instinct 3 report as reported, with 0.3.4's `-07` waiting as a `.tmp`, and, where the
 /// report lists the watch's imports, with it imported (composed: the reports are from before
-/// installing). Install refuses with `unsupported_device` and writes nothing; restore writes only
-/// the pinned originals of the parts it restores, and puts `-07`'s back wherever the watch holds
-/// our build; after the restart Georgian is gone.
+/// installing). Install refuses with `unsupported_device` and writes nothing; restore writes
+/// only pinned originals: the Korean `-07`, and the Hebrew `-07/-08` where the watch holds our
+/// build or doesn't list them, and nothing else; after the restart none of our builds is left.
 #[test]
 fn the_instinct_3_is_restore_only() {
     let bundled = FontSet::bundled();
     let k07 = font_for(&bundled, "006-D8945-07").unwrap();
+    let hebrew = ["006-D0952-07.bin", "006-D0952-08.bin"];
     for name in INSTINCT_3 {
         let reported = imports_as_garmins(fixture(name), &bundled, &["006-D8945-07"]);
+        // Beta.2's Hebrew builds, where the watch holds them, have beta.2's sizes.
+        let beta: Vec<&str> = reported["hidden"]["files"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|f| f["file"] == "georgian_beta")
+            .map(|f| {
+                let file = f["name"].as_str().unwrap();
+                let font = font_for(&bundled, file).unwrap();
+                let beta2 = font.earlier.iter().find(|e| e.build == "0.3.0-beta.2");
+                assert_eq!(
+                    f["bytes"].as_u64(),
+                    beta2.map(|e| e.bytes),
+                    "{name}: {file} isn't beta.2's size"
+                );
+                file
+            })
+            .collect();
         let mut waiting = reported.clone();
         waiting["extdata"] = json!([{
             "name": "006-D8945-07.tmp", "bytes": k07.georgian.len(),
             "sha256": sha256_hex(&k07.georgian), "file": "georgian"
         }]);
-        let mut variants = vec![
-            ("as reported", reported.clone(), false),
-            ("waiting", waiting, true),
-        ];
+        let mut variants = vec![("as reported", reported.clone()), ("waiting", waiting)];
         if reported["hidden"]["status"] == "listed" {
             let mut imported = reported.clone();
             for file in imported["hidden"]["files"].as_array_mut().unwrap() {
@@ -751,10 +771,11 @@ fn the_instinct_3_is_restore_only() {
                     file["file"] = json!("georgian");
                 }
             }
-            variants.push(("imported", imported, true));
+            variants.push(("imported", imported));
         }
-        for (variant, fixture, ours) in variants {
+        for (variant, fixture) in variants {
             let at = format!("{name} {variant}");
+            let listed = fixture["hidden"]["status"] == "listed";
             let (watch, fonts) = Watch::from_fixture(&fixture);
             let out = watch.call("inspect", &fonts).unwrap();
             assert_eq!(out["supported"], false, "{at}");
@@ -790,24 +811,32 @@ fn the_instinct_3_is_restore_only() {
                 let font = font_for(&fonts, file).unwrap();
                 assert_eq!(*data, *font.stock, "{at}: {file}");
             }
-            if ours {
-                assert_eq!(restored["status"], "staged_verified", "{at}");
-                assert!(
-                    written.iter().any(|(file, _)| file == "006-D8945-07.tmp"),
-                    "{at}: restore didn't put back 006-D8945-07: {written:?}"
-                );
-            }
+            // The Korean part is staged whatever its import holds (the watch imports the same
+            // bytes again); a Hebrew `.bin` where it holds our build, or can't be read (it is in
+            // the hidden listing only).
+            let mut expected: Vec<&str> = if listed {
+                beta.clone()
+            } else {
+                hebrew.to_vec()
+            };
+            expected.push("006-D8945-07.tmp");
+            let mut names: Vec<&str> = written.iter().map(|(f, _)| f.as_str()).collect();
+            names.sort_unstable();
+            assert_eq!(names, expected, "{at}");
+            assert_eq!(restored["status"], "staged_verified", "{at}");
+
             watch.restart(&fonts);
-            assert!(
-                watch
-                    .0
-                    .borrow()
-                    .objects
-                    .values()
-                    .all(|o| o.data != *k07.georgian),
-                "{at}: our 006-D8945-07 is still on the watch"
-            );
             let s = watch.0.borrow();
+            let left: Vec<&str> = s
+                .objects
+                .values()
+                .filter(|o| o.origin == Origin::Ours)
+                .map(|o| o.info.filename.as_str())
+                .collect();
+            assert!(
+                left.is_empty(),
+                "{at}: our builds are still on the watch: {left:?}"
+            );
             assert!(s.violations.is_empty(), "{at}: {:?}", s.violations);
         }
     }
