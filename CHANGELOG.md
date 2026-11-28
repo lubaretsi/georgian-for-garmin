@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-28
+
 ### Added
 
 - The app tells you when a newer version is out: a small "Version 0.5.0 is available" link
@@ -608,7 +610,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same files locally.
 - Releases carry one `SHA256SUMS` for every platform.
 
-[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/lubaretsi/georgian-for-garmin/compare/v0.3.3...v0.3.4
