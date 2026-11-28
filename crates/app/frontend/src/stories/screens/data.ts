@@ -129,8 +129,11 @@ export function shareSummary(
   }
 }
 
-/** The More sheet's data for a watch (the flow builds it; internal words are allowed here). */
-export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean): MoreModel {
+/**
+ * The More sheet's data for a watch (the flow builds it; internal words are allowed here);
+ * `update`: a newer published version (§12).
+ */
+export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean, update: string | null = null): MoreModel {
   const l = copyFor(lang).more.seen.labels;
   return {
     restorable,
@@ -145,6 +148,7 @@ export function moreFor(lang: Lang, watch: WatchInfo | null, restorable: boolean
       : null,
     reportText: watch ? reportText("venu2", "issue_link-georgian") : null,
     version: "0.4.0",
+    update,
   };
 }
 

@@ -17,6 +17,7 @@ import { StepIndicator } from "../ui/StepIndicator";
 import { MAC_TOOLBAR_INSET } from "../ui/WindowFrame";
 import { type DemoWatchAction, DemoWatchBar } from "./DemoWatchBar";
 import { MoreSheet } from "./MoreSheet";
+import { UpdateNote } from "./UpdateNote";
 
 export type ShellProps = {
   model: ScreenModel;
@@ -197,6 +198,13 @@ export function Shell(props: ShellProps) {
             <div className="grow-[1.6]" />
           </div>
         </main>
+
+        {/* A newer version (§12): quiet, pinned under the scrolling content, never among the footer's actions. */}
+        {props.more.update ? (
+          <div inert={moreOpen} className="flex shrink-0 justify-center bg-canvas px-4 pb-1">
+            <UpdateNote version={props.more.update} copy={copy} onPress={() => props.onAction("open_update")} />
+          </div>
+        ) : null}
 
         {props.demo && props.onDemoWatch ? (
           <DemoWatchBar copy={copy} inert={moreOpen} onAction={props.onDemoWatch} />

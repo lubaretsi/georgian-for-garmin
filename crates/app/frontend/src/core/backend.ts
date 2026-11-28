@@ -4,6 +4,7 @@
 // types (types.gen.ts).
 
 import type {
+  CheckUpdateOutput,
   DiagnoseInput,
   DiagnoseOutput,
   Failure,
@@ -34,6 +35,13 @@ export interface Backend {
   openIssue(issue: number): Promise<string>;
   /** Opens the README's watch list; no arbitrary URLs. */
   openWatchList(): Promise<string>;
+  /**
+   * The core's `check_update` (§12): the latest release and whether it is newer. The app asks
+   * GitHub once per run; a second call gets the first one's result.
+   */
+  checkUpdate(): Promise<CheckUpdateOutput>;
+  /** Opens the page of the newer release `checkUpdate` found; no arbitrary URLs. */
+  openUpdate(): Promise<string>;
   phonePage(language: Lang): Promise<PhonePage>;
   /** Empty in stable builds. */
   testMarks(): Promise<MarkPicture[]>;

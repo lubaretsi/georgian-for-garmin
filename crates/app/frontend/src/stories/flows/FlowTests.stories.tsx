@@ -4,9 +4,9 @@
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import axe from "axe-core";
-import { expect, userEvent, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import type { MockOptions } from "../../mock/MockBackend";
+import { type MockOptions, newerRelease } from "../../mock/MockBackend";
 import { FlowStory, type FlowParts as Parts, parts, STEP_MS } from "./FlowStory";
 
 type Args = { options: MockOptions };
@@ -394,4 +394,36 @@ export const GarminModeWatchLocked: Story = {
     await simulate(p, "Plug in (Garmin mode)");
     await p.screen(p.copy.watch.install.titleConfirmed);
   },
+};
+
+const RELEASE_PAGE = "https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v0.5.0";
+
+/**
+ * A newer version is published (§12): the note under the watch screen and in More › About each
+ * open exactly that release's page, and the screen's main action stays Install Georgian.
+ */
+async function updateNotes(p: Parts) {
+  const name = p.fmt(p.copy.update.available, { version: "0.5.0" });
+  await p.screen(p.copy.watch.install.titleConfirmed);
+  const note = await p.button(name);
+  await expect(note.closest("footer")).toBeNull();
+  await userEvent.click(note);
+  await waitFor(() => expect(p.sim.getByTestId("sim-opened")).toHaveTextContent(RELEASE_PAGE), { timeout: STEP_MS });
+  await press(p, p.copy.header.more);
+  const dialog = await p.app.findByRole("dialog", { name: p.copy.more.title }, { timeout: STEP_MS });
+  await userEvent.click(within(dialog).getByRole("button", { name }));
+  await waitFor(() => expect(p.sim.getByTestId("sim-opened").querySelectorAll("li")).toHaveLength(2), { timeout: STEP_MS });
+  for (const opened of p.sim.getByTestId("sim-opened").querySelectorAll("li")) await expect(opened).toHaveTextContent(RELEASE_PAGE);
+  await expect(await p.button(p.copy.actions.install)).toHaveAttribute("data-main-action");
+}
+
+export const UpdateAvailable: Story = {
+  args: { options: { watch: "venu2", update: newerRelease("0.5.0") } },
+  play: ({ canvasElement, globals }) => updateNotes(parts(canvasElement, globals)),
+};
+
+export const UpdateAvailableEn: Story = {
+  args: { options: { watch: "venu2", update: newerRelease("0.5.0") } },
+  globals: { lang: "en" },
+  play: ({ canvasElement, globals }) => updateNotes(parts(canvasElement, globals)),
 };

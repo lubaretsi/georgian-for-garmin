@@ -33,6 +33,7 @@ Examples:
   georgian-for-garmin switch-to-mtp        # a watch connected in Garmin mode (garmin_mode)
   georgian-for-garmin diagnose --save diagnostics.txt   # diagnostic info to send us; no serial
                                                         # number or watch ID
+  georgian-for-garmin check-update --json  # the latest release, and whether it is newer
   echo '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"inspect\"}' | georgian-for-garmin rpc
   georgian-for-garmin mcp                  # an MCP server on stdio
   georgian-for-garmin --help --json        # MCP tool definitions
@@ -76,6 +77,9 @@ enum Command {
     /// Switch a watch connected in Garmin mode to file-transfer (MTP) mode, as Garmin Express
     /// does, and wait up to 15 s for it (macOS and Linux)
     SwitchToMtp(InputArgs),
+    /// Ask GitHub for the latest release and whether it is newer than this one (the only
+    /// command that goes online; it downloads nothing)
+    CheckUpdate(InputArgs),
     /// Copy one ExtData file to a new local file (development builds; reads the watch only)
     #[cfg(feature = "dev")]
     ReadFile(ReadFileArgs),
@@ -135,6 +139,7 @@ impl Command {
             Command::WaitForWatch(_) => "wait_for_watch",
             Command::Diagnose(_) => "diagnose",
             Command::SwitchToMtp(_) => "switch_to_mtp",
+            Command::CheckUpdate(_) => "check_update",
             #[cfg(feature = "dev")]
             Command::ReadFile(_) => "read_file",
             #[cfg(feature = "dev")]
@@ -552,7 +557,9 @@ fn request(command: &Command) -> Result<Value, Error> {
     let mut flags = Map::new();
     let input = match command {
         Command::Inspect(args) => &args.input,
-        Command::IssueLink(input) | Command::SwitchToMtp(input) => input,
+        Command::IssueLink(input) | Command::SwitchToMtp(input) | Command::CheckUpdate(input) => {
+            input
+        }
         Command::Diagnose(args) => &args.input,
         Command::InspectDrive(args) => {
             flag(&mut flags, "path", args.path.as_ref().map(|p| json!(p)));
@@ -751,6 +758,23 @@ fn print_human(operation: &str, out: &Value) {
                     "The watch was asked to switch to file-transfer (MTP) mode, but no MTP watch \
                      appeared within {waited:.0} s. Unplug it and connect it again, or choose \
                      MTP on the watch when it asks."
+                );
+            }
+            return;
+        }
+        "check_update" => {
+            if out["newer"] == true {
+                println!(
+                    "Version {} is available (this is {}): {}",
+                    text(&out["latest"]),
+                    text(&out["current"]),
+                    text(&out["url"])
+                );
+            } else {
+                println!(
+                    "No newer version: this is {}, and the latest release is {}.",
+                    text(&out["current"]),
+                    text(&out["latest"])
                 );
             }
             return;

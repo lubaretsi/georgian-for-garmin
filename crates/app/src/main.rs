@@ -11,7 +11,9 @@
 //! `share_report` opens the GitHub issue form filled in by the core's `issue_link`, `open_issue`
 //! a watch's issue from the support list and `open_watch_list` the README's list of watches;
 //! `share` draws the check screen's QR code and test-mark pictures. Diagnostic info is saved to
-//! the Downloads folder or copied, never sent.
+//! the Downloads folder or copied, never sent. `check_update` asks GitHub for the latest release
+//! once per run (the core's `check_update`, the app's one automatic request), and `open_update`
+//! opens the newer release's page it found.
 //!
 //! Debug builds print the JSON Schemas of the app's own types with `--schemas`, for the
 //! frontend's `pnpm gen:types`.
@@ -33,7 +35,7 @@ use std::borrow::Cow;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use georgian_for_garmin_core::busy::Busy;
 use georgian_for_garmin_core::error::Rollback;
@@ -41,7 +43,7 @@ use georgian_for_garmin_core::fonts::FontSet;
 use georgian_for_garmin_core::garmin_mode::GarminMode;
 use georgian_for_garmin_core::mtp::Mtp;
 use georgian_for_garmin_core::session::{self, Control, Session};
-use georgian_for_garmin_core::{Error, ErrorCode, ops, report};
+use georgian_for_garmin_core::{Error, ErrorCode, ops, report, update};
 use schemars::JsonSchema;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -54,7 +56,7 @@ use settings::ShareKey;
 
 /// An operation failure as the frontend receives it; `busy` only for `device_busy`,
 /// `garmin_mode` only for `garmin_mode`.
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 struct Failure {
     code: ErrorCode,
     message: String,
@@ -312,6 +314,81 @@ fn test_marks(watch: State<'_, Arc<Watch>>) -> Vec<share::MarkPicture> {
     share::mark_pictures(&watch.fonts)
 }
 
+/// The one update check of this run: the core's `check_update` output, or its failure. Every
+/// caller gets the first check's result, so a frontend that asks twice (a remount) sends one
+/// request.
+#[derive(Default)]
+struct Update(OnceLock<Result<Value, Failure>>);
+
+impl Update {
+    /// This run's check: `check` runs for the first caller; any caller meanwhile waits for it.
+    fn get(&self, check: impl FnOnce() -> Result<Value, Failure>) -> Result<Value, Failure> {
+        self.0.get_or_init(check).clone()
+    }
+
+    /// The page of the newer release this run's check found, if it found one.
+    fn newer_url(&self) -> Option<String> {
+        match self.0.get() {
+            Some(Ok(out)) if out["newer"] == true => out["url"].as_str().map(str::to_owned),
+            _ => None,
+        }
+    }
+}
+
+/// The core's `check_update`, without the watch, getting GitHub's answer through `http`.
+fn check_for_update(fonts: &FontSet, http: Box<update::Get<'_>>) -> Result<Value, Failure> {
+    let mut no_watch = || {
+        Err(Error::new(
+            ErrorCode::Internal,
+            "check_update opened the watch",
+        ))
+    };
+    let mut session =
+        Session::one_shot(Cow::Borrowed(fonts), Box::new(&mut no_watch)).with_http(http);
+    Ok(session.call("check_update", json!({}), &Control::NONE)?)
+}
+
+/// Where the update check gets GitHub's answer: the network.
+#[cfg(not(feature = "demo"))]
+fn update_http() -> Box<update::Get<'static>> {
+    Box::new(update::http_get)
+}
+
+/// The demo build answers the update check itself, never from the network.
+#[cfg(feature = "demo")]
+fn update_http() -> Box<update::Get<'static>> {
+    demo::http()
+}
+
+/// The latest release and whether it is newer than this build: asked of GitHub once per run, on
+/// a blocking thread, without holding the watch, so polling goes on meanwhile.
+#[tauri::command]
+async fn check_update(
+    watch: State<'_, Arc<Watch>>,
+    update: State<'_, Arc<Update>>,
+) -> Result<Value, Failure> {
+    let (watch, update) = (Arc::clone(&watch), Arc::clone(&update));
+    tauri::async_runtime::spawn_blocking(move || {
+        update.get(|| check_for_update(&watch.fonts, update_http()))
+    })
+    .await
+    .map_err(|e| Failure::internal(format!("check_update stopped unexpectedly: {e}")))?
+}
+
+/// Opens the page of the newer release `check_update` found and returns its link; no other
+/// page. The demo build opens nothing.
+#[tauri::command]
+fn open_update(app: AppHandle, update: State<'_, Arc<Update>>) -> Result<String, Failure> {
+    let url = update.newer_url().ok_or_else(|| {
+        Failure::from(Error::new(
+            ErrorCode::InvalidInput,
+            "no newer version was found in this run",
+        ))
+    })?;
+    open_url(&app, &url)?;
+    Ok(url)
+}
+
 /// Whether this build talks to the in-memory demo watch.
 #[tauri::command]
 fn demo_mode() -> bool {
@@ -563,6 +640,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(Watch::new(CONNECT)))
         .manage(Saved::default())
+        .manage(Arc::new(Update::default()))
         .setup(|app| {
             match app.get_webview_window("main") {
                 Some(main) => window::open(&main),
@@ -581,6 +659,8 @@ fn main() {
             share_report,
             open_issue,
             open_watch_list,
+            check_update,
+            open_update,
             phone_page,
             test_marks,
             demo_mode,
@@ -674,6 +754,70 @@ mod tests {
         assert_eq!(refused.kind(), io::ErrorKind::AlreadyExists);
         assert_eq!(fs::read_to_string(&path).unwrap(), "first");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A frontend that asks again, or twice at once (a remount), sends one request per run, and
+    /// every caller gets that request's result.
+    #[test]
+    fn the_update_check_runs_once_per_run() {
+        let update = Arc::new(Update::default());
+        let requests = Arc::new(AtomicUsize::new(0));
+        let threads: Vec<_> = (0..6)
+            .map(|_| {
+                let (update, requests) = (Arc::clone(&update), Arc::clone(&requests));
+                thread::spawn(move || {
+                    update.get(|| {
+                        requests.fetch_add(1, Ordering::SeqCst);
+                        thread::sleep(Duration::from_millis(20));
+                        Err(Failure::from(Error::new(
+                            ErrorCode::NetworkError,
+                            "offline",
+                        )))
+                    })
+                })
+            })
+            .collect();
+        for t in threads {
+            assert_eq!(t.join().unwrap().unwrap_err().code, ErrorCode::NetworkError);
+        }
+        let again = update.get(|| panic!("a second request"));
+        assert_eq!(again.unwrap_err().code, ErrorCode::NetworkError);
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
+        assert_eq!(update.newer_url(), None, "a failure opens nothing");
+    }
+
+    /// The demo's simulated release, through the core's `check_update`: the note's link opens
+    /// exactly that release's page, and nothing when there is no newer one.
+    #[test]
+    fn open_update_targets_the_newer_release_only() {
+        let fonts = FontSet::bundled();
+        let checked = |latest: Option<&str>| {
+            let update = Update::default();
+            let latest = latest.map(str::to_owned);
+            let _ = update.get(|| {
+                check_for_update(
+                    &fonts,
+                    Box::new(move |_, _| demo::release_answer(latest.as_deref())),
+                )
+            });
+            update
+        };
+        let newer = checked(Some("99.0.0"));
+        assert_eq!(
+            newer.newer_url().as_deref(),
+            Some("https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v99.0.0")
+        );
+        let out = newer.get(|| panic!("checked twice")).unwrap();
+        assert_eq!(out["current"], ops::APP_VERSION);
+        assert_eq!(out["latest"], "99.0.0");
+        assert_eq!(checked(Some(ops::APP_VERSION)).newer_url(), None);
+        assert_eq!(checked(Some("0.0.1")).newer_url(), None);
+        let offline = checked(None);
+        assert_eq!(offline.newer_url(), None);
+        assert_eq!(
+            offline.get(|| panic!("checked twice")).unwrap_err().code,
+            ErrorCode::NetworkError
+        );
     }
 
     #[cfg(debug_assertions)]

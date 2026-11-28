@@ -27,6 +27,7 @@ use crate::ops::{
     self, Connect, InspectDriveInput, InspectInput, Variant, parse, stage, stage_parts, to_value,
 };
 use crate::report::{self, IssueLinkInput};
+use crate::update::{self, CheckUpdateInput};
 
 /// One step of a long operation, for `notifications/progress`: `progress` grows with every
 /// step; `total` is known for file counts and timeouts.
@@ -143,6 +144,8 @@ pub struct Session<'a> {
     probe: Probe<'a>,
     /// How `switch_to_mtp` switches a watch in Garmin mode.
     switch: Box<Switch<'a>>,
+    /// How `check_update` gets GitHub's answer.
+    http: Box<update::Get<'a>>,
     #[cfg(feature = "dev")]
     staged_log: Option<std::path::PathBuf>,
     /// Whether `mtp_trace` turned the live trace on.
@@ -173,6 +176,7 @@ impl<'a> Session<'a> {
             },
             probe: Probe::system(),
             switch: Box::new(crate::switch_to_mtp),
+            http: Box::new(update::http_get),
             #[cfg(feature = "dev")]
             staged_log: crate::dev::default_log(),
             #[cfg(feature = "dev")]
@@ -203,6 +207,12 @@ impl<'a> Session<'a> {
     /// How `switch_to_mtp` switches a watch in Garmin mode, instead of this computer's USB.
     pub fn with_switch(mut self, switch: Box<Switch<'a>>) -> Self {
         self.switch = switch;
+        self
+    }
+
+    /// How `check_update` gets GitHub's answer, instead of this computer's network.
+    pub fn with_http(mut self, http: Box<update::Get<'a>>) -> Self {
+        self.http = http;
         self
     }
 
@@ -287,6 +297,10 @@ impl<'a> Session<'a> {
                 let drives = (self.probe.drives)();
                 let connection = watch.run(|dev, _| ops::inspect(dev, fonts));
                 to_value(diagnose::diagnose(fonts, events, usb, drives, connection))
+            }
+            "check_update" => {
+                let CheckUpdateInput {} = parse(input)?;
+                to_value(update::check_update(&mut *self.http, ops::APP_VERSION)?)
             }
             "switch_to_mtp" => {
                 let SwitchInput {} = parse(input)?;

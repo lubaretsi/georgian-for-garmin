@@ -346,6 +346,12 @@ verified result without a click on the watch's side.
 `GEORGIAN_FOR_GARMIN_DEMO_RECORDING=PLUG,UNPLUG,BACK` sets the three delays in seconds (for
 example `3,2.5,6`). It combines with `GEORGIAN_FOR_GARMIN_DEMO_WATCH`.
 
+The demo build never goes online, so its update check finds nothing unless
+`GEORGIAN_FOR_GARMIN_DEMO_UPDATE=0.9.0` (a version newer than the build's) answers it as if that
+were the latest release: then "Version 0.9.0 is available" shows under every screen and in
+More › About, and pressing it opens nothing, like every link in the demo. A recording
+(`GEORGIAN_FOR_GARMIN_DEMO_RECORDING`) never shows the note.
+
 The window opens at 480×720 logical pixels (`window.rs`, shortened only on short screens). A
 tiling window manager (yabai, AeroSpace, OmniWM, i3, Sway) resizes it like any other window.
 `index.html` checks the WebView first: an engine older than Safari 16.4's gets a ka/en update
@@ -399,7 +405,7 @@ the binaries don't depend on Nix. Nix only builds the fonts.
 
 ```sh
 scripts/build-macos-release.sh     # needs Xcode command-line tools, rustup and Nix
-scripts/build-linux-release.sh     # needs rustup, Nix, libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils file
+scripts/build-linux-release.sh     # needs rustup, Nix, libwebkit2gtk-4.1-dev librsvg2-dev xdg-utils file musl-tools
 ```
 
 The macOS build writes a universal app and CLI (Apple silicon and Intel, macOS 11 or later) to

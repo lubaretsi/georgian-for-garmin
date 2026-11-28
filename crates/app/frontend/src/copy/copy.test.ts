@@ -144,7 +144,7 @@ describe("plain words in the main flow (§2.3, §7)", () => {
     permission_denied: true, device_locked: true,
     unsupported_device: true, font_unavailable: true, garmin_folder_not_found: true, extdata_not_found: true,
     conflict: true, restore_first: true, restart_first: true, verification_failed: true, device_error: true, internal: true,
-    cancelled: true,
+    cancelled: true, network_error: true,
   };
   const HOLDERS: (Holder | null)[] = [
     null,
@@ -187,12 +187,17 @@ describe("plain words in the main flow (§2.3, §7)", () => {
   }
 
   it('ka: "ვერსია" never stands alone (it would read as the app\'s version)', () => {
-    const qualified = /(სისტემის (სხვა )?|პროგრამის (მომდევნო )?|სატესტო )ვერსი/g;
+    const qualified = /(სისტემის (სხვა )?|პროგრამის (მომდევნო |ახალი )?|სატესტო )ვერსი/g;
     for (const [key, text] of flat.ka) {
       const all = text.match(/ვერსი/g)?.length ?? 0;
       const ok = text.match(qualified)?.length ?? 0;
       expect(ok, `ka ${key}: ${text}`).toBe(all);
     }
+  });
+
+  it("the update note names the newer version in both languages (§12)", () => {
+    expect(fmt(en.update.available, { version: "0.5.0" })).toBe("Version 0.5.0 is available");
+    expect(fmt(ka.update.available, { version: "0.5.0" })).toBe("გამოვიდა პროგრამის ახალი ვერსია 0.5.0");
   });
 
   it('ka: "შეტყობინება" is only the phone notification, never the shared text', () => {

@@ -22,8 +22,10 @@ from garmin_fonts.watch import Mtp, Watch
 CLI = os.environ.get("GEORGIAN_FOR_GARMIN_CLI")
 pytestmark = pytest.mark.skipif(not CLI, reason="set GEORGIAN_FOR_GARMIN_CLI to a dev build of the CLI")
 
-# Operations the client deliberately has no method for, with why. None so far.
-OMITTED = {}
+# Operations the client deliberately has no method for, with why.
+OMITTED = {
+    "check_update": "asks GitHub for the app's latest release; nothing about the watch",
+}
 # Watch's own methods that send no operation.
 NOT_OPERATIONS = {"call", "close"}
 

@@ -6,7 +6,8 @@
 
 Download the archive for your computer from
 [Releases](https://github.com/lubaretsi/georgian-for-garmin/releases). The fonts are built in; it
-needs no other libraries, no driver and no internet connection.
+needs no other libraries, no driver and no internet connection. Only `check-update` goes online,
+and only when you run it.
 
 ### macOS
 
@@ -74,6 +75,7 @@ AppImage and the `.deb` alike (the `.deb` does the first one for you):
 | `wait-for-watch` | Waits until a watch can be opened, e.g. after it was unplugged and restarted, checking twice a second for up to `--timeout-seconds` (default 60). `no_device` and `device_error` are waited out; any other error ends the wait, `garmin_mode` too. Read-only. |
 | `diagnose` | Prints the diagnostic info we ask for when helping someone: app, system, the Garmin USB devices, what opening the watch gave, mounted watch volumes, the watch report, and the app's recent steps (`--input` `{"events": […]}`). No serial number or watch ID. `--save FILE` writes it to a new file instead; an existing file is never overwritten ([below](#diagnostic-info)). Read-only. |
 | `switch-to-mtp` | Switches a watch connected in Garmin mode (the `garmin_mode` error) to file-transfer (MTP) mode, as Garmin Express does, then waits up to 15 s for it to come back ([below](#garmin-mode)). Changes how the watch connects, no file. |
+| `check-update` | Asks GitHub for the latest published release and says whether it is newer than this one ([below](#checking-for-a-newer-version)). The only command that goes online; it downloads nothing. Read-only. |
 | `rpc` | Serves every command as JSON-RPC 2.0 on stdin and stdout, keeping the watch open between calls ([below](#sessions-rpc-and-mcp)). |
 | `mcp` | Serves every command as an MCP tool over stdio, with the official MCP SDK, keeping the watch open between calls. |
 
@@ -222,6 +224,28 @@ file name the watch declares for it (`006-D9035-03.tmp`, or the short form, as `
 a watch that declares that); a TrueType part replaces the watch's `<part>.bin`, and a failed run
 tries to write the original back ([Failed writes](#failed-writes)).
 
+### Checking for a newer version
+
+`check-update` sends one request to GitHub's REST API for the repository's latest release
+(`GET https://api.github.com/repos/lubaretsi/georgian-for-garmin/releases/latest`, which leaves
+out drafts and prereleases), with a 10 s timeout. It sends nothing about you or the watch: its
+`User-Agent` is just `georgian-for-garmin`. GitHub sees the request, and your IP address, as with
+any download. Nothing is downloaded or installed. `--json` returns:
+
+```json
+{"current": "0.4.1", "latest": "0.5.0", "newer": true,
+ "url": "https://github.com/lubaretsi/georgian-for-garmin/releases/tag/v0.5.0"}
+```
+
+- `current`: this program's version; `latest`: the latest release's, from its tag `v<version>`;
+- `newer`: `latest` is newer by [semver](https://semver.org/) precedence, so a prerelease build
+  (`0.5.0-beta.1`) sees its stable release (`0.5.0`) as newer;
+- `url`: that release's page, with its downloads, built from `latest`.
+
+No answer, a timeout, a refusal (GitHub allows 60 such requests an hour from one address) or an
+answer that isn't a release fails with `network_error`. The desktop app runs the same check once
+each time it starts, and shows a link to the release page when there is a newer version.
+
 ## Exit codes and errors
 
 Exit code 0 means success, 2 invalid input, 1 anything else.
@@ -246,6 +270,7 @@ Exit code 0 means success, 2 invalid input, 1 anything else.
 | `invalid_input` | The input doesn't match the command's schema | Check the arguments. |
 | `internal` | A bug | Please open an issue. |
 | `cancelled` | `rpc` or `mcp`: the client cancelled the call; what it had written was undone where possible (`rollback`) | Nothing; run it again when wanted. |
+| `network_error` | `check-update`: GitHub couldn't be reached, didn't answer within 10 s, refused the request (its limit on requests per hour from one address included), or answered with something that isn't a release | Check the internet connection, or try again later. |
 
 ### Failed writes
 

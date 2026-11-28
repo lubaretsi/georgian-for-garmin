@@ -453,7 +453,8 @@ impl Operation {
     }
 }
 
-// Behavior hints: the operations touch one attached watch (closed world). Staging a bitmap
+// Behavior hints: the operations touch one attached watch (closed world), but `check_update`,
+// which only asks GitHub for the latest release (open world). Staging a bitmap
 // part never replaces a file (a different one is a conflict). A TrueType part replaces the
 // watch's `<part>.bin`, so install and restore are destructive, but only a file identical to
 // Garmin's original or this build's Georgian one, both of which restore_stock and install can
@@ -463,7 +464,7 @@ impl Operation {
 // asked to. `diagnose` lists USB devices and volumes and reads the watch as `inspect` does.
 // `switch_to_mtp` changes only how the watch connects, no file, and a repeat has nothing more to
 // switch.
-static OPERATIONS: [Operation; 9] = [
+static OPERATIONS: [Operation; 10] = [
     Operation {
         name: "inspect",
         title: "Inspect watch",
@@ -650,6 +651,26 @@ static OPERATIONS: [Operation; 9] = [
         open_world: false,
         input: || schema_for!(crate::garmin_mode::SwitchInput),
         output: || schema_for!(crate::garmin_mode::SwitchOutput),
+    },
+    Operation {
+        name: "check_update",
+        title: "Check for a newer version",
+        description: "Ask GitHub for the latest published release of Georgian for Garmin (its \
+                      REST endpoint for a repository's latest release, which leaves out drafts \
+                      and prereleases) and compare it with this build: current (this build's \
+                      version), latest (the release's, from its tag v<version>), newer (latest \
+                      is newer by semver precedence, so a prerelease build sees its stable \
+                      release as newer) and url (that release's page, with its downloads). One \
+                      HTTPS request with a 10 s timeout, sending nothing about the user or the \
+                      watch; nothing is downloaded or installed. No answer, a timeout, a refusal \
+                      (GitHub's limit on requests per hour from one address included) or an \
+                      answer that isn't a release fails with network_error. Touches no watch.",
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: true,
+        input: || schema_for!(crate::update::CheckUpdateInput),
+        output: || schema_for!(crate::update::CheckUpdateOutput),
     },
 ];
 

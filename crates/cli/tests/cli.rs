@@ -33,7 +33,7 @@ fn json_error(out: &Output) -> Value {
     serde_json::from_slice(&out.stderr).expect("stderr is one JSON value")
 }
 
-const OPERATIONS: [&str; 9] = [
+const OPERATIONS: [&str; 10] = [
     "inspect",
     "install",
     "restore_stock",
@@ -43,6 +43,7 @@ const OPERATIONS: [&str; 9] = [
     "wait_for_watch",
     "diagnose",
     "switch_to_mtp",
+    "check_update",
 ];
 const DEV_OPERATIONS: [&str; 13] = [
     "read_file",
@@ -385,6 +386,40 @@ fn inspect_drive_names_a_missing_volume() {
     assert_eq!(out.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&out.stderr).unwrap();
     assert_eq!(error["error"]["code"], "garmin_folder_not_found");
+}
+
+/// `check-update` is the one open-world operation: read-only, touching no watch, and its input
+/// is refused before anything goes online.
+#[test]
+fn check_update_is_declared_open_world_and_checks_its_input_first() {
+    let out = run(&["check-update", "--help", "--json"], "");
+    assert_eq!(out.status.code(), Some(0));
+    let tools: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let tool = &tools["tools"][0];
+    assert_eq!(tool["name"], "check_update");
+    assert_eq!(
+        tool["annotations"],
+        json!({"title": "Check for a newer version", "readOnlyHint": true,
+               "destructiveHint": false, "idempotentHint": true, "openWorldHint": true})
+    );
+    assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+    let output = &tool["outputSchema"];
+    for key in ["current", "latest", "newer", "url"] {
+        assert!(output["properties"][key].is_object(), "{key}");
+        assert!(
+            output["required"].as_array().unwrap().contains(&json!(key)),
+            "{key}"
+        );
+    }
+
+    let error = json_error(&run(
+        &["check-update", "--input", "-", "--json"],
+        r#"{"channel": "beta"}"#,
+    ));
+    assert_eq!(error["error"]["code"], "invalid_input");
+
+    let out = run(&["-h"], "");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("check-update"));
 }
 
 #[test]

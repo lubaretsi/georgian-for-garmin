@@ -20,6 +20,7 @@ base64 = { workspace = true, optional = true }
 jsonschema.workspace = true
 roxmltree.workspace = true
 schemars.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -28,9 +29,14 @@ url.workspace = true
 
 [target.'cfg(not(windows))'.dependencies]
 nusb.workspace = true
+# check_update's one HTTPS request: rustls with built-in roots (the Linux CLI is static).
+ureq = { workspace = true, features = ["rustls"] }
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
+# Windows' own TLS (SChannel) and certificate store: no C code to build, so the Windows targets
+# still type-check from Linux.
+ureq = { workspace = true, features = ["native-tls-no-default"] }
 
 [dev-dependencies]
 # The UI fixtures (tests/ui_fixtures.rs) show the examples' support list.

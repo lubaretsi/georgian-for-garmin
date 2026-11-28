@@ -201,6 +201,16 @@ export class EffectRunner {
         );
         return;
       }
+      // Offline or any other failure shows nothing, and nothing asks again (§12).
+      case "check_update":
+        this.settle(
+          () => b.checkUpdate(),
+          (output) => ({ type: "update_checked", output }),
+        );
+        return;
+      case "open_update":
+        b.openUpdate().catch(() => undefined);
+        return;
       case "reveal_file":
         b.revealFile(effect.path).catch(() => undefined);
         return;
